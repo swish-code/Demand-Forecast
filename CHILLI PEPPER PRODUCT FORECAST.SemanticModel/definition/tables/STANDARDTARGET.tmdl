@@ -1,0 +1,100 @@
+table STANDARDTARGET
+	lineageTag: e6dac8af-f2f2-473a-a541-0e4ecf860a2d
+
+	column Brand
+		dataType: string
+		lineageTag: 6e3f7e65-cfa2-408d-a097-9b4ee41dbf11
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column Month
+		dataType: string
+		lineageTag: 3d3fb429-9be5-4877-9b43-c665b93fac97
+		summarizeBy: none
+		sourceColumn: Month
+
+		annotation SummarizationSetBy = Automatic
+
+	column Target
+		dataType: double
+		lineageTag: 87dd4037-761b-439d-9396-05606df2331f
+		summarizeBy: sum
+		sourceColumn: Target
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DateColumn =
+			
+			DATE(
+			    2026,
+			    SWITCH(
+			        TRUE(),
+			        STANDARDTARGET[MONTH] = "JANUARY", 1,
+			        STANDARDTARGET[MONTH] = "FEBRUARY", 2,
+			        STANDARDTARGET[MONTH] = "MARCH", 3,
+			        STANDARDTARGET[MONTH] = "APRIL", 4,
+			        STANDARDTARGET[MONTH] = "MAY", 5,
+			        STANDARDTARGET[MONTH] = "JUNE", 6,
+			        STANDARDTARGET[MONTH] = "JULY", 7,
+			        STANDARDTARGET[MONTH] = "AUGUST", 8,
+			        STANDARDTARGET[MONTH] = "SEPTEMBER", 9,
+			        STANDARDTARGET[MONTH] = "OCTOBER", 10,
+			        STANDARDTARGET[MONTH] = "NOVEMBER", 11,
+			        STANDARDTARGET[MONTH] = "DECEMBER", 12
+			    ),
+			    1
+			)
+		formatString: General Date
+		lineageTag: bc70fc51-92e4-4c91-8adb-8bbdbfaf198b
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: a479a71d-97f1-4daf-9de2-22875fe48cc4
+			defaultHierarchy: LocalDateTable_414f4e23-6cad-475c-8c6d-970738dd9810.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Adjusted Target'
+		dataType: double
+		lineageTag: 411222fd-889e-4f3d-be9b-76a4b4f03f76
+		summarizeBy: sum
+		sourceColumn: Adjusted Target
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column RRR
+		dataType: double
+		lineageTag: 9ceff072-741c-4d5a-96ac-3539503518dc
+		summarizeBy: sum
+		sourceColumn: RRR
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition STANDARDTARGET = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_elsayed_swishhh_net/Documents/Yelo%20Run%20Rate.xlsx"), null, true),
+				    #"SEASONALITY BRANCH_Sheet" = Source{[Item="STANDARDTARGET",Kind="Sheet"]}[Data],
+				    #"Promoted Headers1" = Table.PromoteHeaders(#"SEASONALITY BRANCH_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Target", type number}, {"Brand", type text}, {"Month", type text}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each ([Month] <> null)),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Adjusted Target", type number}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type1",{"Column6", "Column7", "Column8", "Column9", "Column10", "Column11", "Column12", "Column13", "Column14", "Column15", "Column16", "Column17", "Column18", "Column19", "Column20", "Column21", "Column22", "Column23", "Column24", "Column25", "Column26", "Column27", "Column28", "Column29", "Column30", "Column31", "Column32", "Column34", "Column35", "Column36", "Column37", "Column38", "Column39", "Column40", "Column41", "Column42", "Column43", "Column44", "Column45", "Column46", "Column47", "Column48", "Column49", "Column50", "Column51", "Column52", "Column53", "Column54", "Column55", "Column56", "Column57", "Column58", "Column59", "Column60", "Column61", "Column62", "Column63", "Column64", "Column65", "Column66", "Column67", "Column68", "Column69", "Column70", "Column71", "Column72", "Column73", "Column74", "Column75", "Column76", "Column77", "Column78", "Column79", "Column80", "Column81", "Column82", "Column83", "Column84", "Column85", "Column86", "Column87", "Column88", "Column89", "Column90", "Column91", "Column92", "Column93", "Column94", "Column95", "Column96", "Column97", "Column98", "Column99", "Column100", "Column101", "Column102", "Column103", "Column104", "Column105", "Column106", "Column107", "Column108", "Column109", "Column110", "Column111", "Column112", "Column113", "Column114", "Column115", "Column116", "Column117", "Column118", "Column119", "Column120", "Column121", "Column122", "Column123", "Column124", "Column125", "Column126", "Column127", "Column128", "Column33"}),
+				    #"Changed Type2" = Table.TransformColumnTypes(#"Removed Columns",{{"RRR", type number}})
+				in
+				    #"Changed Type2"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

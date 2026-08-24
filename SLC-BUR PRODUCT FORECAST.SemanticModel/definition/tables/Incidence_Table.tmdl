@@ -1,0 +1,366 @@
+table Incidence_Table
+	lineageTag: 5f392655-3864-43eb-9411-02b7011b3783
+
+	column 'Denominator (Total Orders)'
+		formatString: 0
+		lineageTag: 3b3a8534-a8e8-4118-afc7-b63a79d20013
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Denominator (Total Orders)]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Numerator (Total Qty)'
+		lineageTag: 634581ce-a302-4ec0-8a68-22e42cd95fc5
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Numerator (Total Qty)]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Actual Incidence Rate %' =
+			
+			DIVIDE(
+			    Incidence_Table[Numerator (Total Qty)],
+			    Incidence_Table[Denominator (Total Orders)],
+			    0
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 954388ae-09bd-4618-8834-f47ef1b935c8
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Incidence Rate % Final' = ```
+			
+			
+			VAR _currentItem  = Incidence_Table[CleanNewItemID]
+			VAR _currentLoc   = Incidence_Table[CleanLocationID]
+			VAR _currentDate  = Incidence_Table[VOUCHERDATE]
+			VAR _currentChain = Incidence_Table[CHAINID]
+			
+			VAR _monthStart  = _currentDate - 28
+			VAR _week1Date   = _currentDate - 7
+			VAR _week2Date   = _currentDate - 14
+			
+			-- =====================================
+			-- 1. RECENCY-WEIGHTED 28 DAY INCIDENCE
+			-- =====================================
+			
+			VAR _history =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]      = _currentItem  &&
+			        Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			        Incidence_Table[CHAINID]     = _currentChain &&
+			        Incidence_Table[VOUCHERDATE] > _monthStart   &&
+			        Incidence_Table[VOUCHERDATE] < _currentDate
+			    )
+			
+			VAR _weightedNumerator =
+			    SUMX(
+			        SUMMARIZE(
+			            _history,
+			            Incidence_Table[VOUCHERDATE],
+			            "DailyQty", MAX(Incidence_Table[Numerator (Total Qty)]),
+			            "Age",      DATEDIFF(Incidence_Table[VOUCHERDATE], _currentDate, DAY)
+			        ),
+			        [DailyQty] * EXP(-0.08 * [Age])
+			    )
+			
+			VAR _weightedDenominator =
+			    SUMX(
+			        SUMMARIZE(
+			            _history,
+			            Incidence_Table[VOUCHERDATE],
+			            "Orders", MAX(Incidence_Table[Denominator (Total Orders)]),
+			            "Age",    DATEDIFF(Incidence_Table[VOUCHERDATE], _currentDate, DAY)
+			        ),
+			        [Orders] * EXP(-0.08 * [Age])
+			    )
+			
+			VAR _rollingRate =  
+			    DIVIDE(_weightedNumerator, _weightedDenominator, BLANK())
+			
+			
+			-- =====================================
+			-- 2. LAST WEEKDAY
+			-- =====================================
+			
+			VAR _week1Num =
+			    SUMX(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanNewItemID]      = _currentItem  &&
+			            Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			            Incidence_Table[CHAINID]     = _currentChain &&
+			            Incidence_Table[VOUCHERDATE] = _week1Date
+			        ),
+			        Incidence_Table[Numerator (Total Qty)]
+			    )
+			
+			VAR _week1Den =
+			    MAXX(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			            Incidence_Table[CHAINID]     = _currentChain &&
+			            Incidence_Table[VOUCHERDATE] = _week1Date
+			        ),
+			        Incidence_Table[Denominator (Total Orders)]
+			    )
+			
+			VAR _week1Rate =
+			    DIVIDE(_week1Num, _week1Den, BLANK())
+			
+			
+			-- =====================================
+			-- 3. TWO WEEKS AGO
+			-- =====================================
+			
+			VAR _week2Num =
+			    SUMX(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanNewItemID]      = _currentItem  &&
+			            Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			            Incidence_Table[CHAINID]     = _currentChain &&
+			            Incidence_Table[VOUCHERDATE] = _week2Date
+			        ),
+			        Incidence_Table[Numerator (Total Qty)]
+			    )
+			
+			VAR _week2Den =
+			    MAXX(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			            Incidence_Table[CHAINID]     = _currentChain &&
+			            Incidence_Table[VOUCHERDATE] = _week2Date
+			        ),
+			        Incidence_Table[Denominator (Total Orders)]
+			    )
+			
+			VAR _week2Rate =
+			    DIVIDE(_week2Num, _week2Den, BLANK())
+			
+			
+			-- =====================================
+			-- 4. WEIGHTED WEEKDAY MEMORY
+			-- =====================================
+			
+			VAR _weekdayRate =
+			    SWITCH(
+			        TRUE(),
+			        NOT ISBLANK(_week1Rate) && NOT ISBLANK(_week2Rate),
+			            (_week1Rate * 0.7) + (_week2Rate * 0.3),
+			        NOT ISBLANK(_week1Rate),
+			            _week1Rate,
+			        NOT ISBLANK(_week2Rate),
+			            _week2Rate,
+			        BLANK()
+			    )
+			
+			
+			-- =====================================
+			-- 5. SELL FREQUENCY CONFIDENCE
+			-- =====================================
+			
+			VAR _daysSold =
+			    COUNTROWS(
+			        FILTER(
+			            _history,
+			            Incidence_Table[Numerator (Total Qty)] > 0
+			        )
+			    )
+			
+			VAR _sellFreq =
+			    DIVIDE(_daysSold, 28, 0)
+			
+			
+			-- =====================================
+			-- 6. ADAPTIVE BLENDING
+			-- =====================================
+			
+			VAR _weekdayWeight =
+			    IF(_sellFreq >= 0.50, 0.50, 0.25)
+			
+			VAR _rollingWeight =
+			    1 - _weekdayWeight
+			
+			VAR _blendedRate =
+			    IF(
+			        NOT ISBLANK(_rollingRate) || NOT ISBLANK(_weekdayRate),
+			        IF(
+			            NOT ISBLANK(_weekdayRate),
+			            (_rollingRate * _rollingWeight) + (_weekdayRate * _weekdayWeight),
+			            _rollingRate
+			        ),
+			        BLANK()
+			    )
+			
+			
+			-- =============================================
+			-- 7. DRASTIC CHANGE DETECTION (LAST 7 DAYS)
+			-- =============================================
+			
+			-- Raw last-7-days rate: total qty / total orders
+			VAR _last7History =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]      = _currentItem  &&
+			        Incidence_Table[CleanLocationID]  = _currentLoc   &&
+			        Incidence_Table[CHAINID]     = _currentChain &&
+			        Incidence_Table[VOUCHERDATE] > _week1Date    &&
+			        Incidence_Table[VOUCHERDATE] < _currentDate
+			    )
+			
+			VAR _last7Qty =
+			    SUMX(
+			        SUMMARIZE(
+			            _last7History,
+			            Incidence_Table[VOUCHERDATE],
+			            "DailyQty", MAX(Incidence_Table[Numerator (Total Qty)])
+			        ),
+			        [DailyQty]
+			    )
+			
+			VAR _last7Orders =
+			    SUMX(
+			        SUMMARIZE(
+			            _last7History,
+			            Incidence_Table[VOUCHERDATE],
+			            "DailyOrders", MAX(Incidence_Table[Denominator (Total Orders)])
+			        ),
+			        [DailyOrders]
+			    )
+			
+			VAR _last7Rate =
+			    DIVIDE(_last7Qty, _last7Orders, BLANK())
+			
+			-- Compare last 7 days rate vs blended rate
+			-- "Drastic" = more than 20% relative change in either direction
+			VAR _relativeChange =
+			    DIVIDE(
+			        ABS(_last7Rate - _blendedRate),
+			        _blendedRate,
+			        BLANK()
+			    )
+			
+			VAR _isDrastic =
+			    NOT ISBLANK(_last7Rate) &&
+			    NOT ISBLANK(_blendedRate) &&
+			    _relativeChange > 0.20
+			
+			
+			-- =====================================
+			-- RETURN
+			-- =====================================
+			
+			RETURN
+			IF(
+			    _isDrastic,
+			    _last7Rate,       -- Drastic shift detected: trust the last 7 days raw rate
+			    _blendedRate      -- Normal: use the adaptive blend as before
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 7abd0a89-9fa1-485c-b67d-be2e08f24de5
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column CHAINID
+		lineageTag: 7f5056a6-bb63-438f-91a9-d67193ea1428
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SLC[CHAINID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductName_Fixed_Option
+		lineageTag: bfa9b163-38a7-4dca-b6a3-dea8e9b7b861
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SLC[ProductName_Fixed_Option]
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		formatString: General Date
+		lineageTag: 97a17fd5-09ce-4cb9-817b-8f1e05868bc8
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SLC[VOUCHERDATE]
+
+		variation Variation
+			isDefault
+			relationship: 3514dc3e-b8f4-490c-8932-f51361617abf
+			defaultHierarchy: LocalDateTable_a93eb2ca-817f-4cfb-be50-c8c2f7e1340b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column CleanLocationID
+		lineageTag: aabaff97-b21b-4745-a017-4b3852d5fbbf
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SLC[CleanLocationID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CleanNewItemID
+		lineageTag: 0d64b6a5-722e-4802-9708-a32c6f29f9ec
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SLC[CleanNewItemID]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Incidence_Table = calculated
+		mode: import
+		source =
+				
+				
+				VAR _Numerator =
+				    SUMMARIZECOLUMNS(
+				        'SLC'[CleanNewItemID],
+				        'SLC'[CHAINID],
+				        'SLC'[CleanLocationID],
+				        'SLC'[ProductName_Fixed_Option],
+				        'SLC'[VOUCHERDATE],
+				
+				        KEEPFILTERS(
+				            FILTER(
+				                ALL('SLC'),
+				                NOT ISBLANK('SLC'[CleanNewItemID])
+				                    && 'SLC'[VOUCHERDATE] < TODAY()
+				            )
+				        ),
+				
+				        "Numerator (Total Qty)", SUM('SLC'[QTY])
+				    )
+				
+				RETURN
+				ADDCOLUMNS(
+				    _Numerator,
+				    "Denominator (Total Orders)",
+				        VAR _loc   = [CleanLocationID]
+				        VAR _date  = [VOUCHERDATE]
+				        VAR _chain = [CHAINID]
+				        RETURN
+				            MAXX(
+				                FILTER(
+				                    Incidence_Denominator,
+				                    Incidence_Denominator[CHAINID] = _chain
+				                        && Incidence_Denominator[CleanLocationID] = _loc
+				                        && Incidence_Denominator[VOUCHERDATE] = _date
+				                ),
+				                Incidence_Denominator[Denominator (Total Orders)]
+				            )
+				)
+
+	annotation PBI_Id = e0c0e6bbacf24d538ff0584be799a765
+

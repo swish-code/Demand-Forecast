@@ -1,0 +1,24 @@
+table Location_Table
+	lineageTag: 51a6c75a-8420-44d8-acf3-7910e76f1042
+
+	column LOCATIONID
+		lineageTag: fbfba3b1-1905-42e5-be6a-d9320176d137
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [LocationID]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Location_Table = calculated
+		mode: import
+		source =
+				
+				DISTINCT(
+				    SELECTCOLUMNS(
+				        forecast_product_table,
+				        "LOCATIONID", forecast_product_table[LOCATIONID]
+				    )
+				)
+
+	annotation PBI_Id = 95e2a4917c134833901c55c9a93222e1
+

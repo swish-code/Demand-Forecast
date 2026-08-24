@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "BBT PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "e7a01d25-99da-45af-af52-cf8a4030c2d7"
+  }
+}

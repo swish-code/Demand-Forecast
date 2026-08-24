@@ -1,0 +1,94 @@
+import 'dotenv/config'
+
+const bool = (v) => v === '1' || String(v).toLowerCase() === 'true'
+
+export const config = {
+  port: Number(process.env.PORT) || 7005,
+  demoMode: bool(process.env.DEMO_MODE),
+  cacheTtl: process.env.CACHE_TTL === undefined ? 120 : Number(process.env.CACHE_TTL),
+
+  /** Entra ID app registration. Same app serves the service principal today
+   *  and the interactive Microsoft sign-in flow later (redirectUri). */
+  ms: {
+    tenantId: process.env.MS_TENANT_ID,
+    clientId: process.env.MS_CLIENT_ID,
+    clientSecret: process.env.MS_CLIENT_SECRET,
+    redirectUri: process.env.MS_REDIRECT_URI,
+  },
+
+  /**
+   * Where the browser is sent back to after a Microsoft sign-in.
+   *
+   * In development the app is served by Vite on 7006 while the API answers the
+   * callback on 7005, so the two differ and this cannot be inferred.
+   */
+  appOrigin: process.env.APP_ORIGIN || 'http://localhost:7006',
+
+  /**
+   * Outgoing mail. Sent as `from` through Microsoft Graph using the same app
+   * registration above, which needs the Mail.Send application permission.
+   *
+   * `testTo` overrides every recipient when set — the safety catch that stops a
+   * test run reaching sixty branches.
+   */
+  mail: {
+    from: process.env.OUTLOOK_EMAIL,
+    testTo: process.env.MAIL_TEST_TO || null,
+    hour: process.env.MAIL_HOUR === undefined ? 7 : Number(process.env.MAIL_HOUR),
+    enabled: bool(process.env.MAIL_ENABLED),
+  },
+
+  pbi: {
+    workspaceId: process.env.PBI_WORKSPACE_ID,
+    datasetId: process.env.PBI_DATASET_ID,
+  },
+
+  /**
+   * Each brand is its OWN semantic model, so a brand is chosen before a query
+   * runs rather than filtered inside one. PBI_DATASETS is a comma-separated
+   * list of `code|Label|datasetId[|chain]`.
+   *
+   * Two models hold more than one chain (SLC-BUR has SLC + BUR, ERMG has
+   * MM + TBL). Those get one entry per brand pointing at the same dataset with
+   * `chain` set, so the picker still reads as one brand per row and the chain
+   * is applied as a filter automatically.
+   */
+  brands: parseBrands(process.env.PBI_DATASETS, process.env.PBI_DATASET_ID),
+}
+
+function parseBrands(raw, fallbackId) {
+  const list = String(raw || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [code, label, datasetId, chain] = entry.split('|').map((p) => (p || '').trim())
+      return code && datasetId ? { code, label: label || code, datasetId, chain: chain || null } : null
+    })
+    .filter(Boolean)
+
+  if (list.length) return list
+  return fallbackId ? [{ code: 'BBT', label: 'BBT', datasetId: fallbackId }] : []
+}
+
+/** Resolve a brand code to its dataset; unknown or missing falls back to the first. */
+export function resolveBrand(code) {
+  const list = config.brands
+  if (!list.length) return null
+  return list.find((b) => b.code.toLowerCase() === String(code || '').toLowerCase()) || list[0]
+}
+
+const REQUIRED = {
+  MS_TENANT_ID: () => config.ms.tenantId,
+  MS_CLIENT_ID: () => config.ms.clientId,
+  MS_CLIENT_SECRET: () => config.ms.clientSecret,
+  PBI_WORKSPACE_ID: () => config.pbi.workspaceId,
+  PBI_DATASETS: () => config.brands.length,
+}
+
+/** Env var names still missing for a live Power BI connection. */
+export function missingSettings() {
+  return Object.entries(REQUIRED)
+    .filter(([, get]) => !get())
+    .map(([name]) => name)
+}

@@ -1,0 +1,1370 @@
+table FORECAST
+	lineageTag: 247a305c-7ba9-48fa-91a3-395771b9d45e
+
+	measure RRRGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [RRR MTD],
+			        [RRR MTD],
+			        0
+			    ),
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 4615d964-5997-450e-a082-41f52042c5c8
+
+	measure 'RRR MTD' = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[RR_FIXED]),  -- Summing the NetSales column
+			    DATESMTD('FORECAST'[Date])  -- Filtering for the MTD period
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: ab17f076-f0df-4b9a-99bd-344aa549711d
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure FORECAST_MTD = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[D.TGTADJ]), 
+			    DATESMTD('FORECAST'[Date])  -- 'Date' is your date table column, replace if different
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 8014a32e-a594-49a0-ac16-04a97c64157e
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure FORECAST_YTD = ```
+			
+			VAR MinDateYear = YEAR(CALCULATE(MIN('FORECAST'[Date])))  -- Get the year of the minimum date
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[D.TARGET]),  -- Sum the forecast values
+			    FILTER(
+			        ALL('FORECAST'[Date]),  -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = MinDateYear  -- Include all rows for the year of the minimum date
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 011b6314-9332-4814-984f-6a550d74be04
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure FORECASTGROWTH = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [FORECAST_MTD],
+			        [FORECAST_MTD],
+			        0
+			    ),
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 126ef528-03da-4b81-ba2d-543a625ffe89
+
+	measure 'MoM Growth %' = ```
+			
+			VAR CurrentMonthValue = SUM('SALES DATA'[Net])
+			VAR PreviousMonthValue = 
+			    CALCULATE(
+			        SUM('SALES DATA'[Net]),
+			        PREVIOUSMONTH('SALES DATA'[VoucherDate])
+			    )
+			RETURN 
+			    IF(
+			        NOT ISBLANK(PreviousMonthValue),
+			        (CurrentMonthValue - PreviousMonthValue) / PreviousMonthValue,
+			        BLANK()
+			    )
+			
+			```
+		lineageTag: 34447172-b9aa-42c3-b119-76fdf8c79149
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure RUNRATE_MTD = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]), 
+			    DATESMTD('FORECAST'[Date])  -- 'Date' is your date table column, replace if different
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 0604750a-13e3-4d11-a05b-4002db84f7aa
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure RUNRATE_YTD = ```
+			
+			VAR MinDateYear = YEAR(CALCULATE(MIN('FORECAST'[Date]))) -- Get the year of the minimum date
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = MinDateYear -- Include all rows for the year of MinDate
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 0744968e-86b3-4842-af13-93ae9f7ee375
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure TotalNetAmount = ```
+			
+			SUM('SALES DATA'[Net])
+			
+			```
+		lineageTag: 9d7ff188-5737-4346-9041-b70b6ef0ce31
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: d5b4b017-ac35-4513-adac-573aaef091cd
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 23f3e20b-ae56-4053-9e3b-e2bf88af0ba2
+			defaultHierarchy: LocalDateTable_203a283f-61c9-4af3-8b65-0020c332700e.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'D. Forecast %'
+		dataType: double
+		formatString: 0.0000
+		lineageTag: f366c9d0-dc6a-425f-970b-5d6d932c79d8
+		summarizeBy: sum
+		sourceColumn: D. Forecast %
+
+		annotation SummarizationSetBy = Automatic
+
+	column Forecast
+		dataType: double
+		formatString: #,0
+		lineageTag: 98e6fa4c-5f7b-4ee0-b250-3ca1e054a915
+		summarizeBy: sum
+		sourceColumn: Forecast
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column 'Actual Sales' = ```
+			
+			IF(
+			    'FORECAST'[Date] < TODAY(),
+			    COALESCE(
+			        LOOKUPVALUE(
+			            'HEADER'[NetSales],
+			            'HEADER'[VoucherDate],    'FORECAST'[Date],
+			            'HEADER'[Brand],          'FORECAST'[Brand],
+			            'HEADER'[LOCATIONID],     'FORECAST'[LOCATIONID]  -- Fixed: added missing quote & comma
+			        ), 
+			        0
+			    ),
+			    BLANK()
+			)
+			```
+		formatString: 0
+		lineageTag: 8284b172-1995-4e61-b072-db3ab5aa2394
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthlyRunRate_MTD = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR MTDStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			
+			-- Cumulative Actual Sales, grouped by brand and location
+			VAR CumulativeActualSales = 
+			    CALCULATE(
+			        SUM('FORECAST'[Actual Sales]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] <= CurrentDate &&
+			            'FORECAST'[Date] >= MTDStart &&
+			            'FORECAST'[Effect] <> "Yes" &&
+			            NOT(ISBLANK('FORECAST'[D. Forecast %])) &&
+			            'FORECAST'[Brand] = EARLIER('FORECAST'[Brand]) &&
+			            'FORECAST'[LocationID] = EARLIER('FORECAST'[LocationID])  -- Group by LocationID
+			        )
+			    )
+			
+			-- Cumulative Forecast %, grouped by brand and location
+			VAR CumulativeForecast = 
+			    CALCULATE(
+			        SUM('FORECAST'[D. Forecast %]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] <= CurrentDate &&
+			            'FORECAST'[Date] >= MTDStart &&
+			            'FORECAST'[Effect] <> "Yes" &&
+			            'FORECAST'[Brand] = EARLIER('FORECAST'[Brand]) &&
+			            'FORECAST'[LocationID] = EARLIER('FORECAST'[LocationID])  -- Group by LocationID
+			        )
+			    )
+			
+			RETURN
+			IF(
+			    CumulativeForecast = 0 || ISBLANK(CumulativeForecast),
+			    0,
+			    DIVIDE(CumulativeActualSales, CumulativeForecast)
+			)
+			```
+		lineageTag: dd4f417c-9225-4bc0-8cf4-35b93893add8
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Yesterday = ```
+			FORECAST[Date] - 1
+			
+			```
+		formatString: General Date
+		lineageTag: 2654016e-33fb-466a-b7da-d376c36f81d0
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: 8bddb4d4-d1bc-47e2-bfd4-e8b18d9626d5
+			defaultHierarchy: LocalDateTable_2f34e67e-bdbd-47cc-8dca-e1aff8653956.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Yesterday Monthly RunRate' = ```
+			
+			VAR CurrentBrand = FORECAST[Brand]
+			VAR CurrentLocationID = FORECAST[LocationID]  -- Capture current row's LocationID
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX(FORECAST[MonthlyRunRate_MTD]),
+			        FILTER(
+			            FORECAST,
+			            FORECAST[Date] = TODAY() - 1 &&
+			            FORECAST[Brand] = CurrentBrand &&
+			            FORECAST[LocationID] = CurrentLocationID  -- Match by LocationID
+			        )
+			    )
+			RETURN
+			YesterdayRunRate
+			```
+		lineageTag: c9e80c4b-f0fc-4306-b38c-8c0385580d58
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Day = DAY(FORECAST[Date])
+		formatString: 0
+		lineageTag: 38d038ca-4551-429c-8648-2751a09e8d6f
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column DateCategorys = ```
+			
+			IF (
+			    'forecast'[Date] < TODAY(),
+			    "Actual",  -- Categorizes dates before today
+			    "Forecast" -- Categorizes today and future dates
+			)
+			
+			```
+		lineageTag: 4f1379f8-8f6d-425f-82ce-21bf459204e8
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Effect
+		dataType: string
+		lineageTag: 77e584aa-229d-4637-b1bd-97bbf40a2dd9
+		summarizeBy: none
+		sourceColumn: Effect
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrentMonthRunrate =
+			
+			IF(
+			    MONTH(FORECAST[Date]) = MONTH(TODAY()) &&
+			    YEAR(FORECAST[Date]) = YEAR(TODAY()), -- Ensure it is the current month
+			    IF(
+			        DAY(TODAY()) > 1, -- Start calculation from the 2nd day of the month
+			        IF(
+			            FORECAST[Actual Sales] = 0,
+			            FORECAST[D. Forecast %] * FORECAST[Yesterday Monthly RunRate],
+			            BLANK()
+			        ),
+			        BLANK() -- Exclude rows on the 1st day of the month
+			    ),
+			    BLANK() -- Exclude rows outside the current month
+			)
+		lineageTag: e11f6528-9ff4-4230-b2a8-b60b4299d4c0
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Totalsale = ```
+			
+			IF(
+			    NOT(ISBLANK(FORECAST[Actual Sales])), 
+			    FORECAST[Actual Sales], -- Use ActualSales if available
+			    IF(
+			        NOT(ISBLANK(FORECAST[CurrentMonthRunrate])), 
+			        FORECAST[CurrentMonthRunrate], -- Use CurrentMonthRunrate if ActualSales is not available
+			        FORECAST[NextMonthRunrate] -- Use NextMonthRunrate as a fallback
+			    )
+			) 
+			```
+		formatString: #,0
+		lineageTag: c25e1b47-c282-4201-a117-30aab18b9ad2
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column Year_Forecast = YEAR(FORECAST[Date])
+		formatString: 0
+		lineageTag: 88fab542-86f2-4fc4-9fed-e852b6f32000
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column NextMonthRunrate =
+			
+			FORECAST[SeasonalEffectSales]*FORECAST[D. Forecast %]
+		lineageTag: 7e2d58eb-aacd-4591-9e7e-28a69cdd3c86
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Brand
+		dataType: string
+		lineageTag: 259a3cab-2e2c-44b0-9cc9-fcf7e16c3d11
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column Month_Forecast = MONTH(FORECAST[Date])
+		formatString: 0
+		lineageTag: 39b8a90e-aa16-46b1-bf88-0c6dbd97247c
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column SeasonalEffectSales = ```
+			
+			VAR CurrentYear = FORECAST[Year_Forecast]  -- Get Year from FORECAST[Year_Forecast]
+			VAR CurrentMonth = FORECAST[Month_Forecast]  -- Get Month from FORECAST[Month_Forecast]
+			VAR CurrentBrand = FORECAST[Brand]  -- Capture the current Brand from FORECAST[Brand]
+			
+			RETURN
+			LOOKUPVALUE(
+			    'Seasonal Effect test'[SeasonalMonth],  -- The column to return
+			    'Seasonal Effect test'[Brand], CurrentBrand,  -- Match Brand between tables
+			    'Seasonal Effect test'[Year_SeasonalEffect], CurrentYear,  -- Match Year
+			    'Seasonal Effect test'[Month_SeasonalEffect], CurrentMonth  -- Match Month
+			)
+			
+			```
+		lineageTag: caecf393-50c8-4071-9eaf-8c6f04b8ba3f
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column YesterdayMonthly = ```
+			
+			VAR PreviousDa = 'FORECAST'[Date] - 1
+			VAR CurrentBrand = 'FORECAST'[Brand]
+			VAR CurrentLocationID = 'FORECAST'[LocationID]  -- Capture current row's LocationID
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX('FORECAST'[MonthlyRunRate_MTD]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] = PreviousDa &&
+			            'FORECAST'[Brand] = CurrentBrand &&
+			            'FORECAST'[LocationID] = CurrentLocationID  -- Match by LocationID
+			        )
+			    )
+			RETURN
+			IF(DAY('FORECAST'[Date]) = 1, YesterdayRunRate * 'FORECAST'[SeasonalEffect], YesterdayRunRate)
+			```
+		lineageTag: cceadcad-8c1f-4bb9-ab65-aeff4a79e189
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MonthRunrate = ```
+			
+			    CALCULATE(
+			        LASTNONBLANK(FORECAST[YesterdayMonthly], 1) * LASTNONBLANK(FORECAST[D. Forecast %], 1),
+			        FORECAST[Date] <= TODAY() - 1
+			    ) 
+			
+			```
+		formatString: #,0
+		lineageTag: ad6ab7ae-8b3b-4d5e-a1b0-6b51667efa91
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column SeasonalEffect = ```
+			
+			VAR CurrentYear = FORECAST[Year_Forecast]  -- Get Year from FORECAST[Year_Forecast]
+			VAR CurrentMonth = FORECAST[Month_Forecast]  -- Get Month from FORECAST[Month_Forecast]
+			VAR CurrentBrand = FORECAST[Brand]  -- Capture the current Brand from FORECAST[Brand]
+			
+			RETURN
+			LOOKUPVALUE(
+			    'Seasonal Effect test'[Seasonal Effect],  -- The column to return
+			    'Seasonal Effect test'[Brand], CurrentBrand,  -- Match Brand between tables
+			    'Seasonal Effect test'[Year_SeasonalEffect], CurrentYear,  -- Match Year
+			    'Seasonal Effect test'[Month_SeasonalEffect], CurrentMonth  -- Match Month
+			)
+			
+			```
+		lineageTag: 37507512-25b5-4d5c-bc87-545feb7c9917
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CumulativeSeasonalEffect_Forecast = ```
+			
+			COALESCE(
+			    LOOKUPVALUE(
+			        'Seasonal Effect test'[Seasonal Effect], 
+			        'Seasonal Effect Test'[Date], 
+			        'FORECAST'[Date],
+			        'Seasonal Effect Test'[Brand], 
+			        'FORECAST'[Brand]  -- Match with Brand as well
+			    ),
+			    1
+			)
+			
+			```
+		lineageTag: 7cb025ce-f3e0-4d08-bcfc-df172d8e700b
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CUMULATIVE_MONTH_TARGET =
+			
+			VAR CurrentDate = TODAY()
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR MonthEnd = EOMONTH(CurrentDate, 0)
+			VAR ThisBrand = 'FORECAST'[Brand]
+			RETURN
+			IF(
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] <= MonthEnd &&
+			ISBLANK('FORECAST'[Actual Sales]),
+			CALCULATE(
+			SUM('FORECAST'[D. Forecast %]),
+			FILTER(
+			'FORECAST',
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] <= MonthEnd &&
+			ISBLANK('FORECAST'[Actual Sales]) &&
+			'FORECAST'[Brand] = ThisBrand
+			)
+			)
+			)
+		lineageTag: 63a02f73-6277-440f-9263-e1e4f55079de
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Remaining_RRR_For_CurrentMonth =
+			
+			VAR CurrentDate = TODAY()
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR MonthEnd = EOMONTH(CurrentDate, 0)
+			VAR ThisBrand = 'FORECAST'[Brand]
+			
+			VAR ActualSalesThisMonth =
+			CALCULATE(
+			SUM('FORECAST'[Actual Sales]),
+			FILTER(
+			'FORECAST',
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] <= MonthEnd &&
+			'FORECAST'[Brand] = ThisBrand
+			)
+			)
+			
+			RETURN
+			IF(
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] <= MonthEnd,
+			'FORECAST'[AdjustedTarget] - ActualSalesThisMonth,
+			BLANK()
+			)
+		lineageTag: a65a9146-df1a-4337-84ac-3b3e8b1ebffa
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Required_Run_Rate =
+			
+			VAR CurrentDate = TODAY()
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR MonthEnd = EOMONTH(CurrentDate, 0)
+			VAR NextMonthStart = EOMONTH(CurrentDate, 0) + 1
+			VAR NextMonthEnd = EOMONTH(CurrentDate, 1)
+			RETURN
+			IF(
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] <= MonthEnd &&
+			ISBLANK('FORECAST'[Actual Sales]),
+			DIVIDE(
+			'FORECAST'[D. Forecast %] * 'FORECAST'[Remaining_RRR_For_CurrentMonth],
+			'FORECAST'[CUMULATIVE_MONTH_TARGET]
+			),
+			IF(
+			'FORECAST'[Date] >= NextMonthStart &&
+			'FORECAST'[Date] <= NextMonthEnd,
+			'FORECAST'[AdjustedRRR] * 'FORECAST'[D. Forecast %]
+			)
+			)
+		lineageTag: e4dcc3d9-4ed0-4e52-a5f8-597b9d9686b7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column RRR_FUTURE =
+			
+			VAR CurrentDate = TODAY()
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR MonthEnd = EOMONTH(CurrentDate, 0)
+			RETURN
+			IF(
+			'FORECAST'[Date] < MonthStart || 'FORECAST'[Date] > MonthEnd,
+			'FORECAST'[AdjustedRRR] * 'FORECAST'[D. Forecast %],
+			BLANK()
+			)
+		formatString: #,0
+		lineageTag: 0bde3985-a948-427a-8b07-a24b67bdbdb2
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column RR_FIXED = FORECAST[D. Forecast %]*FORECAST[AdjustedRRR]
+		lineageTag: f13d15a9-0f03-4a68-916f-a7eaa17da31e
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Previous_CumulativeForecast_MTD = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR IsFirstDayOfMonth = CurrentDate = MonthStart
+			VAR Brand = 'FORECAST'[Brand]  -- Adjust if you have a different column name for Brand
+			VAR PreviousDate = CurrentDate - 1
+			RETURN
+			IF(
+			    IsFirstDayOfMonth,
+			    'FORECAST'[D. Forecast %],
+			    CALCULATE(
+			        SUM('FORECAST'[D. Forecast %]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] >= MonthStart &&
+			            'FORECAST'[Date] < CurrentDate &&
+			            'FORECAST'[Effect] <> "Yes" &&
+			            'FORECAST'[Brand] = Brand  -- Ensures the calculation is done per brand
+			        )
+			    )
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 83f47e0d-8b65-46aa-9561-d67e61591cde
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Index
+		type: calculated
+		lineageTag: 7d323920-6605-4b0f-b50d-0d7e540196f0
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation 436ba87b-9c83-4389-a31b-ebd06a36be98 = {"Expression":"\nRANKX(\nALLEXCEPT('FORECAST', 'FORECAST'[Brand]),\n'FORECAST'[Date],\n,\nASC,\nDENSE\n)"}
+
+		annotation 277cc1b9-af89-4597-8e15-cacc25c0886b = ```
+				A circular dependency was detected: FORECAST[Column].
+				
+				```
+
+	column RRR-REMAINING = ```
+			
+			IF (
+			    NOT ISBLANK('FORECAST'[AdjustedRRR]),
+			    'FORECAST'[AdjustedRRR] - 'FORECAST'[CumulativeActualSales_PrevDay]
+			)
+			
+			```
+		lineageTag: 429498fe-6757-4bd7-b490-24fb9d76b7c7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CumulativeActualSales_PrevDay =
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			RETURN
+			IF(
+			CurrentDate = MonthStart,
+			0,
+			CALCULATE(
+			SUM('FORECAST'[Actual Sales]),
+			FILTER(
+			ALLEXCEPT('FORECAST', 'FORECAST'[Brand]), -- keep brand context
+			'FORECAST'[Date] >= MonthStart &&
+			'FORECAST'[Date] < CurrentDate &&
+			'FORECAST'[Effect] <> "Yes"
+			)
+			)
+			)
+		lineageTag: b35c7929-3d23-4aa0-8b52-73150c5776fe
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Target% = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR MonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			RETURN
+			IF(
+			    CurrentDate = MonthStart, 
+			    1,  -- Show 100% (1) on the first day of the month
+			    1 - 'FORECAST'[Previous_CumulativeForecast_MTD]  -- For other days, subtract the cumulative forecast
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: fc494867-0508-41d3-9b85-16bf927f86c9
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column RR_TEST = ```
+			
+			IF (
+			    NOT ISBLANK('FORECAST'[Actual Sales]) && NOT ISBLANK('FORECAST'[AdjustedRRR]),
+			    ('FORECAST'[D. Forecast %] / 'FORECAST'[Target%]) * 'FORECAST'[RRR-REMAINING]
+			)
+			
+			```
+		lineageTag: cb62e6c0-104e-4dfe-b9c3-69e6ebf7cdd7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Required Run Rate Live' = ```
+			
+			IF (
+			    'FORECAST'[AdjustedRRR] > 0,
+			    'FORECAST'[Required_Run_Rate] + 'FORECAST'[RR_TEST],
+			    BLANK()
+			)
+			
+			
+			
+			```
+		lineageTag: f63079fd-141e-443d-b0e4-9351d08cb135
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ACCURACY = ```
+			
+			IF(
+			    NOT ISBLANK('FORECAST'[Actual Sales]),
+			    DIVIDE(
+			        'FORECAST'[Actual Sales] - 'FORECAST'[Required Run Rate Live],
+			        'FORECAST'[Required Run Rate Live]
+			    )
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 2986d636-2beb-422a-994d-e1f5f21a3aec
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column LAST1DAYSRR =
+			
+			IF(
+			    NOT ISBLANK('FORECAST'[Actual Sales]),
+			    'FORECAST'[MonthlyRunRate_Yesterday_From2nd] * 'FORECAST'[D. Forecast %],
+			    BLANK()
+			)
+		lineageTag: 841ae3fe-6b7e-4d24-8808-eb3516189ed9
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthlyRunRate_Yesterday_From2nd = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR CurrentBrand = 'FORECAST'[Brand]
+			VAR StartOfMont = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			VAR SecondOfMonth = StartOfMont + 1
+			VAR EndOfMont = EOMONTH(CurrentDate, 0)
+			VAR Yesterday = CurrentDate - 1
+			
+			VAR YesterdayActualSales =
+			    CALCULATE(
+			        SUM('FORECAST'[Actual Sales]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] = Yesterday &&
+			            'FORECAST'[Brand] = CurrentBrand &&
+			            'FORECAST'[Effect] <> "Yes"
+			        )
+			    )
+			
+			VAR YesterdayForecast =
+			    CALCULATE(
+			        SUM('FORECAST'[D. Forecast %]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] = Yesterday &&
+			            'FORECAST'[Brand] = CurrentBrand &&
+			            'FORECAST'[Effect] <> "Yes"
+			        )
+			    )
+			
+			RETURN
+			IF(
+			    CurrentDate >= SecondOfMonth && CurrentDate <= EndOfMont,
+			    IF(
+			        ISBLANK(YesterdayForecast) || YesterdayForecast = 0,
+			        0,
+			        DIVIDE(YesterdayActualSales, YesterdayForecast)
+			    ),
+			    BLANK()
+			)
+			
+			```
+		lineageTag: ea9c663d-fed2-41ce-8096-0a04a2816075
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Yesterday Monthly Run Rate 1 DAYS RRR' = ```
+			
+			VAR CurrentBrand = FORECAST[Brand]
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX(FORECAST[MonthlyRunRate_Yesterday_From2nd]),
+			        FILTER(
+			            FORECAST,
+			            FORECAST[Date] = TODAY() &&
+			            FORECAST[Brand] = CurrentBrand
+			        )
+			    )
+			RETURN
+			YesterdayRunRate
+			
+			```
+		lineageTag: 608f95c6-1ff3-43a8-8df3-0ba44d8a0a11
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CurrentMonthRunrateRR1 = ```
+			
+			IF(
+			    MONTH(FORECAST[Date]) = MONTH(TODAY()) &&
+			    YEAR(FORECAST[Date]) = YEAR(TODAY()),  -- Ensure it's the current month
+			    IF(
+			        DAY(FORECAST[Date]) >= 2,  -- Start showing from the 8th
+			        IF(
+			            FORECAST[Actual Sales] = 0,
+			            FORECAST[D. Forecast %] * FORECAST[Yesterday Monthly Run Rate 1 DAYS RRR],
+			            BLANK()
+			        ),
+			        BLANK()  -- Exclude rows before 8th
+			    ),
+			    BLANK()  -- Exclude rows outside the current month
+			)
+			
+			```
+		lineageTag: 8cfb7957-6646-4a38-aa44-2edadd1190ae
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LAST1DAYSTOTALSALES = ```
+			
+			IF(
+			    ISBLANK('FORECAST'[Actual Sales]),
+			    'FORECAST'[CurrentMonthRunrateRR1],
+			    'FORECAST'[Actual Sales]
+			)
+			
+			```
+		lineageTag: cc8cbebb-ec3b-4b64-bb03-6ce5fd7626c1
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MonthlyRunRate_Last7Days = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR CurrentBrand = 'FORECAST'[Brand]
+			VAR DayOfMonth = DAY(CurrentDate)
+			
+			RETURN
+			IF(
+			    DayOfMonth < 8,
+			    BLANK(),  -- Show blank for 1st to 7th of the month
+			    VAR StartDate = CurrentDate - 7
+			    VAR EndDate = CurrentDate - 1
+			
+			    VAR CumulativeActualSales =
+			        CALCULATE(
+			            SUM('FORECAST'[Actual Sales]),
+			            FILTER(
+			                'FORECAST',
+			                'FORECAST'[Date] >= StartDate &&
+			                'FORECAST'[Date] <= EndDate &&
+			                'FORECAST'[Brand] = CurrentBrand &&
+			                'FORECAST'[Effect] <> "Yes"
+			            )
+			        )
+			
+			    VAR CumulativeForecast =
+			        CALCULATE(
+			            SUM('FORECAST'[D. Forecast %]),
+			            FILTER(
+			                'FORECAST',
+			                'FORECAST'[Date] >= StartDate &&
+			                'FORECAST'[Date] <= EndDate &&
+			                'FORECAST'[Brand] = CurrentBrand &&
+			                'FORECAST'[Effect] <> "Yes"
+			            )
+			        )
+			
+			    RETURN
+			        IF(
+			            CumulativeForecast = 0 || ISBLANK(CumulativeForecast),
+			            0,
+			            DIVIDE(CumulativeActualSales, CumulativeForecast)
+			        )
+			)
+			
+			```
+		lineageTag: ade716c9-b21e-403b-a547-f4b808bec97d
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LAST7DAYSRR = ```
+			
+			IF(
+			    NOT ISBLANK('FORECAST'[Actual Sales]),
+			    'FORECAST'[MonthlyRunRate_Last7Days] * 'FORECAST'[D. Forecast %],
+			    BLANK()
+			)
+			
+			```
+		lineageTag: ce551bd0-91e6-43ad-a3b0-a5c33776993f
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LAST7DAYSTOTALSALES = ```
+			
+			IF(
+			    ISBLANK('FORECAST'[Actual Sales]),
+			    'FORECAST'[CurrentMonthRunrateRR7],
+			    'FORECAST'[Actual Sales]
+			)
+			
+			```
+		lineageTag: 652d841c-e491-4757-b491-269388547dc6
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrentMonthRunrateRR7 = ```
+			
+			VAR CurrentDate = 'FORECAST'[Date]
+			VAR CurrentBrand = 'FORECAST'[Brand]
+			VAR YesterdayRunRate =
+			    CALCULATE(
+			        MAX('FORECAST'[Yesterday Monthly Run Rate 7 DAYS RRR]),
+			        FILTER(
+			            'FORECAST',
+			            'FORECAST'[Date] = CurrentDate &&
+			            'FORECAST'[Brand] = CurrentBrand
+			        )
+			    )
+			RETURN
+			IF(
+			    MONTH(CurrentDate) = MONTH(TODAY()) &&
+			    YEAR(CurrentDate) = YEAR(TODAY()),  -- Ensure it's the current month
+			    IF(
+			        DAY(CurrentDate) >= 8,  -- Start showing from the 8th
+			        IF(
+			            'FORECAST'[Actual Sales] = 0,
+			            'FORECAST'[D. Forecast %] * YesterdayRunRate,
+			            BLANK()
+			        ),
+			        BLANK()
+			    ),
+			    BLANK()
+			)
+			
+			```
+		lineageTag: 4e63b6a4-e2a6-45f0-bdc7-40aa25fb1f1d
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Yesterday Monthly Run Rate 7 DAYS RRR' = ```
+			
+			VAR CurrentBrand = 'FORECAST'[Brand]
+			VAR YesterdayDate = TODAY()
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX(FORECAST[MonthlyRunRate_Last7Days]),
+			        FILTER(
+			            FORECAST,
+			            FORECAST[Date] = YesterdayDate &&
+			            FORECAST[Brand] = CurrentBrand
+			        )
+			    )
+			RETURN
+			YesterdayRunRate
+			
+			```
+		lineageTag: 815322d2-2245-4841-8396-6bd6a11e1432
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CumulativeSeasonalEffect_Forecast_effect = ```
+			
+			COALESCE(
+			    CALCULATE(
+			        MAX('Seasonal Effect Test'[Seasonal Effect after]),
+			        FILTER(
+			            'Seasonal Effect Test',
+			            'Seasonal Effect Test'[Date] = 'FORECAST'[Date] &&
+			            'Seasonal Effect Test'[Brand] = 'FORECAST'[Brand]
+			        )
+			    ),
+			    0
+			)
+			
+			```
+		lineageTag: d311881f-b6f1-41ac-91cb-398e18edb773
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column SeasonalEffect_Forecast_effect = ```
+			
+			COALESCE(
+			    CALCULATE(
+			        MAX('Seasonal Effect Test'[Seasonal Effect]),
+			        FILTER(
+			            'Seasonal Effect Test',
+			            'Seasonal Effect Test'[Date] = 'FORECAST'[Date] &&
+			            'Seasonal Effect Test'[Brand] = 'FORECAST'[Brand]
+			        )
+			    ),
+			    0
+			)
+			
+			```
+		lineageTag: 4757bad3-70b4-451b-bd38-41efac541613
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Required Run Rate TEST' = ```
+			
+			VAR CurrentRowDate = 'FORECAST'[Date]
+			VAR CurrentMonth = MONTH(CurrentRowDate)
+			VAR CurrentYear = YEAR(CurrentRowDate)
+			VAR CurrentDay = DAY(CurrentRowDate)
+			VAR ThisBrand = 'FORECAST'[Brand]
+			
+			-- Did RRR become > 0 on or before 15th of the same month for this brand?
+			VAR HasRRRBefore15 =
+			    CALCULATE(
+			        COUNTROWS('FORECAST'),
+			        FILTER(
+			            ALL('FORECAST'),
+			            'FORECAST'[AdjustedRRR] > 0 &&
+			            'FORECAST'[Brand] = ThisBrand &&
+			            MONTH('FORECAST'[Date]) = CurrentMonth &&
+			            YEAR('FORECAST'[Date]) = CurrentYear &&
+			            DAY('FORECAST'[Date]) <= 15
+			        )
+			    ) > 0
+			
+			-- Find first date from 15th onwards where accuracy crosses thresholds
+			VAR CutoffDate =
+			    CALCULATE(
+			        MIN('FORECAST'[Date]),
+			        FILTER(
+			            ALL('FORECAST'),
+			            'FORECAST'[Brand] = ThisBrand &&
+			            MONTH('FORECAST'[Date]) = CurrentMonth &&
+			            YEAR('FORECAST'[Date]) = CurrentYear &&
+			            DAY('FORECAST'[Date]) >= 15 &&
+			            (
+			                (DAY('FORECAST'[Date]) >= 15 && DAY('FORECAST'[Date]) <= 17 && 'FORECAST'[Accuracy] > 0.60) ||
+			                (DAY('FORECAST'[Date]) > 17 && DAY('FORECAST'[Date]) <= 20 && 'FORECAST'[Accuracy] > 0.50) ||
+			                (DAY('FORECAST'[Date]) > 20 && DAY('FORECAST'[Date]) <= 23 && 'FORECAST'[Accuracy] > 0.40) ||
+			                (DAY('FORECAST'[Date]) > 23 && DAY('FORECAST'[Date]) <= 25 && 'FORECAST'[Accuracy] > 0.30) ||
+			                (DAY('FORECAST'[Date]) > 25 && 'FORECAST'[Accuracy] > 0.20)
+			            )
+			        )
+			    )
+			
+			-- Core calculation
+			VAR BaseValue =
+			    IF(
+			        'FORECAST'[AdjustedRRR] > 0 &&
+			        (ISBLANK(CutoffDate) || CurrentRowDate < CutoffDate) &&
+			        (CurrentDay <= 15 || HasRRRBefore15),
+			        'FORECAST'[Required_Run_Rate] + 'FORECAST'[RR_TEST]
+			    )
+			
+			-- Final return: if BaseValue is blank, use RRR_FUTURE
+			RETURN
+			COALESCE(BaseValue, 'FORECAST'[RRR_FUTURE])
+			
+			```
+		dataType: int64
+		formatString: #,0
+		lineageTag: e3103ffe-a637-4b2f-802d-e9b7e12386d8
+		summarizeBy: sum
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+	column SeasonalEffectSales2 = ```
+			
+			VAR CurrentYear = FORECAST[Year_Forecast]  -- Get Year from FORECAST[Year_Forecast]
+			VAR CurrentMonth = FORECAST[Month_Forecast]  -- Get Month from FORECAST[Month_Forecast]
+			VAR CurrentBrand = FORECAST[Brand]  -- Capture the current Brand from FORECAST[Brand]
+			
+			RETURN
+			LOOKUPVALUE(
+			    'Seasonal Effect test'[SeasonalMonth2],  -- The column to return
+			    'Seasonal Effect test'[Brand], CurrentBrand,  -- Match Brand between tables
+			    'Seasonal Effect test'[Year_SeasonalEffect], CurrentYear,  -- Match Year
+			    'Seasonal Effect test'[Month_SeasonalEffect], CurrentMonth  -- Match Month
+			)
+			
+			```
+		lineageTag: f6a6718c-ba50-4c28-81dd-92aab8fdebec
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NextMonthRunrate2 =
+			
+			FORECAST[SeasonalEffectSales2]*FORECAST[D. Forecast %]
+		lineageTag: e43b8e56-1c61-4b12-8db0-933d8307fa36
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Totalsale2 = ```
+			
+			IF(
+			    NOT(ISBLANK(FORECAST[Actual Sales])), 
+			    FORECAST[Actual Sales], -- Use ActualSales if available
+			    IF(
+			        NOT(ISBLANK(FORECAST[CurrentMonthRunrate])), 
+			        FORECAST[CurrentMonthRunrate], -- Use CurrentMonthRunrate if ActualSales is not available
+			        FORECAST[NextMonthRunrate2] -- Use NextMonthRunrate as a fallback
+			    )
+			) 
+			```
+		formatString: #,0
+		lineageTag: a59a967f-f544-4973-bd4e-a81341c97236
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column Column18
+		dataType: string
+		lineageTag: 1f0c59bf-ad86-41f7-81a8-993c672e81eb
+		summarizeBy: none
+		sourceColumn: Column18
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column19
+		dataType: string
+		lineageTag: f5fded78-2f75-4720-9d68-f9bad893413e
+		summarizeBy: none
+		sourceColumn: Column19
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column20
+		dataType: string
+		lineageTag: 0ca8d92c-e6ea-45f3-b386-4b18986b5f99
+		summarizeBy: none
+		sourceColumn: Column20
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column21
+		dataType: string
+		lineageTag: 28668965-4a6e-4530-a55e-7d7a6aea13a1
+		summarizeBy: none
+		sourceColumn: Column21
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column22
+		dataType: string
+		lineageTag: 1bdeb536-f150-4ece-bba6-e080e8ba566d
+		summarizeBy: none
+		sourceColumn: Column22
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column17
+		dataType: string
+		lineageTag: 0435cac5-59c5-41eb-9372-a18780083dce
+		summarizeBy: none
+		sourceColumn: Column17
+
+		annotation SummarizationSetBy = Automatic
+
+	column Target =
+			
+			CALCULATE(
+			    MAX(STANDARDTARGET[TARGET]),
+			    FILTER(
+			        STANDARDTARGET,
+			        STANDARDTARGET[BRAND] = FORECAST[BRAND] &&
+			        YEAR(STANDARDTARGET[DateColumn]) = YEAR(FORECAST[Date]) &&
+			        MONTH(STANDARDTARGET[DateColumn]) = MONTH(FORECAST[Date])
+			    )
+			)
+		lineageTag: 03a89526-7378-4ae1-a8b2-46874a8d7ca6
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'D.TARGET' = FORECAST[Target]*FORECAST[D. Forecast %]
+		lineageTag: 57e116a7-a44e-493d-a2da-8dd503cfec0d
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column YearQuarter =
+			
+			YEAR(FORECAST[Date]) & " Q" & FORMAT(FORECAST[Date], "Q")
+		lineageTag: 86daeb90-e5a4-4035-9bcc-d9a533536fd1
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column BrandGroup =
+			
+			SWITCH(
+			    TRUE(),
+			    FORECAST[BRAND] IN {"BUR", "CHP", "SLC","PAT"}, "ETC",
+			    FORECAST[BRAND] IN {"TBL", "MM"}, "ERMG",
+			    FORECAST[BRAND]   -- else keep same
+			)
+		lineageTag: 01ed4b83-8798-462f-a413-04e7ecdfb6c3
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column BrandSortOrder =
+			
+			SWITCH(
+			    TRUE(),
+			    FORECAST[BRAND] IN {"BUR", "CHP", "SLC","PAT"}, 1,   -- ETC group
+			    FORECAST[BRAND] = "SS", 2,
+			    FORECAST[BRAND] = "BBT", 3,
+			    FORECAST[BRAND] = "MM", 4,
+			    FORECAST[BRAND] = "TBL", 5,
+			    FORECAST[BRAND] = "YP", 6,
+			    99
+			)
+		formatString: 0
+		lineageTag: ca0cdf42-b750-4710-b349-ddcf61de083a
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column AdjustedTarget =
+			
+			CALCULATE(
+			    MAX(STANDARDTARGET[Adjusted Target]),
+			    FILTER(
+			        STANDARDTARGET,
+			        STANDARDTARGET[BRAND] = FORECAST[BRAND] &&
+			        YEAR(STANDARDTARGET[DateColumn]) = YEAR(FORECAST[Date]) &&
+			        MONTH(STANDARDTARGET[DateColumn]) = MONTH(FORECAST[Date])
+			    )
+			)
+		lineageTag: 2e1c25cc-1242-4f5e-81d9-918fb3aba3d5
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'D.TGTADJ' = FORECAST[AdjustedTarget]*FORECAST[D. Forecast %]
+		formatString: #,0
+		lineageTag: 30f58fec-999f-4333-bc23-c92a7e7bc2ad
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column AdjustedRRR =
+			
+			CALCULATE(
+			    MAX(STANDARDTARGET[RRR]),
+			    FILTER(
+			        STANDARDTARGET,
+			        STANDARDTARGET[BRAND] = FORECAST[BRAND] &&
+			        YEAR(STANDARDTARGET[DateColumn]) = YEAR(FORECAST[Date]) &&
+			        MONTH(STANDARDTARGET[DateColumn]) = MONTH(FORECAST[Date])
+			    )
+			)
+		lineageTag: a39889e3-5cb0-47f9-a95b-5e9cbaad19d7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition FORECAST = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_elsayed_swishhh_net/Documents/Yelo%20Run%20Rate.xlsx"), null, true),
+				    #"All Brands_Sheet" = Source{[Item="All Brands",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"All Brands_Sheet", [PromoteAllScalars=true]),
+				    #"Removed Columns" = Table.RemoveColumns(#"Promoted Headers",{"Daily RunRate"}),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Removed Columns",{{"Date", type date}}),
+				    #"Removed Columns1" = Table.RemoveColumns(#"Changed Type",{"Weekday", "Actual"}),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Removed Columns1",{{"D. Forecast %", type number}, {"Forecast", type number}}),
+				    #"Removed Columns2" = Table.RemoveColumns(#"Changed Type1",{"Current Month Run Rate"}),
+				    #"Changed Type2" = Table.TransformColumnTypes(#"Removed Columns2",{{"Brand", type text}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Changed Type2", each [Brand] <> null),
+				    #"Removed Columns3" = Table.RemoveColumns(#"Filtered Rows",{"Column14", "Column13", "Column12", "Target"}),
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Removed Columns3",{{"RRR", Int64.Type}}),
+				    #"Removed Columns4" = Table.RemoveColumns(#"Changed Type3",{"RRR"}),
+				    #"Filtered Rows1" = Table.SelectRows(#"Removed Columns4", each ([Brand] = "PAT")),
+				    #"Removed Columns5" = Table.RemoveColumns(#"Filtered Rows1",{"Column15", "Column16"})
+				in
+				    #"Removed Columns5"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

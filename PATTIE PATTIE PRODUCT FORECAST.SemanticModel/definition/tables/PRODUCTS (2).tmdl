@@ -1,0 +1,126 @@
+table 'PRODUCTS (2)'
+	lineageTag: dcbf5bdb-a3e8-4c8f-9fa7-33b728956c00
+
+	column ID
+		dataType: string
+		lineageTag: 42de24ab-bce5-496e-804c-276f56e545c9
+		summarizeBy: none
+		sourceColumn: ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column SKU
+		dataType: string
+		lineageTag: 6fb46d3e-ab20-4384-8f82-ed4831d14941
+		summarizeBy: none
+		sourceColumn: SKU
+
+		annotation SummarizationSetBy = Automatic
+
+	column COST
+		dataType: double
+		lineageTag: c021c693-6f8f-4e60-925c-45c48fde9017
+		summarizeBy: sum
+		sourceColumn: COST
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NAME
+		dataType: string
+		lineageTag: 057d6462-270c-43ed-acfd-a59b6c33934d
+		summarizeBy: none
+		sourceColumn: NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column INDEX
+		dataType: double
+		lineageTag: e499348c-ca94-4a26-918f-30530cfd874b
+		summarizeBy: sum
+		sourceColumn: INDEX
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column PRICE
+		dataType: double
+		lineageTag: d9fe677f-0166-4a2b-8e33-009bc7434b94
+		summarizeBy: sum
+		sourceColumn: PRICE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column IS_ACTIVE
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: badca83a-c90d-4e36-bb7c-b4ffae328208
+		summarizeBy: none
+		sourceColumn: IS_ACTIVE
+
+		annotation SummarizationSetBy = Automatic
+
+	column CREATED_AT
+		dataType: string
+		lineageTag: 4bba0e1c-1776-4ff6-84e3-02249ab5e7df
+		summarizeBy: none
+		sourceColumn: CREATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column DELETED_AT
+		dataType: string
+		lineageTag: 3c27aa10-bb38-402f-ba6e-9d327747d083
+		summarizeBy: none
+		sourceColumn: DELETED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column UPDATED_AT
+		dataType: string
+		lineageTag: c55d5a0a-8a9f-44ee-b64c-c5023d69786c
+		summarizeBy: none
+		sourceColumn: UPDATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column COSTING_METHOD
+		dataType: double
+		lineageTag: 615f107d-ce70-4c3a-ace7-2abfabdd60c4
+		summarizeBy: sum
+		sourceColumn: COSTING_METHOD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NAME_LOCALIZED
+		dataType: string
+		lineageTag: ee272eb8-c928-40ad-b8e4-cf39308072f3
+		summarizeBy: none
+		sourceColumn: NAME_LOCALIZED
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'PRODUCTS (2)' = m
+		mode: import
+		source =
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+				    AIRBYTE_TBL_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_TBL",Kind="Schema"]}[Data],
+				    // Connect to Snowflake
+				    MODIFIER_OPTIONS_Table = AIRBYTE_TBL_Schema{[Name="MODIFIER_OPTIONS",Kind="Table"]}[Data],
+				    #"Removed Columns" = Table.RemoveColumns(MODIFIER_OPTIONS_Table,{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID"})
+				in
+				    #"Removed Columns"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

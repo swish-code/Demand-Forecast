@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "PATTIE PATTIE PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "7476146c-5a6b-4b83-9ede-ae9c6a7be7a2"
+  }
+}

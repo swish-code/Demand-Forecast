@@ -1,0 +1,721 @@
+table AOV_Table
+	lineageTag: 668df708-e1c2-4f6d-966f-f1d35b434d43
+
+	measure Total_Forecast_Qty = SUM(Forecast_Product_Table[Forecast_Qty_7(last 28+2)])
+		lineageTag: b7a32b17-05d9-485a-b58b-9e16879bb368
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Total_Actual_Qty = SUM(Forecast_Product_Table[Actual_Qty])
+		lineageTag: 8f8143b4-21ae-44e9-9ba1-82dd16f0383e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Forecast Accuracy %' =
+			
+			VAR _forecast = [Total_Forecast_Qty]
+			VAR _actual   = [Total_Actual_Qty]
+			RETURN
+			    1 - ABS( DIVIDE( _actual - _forecast, _forecast, 0 ) )
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 2112c5c3-8258-4732-8edb-cfeddc60f357
+
+	measure 'Forecast Qty Rank' =
+			
+			RANKX(
+			    ALL(Forecast_Product_Table[ProductName_Fixed_Option]),
+			    CALCULATE(SUM(Forecast_Product_Table[Forecast_Qty])),
+			    ,
+			    DESC,
+			    DENSE
+			)
+		formatString: 0
+		lineageTag: 1e0e96f6-b2eb-4f77-abfc-708b42c19df1
+
+	measure INC_Trust_Score_ =
+			
+			VAR _item        = SELECTEDVALUE(Forecast_Product_Table[Clean_ItemID])
+			VAR _loc         = SELECTEDVALUE(Forecast_Product_Table[LocationID])
+			VAR _prod        = SELECTEDVALUE(Forecast_Product_Table[ProductName_Fixed_Option])
+			VAR _currentDate = SELECTEDVALUE(Forecast_Product_Table[Date])
+			
+			VAR _base =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE]              <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE]              >= _currentDate - 28 &&
+			        NOT ISBLANK(Incidence_Table[Incidence Rate % Final])
+			    )
+			
+			VAR _n      = COUNTROWS(_base)
+			VAR _mean   = AVERAGEX(_base, Incidence_Table[Incidence Rate % Final])
+			VAR _std    = STDEVX.P(_base, Incidence_Table[Incidence Rate % Final])
+			VAR _cv     = DIVIDE(_std, _mean, 0)
+			
+			VAR _selling  = COUNTROWS(FILTER(_base, Incidence_Table[Incidence Rate % Final] > 0))
+			VAR _sellFreq = DIVIDE(_selling, 28, 0)
+			
+			VAR _scoreData =
+			    SWITCH(
+			        TRUE(),
+			        _n >= 20, 35,
+			        _n >= 14, 28,
+			        _n >= 7,  18,
+			        _n >= 5,  10,
+			        0
+			    )
+			
+			VAR _scoreStability =
+			    SWITCH(
+			        TRUE(),
+			        _cv <= 0.20, 40,
+			        _cv <= 0.40, 32,
+			        _cv <= 0.60, 20,
+			        _cv <= 0.75, 10,
+			        0
+			    )
+			
+			VAR _scoreFreq =
+			    SWITCH(
+			        TRUE(),
+			        _sellFreq >= 0.70, 25,
+			        _sellFreq >= 0.50, 18,
+			        _sellFreq >= 0.30, 10,
+			        5
+			    )
+			
+			RETURN
+			    IF(
+			        ISBLANK(_item) || ISBLANK(_currentDate),
+			        BLANK(),
+			        _scoreData + _scoreStability + _scoreFreq
+			    )
+		formatString: 0
+		lineageTag: b6bb25d6-b6f0-477b-9c32-80688b31e1e0
+
+	measure INC_Trust_Label =
+			
+			SWITCH (
+			    TRUE (),
+			    [INC_Trust_Score_] >= 80, "High — use directly",
+			    [INC_Trust_Score_] >= 55, "Medium — spot check",
+			    [INC_Trust_Score_] >= 30, "Low — review before use",
+			    "Very Low — do not use"
+			)
+		lineageTag: 4be27f1b-b003-43cc-8059-632d9c9c25ab
+
+	measure INC_Hist_StdDev_28D =
+			
+			VAR _item        = SELECTEDVALUE(Forecast_Product_Table[Clean_ItemID])
+			VAR _loc         = SELECTEDVALUE(Forecast_Product_Table[LocationID])
+			VAR _prod        = SELECTEDVALUE(Forecast_Product_Table[ProductName_Fixed_Option])
+			VAR _currentDate = SELECTEDVALUE(Forecast_Product_Table[Date])
+			
+			VAR _base =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE]              <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE]              >= _currentDate - 28 &&
+			        NOT ISBLANK(Incidence_Table[Actual Incidence Rate %])
+			    )
+			
+			RETURN
+			    IF(
+			        ISBLANK(_item) || ISBLANK(_currentDate),
+			        BLANK(),
+			        STDEVX.P(_base, Incidence_Table[Incidence Rate % Final])
+			    )
+		lineageTag: 5f12ee42-55a9-4ade-8a25-b580a49aa194
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure INC_Hist_Avg_28D =
+			
+			VAR _item        = SELECTEDVALUE(Forecast_Product_Table[Clean_ItemID])
+			VAR _loc         = SELECTEDVALUE(Forecast_Product_Table[LocationID])
+			VAR _prod        = SELECTEDVALUE(Forecast_Product_Table[ProductName_Fixed_Option])
+			VAR _currentDate = SELECTEDVALUE(Forecast_Product_Table[Date])
+			VAR _base =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 28 &&
+			        NOT ISBLANK ( Incidence_Table[Actual Incidence Rate %] )
+			    )
+			RETURN AVERAGEX ( _base, Incidence_Table[Incidence Rate % Final] )
+		lineageTag: a70097ef-8dec-4b91-ba75-dbd9b52ea6ae
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure INC_Hist_CV =
+			
+			DIVIDE (
+			    [INC_Hist_StdDev_28D],
+			    [INC_Hist_Avg_28D],
+			    0
+			)-- ─────────────────────────────────────────────
+			-- CV = StdDev / Mean — the single best stability score
+			-- < 0.20 = very stable   0.20–0.40 = normal
+			-- 0.40–0.75 = volatile   > 0.75 = very erratic
+			-- ─────────────────────────────────────────────
+		lineageTag: 86f5e8e2-26ee-423a-bcf2-0db625f41a21
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure INC_Trend_Direction =
+			
+			VAR _item        = SELECTEDVALUE(Forecast_Product_Table[Clean_ItemID])
+			VAR _loc         = SELECTEDVALUE(Forecast_Product_Table[LOCATIONID])
+			VAR _prod        = SELECTEDVALUE(Forecast_Product_Table[ProductName_Fixed_Option])
+			VAR _currentDate = SELECTEDVALUE(Forecast_Product_Table[Date])
+			
+			VAR _recent7 =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 7 &&
+			        NOT ISBLANK ( Incidence_Table[Incidence Rate % Final] )
+			    )
+			
+			VAR _prior21 =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate - 7 &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 28 &&
+			        NOT ISBLANK ( Incidence_Table[Incidence Rate % Final] )
+			    )
+			
+			VAR _avg7   = AVERAGEX ( _recent7, Incidence_Table[Incidence Rate % Final] )
+			VAR _avg21  = AVERAGEX ( _prior21, Incidence_Table[Incidence Rate % Final] )
+			
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( _avg7 ) || ISBLANK ( _avg21 ), "Insufficient data",
+			        _avg7 > _avg21 * 1.10, "Trending up",
+			        _avg7 < _avg21 * 0.90, "Trending down",
+			        "Stable"
+			    )-- ─────────────────────────────────────────────
+			-- Trend direction — is INC% going up or down?
+			-- Compares last 7 days avg vs previous 21 days avg
+			-- Positive = trending up.  Negative = trending down
+			-- ─────────────────────────────────────────────
+		lineageTag: 91176c8d-f458-41a9-994c-7612a5acd7ac
+
+	measure INC_Trust_Reason = ```
+			
+			
+			VAR _item        = MAX ( Forecast_Product_Table[Clean_ItemID] )
+			VAR _loc         = MAX ( Forecast_Product_Table[LocationID] )
+			VAR _prod        = MAX ( Forecast_Product_Table[ProductName_Fixed_Option] )
+			VAR _currentDate = MAX ( Forecast_Product_Table[Date] )
+			
+			-- ── Reuse your existing measure values ───────
+			VAR _cv          = [INC_Hist_CV]
+			VAR _trend       = [INC_Trend_Direction]
+			VAR _score       = [INC_Trust_Score_]
+			
+			-- ── Recalculate what INC_Trust_Score_ needs ──
+			-- (history days and sell days — not stored separately yet)
+			VAR _base =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 28 &&
+			        NOT ISBLANK ( Incidence_Table[Incidence Rate % Final] )
+			    )
+			
+			VAR _n =
+			    COUNTROWS ( _base )
+			
+			VAR _sellDays =
+			    COUNTROWS (
+			        FILTER ( _base, Incidence_Table[Incidence Rate % Final] > 0 )
+			    )
+			
+			VAR _sellFreq =
+			    DIVIDE ( _sellDays, 28, 0 )
+			
+			-- ── Last 7 days vs prior 21 days averages ────
+			-- Used to show actual numbers inside the reason text
+			VAR _recent7 =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 7 &&
+			        NOT ISBLANK ( Incidence_Table[Incidence Rate % Final] )
+			    )
+			
+			VAR _prior21 =
+			    FILTER (
+			        Incidence_Table,
+			        Incidence_Table[CleanNewItemID]             = _item &&
+			        Incidence_Table[CleanLocationID]               = _loc  &&
+			        Incidence_Table[ProductName_Fixed_Option] = _prod &&
+			        Incidence_Table[VOUCHERDATE] <  _currentDate - 7 &&
+			        Incidence_Table[VOUCHERDATE] >= _currentDate - 28 &&
+			        NOT ISBLANK ( Incidence_Table[Incidence Rate % Final] )
+			    )
+			
+			VAR _avg7  = AVERAGEX ( _recent7, Incidence_Table[Incidence Rate % Final] )
+			VAR _avg21 = AVERAGEX ( _prior21, Incidence_Table[Incidence Rate % Final] )
+			
+			VAR _avgOverall =
+			    AVERAGEX ( _base, Incidence_Table[Incidence Rate % Final] )
+			
+			VAR _minINC =
+			    MINX ( _base, Incidence_Table[Incidence Rate % Final] )
+			
+			VAR _maxINC =
+			    MAXX ( _base, Incidence_Table[Incidence Rate % Final] )
+			
+			-- ── Reason text — most critical problem first ─
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			
+			        -- ① No data at all
+			        _n = 0,
+			            "NO HISTORY | "
+			            & "0 days found in last 28 days. "
+			            & "Item may be new or not yet active at this location. "
+			            & "ACTION: Set a manual prep quantity based on a similar item until at least 7 days of sales data exist.",
+			
+			        -- ② Too few days to trust any calculation
+			        _n < 5,
+			            "VERY THIN HISTORY | "
+			            & _n & " days of data in last 28 days. "
+			            & "All calculations (CV, trend, seasonality) are unreliable at this sample size. "
+			            & "ACTION: Do not automate. Check back in " & ( 7 - _n ) & " days. "
+			            & "Use item-level average across other locations as a temporary estimate.",
+			
+			        -- ③ Has history but never sold (all zeros)
+			        _sellDays = 0,
+			            "ZERO SELLING DAYS | "
+			            & _n & " history records found but item sold on 0 days. "
+			            & "All INC% values may be zero or the item was listed but never ordered. "
+			            & "ACTION: Check if item is correctly mapped in the POS. "
+			            & "If item is active, set forecast to 0 until first sale occurs.",
+			
+			        -- ④ Worst case: rare seller + very erratic
+			        _cv > 0.75 && _sellFreq < 0.30,
+			            "HIGH RISK — ERRATIC AND RARE | "
+			            & "Sells on only " & _sellDays & " of 28 days (" & FORMAT ( _sellFreq, "0%" ) & " frequency). "
+			            & "INC% is very unstable — CV=" & FORMAT ( _cv, "0.00" ) & " (anything above 0.75 is high). "
+			            & "Range: " & FORMAT ( _minINC, "0.00%" ) & " to " & FORMAT ( _maxINC, "0.00%" ) & ". "
+			            & "28-day avg INC%: " & FORMAT ( _avgOverall, "0.00%" ) & ". "
+			            & "ACTION: Replace forecast with a fixed prep quantity. "
+			            & "Do not rely on the model for this item until sell frequency exceeds 40% of days.",
+			
+			        -- ⑤ Sells regularly but INC% is very erratic
+			        _cv > 0.75,
+			            "UNSTABLE INC% | "
+			            & "Sells on " & _sellDays & " of 28 days but INC% swings significantly. "
+			            & "CV=" & FORMAT ( _cv, "0.00" ) & " — values range from "
+			            & FORMAT ( _minINC, "0.00%" ) & " to " & FORMAT ( _maxINC, "0.00%" ) & ". "
+			            & "28-day avg: " & FORMAT ( _avgOverall, "0.00%" ) & ". "
+			            & "Likely cause: promotion spikes, combo dependency, or supply inconsistency. "
+			            & "ACTION: Investigate what drives spike days. "
+			            & "Add a manual override on known high-demand days (e.g. weekends or promotion days). "
+			            & "Consider splitting into two forecasts: promo days vs normal days.",
+			
+			        -- ⑥ Sells very rarely but stable when it does
+			        _sellFreq < 0.30,
+			            "SPARSE ITEM | "
+			            & "Sells on only " & _sellDays & " of 28 days (" & FORMAT ( _sellFreq, "0%" ) & " of days). "
+			            & "On days it does sell, INC% is relatively stable at "
+			            & FORMAT ( _avgOverall, "0.00%" ) & " (CV=" & FORMAT ( _cv, "0.00" ) & "). "
+			            & "ACTION: Remove from daily automated prep. "
+			            & "Prep only on days this item has historically sold (e.g. Thursdays or Fridays only). "
+			            & "Or keep a small fixed buffer of 1–2 units daily instead of using the model.",
+			
+			        -- ⑦ Moderate volatility — usable but needs buffer
+			        _cv > 0.40,
+			            "MODERATE VARIATION | "
+			            & "Sells on " & _sellDays & " of 28 days. "
+			            & "INC% varies moderately — CV=" & FORMAT ( _cv, "0.00" ) & ". "
+			            & "Range: " & FORMAT ( _minINC, "0.00%" ) & " to " & FORMAT ( _maxINC, "0.00%" ) & ". "
+			            & "28-day avg: " & FORMAT ( _avgOverall, "0.00%" ) & ". "
+			            & "Forecast is usable but not precise. "
+			            & "ACTION: Add 8–12% buffer on Thursday and Friday. "
+			            & "Monitor weekly and check if CV is improving as more data accumulates. "
+			            & "Confidence: Medium.",
+			
+			        -- ⑧ Good data but demand is rising
+			        _trend = "Trending up",
+			            "TRENDING UP — FORECAST MAY LAG | "
+			            & "Last 7-day avg INC%: " & FORMAT ( _avg7, "0.00%" )
+			            & " vs prior 21-day avg: " & FORMAT ( _avg21, "0.00%" ) & ". "
+			            & "Item is gaining popularity faster than the 28-day model can capture. "
+			            & "CV=" & FORMAT ( _cv, "0.00" ) & " — stability is " 
+			            & IF ( _cv <= 0.40, "good.", IF ( _cv <= 0.75, "moderate.", "low." ) )
+			            & " ACTION: Add 8–10% to forecast prep quantity. "
+			            & "Flag to menu team as a rising item. "
+			            & "Revisit in 7 days — if still trending up, consider shortening history window to 14 days.",
+			
+			        -- ⑨ Good data but demand is falling
+			        _trend = "Trending down",
+			            "TRENDING DOWN — FORECAST IS TOO HIGH | "
+			            & "Last 7-day avg INC%: " & FORMAT ( _avg7, "0.00%" )
+			            & " vs prior 21-day avg: " & FORMAT ( _avg21, "0.00%" ) & ". "
+			            & "Current forecast is based on a period when demand was higher. "
+			            & "CV=" & FORMAT ( _cv, "0.00" ) & ". "
+			            & "ACTION: Reduce prep quantity by 8–10% below the forecast. "
+			            & "If trend continues for another 7 days, flag to menu team — "
+			            & "item may need a promotion, recipe review, or delisting consideration.",
+			
+			        -- ⑩ All checks pass — reliable
+			        "RELIABLE | "
+			            & "Strong history: " & _n & " days, selling on " & _sellDays & " of them. "
+			            & "INC% is stable — CV=" & FORMAT ( _cv, "0.00" ) & ". "
+			            & "28-day avg INC%: " & FORMAT ( _avgOverall, "0.00%" )
+			            & " (range: " & FORMAT ( _minINC, "0.00%" ) & " to " & FORMAT ( _maxINC, "0.00%" ) & "). "
+			            & "Trend: " & _trend & ". "
+			            & "ACTION: Use forecast directly. No manual review needed. "
+			            & "Include in automated daily prep sheet."
+			    )
+			```
+		formatString: 0
+		lineageTag: 1ddf7617-81dc-4875-ab8a-55e899d42d85
+
+	measure Component_Forecast_Qty =
+			
+			SUMX(
+			    'RECIPE TABLE',
+			    'RECIPE TABLE'[QTY BU] *
+			        CALCULATE(
+			            SUM(Forecast_Product_Table[Forecast_Qty_7(last 28+2)]),
+			            FILTER(
+			                Forecast_Product_Table,
+			                Forecast_Product_Table[Clean_ItemID] = 'RECIPE TABLE'[Product PLU]
+			            )
+			        )
+			)
+		formatString: 0
+		lineageTag: 63dec234-fad6-4e05-9dfc-5d82942a6222
+
+	measure Component_Actual_Qty =
+			
+			SUMX(
+			    'RECIPE TABLE',
+			    'RECIPE TABLE'[QTY BU] *
+			        CALCULATE(
+			            SUM(Forecast_Product_Table[Actual_Qty]),
+			            FILTER(
+			                Forecast_Product_Table,
+			                Forecast_Product_Table[Clean_ItemID] = 'RECIPE TABLE'[Product PLU]
+			            )
+			        )
+			)
+		formatString: 0
+		lineageTag: a4ebd96f-e4b7-49a6-9653-4907efba5a8a
+
+	measure 'Tomorrow Forecast Qty' =
+			
+			VAR TomorrowDate = TODAY() + 1
+			
+			RETURN
+			CALCULATE(
+			    SUM(Forecast_Product_Table[Forecast_Qty_7(last 28+2)]),
+			    Forecast_Product_Table[Date] = TomorrowDate
+			)
+		formatString: 0
+		lineageTag: 9e481fc6-51fe-4b0a-962a-86484eafde30
+
+	measure 'Products To Prepare' =
+			
+			VAR TomorrowDate = TODAY() + 1
+			
+			RETURN
+			COUNTROWS(
+			    FILTER(
+			        SUMMARIZE(
+			            Forecast_Product_Table,
+			            Forecast_Product_Table[Clean_ItemID]
+			        ),
+			        CALCULATE(
+			            SUM(Forecast_Product_Table[Forecast_Qty_7(last 28+2)]),
+			            Forecast_Product_Table[Date] = TomorrowDate
+			        ) > 0
+			    )
+			)
+		formatString: 0
+		lineageTag: 8a05f1bd-a734-4599-a726-b766863a3dee
+
+	measure 'Last 2 Weekdays Avg Actual' =
+			
+			VAR TomorrowDate = TODAY() + 1
+			VAR TargetWeekday = WEEKDAY(TomorrowDate, 2)
+			
+			VAR HistoricalSameWeekdays =
+			    FILTER(
+			        CALCULATETABLE(
+			            DISTINCT(Forecast_Product_Table[Date]),
+			            REMOVEFILTERS(Forecast_Product_Table[Date]),
+			            REMOVEFILTERS(Forecast_Product_Table[IsTomorrow])
+			        ),
+			        Forecast_Product_Table[Date] < TomorrowDate
+			            && Forecast_Product_Table[Date] >= TomorrowDate - 15
+			            && WEEKDAY(Forecast_Product_Table[Date], 2) = TargetWeekday
+			    )
+			
+			VAR Last2Dates =
+			    TOPN(
+			        2,
+			        HistoricalSameWeekdays,
+			        Forecast_Product_Table[Date],
+			        DESC
+			    )
+			
+			VAR TotalActual =
+			    CALCULATE(
+			        SUM(Forecast_Product_Table[Actual_Qty]),
+			        REMOVEFILTERS(Forecast_Product_Table[Date]),
+			        REMOVEFILTERS(Forecast_Product_Table[IsTomorrow]),
+			        Last2Dates
+			    )
+			
+			VAR DatesWithActual =
+			    FILTER(
+			        Last2Dates,
+			        CALCULATE(
+			            SUM(Forecast_Product_Table[Actual_Qty]),
+			            REMOVEFILTERS(Forecast_Product_Table[Date]),
+			            REMOVEFILTERS(Forecast_Product_Table[IsTomorrow])
+			        ) > 0
+			    )
+			
+			VAR CountWithActual = COUNTROWS(DatesWithActual)
+			
+			RETURN
+			    ROUND(DIVIDE(TotalActual, CountWithActual), 0)
+		formatString: 0
+		lineageTag: 85626f07-a876-4c7c-a3e1-b750bdaab5fc
+
+	measure 'Demand Change %' =
+			
+			VAR Base = [Last 2 Weekdays Avg Actual]
+			VAR Result =
+			    DIVIDE(
+			        [Tomorrow Forecast Qty] - Base,
+			        Base
+			    )
+			RETURN
+			IF(Base < 1, BLANK(), Result)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 5c1488ad-e468-4ee4-a679-fc345fbc9a70
+
+	measure 'High Demand Alert' =
+			
+			IF(
+			    [Demand Change %] > 0.20,
+			    1,
+			    0
+			)
+		formatString: 0
+		lineageTag: a0b8be5e-299a-4818-9ff2-0b581948aa0c
+
+	measure 'High Demand Products' =
+			
+			SUMX(
+			    KEEPFILTERS(VALUES(Forecast_Product_Table[ProductName_Fixed_Option])),
+			    [High Demand Alert]
+			)
+		formatString: 0
+		lineageTag: 31d50021-f82a-4cc0-a4f8-7f5b5165cef8
+
+	measure 'Low Demand Alert' =
+			
+			IF(
+			    [Demand Change %] < -0.20,
+			    1,
+			    0
+			)
+		formatString: 0
+		lineageTag: 460db31e-a958-4cff-9f78-86770c245520
+
+	measure 'Low Demand Products' =
+			
+			SUMX(
+			    KEEPFILTERS(VALUES(Forecast_Product_Table[ProductName_Fixed_Option])),
+			    IF([Demand Change %] < -0.20, 1, 0)
+			)
+		formatString: 0
+		lineageTag: 3742e619-042f-4f06-942b-0c5742104705
+
+	measure 'Is Tomorrow' =
+			
+			IF(
+			    SELECTEDVALUE(Forecast_Product_Table[Date]) = TODAY() + 1,
+			    1, 0
+			)
+		formatString: 0
+		lineageTag: ed2c963d-968e-4af2-9db4-e042cfd83329
+
+	measure 'Demand Status' =
+			
+			SWITCH(
+			    TRUE(),
+			    [Demand Change %] > 0.20, "Extra Prep Needed",
+			    [Demand Change %] < -0.20, "Reduced Prep Needed",
+			    "Normal"
+			)
+		lineageTag: e6415e98-6f03-4d26-b6c6-a99e70c87b8d
+
+	column Brand
+		lineageTag: baec9b91-61da-4417-9320-fa446d46442d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: HEADER[Brand]
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCATIONID
+		lineageTag: 65dc1f3b-4c0d-411c-b6b4-5dd0c36e622a
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: HEADER[LOCATIONID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		formatString: Long Date
+		lineageTag: 0d1f72e8-a4a5-4b33-8cd7-428a176ac88f
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: HEADER[VOUCHERDATE]
+
+		variation Variation
+			isDefault
+			relationship: 7794772e-b9cf-49a7-83be-edea57dfd520
+			defaultHierarchy: LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Daily_Sales
+		lineageTag: c45e9724-737e-4eba-8187-4fbd67c03451
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Daily_Sales]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Daily_Orders
+		formatString: 0
+		lineageTag: 48e47b06-951c-4af9-ad46-3bc7e4a65db7
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Daily_Orders]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Daily_AOV
+		lineageTag: aeefa265-5fa9-4919-8267-88385cef5cc7
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Daily_AOV]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition AOV_Table = calculated
+		mode: import
+		source =
+				
+				ADDCOLUMNS(
+				    SUMMARIZE(
+				        HEADER,
+				        HEADER[Brand],
+				        HEADER[LOCATIONID],
+				        HEADER[VOUCHERDATE]
+				    ),
+				
+				    "Daily_Sales",
+				    VAR _brand = [Brand]
+				    VAR _loc   = [LOCATIONID]
+				    VAR _date  = [VOUCHERDATE]
+				    RETURN
+				        CALCULATE(
+				            SUM(HEADER[NetSales]),
+				            FILTER(
+				                ALL(HEADER),
+				                HEADER[Brand]       = _brand &&
+				                HEADER[LOCATIONID]  = _loc   &&
+				                HEADER[VOUCHERDATE] = _date
+				            )
+				        ),
+				
+				    "Daily_Orders",
+				    VAR _brand = [Brand]
+				    VAR _loc   = [LOCATIONID]
+				    VAR _date  = [VOUCHERDATE]
+				    RETURN
+				        CALCULATE(
+				            SUM(HEADER[TotalOrders]),
+				            FILTER(
+				                ALL(HEADER),
+				                HEADER[Brand]       = _brand &&
+				                HEADER[LOCATIONID]  = _loc   &&
+				                HEADER[VOUCHERDATE] = _date
+				            )
+				        ),
+				
+				    "Daily_AOV",
+				    VAR _brand = [Brand]
+				    VAR _loc   = [LOCATIONID]
+				    VAR _date  = [VOUCHERDATE]
+				
+				    VAR _sales =
+				        CALCULATE(
+				            SUM(HEADER[NetSales]),
+				            FILTER(
+				                ALL(HEADER),
+				                HEADER[Brand]       = _brand &&
+				                HEADER[LOCATIONID]  = _loc   &&
+				                HEADER[VOUCHERDATE] = _date
+				            )
+				        )
+				
+				    VAR _orders =
+				        CALCULATE(
+				            SUM(HEADER[TotalOrders]),
+				            FILTER(
+				                ALL(HEADER),
+				                HEADER[Brand]       = _brand &&
+				                HEADER[LOCATIONID]  = _loc   &&
+				                HEADER[VOUCHERDATE] = _date
+				            )
+				        )
+				
+				    RETURN
+				        DIVIDE(_sales, _orders, 0)
+				)
+
+	annotation PBI_Id = 3432b27a8e86422c92785b057592abbe
+

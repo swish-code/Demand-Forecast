@@ -1,0 +1,947 @@
+expression 'JUSTC LINE' = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP",Kind="Database"]}[Data],
+		    AIRBYTE_JUSTCSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_JUSTCSALES",Kind="Schema"]}[Data],
+		    LINE_Table = AIRBYTE_JUSTCSALES_Schema{[Name="LINE",Kind="Table"]}[Data],
+		    // Convert all column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(LINE_Table, List.Zip({Table.ColumnNames(LINE_Table), List.Transform(Table.ColumnNames(LINE_Table), Text.Upper)})),
+		    
+		    // Add custom column for KEY
+		    #"Added Custom" = Table.AddColumn(#"Uppercase Column Names", "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+		    #"Filtered Rows" = Table.SelectRows(#"Added Custom", each ([CATEGORYDESCRIPTION] = "DELIVERY CHARGES")),
+		    #"Added Custom1" = Table.AddColumn(#"Filtered Rows", "DeliveryCharge", each [QTY]*[SELLINGPRICE]),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom1",{{"DeliveryCharge", type number}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Changed Type", each ([SALESTATUS] = "S")),
+		    #"Grouped Rows" = Table.Group(#"Filtered Rows1", {"CHAINID", "VOUCHERDATE"}, {{"DeliveryCharges", each List.Sum([DeliveryCharge]), type nullable number}}),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Grouped Rows",{{"VOUCHERDATE", type datetime}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: 172fd928-cd1d-4fb6-b262-6affe10a9a02
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'CHC LINE' = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_CCM_Database = Source{[Name="AIRBYTE_CCM",Kind="Database"]}[Data],
+		    AIRBYTE_MECHC_Schema = AIRBYTE_CCM_Database{[Name="AIRBYTE_MECHC",Kind="Schema"]}[Data],
+		    SALESLINEAPI_TABLE_Table = AIRBYTE_MECHC_Schema{[Name="SALESLINEAPI_TABLE",Kind="Table"]}[Data],
+		    // Convert all column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(SALESLINEAPI_TABLE_Table, List.Zip({Table.ColumnNames(SALESLINEAPI_TABLE_Table), List.Transform(Table.ColumnNames(SALESLINEAPI_TABLE_Table), Text.Upper)})),
+		    
+		    // Add custom column for KEY
+		    #"Added Custom" = Table.AddColumn(#"Uppercase Column Names", "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+		    #"Added Custom1" = Table.AddColumn(#"Added Custom", "DeliveryCharge", each [QTY]*[SELLINGPRICE]),
+		    #"Filtered Rows" = Table.SelectRows(#"Added Custom1", each ([SALESTATUS] = "S") and ([CATEGORYDESCRIPTION] = "DELIVERY")),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"DeliveryCharge", type number}}),
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"CHAINID", "VOUCHERDATE"}, {{"DeliveryCharges", each List.Sum([DeliveryCharge]), type nullable number}}),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Grouped Rows",{{"VOUCHERDATE", type datetime}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: 6bdb0f16-a33d-42be-b6c1-ae668620f516
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'SLC LINE' = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_CCM_Database = Source{[Name="AIRBYTE_CCM",Kind="Database"]}[Data],
+		    AIRBYTE_MESRC_Schema = AIRBYTE_CCM_Database{[Name="AIRBYTE_MESRC",Kind="Schema"]}[Data],
+		    SALESLINEAPI_TABLE_Table = AIRBYTE_MESRC_Schema{[Name="SALESLINEAPI_TABLE",Kind="Table"]}[Data],
+		    // Convert all column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(SALESLINEAPI_TABLE_Table, List.Zip({Table.ColumnNames(SALESLINEAPI_TABLE_Table), List.Transform(Table.ColumnNames(SALESLINEAPI_TABLE_Table), Text.Upper)})),
+		    
+		    // Add custom column for KEY
+		    #"Added Custom" = Table.AddColumn(#"Uppercase Column Names", "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+		    #"Added Custom1" = Table.AddColumn(#"Added Custom", "DeliveryCharge", each [QTY]*[SELLINGPRICE]),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom1",{{"DeliveryCharge", type number}}),
+		    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each [VOUCHERDATE] >= #datetime(2024, 1, 1, 0, 0, 0)),
+		    #"Filtered Rows1" = Table.SelectRows(#"Filtered Rows", each ([CATEGORYDESCRIPTION] = "CHARGES")),
+		    #"Grouped Rows" = Table.Group(#"Filtered Rows1", {"CHAINID", "VOUCHERDATE"}, {{"DeliveryCharges", each List.Sum([DeliveryCharge]), type nullable number}}),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Grouped Rows",{{"VOUCHERDATE", type datetime}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: 305ba9c1-0e10-4efd-a16d-881cbc59cafe
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'YELO LINE' =
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com","AIRBYTE_WAREHOUSE"),
+		    // Connect to Snowflake
+		    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP",Kind="Database"]}[Data],
+		    // Connect to Snowflake
+		    AIRBYTE_YELOSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_YELOSALES",Kind="Schema"]}[Data],
+		    // Connect to Snowflake
+		    LINE_Table = AIRBYTE_YELOSALES_Schema{[Name="LINE",Kind="Table"]}[Data],
+		    #"Added Custom" = Table.AddColumn(LINE_Table, "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+		    #"Removed Columns" = Table.RemoveColumns(#"Added Custom",{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID"}),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Removed Columns",{{"VOUCHERDATE", type datetime}}),
+		    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each [VOUCHERDATE] >= #datetime(2024, 1, 1, 0, 0, 0)),
+		    #"Renamed Columns" = Table.RenameColumns(#"Filtered Rows",{{"CHAINID", "Brand"}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Renamed Columns", each ([CATEGORYDESCRIPTION] = "CHARGE") and ([SALESTATUS] = "S")),
+		    #"Added Custom1" = Table.AddColumn(#"Filtered Rows1", "Custom", each [QTY]*[SELLINGPRICE]),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Added Custom1",{{"Custom", "Amount"}}),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Renamed Columns1",{{"Amount", type number}}),
+		    #"Grouped Rows" = Table.Group(#"Changed Type1", {"VOUCHERDATE", "Brand"}, {{"DeliveryCharge", each List.Sum([Amount]), type nullable number}}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Grouped Rows",{{"Brand", "CHAINID"}, {"DeliveryCharge", "DeliveryCharges"}})
+		in
+		    #"Renamed Columns2"
+	lineageTag: a99de13e-1aa4-4285-a2f4-ac0c940642d8
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'MSH LINE' =
+		let
+		    Source = Snowflake.Databases("umwijeo-if31569.snowflakecomputing.com","AIRBYTE_WAREHOUSE",[Implementation="2.0"]),
+		    AIRBYTE_MSH_Database = Source{[Name="AIRBYTE_MSH",Kind="Database"]}[Data],
+		    MISHMASH_Schema = AIRBYTE_MSH_Database{[Name="MISHMASH",Kind="Schema"]}[Data],
+		    HEADER_Table = MISHMASH_Schema{[Name="LINE",Kind="Table"]}[Data],
+		    #"Filtered Rows" = Table.SelectRows(HEADER_Table, each ([CATEGORYDESCRIPTION] = "DELIVERY CHARGE" or [CATEGORYDESCRIPTION] = "OTHER REVENUE") and ([SALESTATUS] = "S")),
+		    #"Added Custom" = Table.AddColumn(#"Filtered Rows", "DeliveryCharge", each [QTY]*[SELLINGPRICE]),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom",{{"DeliveryCharge", type number}}),
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"CHAINID", "VOUCHERDATE"}, {{"DeliveryCharge", each List.Sum([DeliveryCharge]), type nullable number}}),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Grouped Rows",{{"VOUCHERDATE", type datetime}}),
+		    #"Renamed Columns" = Table.RenameColumns(#"Changed Type1",{{"DeliveryCharge", "DeliveryCharges"}})
+		in
+		    #"Renamed Columns"
+	lineageTag: 17184624-a043-4fb6-af29-29b1fdab133a
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression GeneralJournalAccountEntryBiEntities =
+		let
+		    Source = OData.Feed("https://etc.operations.eu.dynamics.com/data", null, [Implementation="2.0"]),
+		    GeneralJournalAccountEntryBiEntities_table = Source{[Name="GeneralJournalAccountEntryBiEntities",Signature="table"]}[Data]
+		in
+		    GeneralJournalAccountEntryBiEntities_table
+	lineageTag: e8eab722-6c49-4ada-a982-5e74c8b76875
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+
+expression GeneralJournalEntryBiEntities =
+		let
+		    Source = OData.Feed("https://etc.operations.eu.dynamics.com/data", null, [Implementation="2.0"]),
+		    GeneralJournalEntryBiEntities_table = Source{[Name="GeneralJournalEntryBiEntities",Signature="table"]}[Data]
+		in
+		    GeneralJournalEntryBiEntities_table
+	lineageTag: 2285f197-eeba-4da0-bed7-fe227879f9de
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+
+expression 'JUSTC FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_JUSTC_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_JUSTC",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_JUSTC_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "BUR"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    })
+		in
+		    #"Renamed Columns1"
+	lineageTag: a79b9aee-dfdc-4352-b21a-6b73975dbc0f
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'PAT FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_PAT_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_PAT",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_PAT_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns2", {"BRANCH_ID"}, #"PAT BRANCHES", {"ID"}, "PAT BRANCHES", JoinKind.LeftOuter),
+		    #"Expanded PAT BRANCHES" = Table.ExpandTableColumn(#"Merged Queries", "PAT BRANCHES", {"NAME"}, {"PAT BRANCHES.NAME"}),
+		    #"Split Column by Delimiter" = Table.SplitColumn(#"Expanded PAT BRANCHES", "PAT BRANCHES.NAME", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"PAT BRANCHES.NAME.1", "PAT BRANCHES.NAME.2"}),
+		    #"Renamed Columns4" = Table.RenameColumns(#"Split Column by Delimiter",{{"PAT BRANCHES.NAME.2", "BRAND"}, {"PAT BRANCHES.NAME.1", "LOCATIONID"}}),
+		    #"Replaced Value" = Table.ReplaceValue(#"Renamed Columns4","HAW","HWL",Replacer.ReplaceText,{"LOCATIONID"}),
+		    #"Added Custom1" = Table.AddColumn(#"Replaced Value", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "PAT"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE", "LOCATIONID"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    })
+		in
+		    #"Renamed Columns1"
+	lineageTag: 4fda1eff-e3c0-4487-9169-074be189b7d4
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'YP FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_YELO_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_YELO",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_YELO_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "YP"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    })
+		in
+		    #"Renamed Columns1"
+	lineageTag: bfa1f4bc-d123-49db-9b80-ebbff8d67578
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'BBT FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_BBT_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_BBT",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_BBT_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "BBT"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: 674b2295-c278-42fc-aa49-bcda206717c5
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'SS FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_SS_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_SS",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_SS_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "SS"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: 530e7f56-639c-42ab-9627-c39f458e07f9
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'SLICE FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_SLICE_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_SLICE",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_SLICE_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    // ==============================
+		    // 3️⃣ FIX BUSINESS_DATE USING STARTTIME LOGIC
+		    // ==============================
+		    #"Added Fixed Date" =
+		        Table.AddColumn(
+		    #"Changed Type4",
+		    "FIXED_BUSINESS_DATE",
+		    each
+		        let
+		            stText = try Text.From([Custom]) otherwise null,
+		            st =
+		                try
+		                    if Value.Is([Custom], type datetime)
+		                    then [Custom]
+		                    else DateTime.FromText(stText, [Format="en-US"])
+		                otherwise null,
+		            result =
+		                if st <> null then
+		                    let
+		                        hourPart = try Time.Hour(Time.From(st)) otherwise null
+		                    in
+		                        if hourPart <> null and hourPart < 7
+		                        then Date.AddDays(Date.From(st), -1)
+		                        else Date.From(st)
+		                else
+		                    null
+		        in
+		            result,
+		    type date
+		),
+		    #"Sorted Rows2" = Table.Sort(#"Added Fixed Date",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // Replace BUSINESS_DATE with FIXED one
+		    #"Removed Old Date" = Table.RemoveColumns(#"Sorted Rows4",{"BUSINESS_DATE"}),
+		    #"Renamed New Date" = Table.RenameColumns(#"Removed Old Date",{{"FIXED_BUSINESS_DATE", "BUSINESS_DATE"}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Renamed New Date", "customs", each "SLC"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: e02c5929-ff8b-4ebf-b184-83d4147d7ccd
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'CHP FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_CHP_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_CHP",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_CHP_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "CHP"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: d5312015-6829-41e9-b062-8c19466c05d7
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression YELO =
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP",Kind="Database"]}[Data],
+		    AIRBYTE_YELOSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_YELOSALES",Kind="Schema"]}[Data],
+		    HEADER_Table = AIRBYTE_YELOSALES_Schema{[Name="HEADER",Kind="Table"]}[Data],
+		    // Convert column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(HEADER_Table, List.Zip({Table.ColumnNames(HEADER_Table), List.Transform(Table.ColumnNames(HEADER_Table), Text.Upper)})),
+		
+		    // Filter rows based on conditions
+		    #"Filtered Rows" = Table.SelectRows(#"Uppercase Column Names", each ([ORDERTYPE] <> "SM")),
+		    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each ([VOUCHERSTATUS] = "S")),
+		
+		    // Remove the custom discount logic and use COTDiscountAmount directly
+		    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+		
+		    // Change Discount column type
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom",{{"Discount", type number}}),
+		
+		    // Add Brand column
+		    #"Added Custom2" = Table.AddColumn(#"Changed Type2", "Brand", each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" then [CHAINID] & " " & [LOCATIONID] else [CHAINID]),
+		
+		    // Change Brand column type
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2",{{"Brand", type text}}),
+		    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates",{{"VOUCHERDATE", type datetime}}),
+		
+		    // Group rows by VoucherDate and Brand
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"VOUCHERDATE", "Brand"}, {{"TotalSales", each List.Sum([TRXSALES]), type nullable number}, {"TotalDiscounts", each List.Sum([Discount]), type nullable number}, {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type nullable number}}),
+		
+		    // Filter rows based on date
+		    #"Filtered Rows1" = Table.SelectRows(#"Grouped Rows", each [VOUCHERDATE] >= #datetime(2023, 1, 1, 0, 0, 0)),
+		
+		    // Change types for the final columns
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows1",{{"TotalDiscounts", type number}, {"DeliveryCharge", type number}})
+		in
+		    #"Changed Type1"
+	lineageTag: 7e24d16a-c8ee-4fa8-826c-40532e09fcf8
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression BUR = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP", Kind="Database"]}[Data],
+		    
+		    // Change the database schema to AIRBYTE_JUSTCSALES
+		    AIRBYTE_JUSTCSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_JUSTCSALES", Kind="Schema"]}[Data],
+		    
+		    // Change the table to HEADER in the AIRBYTE_JUSTCSALES schema
+		    HEADER_Table = AIRBYTE_JUSTCSALES_Schema{[Name="HEADER", Kind="Table"]}[Data],
+		
+		    // Convert column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(HEADER_Table, List.Zip({Table.ColumnNames(HEADER_Table), List.Transform(Table.ColumnNames(HEADER_Table), Text.Upper)})),
+		
+		    // Filter rows based on conditions
+		    #"Filtered Rows" = Table.SelectRows(#"Uppercase Column Names", each ([ORDERTYPE] <> "SM")),
+		    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each ([VOUCHERSTATUS] = "S")),
+		
+		    // Remove the custom discount logic and use COTDiscountAmount directly
+		    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+		
+		    // Change Discount column type
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom",{{"Discount", type number}}),
+		
+		    // Add Brand column
+		    #"Added Custom2" = Table.AddColumn(#"Changed Type2", "Brand", each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" then [CHAINID] & " " & [LOCATIONID] else [CHAINID]),
+		
+		    // Change Brand column type
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2",{{"Brand", type text}}),
+		
+		    // Remove duplicates based on UNIQUEKEY column
+		    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+		
+		    // Change type of VOUCHERDATE column to datetime
+		    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates",{{"VOUCHERDATE", type datetime}}),
+		
+		    // Group rows by VoucherDate and Brand
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"VOUCHERDATE", "Brand"}, {{"TotalSales", each List.Sum([TRXSALES]), type nullable number}, {"TotalDiscounts", each List.Sum([Discount]), type nullable number}, {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type nullable number}}),
+		
+		    // Filter rows based on date
+		    #"Filtered Rows1" = Table.SelectRows(#"Grouped Rows", each [VOUCHERDATE] >= #datetime(2023, 1, 1, 0, 0, 0)),
+		
+		    // Change types for the final columns
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows1",{{"TotalDiscounts", type number}, {"DeliveryCharge", type number}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: 2f712e20-771a-49df-8711-bb8f0af41f0d
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression SLICE = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_CCM_Database = Source{[Name="AIRBYTE_CCM", Kind="Database"]}[Data],
+		    
+		    // Change the database schema to AIRBYTE_MESRC
+		    AIRBYTE_MESRC_Schema = AIRBYTE_CCM_Database{[Name="AIRBYTE_MESRC", Kind="Schema"]}[Data],
+		    
+		    // Change the table to SALESHEADERAPI_TABLE in the AIRBYTE_MESRC schema
+		    SALESHEADERAPI_TABLE = AIRBYTE_MESRC_Schema{[Name="SALESHEADERAPI_TABLE", Kind="Table"]}[Data],
+		
+		    // Convert column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(SALESHEADERAPI_TABLE, List.Zip({Table.ColumnNames(SALESHEADERAPI_TABLE), List.Transform(Table.ColumnNames(SALESHEADERAPI_TABLE), Text.Upper)})),
+		
+		    // Filter rows based on conditions
+		    #"Filtered Rows" = Table.SelectRows(#"Uppercase Column Names", each ([ORDERTYPE] <> "SM")),
+		    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each ([VOUCHERSTATUS] = "S")),
+		
+		    // Remove the custom discount logic and use COTDiscountAmount directly
+		    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+		
+		    // Change Discount column type
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom",{{"Discount", type number}}),
+		
+		    // Add Brand column
+		    #"Added Custom2" = Table.AddColumn(#"Changed Type2", "Brand", each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" then [CHAINID] & " " & [LOCATIONID] else [CHAINID]),
+		
+		    // Change Brand column type
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2",{{"Brand", type text}}),
+		
+		    // Remove duplicates based on UNIQUEKEY column
+		    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+		
+		    // Change type of VOUCHERDATE column to datetime
+		    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates",{{"VOUCHERDATE", type datetime}}),
+		
+		    // Group rows by VoucherDate and Brand
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"VOUCHERDATE", "Brand"}, {{"TotalSales", each List.Sum([TRXSALES]), type nullable number}, {"TotalDiscounts", each List.Sum([Discount]), type nullable number}, {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type nullable number}}),
+		
+		    // Filter rows based on date
+		    #"Filtered Rows1" = Table.SelectRows(#"Grouped Rows", each [VOUCHERDATE] >= #datetime(2023, 1, 1, 0, 0, 0)),
+		
+		    // Change types for the final columns
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows1",{{"TotalDiscounts", type number}, {"DeliveryCharge", type number}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: dd69760c-8440-4b8a-b394-dd1544be5a7d
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+
+expression CHP = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_CCM_Database = Source{[Name="AIRBYTE_CCM", Kind="Database"]}[Data],
+		    
+		    // Change the database schema to AIRBYTE_MECHC
+		    AIRBYTE_MECHC_Schema = AIRBYTE_CCM_Database{[Name="AIRBYTE_MECHC", Kind="Schema"]}[Data],
+		    
+		    // Change the table to SALESHEADERAPI_TABLE in the AIRBYTE_MECHC schema
+		    SALESHEADERAPI_TABLE = AIRBYTE_MECHC_Schema{[Name="SALESHEADERAPI_TABLE", Kind="Table"]}[Data],
+		
+		    // Convert column names to uppercase
+		    #"Uppercase Column Names" = Table.RenameColumns(SALESHEADERAPI_TABLE, List.Zip({Table.ColumnNames(SALESHEADERAPI_TABLE), List.Transform(Table.ColumnNames(SALESHEADERAPI_TABLE), Text.Upper)})),
+		
+		    // Filter rows based on conditions
+		    #"Filtered Rows" = Table.SelectRows(#"Uppercase Column Names", each ([ORDERTYPE] <> "SM")),
+		    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each ([VOUCHERSTATUS] = "S")),
+		
+		    // Remove the custom discount logic and use COTDiscountAmount directly
+		    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+		
+		    // Change Discount column type
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom",{{"Discount", type number}}),
+		
+		    // Add Brand column
+		    #"Added Custom2" = Table.AddColumn(#"Changed Type2", "Brand", each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" then [CHAINID] & " " & [LOCATIONID] else [CHAINID]),
+		
+		    // Change Brand column type
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2",{{"Brand", type text}}),
+		
+		    // Remove duplicates based on UNIQUEKEY column
+		    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+		
+		    // Change type of VOUCHERDATE column to datetime
+		    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates",{{"VOUCHERDATE", type datetime}}),
+		
+		    // Group rows by VoucherDate and Brand
+		    #"Grouped Rows" = Table.Group(#"Changed Type", {"VOUCHERDATE", "Brand"}, {{"TotalSales", each List.Sum([TRXSALES]), type nullable number}, {"TotalDiscounts", each List.Sum([Discount]), type nullable number}, {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type nullable number}}),
+		
+		    // Filter rows based on date
+		    #"Filtered Rows1" = Table.SelectRows(#"Grouped Rows", each [VOUCHERDATE] >= #datetime(2023, 1, 1, 0, 0, 0)),
+		
+		    // Change types for the final columns
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows1",{{"TotalDiscounts", type number}, {"DeliveryCharge", type number}})
+		in
+		    #"Changed Type1"
+		```
+	lineageTag: 754168e7-dd18-4267-a834-d1aa54072a70
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+
+expression 'MSH FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_MSH_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_MSH",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_MSH_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "MM"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: 63b50447-1078-48a4-9b98-f337e4193094
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'TBL FOODICS' =
+		let
+		    // ==============================
+		    // 1️⃣ Connect to Snowflake
+		    // ==============================
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_TBL_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_TBL",Kind="Schema"]}[Data],
+		    ORDERSVIEW_View = AIRBYTE_TBL_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+		    // ==============================
+		    // 2️⃣ Basic Cleanup
+		    // ==============================
+		    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+		    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+		    #"Added Custom1" = Table.AddColumn(#"Renamed Columns2", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+		
+		    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+		    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+		    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+		    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+		
+		    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+		    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+		    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+		    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+		    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+		    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+		
+		    // ==============================
+		    // 4️⃣ Brand, Grouping, and Renames
+		    // ==============================
+		    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "TBL"),
+		    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+		    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+		    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}}),
+		
+		    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+		    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+		        {"BUSINESS_DATE", "VOUCHERDATE"},
+		        {"TotalAmount", "TotalSales"},
+		        {"TotalDiscount", "TotalDiscounts"}
+		    }),
+		    #"Sorted Rows5" = Table.Sort(#"Renamed Columns1",{{"VOUCHERDATE", Order.Descending}})
+		in
+		    #"Sorted Rows5"
+	lineageTag: 8262a6e5-b503-49f3-9eb8-34f26bca33da
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Errors in SURVEY' =
+		let
+		Source = SURVEY,
+		  #"Detected Type Mismatches" = let
+		    tableWithOnlyPrimitiveTypes = Table.SelectColumns(Source, Table.ColumnsOfType(Source, {type nullable number, type nullable text, type nullable logical, type nullable date, type nullable datetime, type nullable datetimezone, type nullable time, type nullable duration})),
+		    recordTypeFields = Type.RecordFields(Type.TableRow(Value.Type(tableWithOnlyPrimitiveTypes))),
+		    fieldNames = Record.FieldNames(recordTypeFields),
+		    fieldTypes = List.Transform(Record.ToList(recordTypeFields), each [Type]),
+		    pairs = List.Transform(List.Positions(fieldNames), (i) => {fieldNames{i}, (v) => if v = null or Value.Is(v, fieldTypes{i}) then v else error [Message = "The type of the value does not match the type of the column.", Detail = v], fieldTypes{i}})
+		in
+		    Table.TransformColumns(Source, pairs),
+		  #"Added Index" = Table.AddIndexColumn(#"Detected Type Mismatches", "Row Number" ,1),
+		  #"Kept Errors" = Table.SelectRowsWithErrors(#"Added Index", {"Submission Date", "Agent Name", "Branch", "Order ID", "Customer Name", "Customer Phone Number", "Rate Order", "Is it a complaint", "Complaint", "Comments", "Select Brand and Store Location", "Submission ID", "From Survey"}),
+		  #"Reordered Columns" = Table.ReorderColumns(#"Kept Errors", {"Row Number", "Submission Date", "Agent Name", "Branch", "Order ID", "Customer Name", "Customer Phone Number", "Rate Order", "Is it a complaint", "Complaint", "Comments", "Select Brand and Store Location", "Submission ID", "From Survey"})
+		in
+		  #"Reordered Columns"
+	lineageTag: 3128b0cf-114d-4287-ab6d-56815217d22a
+	queryGroup: 'Query Errors - 06-05-2026 7 37 08 PM'
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'SS BRANCHES' = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_SS_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_SS",Kind="Schema"]}[Data],
+		    BRANCHES_Table = AIRBYTE_SS_Schema{[Name="BRANCHES",Kind="Table"]}[Data],
+		    // Convert all column names to uppercase
+		    #"Uppercase Column Names" = 
+		        Table.RenameColumns(
+		            BRANCHES_Table, 
+		            List.Zip({
+		                Table.ColumnNames(BRANCHES_Table), 
+		                List.Transform(Table.ColumnNames(BRANCHES_Table), Text.Upper)
+		            })
+		        ),
+		    #"Removed Columns" = Table.RemoveColumns(#"Uppercase Column Names",{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID", "EG_ERECEIPT_BRANCH_ADDRESS"})
+		in
+		    #"Removed Columns"
+		```
+	lineageTag: 519de579-a2f2-4241-ad5a-7da1e14a4e74
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'PAT BRANCHES' = ```
+		let
+		    // Connect to Snowflake
+		    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+		    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+		    AIRBYTE_PAT_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_PAT",Kind="Schema"]}[Data],
+		    BRANCHES_Table = AIRBYTE_PAT_Schema{[Name="BRANCHES",Kind="Table"]}[Data],
+		    // Convert all column names to uppercase
+		    #"Uppercase Column Names" = 
+		        Table.RenameColumns(
+		            BRANCHES_Table, 
+		            List.Zip({
+		                Table.ColumnNames(BRANCHES_Table), 
+		                List.Transform(Table.ColumnNames(BRANCHES_Table), Text.Upper)
+		            })
+		        ),
+		    #"Removed Columns" = Table.RemoveColumns(#"Uppercase Column Names",{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID", "EG_ERECEIPT_BRANCH_ADDRESS"})
+		in
+		    #"Removed Columns"
+		```
+	lineageTag: 0a4ae46e-4d21-4e36-a508-82afdd4d4202
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

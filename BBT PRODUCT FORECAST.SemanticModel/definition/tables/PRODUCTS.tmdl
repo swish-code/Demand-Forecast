@@ -1,0 +1,193 @@
+table PRODUCTS
+	lineageTag: 6222646c-e5a4-4f64-9db3-6139fb5d254f
+
+	column ID
+		dataType: string
+		lineageTag: dfa340f0-0059-4ade-9368-ebbf258623d7
+		summarizeBy: none
+		sourceColumn: ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column SKU
+		dataType: string
+		lineageTag: 7488df89-0020-4189-84f9-d7b999d09407
+		summarizeBy: none
+		sourceColumn: SKU
+
+		annotation SummarizationSetBy = Automatic
+
+	column NAME
+		dataType: string
+		lineageTag: 3d6eeca4-388b-4e25-9a85-86fdce3d3bf7
+		summarizeBy: none
+		sourceColumn: NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column PRICE
+		dataType: double
+		lineageTag: 82976965-5506-4db6-b864-bfeee95f4d00
+		summarizeBy: sum
+		sourceColumn: PRICE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column IS_READY
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 6f391279-97cb-45b2-a353-4343fefc2468
+		summarizeBy: none
+		sourceColumn: IS_READY
+
+		annotation SummarizationSetBy = Automatic
+
+	column IS_ACTIVE
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 8e019ac2-0b0e-418f-a39c-39911a501c82
+		summarizeBy: none
+		sourceColumn: IS_ACTIVE
+
+		annotation SummarizationSetBy = Automatic
+
+	column CREATED_AT
+		dataType: string
+		lineageTag: 96bbe881-8d38-4284-a5dd-b36704207e39
+		summarizeBy: none
+		sourceColumn: CREATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column DELETED_AT
+		dataType: string
+		lineageTag: 17abcccf-9556-4f78-b5bc-237e045cf621
+		summarizeBy: none
+		sourceColumn: DELETED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column UPDATED_AT
+		dataType: string
+		lineageTag: dd43e1f3-f3d7-420f-9821-0c55fdc2bb6a
+		summarizeBy: none
+		sourceColumn: UPDATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column DESCRIPTION
+		dataType: string
+		lineageTag: c7a490c8-b822-4b71-817f-6d86e5c4035f
+		summarizeBy: none
+		sourceColumn: DESCRIPTION
+
+		annotation SummarizationSetBy = Automatic
+
+	column IS_HIGH_SALT
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: d8dcd5c4-e5e8-4dc1-a17b-d6c231cc2b60
+		summarizeBy: none
+		sourceColumn: IS_HIGH_SALT
+
+		annotation SummarizationSetBy = Automatic
+
+	column COSTING_METHOD
+		dataType: double
+		lineageTag: a3f56c6a-7990-4fa9-a362-0e4b97fc7d0e
+		summarizeBy: sum
+		sourceColumn: COSTING_METHOD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column IS_NON_REVENUE
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 5136f536-0f20-4e59-a395-6cb7804540c9
+		summarizeBy: none
+		sourceColumn: IS_NON_REVENUE
+
+		annotation SummarizationSetBy = Automatic
+
+	column PRICING_METHOD
+		dataType: double
+		lineageTag: 94152ada-cdbf-47a0-a807-d16da0809112
+		summarizeBy: sum
+		sourceColumn: PRICING_METHOD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SELLING_METHOD
+		dataType: double
+		lineageTag: e9f3e610-77f1-437d-a5b7-77274f6eece6
+		summarizeBy: sum
+		sourceColumn: SELLING_METHOD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column IS_STOCK_PRODUCT
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 60aa3f3b-6058-4405-8675-f38b74079d3d
+		summarizeBy: none
+		sourceColumn: IS_STOCK_PRODUCT
+
+		annotation SummarizationSetBy = Automatic
+
+	column COST
+		dataType: double
+		lineageTag: 2d62c9c8-0113-439c-bda2-0f09043159d3
+		summarizeBy: sum
+		sourceColumn: COST
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column INDEX
+		dataType: double
+		lineageTag: 17978d2f-99a4-4577-8dd5-195d0b588201
+		summarizeBy: sum
+		sourceColumn: INDEX
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NAME_LOCALIZED
+		dataType: string
+		lineageTag: f1cf32c8-48d4-4b1a-9414-8dbcdfbb2512
+		summarizeBy: none
+		sourceColumn: NAME_LOCALIZED
+
+		annotation SummarizationSetBy = Automatic
+
+	partition PRODUCTS = m
+		mode: import
+		source =
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    // Connect to Snowflake
+				    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+				    // Connect to Snowflake
+				    AIRBYTE_TBL_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_TBL",Kind="Schema"]}[Data],
+				    // Connect to Snowflake
+				    PRODUCTS_Table = AIRBYTE_TBL_Schema{[Name="PRODUCTS",Kind="Table"]}[Data],
+				    #"Removed Columns" = Table.RemoveColumns(PRODUCTS_Table,{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID"}),
+				    #"Appended Query" = Table.Combine({#"Removed Columns", #"PRODUCTS (2)"})
+				in
+				    #"Appended Query"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

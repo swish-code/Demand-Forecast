@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "CHILLI PEPPER PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "bfa12157-54ea-4a2b-b625-3b724d8760c2"
+  }
+}

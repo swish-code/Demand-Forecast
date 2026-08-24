@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "SLC-BUR PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "a4768d3c-32e9-44ea-ac9e-0d9dd26d86cf"
+  }
+}

@@ -1,0 +1,77 @@
+table Diagnostic_Check
+	lineageTag: fbfb48a7-f8f0-42cc-8e76-8a5d0a7b845d
+
+	column LOCATIONID
+		lineageTag: fc32d45a-db08-480c-bffa-1cd0fe1da858
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: YELO[LOCATIONID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		formatString: General Date
+		lineageTag: 2ed17768-a7b9-45ee-81f5-3ed751090816
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: YELO[VOUCHERDATE]
+
+		variation Variation
+			isDefault
+			relationship: 28ca004d-1ea2-4381-8dd2-3946963e5e47
+			defaultHierarchy: LocalDateTable_675ae88f-7b59-4284-bbf3-e54ca04cdff6.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column Total_Distinct_Keys
+		formatString: 0
+		lineageTag: b47acc88-f04b-41aa-86ce-7ab67085a766
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Total_Distinct_Keys]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Total_Distinct_OrderProdID
+		formatString: 0
+		lineageTag: 765ab7d3-337f-4ddd-8087-0a2c631241d7
+		summarizeBy: count
+		isNameInferred
+		sourceColumn: [Total_Distinct_OrderProdID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Total_Rows
+		formatString: 0
+		lineageTag: 1399c66a-fafb-42c0-b402-71d949913aa3
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Total_Rows]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Total_Qty
+		lineageTag: 4d048017-286c-4844-8386-f9b3ae258676
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Total_Qty]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition Diagnostic_Check = calculated
+		mode: import
+		source =
+				
+				SUMMARIZECOLUMNS(
+				    'YELO'[LocationID],
+				    'YELO'[VOUCHERDATE],
+				    "Total_Distinct_Keys",        DISTINCTCOUNT('YELO'[KEY]),
+				    "Total_Distinct_OrderProdID", DISTINCTCOUNT('YELO'[ORDER_PRODUCT_ID]),
+				    "Total_Rows",                 COUNTROWS('YELO'),
+				    "Total_Qty",                  SUM('YELO'[Qty])
+				)
+
+	annotation PBI_Id = 33f35d631a834d60826f88f4de5ea619
+

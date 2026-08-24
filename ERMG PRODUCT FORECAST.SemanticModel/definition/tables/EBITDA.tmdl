@@ -1,0 +1,193 @@
+table EBITDA
+	excludeFromModelRefresh
+	lineageTag: 4bcad509-0258-4062-b587-ecbaf0d1b382
+
+	measure ActualSales_CurrentMonth_Forecast = ```
+			
+			CALCULATE(
+			    SUM(FORECAST[Actual Sales]),
+			    FILTER(
+			        FORECAST,
+			        YEAR(FORECAST[Date]) = YEAR(TODAY()) &&
+			        MONTH(FORECAST[Date]) = MONTH(TODAY())
+			    )
+			)
+			
+			```
+		lineageTag: 7207ae7b-9f1a-4151-98a6-200e348540b1
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure DateCategory = ```
+			
+			IF (
+			    MAX('forecast'[Date]) < TODAY(),
+			    "Yes",
+			    "No"
+			)
+			
+			```
+		lineageTag: 1e83fa6f-daea-4c9f-8ab6-5016e5f8c60e
+
+	measure 'Achieved %' = ```
+			
+			VAR AchievedValue = 
+			    DIVIDE(
+			        SUM('forecast'[Actual Sales]), 
+			        SUM('forecast'[Forecast]), 
+			        0
+			    ) * 100
+			RETURN 
+			    FORMAT(AchievedValue, "0.00") & " %"
+			
+			```
+		lineageTag: 308db031-aef4-464b-b7af-5b7817519109
+
+	measure Forecast_CurrentMonth = ```
+			
+			CALCULATE(
+			    SUM(FORECAST[Forecast]),
+			    FILTER(
+			        FORECAST,
+			        YEAR(FORECAST[Date]) = YEAR(TODAY()) &&
+			        MONTH(FORECAST[Date]) = MONTH(TODAY())
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 345f9c7b-2ad7-4028-a669-2cae9c887ed8
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure LatestMonthlyRunRate = ```
+			
+			VAR LatestDate = CALCULATE(MAX(forecast[Date]), forecast[MonthlyRunRate_MTD] <> 0)
+			RETURN
+			    CALCULATE(
+			        FIRSTNONBLANK(forecast[MonthlyRunRate_MTD], forecast[MonthlyRunRate_MTD]),
+			        forecast[Date] = LatestDate,
+			        forecast[MonthlyRunRate_MTD] <> 0
+			    )
+			
+			```
+		lineageTag: c6aeaa48-c8b6-475c-88ed-91ed85e655ca
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Actuals Minus Forecast Before Current Month With Target' = ```
+			
+			VAR CurrentMonth = MONTH(TODAY())
+			VAR CurrentYear = YEAR(TODAY())
+			VAR StartOfYea = DATE(CurrentYear, 1, 1)
+			VAR TotalActuals = 
+			    CALCULATE(
+			        SUM('Forecast'[Actual Sales]),
+			        'Forecast'[Date] >= StartOfYea && 
+			        'Forecast'[Date] < DATE(CurrentYear, CurrentMonth, 1),
+			        NOT(ISBLANK('Forecast'[Forecast]))  -- Only consider months with a Forecast value
+			    )
+			VAR TotalForecast = 
+			    CALCULATE(
+			        SUM('Forecast'[Forecast]),
+			        'Forecast'[Date] >= StartOfYea && 
+			        'Forecast'[Date] < DATE(CurrentYear, CurrentMonth, 1),
+			        NOT(ISBLANK('Forecast'[Forecast]))  -- Only consider months with a Forecast value
+			    )
+			RETURN
+			    IF(TotalForecast > TotalActuals, TotalForecast - TotalActuals, BLANK())
+			
+			```
+		lineageTag: 1f0881d1-edc7-4dbd-b66e-594d8cfe7bee
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column RunRate%
+		dataType: double
+		lineageTag: 411e1dcd-b803-4291-bb62-48c1910becc9
+		summarizeBy: sum
+		sourceColumn: RunRate%
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Target
+		dataType: double
+		lineageTag: 1b1185c8-b2c0-4059-bb7e-1505425edeee
+		summarizeBy: sum
+		sourceColumn: Target
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Month
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 219e8854-1e8b-4435-a330-dd2e150385fc
+		summarizeBy: none
+		sourceColumn: Month
+
+		variation Variation
+			isDefault
+			relationship: 61b07c24-bf18-4ea9-9f46-152509abc796
+			defaultHierarchy: LocalDateTable_3cf0566d-ecc1-4978-9a4f-9209939ca69b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Actual
+		dataType: double
+		lineageTag: 230dbed8-3ee0-453f-9d21-4be744bafc7a
+		summarizeBy: sum
+		sourceColumn: Actual
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ' Yearly RunRate'
+		dataType: double
+		lineageTag: 59db0cea-ac7c-4595-95d1-59a543071ac2
+		summarizeBy: sum
+		sourceColumn: " Yearly RunRate"
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Monthly RunRate'
+		dataType: double
+		lineageTag: d83a5542-d4bc-40ad-a2e6-ec3f6811edb9
+		summarizeBy: sum
+		sourceColumn: Monthly RunRate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Seasonal Effect'
+		dataType: string
+		lineageTag: 779d9475-2ff9-4242-9486-1b00fe8e27d7
+		summarizeBy: none
+		sourceColumn: Seasonal Effect
+
+		annotation SummarizationSetBy = Automatic
+
+	partition EBITDA = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_elsayed_swishhh_net/Documents/Yelo%20Run%20Rate.xlsx"), null, true),
+				    EBITDA_Sheet = Source{[Item="EBITDA",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(EBITDA_Sheet, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Month", type date}, {"RunRate%", type number}, {"Target", type number}, {"Actual", type number}, {" Yearly RunRate", type number}, {"Monthly RunRate", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

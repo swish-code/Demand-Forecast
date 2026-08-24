@@ -1,0 +1,128 @@
+table 'Talabat Ratings'
+	lineageTag: c8aac890-69b6-45af-a3b6-0b06d69a8806
+
+	column 'Submission Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: c967bf90-e85f-4bb4-80dd-15555dc545b9
+		summarizeBy: none
+		sourceColumn: Submission Date
+
+		variation Variation
+			isDefault
+			relationship: 682709dd-7332-409f-8021-722c48ac1411
+			defaultHierarchy: LocalDateTable_5394bdf1-6214-43a4-8ce2-2c8016335200.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Agent Name'
+		dataType: string
+		lineageTag: 20ce045c-ae27-4a22-8269-27bfd084e14e
+		summarizeBy: none
+		sourceColumn: Agent Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column Branch
+		dataType: string
+		lineageTag: 7445811d-2016-42bb-b7cc-4f527da9c6c2
+		summarizeBy: none
+		sourceColumn: Branch
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order ID'
+		dataType: int64
+		formatString: 0
+		lineageTag: fe36d90e-da15-4372-baf9-bc8895f6c6e4
+		summarizeBy: count
+		sourceColumn: Order ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Name'
+		dataType: string
+		lineageTag: 761dc1f7-a295-4b54-8044-8dc58410a3bd
+		summarizeBy: none
+		sourceColumn: Customer Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Phone Number'
+		dataType: string
+		lineageTag: 6ceadc26-681d-45aa-9bb8-00ef5e3e68f1
+		summarizeBy: none
+		sourceColumn: Customer Phone Number
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Rate Order'
+		dataType: int64
+		formatString: 0
+		lineageTag: fe67d450-0806-4997-aea1-518c273313b2
+		summarizeBy: sum
+		sourceColumn: Rate Order
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column 'Is it a complaint'
+		dataType: string
+		lineageTag: 53eaab16-82eb-4ec5-b937-95480162bc15
+		summarizeBy: none
+		sourceColumn: Is it a complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Complaint
+		dataType: string
+		lineageTag: 2897c299-0aa0-4dd9-b757-cb8c549db7d8
+		summarizeBy: none
+		sourceColumn: Complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Comments
+		dataType: string
+		lineageTag: fd467f3a-430a-4621-949f-fc45b4aa0c00
+		summarizeBy: none
+		sourceColumn: Comments
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Submission ID'
+		dataType: string
+		lineageTag: 77f1c9e6-ba88-46c6-8504-8d4396e88060
+		summarizeBy: none
+		sourceColumn: Submission ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Brand
+		dataType: string
+		lineageTag: b8dbd863-c06e-4529-a950-eddc98b73cc3
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Talabat Ratings' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait.sharepoint.com/sites/CallCenterOpData/Shared%20Documents/Talabat%20Ratings.xlsx"), null, true),
+				    #"Talabat Ratings_Sheet" = Source{[Item="Talabat Ratings",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Talabat Ratings_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Submission Date", type date}, {"Agent Name", type any}, {"Branch", type text}, {"Order ID", Int64.Type}, {"Customer Name", type any}, {"Customer Phone Number", type any}, {"Rate Order", Int64.Type}, {"Is it a complaint", type any}, {"Complaint", type any}, {"Comments", type any}, {"Submission ID", type any}, {"Brand", type text}, {"Column13", type any}, {"Column14", type any}, {"Column15", type any}, {"Column16", type any}, {"Column17", type any}, {"Column18", type any}, {"Column19", type any}, {"Column20", type any}, {"Column21", type any}, {"Column22", type any}, {"Column23", type any}, {"Column24", type any}, {"Column25", type any}, {"Column26", type any}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Column13", "Column14", "Column15", "Column16", "Column17", "Column18", "Column19", "Column20", "Column21", "Column22", "Column23", "Column24", "Column25", "Column26"}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Removed Columns","Adailiya","Adaliya",Replacer.ReplaceText,{"Branch"})
+				in
+				    #"Replaced Value"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+

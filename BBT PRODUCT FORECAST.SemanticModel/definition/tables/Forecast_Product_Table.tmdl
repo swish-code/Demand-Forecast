@@ -1,0 +1,549 @@
+table Forecast_Product_Table
+	lineageTag: 9af598eb-f872-4983-9513-6a72c814ae69
+
+	measure INC_History_Days =
+			
+			VAR _item        = MAX(Forecast_Product_Table[Clean_ItemID])
+			VAR _loc         = MAX(Forecast_Product_Table[LocationID])
+			VAR _prod        = MAX(Forecast_Product_Table[ProductName_Fixed_Option])
+			VAR _currentDate = MAX(Forecast_Product_Table[Date])
+			
+			VAR _base =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[Clean_ItemID]              = _item  &&
+			        Incidence_Table[LocationID]                = _loc   &&
+			        Incidence_Table[ProductName_Fixed_Option]  = _prod  &&
+			        Incidence_Table[VOUCHERDATE]               < _currentDate &&
+			        Incidence_Table[VOUCHERDATE]               >= _currentDate - 28 &&
+			        NOT ISBLANK(Incidence_Table[Actual Incidence Rate %])
+			    )
+			
+			RETURN COUNTROWS(_base)
+		formatString: 0
+		lineageTag: a329029b-8fe8-4f64-bd44-4c1a7003a6d8
+
+	measure 'Real Combo Count' =
+			
+			COUNTROWS(
+			    SUMMARIZE(
+			        Forecast_Product_Table,
+			        Forecast_Product_Table[Clean_ItemID],
+			        Forecast_Product_Table[LocationID],
+			        Forecast_Product_Table[CHAINID],
+			        Forecast_Product_Table[ProductName_Fixed_Option]
+			    )
+			)
+		formatString: 0
+		lineageTag: a271e752-e0b1-41a5-9f63-c351e072a3f4
+
+	measure Debug =
+			
+			VAR _item  = SELECTEDVALUE(Forecast_Spine[Clean_ItemID])
+			VAR _loc   = SELECTEDVALUE(Forecast_Spine[CleanLocationID])
+			VAR _chain = SELECTEDVALUE(Forecast_Spine[CHAINID])
+			VAR _date  = SELECTEDVALUE(Forecast_Spine[Date])
+			
+			VAR _lastActualDate =
+			    CALCULATE(
+			        MAX(Incidence_Table[VOUCHERDATE]),
+			        Incidence_Table[Clean_ItemID]    = _item,
+			        Incidence_Table[CleanLocationID] = _loc,
+			        Incidence_Table[CHAINID]         = _chain
+			    )
+			
+			VAR _anchorDate =
+			    IF(_date > _lastActualDate, _lastActualDate, _date)
+			
+			VAR _start28 = _anchorDate - 28
+			
+			VAR _base =
+			    FILTER(
+			        Incidence_Table,
+			        Incidence_Table[Clean_ItemID]     = _item  &&
+			        Incidence_Table[CleanLocationID]  = _loc   &&
+			        Incidence_Table[CHAINID]          = _chain &&
+			        Incidence_Table[VOUCHERDATE]      > _start28 &&
+			        Incidence_Table[VOUCHERDATE]      <= _anchorDate
+			    )
+			
+			VAR _daily =
+			    ADDCOLUMNS(
+			        SUMMARIZE(_base, Incidence_Table[VOUCHERDATE]),
+			        "Qty",    CALCULATE(SUM(Incidence_Table[Numerator (Total Qty)])),
+			        "Orders", CALCULATE(SUM(Incidence_Table[Denominator (Total Orders)])),
+			        "Age",    DATEDIFF(Incidence_Table[VOUCHERDATE], _anchorDate, DAY)
+			    )
+			
+			RETURN
+			    SUMX(_daily, [Qty]) & " / " & SUMX(_daily, [Orders])
+		lineageTag: 7b748d6d-c930-4b61-8191-6b773d654d4e
+
+	column Date
+		formatString: Long Date
+		lineageTag: 562f3722-8e4b-4acf-a15b-ef80574dcce6
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Total_Sales =
+			
+			VAR _chain = [CHAINID]
+			VAR _loc = [LOCATIONID]
+			VAR _date = [Date]
+			VAR _today = TODAY()
+			RETURN
+			IF(
+			    _date < _today,
+			    -- Past dates: use Month runrate
+			    CALCULATE(
+			        SUM('FORECAST (2)'[MonthRunrate]),
+			        'FORECAST (2)'[BRAND] = _chain,
+			        'FORECAST (2)'[BRANCH] = _loc,
+			        'FORECAST (2)'[DATE] = _date
+			    ),
+			    -- Today and future dates: use Total sale
+			    CALCULATE(
+			        MAX('FORECAST (2)'[Totalsale]),
+			        'FORECAST (2)'[BRAND] = _chain,
+			        'FORECAST (2)'[BRANCH] = _loc,
+			        'FORECAST (2)'[DATE] = _date
+			    )
+			)
+		lineageTag: e3f16696-40d1-4433-8c6d-c21a81383788
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Actual_Qty =
+			
+			VAR _chain = [CHAINID]
+			VAR _loc   = [LOCATIONID]
+			VAR _date  = [Date]
+			VAR _item  = [Clean_ItemID]
+			
+			RETURN
+			IF(
+			    _date < TODAY(),
+			
+			    -- ACTUALS
+			    CALCULATE(
+			        SUM('BBT'[Qty]),
+			        'BBT'[CHAINID] = _chain,
+			        'BBT'[CleanLocationID] = _loc,
+			        'BBT'[CleanNewItemID] = _item,
+			        'BBT'[VOUCHERDATE] = _date
+			    )
+			)
+		formatString: 0
+		lineageTag: 749ed83c-f8ac-40bd-9033-4e0fe09035b8
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Forecast_Orders =
+			
+			DIVIDE([Total_Sales], [AOV], 0)
+		lineageTag: 9d72bf5f-8a6b-4340-8855-217d707c10a4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column VARIANCE = ```
+			[Actual_Qty] - [Forecast_Qty_7(last 28+2)]
+			
+			```
+		lineageTag: 6b2150bb-be95-4881-a6bd-8085da118227
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column AOV =
+			
+			VAR _currentDate = Forecast_Product_Table[Date]
+			VAR _loc         = Forecast_Product_Table[LocationID]
+			VAR _chain       = Forecast_Product_Table[CHAINID]
+			VAR _weekday     = WEEKDAY(_currentDate, 2)
+			
+			-- Get all past dates for same Brand + Location + same Weekday with their AOV
+			VAR _allMatchingDates =
+			    FILTER(
+			        ADDCOLUMNS(
+			            DISTINCT(
+			                SELECTCOLUMNS(
+			                    FILTER(
+			                        AOV_Table,
+			                        AOV_Table[Brand]      = _chain &&
+			                        AOV_Table[LOCATIONID] = _loc   &&
+			                        WEEKDAY(DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)), 2) = _weekday &&
+			                        DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)) < _currentDate
+			                    ),
+			                    "AOV_Date", DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10))
+			                )
+			            ),
+			            "DayAOV",
+			                VAR _d = [AOV_Date]
+			                RETURN
+			                CALCULATE(
+			                    AVERAGE(AOV_Table[Daily_AOV]),
+			                    FILTER(
+			                        AOV_Table,
+			                        DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)) = _d &&
+			                        AOV_Table[Brand]      = _chain                   &&
+			                        AOV_Table[LOCATIONID] = _loc
+			                    )
+			                )
+			        ),
+			        NOT ISBLANK([DayAOV])
+			    )
+			
+			-- Peel the 3 most recent matching weekday dates
+			VAR _date1      = MAXX(_allMatchingDates, [AOV_Date])
+			VAR _remaining1 = FILTER(_allMatchingDates, [AOV_Date] < _date1)
+			
+			VAR _date2      = MAXX(_remaining1, [AOV_Date])
+			VAR _remaining2 = FILTER(_remaining1, [AOV_Date] < _date2)
+			
+			VAR _date3      = MAXX(_remaining2, [AOV_Date])
+			
+			-- Extract AOV for each of the 3 dates
+			VAR _aov1 = MAXX(FILTER(_allMatchingDates, [AOV_Date] = _date1), [DayAOV])
+			VAR _aov2 = MAXX(FILTER(_allMatchingDates, [AOV_Date] = _date2), [DayAOV])
+			VAR _aov3 = MAXX(FILTER(_allMatchingDates, [AOV_Date] = _date3), [DayAOV])
+			
+			-- Count how many dates were actually found (handles edge case of fewer than 3)
+			VAR _count =
+			    IF(NOT ISBLANK(_date1), 1, 0) +
+			    IF(NOT ISBLANK(_date2), 1, 0) +
+			    IF(NOT ISBLANK(_date3), 1, 0)
+			
+			RETURN
+			DIVIDE(
+			    COALESCE(_aov1, 0) + COALESCE(_aov2, 0) + COALESCE(_aov3, 0),
+			    _count
+			)
+		lineageTag: a7cf0e87-5b90-48c4-b666-e75622116552
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Actual_Orders = ```
+			
+			VAR _loc  = Forecast_Product_Table[LOCATIONID]
+			VAR _date = Forecast_Product_Table[Date]
+			VAR _chain = Forecast_Product_Table[CHAINID]
+			
+			RETURN
+			CALCULATE(
+			    DISTINCTCOUNT('BBT'[KEY]),
+			    FILTER(
+			        'BBT',
+			        'BBT'[CleanLocationID]  = _loc       
+			            && 'BBT'[VOUCHERDATE]  = _date
+			                        && 'BBT'[CHAINID]  = _chain
+			
+			    )
+			)
+			```
+		formatString: 0
+		lineageTag: 7535d41a-1043-457d-967f-00c1df6bea04
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Actual_AOV =
+			
+			VAR _loc  = Forecast_Product_Table[LOCATIONID]
+			VAR _date = Forecast_Product_Table[Date]
+			RETURN
+			CALCULATE(
+			    MAX(AOV_Table[Daily_AOV]),
+			    FILTER(
+			        AOV_Table,
+			        AOV_Table[LOCATIONID]   = _loc
+			            && AOV_Table[VOUCHERDATE] = _date
+			    )
+			)
+		lineageTag: a94b5b96-fbc4-4994-aaac-da3f6d9fa648
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Forecast_Qty_7(last 28+2)' =
+			
+			ROUND([Incidence Rate Final] * [Forecast_Orders], 0)
+		formatString: 0
+		lineageTag: 1670fb62-13cd-4fae-a9d3-1367eb46ce9d
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual Sales' = ```
+			
+			IF(
+			    'Forecast_Product_Table'[Date] < TODAY(),
+			    COALESCE(
+			        LOOKUPVALUE(
+			            'HEADER'[NetSales],
+			            'HEADER'[VoucherDate],    'Forecast_Product_Table'[Date],
+			            'HEADER'[Brand],          'Forecast_Product_Table'[CHAINID],
+			            'HEADER'[LOCATIONID],     'Forecast_Product_Table'[LOCATIONID]  -- Fixed: added missing quote & comma
+			        ), 
+			        0
+			    ),
+			    BLANK()
+			)
+			```
+		lineageTag: b9c26d13-6ddc-40da-a15e-29b71931c2d4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Actual_Incidence = Forecast_Product_Table[Actual_Qty]/Forecast_Product_Table[Actual_Orders]
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 4bff4dab-01a6-498a-8446-12b4c21abadf
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Clean_ItemID
+		lineageTag: 71bc13e7-522f-412c-8a6b-32fc17790e84
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Clean_ItemID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column LocationID
+		lineageTag: 00cc1bea-b5d9-41bd-bef7-ce6a21cbc45e
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [LocationID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CHAINID
+		lineageTag: 4263efcf-cdef-444c-a943-54d7744f9048
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CHAINID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductName_Fixed_Option
+		lineageTag: 97f49f19-0aa7-4a55-a92f-36c0b6bb7d12
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [ProductName_Fixed_Option]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Incidence Rate Final' =
+			
+			
+			VAR _item  = Forecast_Product_Table[Clean_ItemID]
+			VAR _loc   = Forecast_Product_Table[LocationID]
+			VAR _chain = Forecast_Product_Table[CHAINID]
+			VAR _date  = Forecast_Product_Table[Date]
+			
+			-- Check if item is active NOW (last 3 days from today)
+			VAR _isActiveNow =
+			    COUNTROWS(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanNewItemID]       = _item  &&
+			            Incidence_Table[CleanLocationID]       = _loc   &&
+			            Incidence_Table[CHAINID]               = _chain &&
+			            Incidence_Table[VOUCHERDATE]           >= TODAY() - 3 &&
+			            Incidence_Table[Numerator (Total Qty)] > 0
+			        )
+			    ) > 0
+			
+			-- Check if item was active at the time of this past date
+			-- (had sales within 3 days of that date)
+			VAR _wasActiveAtDate =
+			    COUNTROWS(
+			        FILTER(
+			            Incidence_Table,
+			            Incidence_Table[CleanNewItemID]       = _item  &&
+			            Incidence_Table[CleanLocationID]       = _loc   &&
+			            Incidence_Table[CHAINID]               = _chain &&
+			            Incidence_Table[VOUCHERDATE]           >= _date - 3 &&
+			            Incidence_Table[VOUCHERDATE]           <= _date &&
+			            Incidence_Table[Numerator (Total Qty)] > 0
+			        )
+			    ) > 0
+			
+			-- Past dates: actual rate from Incidence_Table
+			VAR _actualRate =
+			    MAXX(
+			        FILTER(
+			            Incidence_Table,
+			            TRIM(LOWER(Incidence_Table[CleanNewItemID])) = TRIM(LOWER(_item)) &&
+			            Incidence_Table[CleanLocationID]              = _loc               &&
+			            Incidence_Table[CHAINID]                      = _chain             &&
+			            Incidence_Table[VOUCHERDATE]                  = _date
+			        ),
+			        Incidence_Table[Incidence Rate % Final]
+			    )
+			
+			-- Future dates: forecasted rate from Forecast_Spine
+			VAR _forecastRate =
+			    LOOKUPVALUE(
+			        Forecast_Spine[Forecasted_Incidence_Rate],
+			        Forecast_Spine[CleanNewItemID],  _item,
+			        Forecast_Spine[CleanLocationID], _loc,
+			        Forecast_Spine[CHAINID],         _chain,
+			        Forecast_Spine[Date],            _date
+			    )
+			
+			RETURN
+			IF(
+			    _date >= TODAY(),
+			    IF(_isActiveNow, _forecastRate, BLANK()),       -- future: active now only
+			    IF(_wasActiveAtDate, _actualRate, BLANK())       -- past: active at that time only
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 097e7e6e-c74c-4074-83ca-233cc78de80b
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsTomorrow =
+			
+			IF(
+			    YEAR(Forecast_Product_Table[Date]) = YEAR(TODAY() + 1) &&
+			    MONTH(Forecast_Product_Table[Date]) = MONTH(TODAY() + 1) &&
+			    DAY(Forecast_Product_Table[Date]) = DAY(TODAY() + 1),
+			    1, 0
+			)
+		formatString: 0
+		lineageTag: 7eaa88ee-0f4e-4eaf-b24b-602bea1cefe2
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Forecast_Product_Table = calculated
+		mode: import
+		source =
+				
+				
+				VAR _today = TODAY()
+				VAR _forecastEnd = DATE(2026, 12, 31)
+				
+				-- ==========================================
+				-- ALL historical Item + Location + Chain combinations
+				-- Product Name is added later to avoid duplicates
+				-- ==========================================
+				VAR _allCombos =
+				    ADDCOLUMNS(
+				        SUMMARIZE(
+				            Incidence_Table,
+				            Incidence_Table[CleanNewItemID],
+				            Incidence_Table[CleanLocationID],
+				            Incidence_Table[CHAINID]
+				        ),
+				        "ProductName_Fixed_Option",
+				            CALCULATE(
+				                MAX(Incidence_Table[ProductName_Fixed_Option])
+				            )
+				    )
+				
+				-- ==========================================
+				-- ACTIVE Item + Location + Chain combinations
+				-- Only items sold in the last 3 days
+				-- ==========================================
+				VAR _activeCombos =
+				    ADDCOLUMNS(
+				        SUMMARIZE(
+				            FILTER(
+				                Incidence_Table,
+				                Incidence_Table[VOUCHERDATE] >= _today - 3 &&
+				                Incidence_Table[Numerator (Total Qty)] > 0
+				            ),
+				            Incidence_Table[CleanNewItemID],
+				            Incidence_Table[CleanLocationID],
+				            Incidence_Table[CHAINID]
+				        ),
+				        "ProductName_Fixed_Option",
+				            CALCULATE(
+				                MAX(Incidence_Table[ProductName_Fixed_Option])
+				            )
+				    )
+				
+				-- ==========================================
+				-- Historical Dates
+				-- ==========================================
+				VAR _pastDates =
+				    SELECTCOLUMNS(
+				        CALENDAR(
+				            DATE(2025, 11, 1),
+				            _today - 1
+				        ),
+				        "Date", [Date]
+				    )
+				
+				-- ==========================================
+				-- Future Dates
+				-- ==========================================
+				VAR _futureDates =
+				    SELECTCOLUMNS(
+				        CALENDAR(
+				            _today,
+				            _forecastEnd
+				        ),
+				        "Date", [Date]
+				    )
+				
+				-- ==========================================
+				-- Historical Rows
+				-- ==========================================
+				VAR _pastRows =
+				    GENERATE(
+				        SELECTCOLUMNS(
+				            _allCombos,
+				            "Clean_ItemID", [CleanNewItemID],
+				            "LocationID", [CleanLocationID],
+				            "CHAINID", [CHAINID],
+				            "ProductName_Fixed_Option", [ProductName_Fixed_Option]
+				        ),
+				        _pastDates
+				    )
+				
+				-- ==========================================
+				-- Future Rows
+				-- ==========================================
+				VAR _futureRows =
+				    GENERATE(
+				        SELECTCOLUMNS(
+				            _activeCombos,
+				            "Clean_ItemID", [CleanNewItemID],
+				            "LocationID", [CleanLocationID],
+				            "CHAINID", [CHAINID],
+				            "ProductName_Fixed_Option", [ProductName_Fixed_Option]
+				        ),
+				        _futureDates
+				    )
+				
+				RETURN
+				UNION(
+				    _pastRows,
+				    _futureRows
+				)
+
+	annotation PBI_Id = 6b1a08f87fef4053bad2c4493f69fe0e
+

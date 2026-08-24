@@ -1,0 +1,647 @@
+table Shakir
+	lineageTag: 53e96980-7b97-42a0-a3cd-a0492afe51c9
+
+	column KEY
+		dataType: string
+		lineageTag: d6cc1e54-5462-40cd-822f-802838c8c103
+		summarizeBy: none
+		sourceColumn: KEY
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 9068941b-aa9a-4437-9bba-d3b0f7066608
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Qty
+		dataType: double
+		lineageTag: f30d20ba-4984-47d1-9ee5-8d5cdb2f3c86
+		summarizeBy: sum
+		sourceColumn: Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SELLINGPRICE
+		dataType: double
+		lineageTag: 7c9c8117-0f55-4391-ab88-1c31c5d64b3e
+		summarizeBy: sum
+		sourceColumn: SELLINGPRICE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LINE_TOTAL
+		dataType: double
+		lineageTag: c2aaf65e-96c4-4347-a86c-c852fe031f9b
+		summarizeBy: sum
+		sourceColumn: LINE_TOTAL
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LINE_DISCOUNT
+		dataType: double
+		lineageTag: ad75bee2-64f0-4db5-82be-28da1c633e32
+		summarizeBy: sum
+		sourceColumn: LINE_DISCOUNT
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column LINE_STATUS
+		dataType: double
+		lineageTag: ea70210d-cb56-48c2-8ff6-2ebcc7e4ce20
+		summarizeBy: sum
+		sourceColumn: LINE_STATUS
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ItemID
+		dataType: string
+		lineageTag: adf08549-8949-4481-b945-6037f17d2460
+		summarizeBy: none
+		sourceColumn: ItemID
+
+		annotation SummarizationSetBy = Automatic
+
+	column ItemDescription
+		dataType: string
+		lineageTag: cf5c67a4-3140-44ae-80a5-a47f78d51bbe
+		summarizeBy: none
+		sourceColumn: ItemDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column LINE_TYPE
+		dataType: string
+		lineageTag: ee03f6fc-37cd-4c0e-9942-7aac07368771
+		summarizeBy: none
+		sourceColumn: LINE_TYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	column MAIN_PRODUCT_NAME
+		dataType: string
+		lineageTag: 524aea9c-0466-4d00-a301-23f9b2840013
+		summarizeBy: none
+		sourceColumn: MAIN_PRODUCT_NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column REFERENCE
+		dataType: string
+		lineageTag: 833f3968-a462-484d-86f4-88902777d4e5
+		summarizeBy: none
+		sourceColumn: REFERENCE
+
+		annotation SummarizationSetBy = Automatic
+
+	column CATEGORY_ID
+		dataType: string
+		lineageTag: 2b5fe9ee-2505-4969-b3a1-d8fb6c0e6cad
+		summarizeBy: none
+		sourceColumn: CATEGORY_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column CategoryDescription
+		dataType: string
+		lineageTag: 6e75cb24-7a6e-44a7-99af-f1e7855d66e3
+		summarizeBy: none
+		sourceColumn: CategoryDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column CATEGORY_CREATED_AT
+		dataType: string
+		lineageTag: 3df0085c-b03f-42f7-a466-eca173b4e298
+		summarizeBy: none
+		sourceColumn: CATEGORY_CREATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column CATEGORY_UPDATED_AT
+		dataType: string
+		lineageTag: 1c5271ed-4510-425c-8efd-b0660262461f
+		summarizeBy: none
+		sourceColumn: CATEGORY_UPDATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column CATEGORY_DELETED_AT
+		dataType: string
+		lineageTag: 0468789e-4ef7-4fb8-ab1d-64b6daad8016
+		summarizeBy: none
+		sourceColumn: CATEGORY_DELETED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	column OPTION_PARENT_CATEGORY_NAME
+		dataType: string
+		lineageTag: 4011be9b-7872-4823-a856-e707978437ac
+		summarizeBy: none
+		sourceColumn: OPTION_PARENT_CATEGORY_NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCATIONID
+		dataType: string
+		lineageTag: 8715a89d-259d-4bbf-9404-303ce96d4365
+		summarizeBy: none
+		sourceColumn: LOCATIONID
+
+		annotation SummarizationSetBy = Automatic
+
+	column CHAINID
+		dataType: string
+		lineageTag: 97e5ada5-979f-4330-b82a-8b1e378c26a3
+		summarizeBy: none
+		sourceColumn: CHAINID
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductName_Fixed_Option =
+			
+			
+			VAR _brand = 'Shakir'[CHAINID]
+			
+			-- ══════════════════════════════════════════════
+			-- TBL BRANCH
+			-- ══════════════════════════════════════════════
+			VAR _tbl =
+			    IF(
+			        'Shakir'[LINE_TYPE] = "OPTION"
+			            && (
+			                'Shakir'[SELLINGPRICE] > 0
+			                || 'Shakir'[MAIN_PRODUCT_NAME] IN {
+			                    "(Half)Deboned Chicken", "Deboned Chicken (Half)",
+			                    "(Whole)Deboned Chicken", "Deboned Chicken (Whole)"
+			                }
+			            ),
+			
+			        IF(
+			            'Shakir'[MAIN_PRODUCT_NAME] = "Create your own bowl"
+			                || 'Shakir'[MAIN_PRODUCT_NAME] = "Deboned Chicken Rice Bowl",
+			            'Shakir'[ItemDescription],
+			
+			            IF(
+			                'Shakir'[ItemDescription] IN {
+			                    "Regular", "Spicy", "Large", "Plain", "Plain Large",
+			                    "Spicy Tabel™ Sauce", "Spicy Tabel™ Sauce Large",
+			                    "Tabel™ Sauce", "Tabel™ Sauce Large",
+			                    "SPICY", "REGULAR",
+			                    "Coconut Curry Sauce",
+			                    "Khishkhash", "Khishkhas",
+			                    "Mushroom", "Spicy Tahini", "Tahini",
+			                    "Without Sauce", "TAHINI", "SPICY TAHINI"
+			                },
+			                TRIM('Shakir'[MAIN_PRODUCT_NAME] & " " & 'Shakir'[ItemDescription]),
+			
+			                IF(
+			                    'Shakir'[ItemDescription] IN {
+			                        "Herb Tawouk", "Kabab", "Tawouk",
+			                        "Tikka", "Shish Tawouk", "Herbs Tawouk"
+			                    },
+			                    TRIM('Shakir'[MAIN_PRODUCT_NAME] & " with " & 'Shakir'[ItemDescription]),
+			                    'Shakir'[ItemDescription]
+			                )
+			            )
+			        ),
+			
+			        'Shakir'[ItemDescription]
+			    )
+			
+			-- ══════════════════════════════════════════════
+			-- PAT BRANCH
+			-- ══════════════════════════════════════════════
+			VAR _pat =
+			    IF(
+			        'Shakir'[LINE_TYPE] = "OPTION"
+			            && 'Shakir'[SELLINGPRICE] > 0
+			            && 'Shakir'[ItemDescription] IN {"PLUS+", "Original"},
+			        'Shakir'[MAIN_PRODUCT_NAME] & " " & 'Shakir'[ItemDescription],
+			        'Shakir'[ItemDescription]
+			    )
+			
+			-- ══════════════════════════════════════════════
+			-- SS BRANCH
+			-- ══════════════════════════════════════════════
+			VAR _ss_CleanMain_Mix =
+			    TRIM(
+			        SUBSTITUTE(
+			            SUBSTITUTE( 'Shakir'[MAIN_PRODUCT_NAME], "12pc", "" ),
+			            "12 pc", ""
+			        )
+			    )
+			
+			VAR _ss_CleanDesc =
+			    TRIM(
+			        SUBSTITUTE(
+			            SUBSTITUTE( LOWER('Shakir'[ItemDescription]), "12pc", "" ),
+			            "12 pc", ""
+			        )
+			    )
+			
+			VAR _ss_CleanMain_Pieces =
+			    TRIM(
+			        SUBSTITUTE(
+			            SUBSTITUTE( 'Shakir'[MAIN_PRODUCT_NAME], "(6 Pieces)", "" ),
+			            "(4 Pieces)", ""
+			        )
+			    )
+			
+			VAR _ss_IsMix =
+			    'Shakir'[ItemDescription] IN {
+			        "Mix 4pc Regular & 8pc Spicy",
+			        "Mix 8pc Regular & 4pc Spicy"
+			    }
+			
+			VAR _ss_Is12pc =
+			    LOWER('Shakir'[ItemDescription]) IN {
+			        "12pc regular", "12 pc regular",
+			        "12pc spicy",   "12 pc spicy"
+			    }
+			
+			VAR _ss_IsPieces =
+			    'Shakir'[ItemDescription] IN {
+			        "6 Pieces Spicy", "6 Pieces Regular",
+			        "4 Pieces Spicy", "4 Pieces Regular"
+			    }
+			
+			VAR _ss_Resolved =
+			    IF( _ss_IsMix,    _ss_CleanMain_Mix & " " & 'Shakir'[ItemDescription],
+			    IF( _ss_Is12pc,   'Shakir'[MAIN_PRODUCT_NAME] & " " & _ss_CleanDesc,
+			    IF( _ss_IsPieces, 'Shakir'[ItemDescription] & " " & _ss_CleanMain_Pieces,
+			        'Shakir'[ItemDescription]
+			    )))
+			
+			VAR _ss =
+			    IF(
+			        'Shakir'[LINE_TYPE] = "OPTION" && 'Shakir'[SELLINGPRICE] > 0,
+			        _ss_Resolved,
+			        _ss_Resolved
+			    )
+			
+			-- ══════════════════════════════════════════════
+			-- MSH BRANCH (replace MSH with actual CHAINID)
+			-- ══════════════════════════════════════════════
+			VAR _msh =
+			    IF(
+			        'Shakir'[LINE_TYPE] = "OPTION"
+			            && 'Shakir'[SELLINGPRICE] > 0
+			            && 'Shakir'[ItemDescription] IN {
+			                "Regular","Healthy","XLarge",
+			                "Spicy",
+			                "Healthy Regular",
+			                "Healthy Spicy",
+			                "Saj",
+			                "Lebanese Bread",
+			                "Half & Half",
+			                "Spicy Beef",
+			                "Spicy Chicken",
+			                "Spicy Half & Half",
+			                "10 Chicken Shawarma Lebanese",
+			                "10 Beef Shawerma Lebanese",
+			                "10 Beef Shawarma Lebanese",
+			                "16 Half Beef Philly Steak",
+			                "16 Half Chicken Philly Steak",
+			                "Kabab Wraps",
+			                "Tawouk Wraps","Tawouk only","Kabab only","Mix",
+			                "Plain (Vegetarian) Burghul",
+			                "Plain (Vegetarian) Lettuce",
+			                "With Grilled Chicken",
+			                "With Tenderloin Steak"
+			            },
+			        'Shakir'[MAIN_PRODUCT_NAME] & " " & 'Shakir'[ItemDescription],
+			        'Shakir'[ItemDescription]
+			    )
+			
+			-- ══════════════════════════════════════════════
+			-- ROUTE BY BRAND
+			-- ══════════════════════════════════════════════
+			RETURN
+			    SWITCH(
+			        _brand,
+			        "TBL", _tbl,
+			        "PAT", _pat,
+			        "SS",  _ss,
+			        "MM", _msh,   -- REPLACE MSH WITH ACTUAL CHAINID
+			        'Shakir'[ItemDescription]
+			    )
+		lineageTag: 0f252791-bade-4fb9-9a48-4cda997c9826
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Clean_ItemID =
+			
+			VAR txt = LOWER(Shakir[ItemID])
+			
+			RETURN
+			IF(
+			    ISBLANK(txt),
+			    BLANK(),
+			    CONCATENATEX(
+			        FILTER(
+			            GENERATESERIES(1, LEN(txt)),
+			            MID(txt, [Value], 1) >= "0"
+			                && MID(txt, [Value], 1) <= "9"
+			        ),
+			        MID(txt, [Value], 1),
+			        ""
+			    )
+			)
+		lineageTag: 1264be8c-54a5-4592-a42e-415671a9785c
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column CleanLocationID =
+			
+			SUBSTITUTE(
+			SUBSTITUTE(
+			SUBSTITUTE(
+			SUBSTITUTE(
+			SUBSTITUTE(
+			    'Shakir'[LOCATIONID],
+			    "JAH", "JHR"),
+			    "TMHB", "MHB"),
+			    "HAW", "HWL"),
+			    "QAD", "QDS"),
+			    "SBH", "SBS")
+		lineageTag: 2bbb7bfc-e3e0-479c-bbeb-7598555a4ce6
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column OPTION_PARENT_PRODUCT_ID
+		dataType: string
+		lineageTag: e5da22e5-b7a6-4cb8-9755-8611215479aa
+		summarizeBy: none
+		sourceColumn: OPTION_PARENT_PRODUCT_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column PRODUCT_ID
+		dataType: string
+		lineageTag: 6fe60b4b-7fa4-41d8-a0e9-39ca57f72fe7
+		summarizeBy: none
+		sourceColumn: PRODUCT_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column NewItemID =
+			
+			CALCULATE(
+			    SELECTEDVALUE('ITEM TABLE'[SKU]),
+			    FILTER(
+			        'ITEM TABLE',
+			        'ITEM TABLE'[ID] = 'Shakir'[PRODUCT_ID]
+			    )
+			)
+		lineageTag: 7d1840c8-f6f0-4767-946a-c953ea5aaf51
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column CleanNewItemID =
+			
+			VAR ItemText = 'Shakir'[NewItemID]
+			RETURN
+			IF(
+			    ISBLANK(ItemText),
+			    BLANK(),
+			    CONCATENATEX(
+			        FILTER(
+			            ADDCOLUMNS(
+			                GENERATESERIES(1, LEN(ItemText)),
+			                "Char", MID(ItemText, [Value], 1)
+			            ),
+			            [Char] >= "0" && [Char] <= "9"
+			        ),
+			        [Char],
+			        ""
+			    )
+			)
+		lineageTag: b6f380a1-f4fa-4a88-83d7-0132504cccd7
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column NEW_ID_final =
+			
+			IF(
+			    NOT(ISBLANK([PRODUCT_ID])),
+			    FORMAT([PRODUCT_ID], "0"),
+			    IF(
+			        NOT(ISBLANK([OPTION_PARENT_PRODUCT_ID])),
+			        FORMAT([OPTION_PARENT_PRODUCT_ID], "0"),
+			        ""
+			    )
+			)
+		lineageTag: 3ba2158e-264b-487b-9f97-a3c6056be780
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Lookup Debug' =
+			
+			VAR _ID = 'Shakir'[PRODUCT_ID]
+			VAR _MatchingRows =
+			    FILTER(
+			        'ITEM TABLE',
+			        'ITEM TABLE'[ID] = _ID
+			    )
+			VAR _RowCount = COUNTROWS(_MatchingRows)
+			VAR _DistinctSKU =
+			    COUNTROWS(
+			        DISTINCT(
+			            SELECTCOLUMNS(
+			                _MatchingRows,
+			                "SKU", 'ITEM TABLE'[SKU]
+			            )
+			        )
+			    )
+			RETURN
+			    SWITCH(
+			        TRUE(),
+			        _RowCount = 0, "NO MATCH",
+			        _DistinctSKU > 1, "MULTIPLE SKUs",
+			        _DistinctSKU = 1, "ONE SKU",
+			        "SKU BLANK"
+			    )
+		lineageTag: 2a01e084-12ef-45e0-827e-d308734ea330
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Shakir = m
+		mode: import
+		source =
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+				    AIRBYTE_SS_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_SS",Kind="Schema"]}[Data],
+				    V_ORDER_PRODUCTS_COMBINED_View = AIRBYTE_SS_Schema{[Name="V_ORDER_PRODUCTS_COMBINED",Kind="View"]}[Data],
+				    // Convert all column names to uppercase
+				    #"Uppercase Column Names" = Table.RenameColumns(
+				        V_ORDER_PRODUCTS_COMBINED_View,
+				        List.Zip({
+				            Table.ColumnNames(V_ORDER_PRODUCTS_COMBINED_View),
+				            List.Transform(Table.ColumnNames(V_ORDER_PRODUCTS_COMBINED_View), Text.Upper)
+				        })
+				    ),
+				
+				    #"Changed Type" = Table.TransformColumnTypes(#"Uppercase Column Names",{{"BUSINESS_DATE", type date}}),
+				    #"Sorted Rows" = Table.Sort(#"Changed Type",{{"ORDER_ID", Order.Ascending}}),
+				    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([BUSINESS_DATE] <> null)),
+				    #"Sorted Rows1" = Table.Sort(#"Filtered Rows1",{{"BUSINESS_DATE", Order.Descending}}),
+				
+				    // Remove unused
+				    #"Removed Columns" = Table.RemoveColumns(#"Sorted Rows1",
+				        {"DISPLAY_NAME","PRODUCT_DESCRIPTION_LOCALIZED","DELAY_IN_SECONDS","RETURNED_QUANTITY",
+				         "KITCHEN_NOTES","IS_INGREDIENTS_WASTED","PRODUCT_IMAGE","LINE_UUID",
+				         "PRODUCT_DESCRIPTION","PRODUCT_CALORIES","PRODUCT_COST","PRODUCT_ACTIVE"}),
+				
+				    // Completed only
+				    #"Filtered Rows" = Table.SelectRows(#"Removed Columns", each ([ORDER_STATUS] = 4 or [ORDER_STATUS] = 5)),
+				    #"Removed Columns1" = Table.RemoveColumns(#"Filtered Rows",{"ORDER_STATUS"}),
+				
+				    // Merge Location
+				    #"Merged Queries" =
+				        Table.NestedJoin(#"Removed Columns1", {"BRANCH_ID"}, #"SS BRANCHES",
+				            {"ID"}, "ORDERS (5)", JoinKind.LeftOuter),
+				
+				    #"Expanded ORDERS (5)" =
+				        Table.ExpandTableColumn(#"Merged Queries","ORDERS (5)", {"NAME"},{"LOCATIONID"}),
+				
+				    #"Split Column by Delimiter" =
+				        Table.SplitColumn(#"Expanded ORDERS (5)", "LOCATIONID",
+				            Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv),
+				            {"LOCATIONID.1","LOCATIONID.2"}),
+				
+				    #"Changed Type1" =
+				        Table.TransformColumnTypes(#"Split Column by Delimiter",
+				            {{"LOCATIONID.1", type text}, {"LOCATIONID.2", type text}}),
+				
+				    #"Renamed Columns1" =
+				        Table.RenameColumns(#"Changed Type1",
+				            {{"LOCATIONID.2","BRAND"}, {"LOCATIONID.1","LOCATIONID"}}),
+				
+				    #"Renamed Columns2" =
+				        Table.RenameColumns(#"Renamed Columns1",
+				            {{"ORDER_ID","KEY"}, {"BUSINESS_DATE","VOUCHERDATE"}}),
+				
+				    #"Removed Columns4" =
+				        Table.RemoveColumns(#"Renamed Columns2",
+				            {"BRANCH_ID","ORDER_PRODUCT_ID","ADDED_AT","CLOSED_AT","PRODUCT_BASE_PRICE"}),
+				
+				    #"Renamed Columns3" =
+				        Table.RenameColumns(#"Removed Columns4",
+				            {{"QUANTITY","Qty"},{"PRODUCT_SKU","ItemID"},{"UNIT_PRICE","SellingPrice"},
+				             {"BRAND","Brand"},{"PRODUCT_NAME","ItemDescription"}}),
+				
+				    #"Removed Columns5" = Table.RemoveColumns(#"Renamed Columns3",{"PRODUCT_NAME_LOCALIZED"}),
+				
+				    // Cleanup
+				    #"Replaced Value" = Table.ReplaceValue(#"Removed Columns5","(","",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value",")","",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value3" = Table.ReplaceValue(#"Replaced Value1"," Thin - Pan - NY","",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"Renamed Columns4" = Table.RenameColumns(#"Replaced Value3",{{"VOUCHERDATE","VoucherDate"}}),
+				    #"Renamed Columns5" = Table.RenameColumns(#"Renamed Columns4",{{"LOCATIONID","LocationId"}}),
+				
+				    // ---- MAIN NORMALIZATION (unchanged) ----
+				    #"R1" = Table.ReplaceValue(#"Renamed Columns5","Medium NY","NY Medium",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R2" = Table.ReplaceValue(#"R1","MeatLover","Meat Lover",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R3" = Table.ReplaceValue(#"R2","New York Large (Classic)","NY Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R4" = Table.ReplaceValue(#"R3","New York Medium (Classic)","NY Medium",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R5" = Table.ReplaceValue(#"R4","Thin Crust Medium (New)","Thin Crust Medium",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R6" = Table.ReplaceValue(#"R5","New York Large","NY Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R7" = Table.ReplaceValue(#"R6","New York Medium","NY Medium",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"R8" = Table.ReplaceValue(#"R7","square","Square Pan",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    // ------------------------------------------------------
+				    // 🔥 SAFE FULL-STRING pc → pcs REPLACEMENTS (updated block)
+				    // ------------------------------------------------------
+				    #"Fix1" = Table.ReplaceValue(#"R8","3 pc Garlic Cheese Bread","3pcs Garlic Cheese Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix2" = Table.ReplaceValue(#"Fix1","3pc Garlic Cheese Bread","3pcs Garlic Cheese Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix3" = Table.ReplaceValue(#"Fix2","3pc Pepperoni Garlic Bread","3pcs Pepperoni Garlic Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix4" = Table.ReplaceValue(#"Fix3","4 pc Garlic Cheese Bread","4pcs Garlic Cheese Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix5" = Table.ReplaceValue(#"Fix4","4pc Pepperoni Garlic Bread","4pcs Pepperoni Garlic Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix6" = Table.ReplaceValue(#"Fix5","2 pc Garlic Cheese Bread","2pcs Garlic Cheese Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix7" = Table.ReplaceValue(#"Fix6","2 pcs Pepperoni Garlic Bread","2pcs Pepperoni Garlic Bread",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix8" = Table.ReplaceValue(#"Fix7","6 pc BBQ Chicken Wings","6pcs BBQ Chicken Wings",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix9" = Table.ReplaceValue(#"Fix8","6pc BBQ Chicken Wings","6pcs BBQ Chicken Wings",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix10" = Table.ReplaceValue(#"Fix9","6 pc Buffalo Chicken Wings","6pcs Buffalo Chicken Wings",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix11" = Table.ReplaceValue(#"Fix10","4 pcs BBQ Wings","4pcs BBQ Wings",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Fix12" = Table.ReplaceValue(#"Fix11","4 pcs Buffalo Wings","4pcs Buffalo Chicken Wings",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    // ------------------------------------------------------
+				    // 🔥 RANCH NORMALIZATION BLOCK (new)
+				    // ------------------------------------------------------
+				    #"RANCH1" = Table.ReplaceValue(#"Fix12","Regular Cool Ranch","Cool Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH2" = Table.ReplaceValue(#"RANCH1","Large Cool Ranch","Cool Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH3" = Table.ReplaceValue(#"RANCH2","Regular Spicy Ranch","Spicy Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH4" = Table.ReplaceValue(#"RANCH3","Large Spicy Ranch","Spicy Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH5" = Table.ReplaceValue(#"RANCH4","Truffle Ranch","Truffle Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH6" = Table.ReplaceValue(#"RANCH5","Bacon Ranch","Bacon Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH7" = Table.ReplaceValue(#"RANCH6","Honey Mustard Ranch","Honey Mustard Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH8"  = Table.ReplaceValue(#"RANCH7","Buffalo Ranch","Buffalo Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH9"  = Table.ReplaceValue(#"RANCH8","Pesto Ranch","Pesto Ranch",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH10" = Table.ReplaceValue(#"RANCH9","Skinny Ranch","Skinny Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH11" = Table.ReplaceValue(#"RANCH10","Regular BBQ Ranch","BBQ Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH12" = Table.ReplaceValue(#"RANCH11","Regular Pesto Ranch","Pesto Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH13" = Table.ReplaceValue(#"RANCH12","Large BBQ Ranch","BBQ Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Changed Type2" = Table.TransformColumnTypes(RANCH13,{{"VoucherDate", type datetime}}),
+				    #"RANCH14" = Table.ReplaceValue(#"Changed Type2","Large Pesto Ranch","Pesto Ranch Large",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH15" = Table.ReplaceValue(#"RANCH14","Extra Small Cool Ranch","Cool Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH16" = Table.ReplaceValue(#"RANCH15","Extra Small Spicy Ranch","Spicy Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH17" = Table.ReplaceValue(#"RANCH16","Extra Small BBQ Ranch","BBQ Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"RANCH18" = Table.ReplaceValue(#"RANCH17","Extra Small Pesto Ranch Sauce","Pesto Ranch Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH19" = Table.ReplaceValue(#"RANCH18","Cool Ranch Sauce","Free Cool Ranch",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"RANCH20" = Table.ReplaceValue(#"RANCH19","Spicy Ranch Sauce","Free Spicy Ranch",Replacer.ReplaceText,{"ItemDescription"}),
+				
+				    #"Replaced Value4" = Table.ReplaceValue(RANCH20," (Thin - Pan - NY)","",Replacer.ReplaceText,{"MAIN_PRODUCT_NAME"}),
+				    #"Replaced Value5" = Table.ReplaceValue(#"Replaced Value4"," (NY)","",Replacer.ReplaceText,{"MAIN_PRODUCT_NAME"}),
+				    #"Filtered Rows2" = Table.SelectRows(#"Replaced Value5", each true),
+				    #"Replaced Value6" = Table.ReplaceValue(#"Filtered Rows2"," Classic","",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value7" = Table.ReplaceValue(#"Replaced Value6","Large NY","NY Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value8" = Table.ReplaceValue(#"Replaced Value7","Large NY","NY Large",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Renamed Columns" = Table.RenameColumns(#"Replaced Value8",{{"CATEGORY_NAME", "CategoryDescription"}}),
+				    #"Replaced Value9" = Table.ReplaceValue(#"Renamed Columns","COOL RANCH","Free Cool Ranch",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value10" = Table.ReplaceValue(#"Replaced Value9","SPICY RANCH","Free Spicy Ranch",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Renamed Columns6" = Table.RenameColumns(#"Replaced Value10",{{"LocationId", "LOCATIONID"}, {"VoucherDate", "VOUCHERDATE"}, {"SellingPrice", "SELLINGPRICE"}, {"Brand", "CHAINID"}}),
+				    #"Replaced Value2" = Table.ReplaceValue(#"Renamed Columns6","Shakir Regular Size","Regular",Replacer.ReplaceText,{"ItemDescription"}),
+				    #"Replaced Value11" = Table.ReplaceValue(#"Replaced Value2","Shakir Super Size","Super",Replacer.ReplaceText,{"ItemDescription"})
+				in
+				    #"Replaced Value11"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+

@@ -1,0 +1,55 @@
+table Incidence_Denominator
+	lineageTag: 913a72a7-67a5-4749-ac75-2b8b81aebaeb
+
+	column CHAINID
+		lineageTag: 656ab875-33b3-4d4a-8c96-0bd6620e930f
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: YELO[CHAINID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		formatString: General Date
+		lineageTag: 2ba8118f-27e5-495d-b2bd-36cf8e319183
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: YELO[VOUCHERDATE]
+
+		variation Variation
+			isDefault
+			relationship: 70f7e5e6-afe3-41e8-bd43-70a0cb193556
+			defaultHierarchy: LocalDateTable_8f30a05f-5113-4ac7-83b5-6fd9e6ba64f2.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Denominator (Total Orders)'
+		formatString: 0
+		lineageTag: 05906f99-2091-485e-add2-1b2687186a14
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Denominator (Total Orders)]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CleanLocationID
+		lineageTag: 4be4b6ee-e4d1-44a2-9262-b41414def93d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: YELO[CleanLocationID]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Incidence_Denominator = calculated
+		mode: import
+		source =
+				
+				SUMMARIZECOLUMNS(
+				    'YELO'[CHAINID],
+				    'YELO'[CleanLocationID],
+				    'YELO'[VOUCHERDATE],
+				    "Denominator (Total Orders)", DISTINCTCOUNT('YELO'[KEY])
+				)
+
+	annotation PBI_Id = 45ba086a4f9b439ea1c4bffa90022bcc
+

@@ -1,0 +1,1423 @@
+table Append1
+	excludeFromModelRefresh
+	lineageTag: e6e28130-68ba-4bc4-9bca-3cb18f1a4051
+
+	measure AverageRating = AVERAGE(Append1[Rate Order])
+		formatString: 0.00
+		lineageTag: 62f7e5f0-39a0-4a4f-bec3-798609fad49e
+
+	measure 'Count of ratings' = COUNTROWS('Talabat Ratings')
+		formatString: 0
+		lineageTag: de2e7de0-f487-4c6f-be2e-dfd125080570
+
+	measure 'Count of Orders' = ```
+			
+			COUNTROWS('SALES DATA')
+			
+			```
+		formatString: 0
+		lineageTag: 018e7c84-bf2c-405b-97ed-52d907b3782f
+
+	measure 'Response to Order Ratio' = ```
+			
+			DIVIDE(
+			    [Count of ratings],  -- This should be a measure that counts orders with ratings
+			    [Count of Orders],  -- This is your measure for the total count of orders
+			    0  -- This is the default value when dividing by zero
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 6ee5ed52-b5f8-4581-89fb-7b3a5a887377
+
+	measure OfflineRate = ```
+			
+			VAR DailyOperatingMinutes = 13.5 * 60 -- Convert daily operating hours to minutes
+			VAR StartDate = MIN('DateTableToday'[Date]) -- Start date based on the selected range in DateTable
+			VAR EndDate = MAX('DateTableToday'[Date]) -- End date based on the selected range in DateTable
+			VAR TotalDays = DATEDIFF(StartDate, EndDate, DAY) + 1 -- Total number of days in the selected range, adjusted for single-day selection
+			VAR TotalOperatingMinutes = DailyOperatingMinutes * TotalDays -- Total operating minutes across the selected period
+			
+			VAR OfflineMinutes = SUM('BUSY TIME'[DurationInMinutes]) -- Total offline minutes from the BusyTime table
+			
+			VAR OfflineRateRaw = 
+			    IF(
+			        ISBLANK(OfflineMinutes) || ISBLANK(TotalDays), -- Check for missing data
+			        0, -- Return 0 if no data exists
+			        DIVIDE(OfflineMinutes, TotalOperatingMinutes, 0) -- Calculate the offline rate
+			    )
+			
+			RETURN 
+			FORMAT(OfflineRateRaw * 100, "0.00") & "%" -- Convert to percentage and add the % sign
+			
+			```
+		lineageTag: f448f711-61a3-45d7-8455-aa7adf130378
+
+	measure 'Count of Punch' = ```
+			
+			COUNTROWS('YELO_KDS')
+			
+			```
+		formatString: 0
+		lineageTag: 002db4b4-21ac-47d7-91a6-4458d0304d26
+
+	measure 'Punch ration' = DIVIDE([Count of Punch],[Count of Orders])
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 23813a59-07f8-4a3c-8434-26ed16cf50b2
+
+	measure TotalOfflineRate = ```
+			
+			VAR DailyOperatingMinutes = 13.5 * 60 -- Convert daily operating hours to minutes
+			VAR StartDate = MIN('DateTableToday'[Date]) -- Start date based on the selected range in DateTable
+			VAR EndDate = MAX('DateTableToday'[Date]) -- End date based on the selected range in DateTable
+			VAR TotalDays = DATEDIFF(StartDate, EndDate, DAY) + 1 -- Adjust for single-day selection
+			VAR TotalOperatingMinutes = DailyOperatingMinutes * TotalDays -- Total operating minutes across the selected period
+			
+			VAR OfflineMinutes = SUM('BUSY TIME'[DurationInMinutes]) -- Total offline minutes from the BusyTime table
+			
+			VAR LocationCount = DISTINCTCOUNT('LocationTable'[Location]) -- Count distinct locations
+			
+			VAR TotalOperatingMinutesWithLocations = TotalOperatingMinutes * LocationCount -- Multiply total operating minutes by location count
+			
+			VAR OfflineRateRaw = 
+			    IF(
+			        ISBLANK(OfflineMinutes) || ISBLANK(TotalOperatingMinutesWithLocations), -- Check for missing data
+			        0, -- Return 0 if no data exists
+			        DIVIDE(OfflineMinutes, TotalOperatingMinutesWithLocations, 0) -- Calculate the offline rate
+			    )
+			
+			RETURN 
+			FORMAT(OfflineRateRaw * 100, "0.00") & "%" -- Convert to percentage and add the % sign
+			
+			```
+		lineageTag: c7b3f789-93d7-4903-8888-4b547b123436
+
+	measure 'Variation Percentage Measure' = ```
+			
+			    DIVIDE(SUM(FORECAST[Actual Sales]) - SUM(FORECAST[MonthRunrate]), SUM(FORECAST[Actual Sales]), 0)
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 7a4afbb1-458f-4995-9001-ae46649f69f7
+
+	measure 'MTD Actual Sales' = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[Actual Sales]),  -- Summing the NetSales column
+			    DATESMTD('FORECAST'[Date])  -- Filtering for the MTD period
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 9709bb2f-9a2b-44d2-a972-9e34118f9e2b
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'MTD Target' = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[Forecast]),  -- Summing the Forecast column
+			    DATESMTD('FORECAST'[Date]), -- Filtering for the MTD period
+			    'FORECAST'[Date] <= 
+			        MAXX(  -- Find the max date where ActualSales is not blank
+			            FILTER('FORECAST', NOT(ISBLANK('FORECAST'[Actual Sales]))), 
+			            'FORECAST'[Date]
+			        )
+			)
+			
+			```
+		lineageTag: ef77f938-e3f3-4718-84b4-19dd50693bdd
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'MTD Sales Difference with Logo' = ```
+			
+			IF(
+			    [MTD Actual Sales] - [MTD Target] > 0,
+			    "+" & FORMAT([MTD Actual Sales] - [MTD Target], "#,0"),
+			    "-" & FORMAT([MTD Target] - [MTD Actual Sales], "#,0")
+			)
+			
+			```
+		lineageTag: 5ce96551-2689-4d01-9882-e0cac27f046b
+
+	measure LYGROWTHTARGET = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [FORECAST_MTD] - [RUNRATE_CurrentMonthLastYear],
+			        [RUNRATE_CurrentMonthLastYear],
+			        0
+			    ) ,
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: ebfe3c95-7968-4f41-87b5-b3541fb6ec98
+
+	measure MissingChainLocations = ```
+			
+			VAR AllChainLocations = 
+			    SUMMARIZE(
+			        'SALES DATA',
+			        'SALES DATA'[BRAND],
+			        'SALES DATA'[LocationID]
+			    )  -- All ChainID-LocationID combinations in the dataset
+			
+			VAR ChainLocationsWithSalesYesterday = 
+			    SUMMARIZE(
+			        FILTER(
+			            'SALES DATA',
+			            'SALES DATA'[VoucherDate] = TODAY() - 1
+			        ),
+			        'SALES DATA'[BRAND],
+			        'SALES DATA'[LocationID]
+			    )  -- ChainID-LocationID combinations with sales yesterday
+			
+			VAR MissingLocationsTable = 
+			    EXCEPT(
+			        AllChainLocations,
+			        ChainLocationsWithSalesYesterday
+			    )  -- Find missing ChainID-LocationID combinations
+			
+			VAR MissingLocationsFormatted = 
+			    CONCATENATEX(
+			        MissingLocationsTable,
+			        'SALES DATA'[BRAND] & " - " & 'SALES DATA'[LocationID],
+			        ", "
+			    )  -- Create a single text value listing missing ChainID-LocationID pairs
+			
+			RETURN
+			    IF(
+			        ISBLANK(MissingLocationsFormatted),
+			        "None",  -- No missing combinations
+			        MissingLocationsFormatted  -- List of missing combinations
+			    )
+			
+			```
+		lineageTag: 2deea75f-a0fe-40be-a3e1-35cb4f8c4c20
+
+	measure 'Variation_Percentage target' = ```
+			
+			VAR Variation = DIVIDE(
+			    [FORECAST_YTD] - [RUNRATE_LastYear],   -- Forecast sales minus last year's sales
+			    [RUNRATE_LastYear],                                 -- Last year's sales (denominator)
+			    0                                                      -- Return 0 if there is an error (e.g., division by zero)
+			) * 100                                                   -- Multiply by 100 to show as percentage
+			RETURN 
+			    FORMAT(Variation, "0.00") & "%"                         -- Format the result as a string with 2 decimal places and add the '%' sign
+			
+			```
+		lineageTag: 780ecbd0-cdb8-46c1-be91-700d904e9375
+
+	measure 'Variation Percentage MTD' = ```
+			
+			VAR MTD_ActualSales =
+			    CALCULATE(
+			        SUM(FORECAST[Actual Sales]),
+			        DATESMTD('DateTableToday'[DATE]),
+			        'DateTableToday'[DATE] < TODAY()
+			    )
+			VAR MTD_MonthRunrate =
+			    CALCULATE(
+			        SUM(FORECAST[MonthRunrate]),
+			        DATESMTD('DateTableToday'[DATE]),
+			        'DateTableToday'[DATE] < TODAY()
+			    )
+			RETURN
+			    DIVIDE(MTD_ActualSales - MTD_MonthRunrate, MTD_ActualSales, 0)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: ffaa614f-2bba-49d6-9202-5b89818fdf2b
+
+	measure TotalHiddenMinutes_Yesterday = ```
+			
+			VAR SumHiddenMinutes = 
+			    CALCULATE(
+			        SUM('HIDDEN'[HiddenMinutes]), 
+			        'HIDDEN'[Date] = TODAY() - 1
+			    )
+			RETURN 
+			    IF(
+			        ISBLANK(SumHiddenMinutes), 
+			        BLANK(),  -- Returns blank if there is no data
+			        SumHiddenMinutes & " Minutes"
+			    )
+			
+			```
+		lineageTag: ed907e47-19d4-43e3-a533-f306aa9ad639
+
+	measure MostHiddenItem = ```
+			
+			VAR MostHiddenItemName = 
+			    TOPN(1, 
+			        VALUES('HIDDEN'[Hidden Items]), 
+			        CALCULATE(SUM('HIDDEN'[HiddenMinutes])), 
+			        DESC
+			    )
+			RETURN 
+			    CONCATENATEX(MostHiddenItemName, 'HIDDEN'[Hidden Items], ", ")
+			
+			```
+		lineageTag: 618a931c-fe7c-4c38-8ed1-d167b0ac4ae9
+
+	measure MostHiddenReason = ```
+			
+			VAR MostHiddenItemName = 
+			    TOPN(1, 
+			        VALUES('HIDDEN'[Reason For Hide]), 
+			        CALCULATE(SUM('HIDDEN'[HiddenMinutes])), 
+			        DESC
+			    )
+			RETURN 
+			    CONCATENATEX(MostHiddenItemName, 'HIDDEN'[Reason For Hide], ", ")
+			
+			```
+		lineageTag: 4ecd65c9-7f37-4b4c-b91c-f09a82e3d302
+
+	measure MostHiddenLocation = ```
+			
+			VAR MostHiddenItemName = 
+			    TOPN(1, 
+			        VALUES('HIDDEN'[Branch]), 
+			        CALCULATE(SUM('HIDDEN'[HiddenMinutes])), 
+			        DESC
+			    )
+			RETURN 
+			    CONCATENATEX(MostHiddenItemName, 'HIDDEN'[Branch], ", ")
+			
+			```
+		lineageTag: 87c4365e-52e2-4a74-b1ec-1c766873dae5
+
+	measure 'Variation Percentage MTD_RRR' =
+			
+			VAR MTD_ActualSales =
+			CALCULATE(
+			SUM(FORECAST[Actual Sales]),
+			DATESMTD('FORECAST'[DATE]),
+			'FORECAST'[DATE] < TODAY()
+			)
+			VAR MTD_MonthRunrate =
+			CALCULATE(
+			SUM(FORECAST[RR_TEST]),
+			DATESMTD('FORECAST'[DATE]),
+			'FORECAST'[DATE] < TODAY()
+			)
+			VAR Result =
+			DIVIDE(MTD_ActualSales - MTD_MonthRunrate, MTD_MonthRunrate, 0)
+			RETURN
+			FORMAT(Result, "0.00%")
+		lineageTag: 35c687c4-5d6f-417b-b1df-e29d85f71dee
+
+	measure RRR_MTD_MonthRunrate = ```
+			
+			    CALCULATE(
+			        SUM(FORECAST[RR_TEST]),
+			        DATESMTD('DateTableToday'[DATE]),
+			        'DateTableToday'[DATE] < TODAY()
+			    )
+			```
+		lineageTag: 28d3cd63-f674-4290-a303-4e11bed32557
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'MTD RRR Difference with Logo' = ```
+			
+			VAR Diff = [RUNRATE_MTD] - [RRR MTD]
+			RETURN 
+			IF(
+			    Diff > 0,
+			    "+" & FORMAT(ABS(Diff), "#,0"),
+			    "-" & FORMAT(ABS(Diff), "#,0")
+			)
+			
+			```
+		lineageTag: bea2df09-ed71-493f-9488-9e11ef4f8e81
+
+	measure LMGROWTH_Value = ```
+			
+			DIVIDE(
+			    [RUNRATE_MTD] - [RUNRATE_LastMonth],
+			    [RUNRATE_LastMonth],
+			    0
+			)
+			
+			```
+		lineageTag: 4f492adf-bee8-4520-92d8-bbceded9e30c
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure User = USERPRINCIPALNAME()
+		lineageTag: 30bd3771-3a76-48c7-be11-3bc6de090e3a
+
+	measure ACCURACY = ```
+			
+			IF(
+			    NOT ISBLANK(SELECTEDVALUE('FORECAST'[Actual Sales])),
+			    DIVIDE(
+			        SELECTEDVALUE('FORECAST'[Actual Sales]) - SELECTEDVALUE('FORECAST'[Required Run Rate Live]),
+			        SELECTEDVALUE('FORECAST'[Required Run Rate Live])
+			    )
+			)
+			
+			```
+		lineageTag: 59e46c24-ef1c-4f0f-8d6d-9f59213f3204
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Variation Percentage RRR' = ```
+			
+			    DIVIDE(SUM(FORECAST[Actual Sales]) - SUM(FORECAST[RR_TEST]), SUM(FORECAST[RR_TEST]), 0)
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e3365f0a-334a-4105-9ee8-d0ce08a107a7
+
+	measure RUNRATE_MTD1 = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[LAST1DAYSTOTALSALES]), 
+			    DATESMTD('FORECAST'[Date])  -- 'Date' is your date table column, replace if different
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 8daf85e5-e0fa-46f6-a121-e04d824e5c2c
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure RUNRATE_MTD7 = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[LAST7DAYSTOTALSALES]), 
+			    DATESMTD('FORECAST'[Date])  -- 'Date' is your date table column, replace if different
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: c9400014-d122-4368-9c8c-e3700d9842b7
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure seasonaleffectmtd = ```
+			
+			FORMAT(
+			    CALCULATE(
+			        SUM('FORECAST'[CumulativeSeasonalEffect_Forecast_effect]), 
+			        DATESMTD('FORECAST'[Date])
+			    ),
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 114461f1-bc5b-4fba-ac49-1c345c0b96cf
+
+	measure RunRate_vs_SeasonalEffect_Diff_Percent = ```
+			
+			FORMAT(
+			    [RunRate_vs_SeasonalEffect_Diff],
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 004792c0-239c-481a-b155-27b3b06d7dd4
+
+	measure RunRate_vs_SeasonalEffect_Diff = ```
+			
+			[LMGROWTH_Value]-[Seasonality]
+			
+			```
+		lineageTag: e4d8adfd-4aa5-4372-962b-fe176fcd472d
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Measure
+		lineageTag: 2786bcd9-9817-4623-843f-d56d6233d244
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure MissingChainLocationsMTD = ```
+			
+			VAR StartOfMont = DATE(YEAR(TODAY()), MONTH(TODAY()), 1)
+			VAR TodayDate = TODAY()
+			
+			VAR AllDates =
+			    ADDCOLUMNS(
+			        CALENDAR(StartOfMont, TodayDate),
+			        "Date", [Date]
+			    )
+			
+			VAR AllBrandLocations =
+			    SUMMARIZE(
+			        'SALES DATA',
+			        'SALES DATA'[BRAND],
+			        'SALES DATA'[LocationID]
+			    )
+			
+			VAR FullCombination =
+			    SELECTCOLUMNS(
+			        CROSSJOIN(AllBrandLocations, AllDates),
+			        "BRAND", [BRAND],
+			        "LocationID", [LocationID],
+			        "VoucherDate", [Date]
+			    )
+			
+			VAR ExistingSales =
+			    SELECTCOLUMNS(
+			        'SALES DATA',
+			        "BRAND", 'SALES DATA'[BRAND],
+			        "LocationID", 'SALES DATA'[LocationID],
+			        "VoucherDate", 'SALES DATA'[VoucherDate]
+			    )
+			
+			RETURN
+			    EXCEPT(FullCombination, ExistingSales)
+			
+			```
+		lineageTag: 67aef7c1-f07b-417e-b2b2-887db2278dbd
+
+	measure SeasonalEffectMTD_Value = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[CumulativeSeasonalEffect_Forecast_effect]), 
+			    DATESMTD('FORECAST'[Date])
+			)
+			
+			```
+		lineageTag: 09ea6528-689e-49dd-b4bf-e421e690c74b
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure WRRGROWTH_Text = ```
+			
+			VAR Diff = [RUNRATE_MTD7] - [RUNRATE_MTD]
+			RETURN
+			IF(
+			    Diff > 0,
+			    "+" & FORMAT(Diff, "0.00"),
+			    FORMAT(Diff, "0.00")
+			)
+			
+			```
+		lineageTag: 1f300b68-db32-479f-9b45-5d6231452df7
+
+	measure DRRGROWTH_Text = ```
+			
+			VAR Diff = [RUNRATE_MTD1]-[RUNRATE_MTD7]
+			RETURN
+			IF(
+			    Diff > 0,
+			    "+" & FORMAT(Diff, "0.00"),
+			    FORMAT(Diff, "0.00")
+			)
+			
+			```
+		lineageTag: eec77277-a06a-44fd-ba1c-3a6c8d4f3e65
+
+	measure TotalOfflineRateBranch = ```
+			
+			VAR DailyOperatingMinutes = 17 * 60
+			
+			-- Selected date range
+			VAR StartDate = MIN('DateTableToday'[Date])
+			VAR EndDate = MAX('DateTableToday'[Date])
+			VAR TotalDays = DATEDIFF(StartDate, EndDate, DAY) + 1
+			
+			VAR TotalOperatingMinutes = DailyOperatingMinutes * TotalDays
+			
+			-- Total Offline Minutes (respects all filters)
+			VAR OfflineMinutes = SUM('BUSY TIME'[DurationInMinutes])
+			
+			-- Distinct Branch+Brand combinations for selected Brand(s), ignoring date filter
+			VAR LocationBrandCount =
+			    CALCULATE(
+			        COUNTROWS(
+			            SUMMARIZE(
+			                'BUSY TIME',
+			                'BUSY TIME'[Branch],
+			                'BUSY TIME'[Brand]
+			            )
+			        ),
+			        REMOVEFILTERS('DateTableToday'[Date]),
+			        KEEPFILTERS(VALUES('BUSY TIME'[Brand]))
+			    )
+			
+			-- Multiply total operating time by the number of locations (branch-brand combos)
+			VAR TotalOperatingMinutesWithBrands = TotalOperatingMinutes * LocationBrandCount
+			
+			-- Calculate offline rate safely
+			VAR OfflineRateRaw =
+			    DIVIDE(OfflineMinutes, TotalOperatingMinutesWithBrands, 0)
+			
+			RETURN
+			OfflineRateRaw
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 807f48d7-defa-44fb-affb-c0a04613ceef
+
+	measure SeasonalityImpactMTD = ```
+			
+			DIVIDE(
+			    [SeasonalityNumeratorMTD],
+			    [SeasonalityDenominatorMTD],
+			    0
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 831476be-eaa6-4964-8f1f-08f28bd10f70
+
+	measure LastMonthSales_Brand = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[TotalSale]),
+			    PREVIOUSMONTH('FORECAST'[Date])
+			)
+			
+			```
+		lineageTag: 440b0a1a-b8c5-48eb-aa72-c7d21462ba8d
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure ThisMonthSeasonality_Brand = ```
+			
+			CALCULATE(
+			    SUM('FORECAST'[SeasonalEffect_Forecast_effect]),
+			    DATESMTD('FORECAST'[Date])
+			)
+			
+			```
+		lineageTag: 7cd6fe2e-73b5-4043-b3bd-9b4b44bc5894
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure WeightedImpact_Brand = ```
+			
+			[LastMonthSales_Brand] * [ThisMonthSeasonality_Brand]
+			
+			```
+		lineageTag: b8478913-3060-42c0-9573-13fbbb3b2d08
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure SeasonalityNumeratorMTD = ```
+			
+			SUMX(
+			    VALUES('FORECAST'[Brand]),
+			    [LastMonthSales_Brand] * [ThisMonthSeasonality_Brand]
+			)
+			
+			```
+		lineageTag: 2ceaa483-becd-4e5a-8fc8-f6241f0aabe9
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure SeasonalityDenominatorMTD = ```
+			
+			SUMX(
+			    VALUES('FORECAST'[Brand]),
+			    [LastMonthSales_Brand]
+			)
+			
+			```
+		lineageTag: d20da771-4d6e-47bc-8be7-482a2504f2df
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure SeasonalityMTD = ```
+			
+			DIVIDE(
+			    [SeasonalityNumeratorMTD],
+			    [SeasonalityDenominatorMTD],
+			    0
+			)
+			
+			```
+		lineageTag: b4fddd83-912a-47ea-8229-3e18912e7692
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Seasonality = [SeasonalityMTD]-1
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e5f75e06-ad68-482d-9ada-b931db31f51a
+
+	measure SeasonalityImpactMTD_% = ```
+			
+			FORMAT([Seasonality], "0.00%")
+			
+			```
+		lineageTag: 174acd76-f113-48a7-a89b-0b560d4c5bc2
+
+	measure 'Variance Symbol'
+		lineageTag: b191a15a-b5a7-4137-8daa-e5e7a7f3f956
+
+	measure 'Required Run Rate TEST' = ```
+			
+			VAR MaxVisibleDate = MAX('FORECAST'[Date])
+			VAR TodayDate = TODAY()
+			
+			VAR CutoffYear = YEAR(TodayDate)
+			VAR CutoffMonth = MONTH(TodayDate)
+			
+			VAR RowYear = YEAR(MaxVisibleDate)
+			VAR RowMonth = MONTH(MaxVisibleDate)
+			VAR RowDay = DAY(MaxVisibleDate)
+			
+			VAR IsSingleBrandSelected = HASONEVALUE('FORECAST'[Brand])
+			VAR SelectedBrands = VALUES('FORECAST'[Brand])
+			
+			// Ensure BrandsTable is always a valid table
+			VAR BrandsTable =
+			    IF(
+			        IsSingleBrandSelected,
+			        SELECTCOLUMNS(VALUES('FORECAST'[Brand]), "Brand", 'FORECAST'[Brand]),
+			        SELECTCOLUMNS(ALL('FORECAST'[Brand]), "Brand", 'FORECAST'[Brand])
+			    )
+			
+			VAR DateBrandTable =
+			    FILTER(
+			        CROSSJOIN(
+			            FILTER(
+			                ALL('FORECAST'[Date]),
+			                YEAR('FORECAST'[Date]) = CutoffYear &&
+			                MONTH('FORECAST'[Date]) = CutoffMonth &&
+			                DAY('FORECAST'[Date]) >= 15
+			            ),
+			            BrandsTable
+			        ),
+			        TRUE()
+			    )
+			
+			VAR CutoffDate =
+			    MINX(
+			        FILTER(
+			            DateBrandTable,
+			            VAR ThisDate = [Date]
+			            VAR ThisBrand = [Brand]
+			            VAR VariationPctRRRValue =
+			                CALCULATE(
+			                    [Variation Percentage RRR],
+			                    'FORECAST'[Date] = ThisDate,
+			                    'FORECAST'[Brand] = ThisBrand
+			                )
+			            RETURN
+			                (DAY(ThisDate) >= 15 && DAY(ThisDate) <= 17 && VariationPctRRRValue > 0.70) ||
+			                (DAY(ThisDate) > 17 && DAY(ThisDate) <= 20 && VariationPctRRRValue > 0.60) ||
+			                (DAY(ThisDate) > 20 && DAY(ThisDate) <= 23 && VariationPctRRRValue > 0.50) ||
+			                (DAY(ThisDate) > 23 && DAY(ThisDate) <= 25 && VariationPctRRRValue > 0.40) ||
+			                (DAY(ThisDate) > 25 && VariationPctRRRValue > 0.30)
+			        ),
+			        [Date]
+			    )
+			
+			// Check if there is any RRR before 15th for selected brands in cutoff month
+			VAR HasRRRBefore15 =
+			    CALCULATE(
+			        COUNTROWS('FORECAST'),
+			        FILTER(
+			            ALL('FORECAST'),
+			            'FORECAST'[AdjustedRRR] > 0 &&
+			            'FORECAST'[Brand] IN SelectedBrands &&
+			            YEAR('FORECAST'[Date]) = CutoffYear &&
+			            MONTH('FORECAST'[Date]) = CutoffMonth &&
+			            DAY('FORECAST'[Date]) <= 15
+			        )
+			    ) > 0
+			
+			VAR TotalRRR =
+			    CALCULATE(
+			        SUM('FORECAST'[AdjustedRRR]),
+			        FILTER(
+			            ALL('FORECAST'),
+			            'FORECAST'[Date] = MaxVisibleDate &&
+			            'FORECAST'[Brand] IN SelectedBrands
+			        )
+			    )
+			
+			VAR TotalRunRate =
+			    CALCULATE(
+			        SUM('FORECAST'[Required_Run_Rate]) + SUM('FORECAST'[RR_TEST]),
+			        FILTER(
+			            ALL('FORECAST'),
+			            'FORECAST'[Date] = MaxVisibleDate &&
+			            'FORECAST'[Brand] IN SelectedBrands
+			        )
+			    )
+			
+			VAR IsCutoffMonth = (RowYear = CutoffYear && RowMonth = CutoffMonth)
+			
+			RETURN
+			IF (
+			    TotalRRR > 0 &&
+			    (
+			        (IsCutoffMonth && NOT ISBLANK(CutoffDate) && MaxVisibleDate < CutoffDate) ||
+			        (NOT IsCutoffMonth)
+			    ) &&
+			    (RowDay <= 15 || HasRRRBefore15),
+			    TotalRunRate,
+			    BLANK()
+			)
+			
+			```
+		lineageTag: cbb419ce-a2a1-4188-b12b-4b9d44eb772e
+
+	measure 'Sales vs Forecast' = ```
+			
+			DIVIDE(
+			    SUM(FORECAST[TotalSale2]),
+			    SUM(FORECAST[D.TGTADJ])
+			)
+			
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: efb3f350-9e08-4d44-8471-8bbdb2966cc2
+
+	measure 'Sales vs Forecast STD' = ```
+			
+			DIVIDE(
+			    SUM(FORECAST[TotalSale2]),
+			    SUM(FORECAST[D.TARGET])
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: f40f2552-7dd2-482d-b284-cdebde409060
+
+	measure CurrentMonthRunrateSE =
+			
+			VAR SelectedBrand = SELECTEDVALUE( FORECAST[Brand] )
+			VAR MinDate       = MIN( 'RunRateDateSlicer'[Date] )
+			VAR MaxDate       = MAX( 'DateTableToday'[Date] )
+			
+			// 1. Build a small table of months between MinDate and MaxDate
+			VAR MonthTable =
+			    ADDCOLUMNS(
+			        DISTINCT(
+			            SELECTCOLUMNS(
+			                FILTER(
+			                    ALL( 'DateTableToday' ),
+			                    'DateTableToday'[Date] >= MinDate &&
+			                    'DateTableToday'[Date] <= MaxDate
+			                ),
+			                "MonthKey", EOMONTH( 'DateTableToday'[Date], 0 )
+			            )
+			        ),
+			        "MonthIndex",
+			            RANKX(
+			                DISTINCT(
+			                    SELECTCOLUMNS(
+			                        FILTER(
+			                            ALL( 'DateTableToday' ),
+			                            'DateTableToday'[Date] >= MinDate &&
+			                            'DateTableToday'[Date] <= MaxDate
+			                        ),
+			                        "MonthKey", EOMONTH( 'DateTableToday'[Date], 0 )
+			                    )
+			                ),
+			                [MonthKey],
+			                ,
+			                ASC,
+			                DENSE
+			            )
+			    )
+			
+			// 2. Iterate each forecast row and build the run-rate with a product-based seasonal factor
+			RETURN
+			SUMX(
+			    FILTER(
+			        FORECAST,
+			        FORECAST[Date]  >= MinDate &&
+			        FORECAST[Date]  <= MaxDate &&
+			        FORECAST[Brand] = SelectedBrand
+			    ),
+			    VAR ThisMonthKey   = EOMONTH( FORECAST[Date], 0 )
+			    VAR ThisMonthIndex =
+			        MAXX(
+			            FILTER( MonthTable, [MonthKey] = ThisMonthKey ),
+			            [MonthIndex]
+			        )
+			
+			    // 3. Product of SeasonalEffect from MonthIndex 2 → ThisMonthIndex
+			    VAR SeasonalMultiplier =
+			        IF(
+			            ThisMonthIndex = 1,
+			            1,
+			            PRODUCTX(
+			                FILTER(
+			                    MonthTable,
+			                    [MonthIndex] >= 2 &&
+			                    [MonthIndex] <= ThisMonthIndex
+			                ),
+			                // For each month in that filtered set, fetch the effect
+			                VAR MKey = [MonthKey]
+			                RETURN
+			                    CALCULATE(
+			                        MAX( FORECAST[SeasonalEffect] ),
+			                        ALL( FORECAST ),          // remove row‐context filters
+			                        FORECAST[Brand] = SelectedBrand,
+			                        EOMONTH( FORECAST[Date], 0 ) = MKey
+			                    )
+			            )
+			        )
+			
+			    // 4. Final run‐rate contribution for this row
+			    RETURN
+			        FORECAST[D. Forecast %]
+			        * [RunRate_SalesOverForecastDynamic]
+			        * SeasonalMultiplier
+			)
+		lineageTag: 62e40ac1-8007-45ae-b7b4-1364e7078301
+
+	measure RunRate_SalesOverForecastDynamic = ```
+			
+			VAR SelectedStartDate = MIN(RunRateDateSlicer[Date])
+			VAR SelectedEndDate = MAX(RunRateDateSlicer[Date])
+			
+			VAR FilteredTable =
+			    FILTER(
+			        ALL(FORECAST),  -- Remove filters to apply only those explicitly controlled
+			        NOT ISBLANK(FORECAST[Actual Sales]) &&
+			        FORECAST[Actual Sales] <> 0 &&
+			        FORECAST[Date] >= SelectedStartDate &&
+			        FORECAST[Date] <= SelectedEndDate
+			    )
+			
+			VAR CumulativeActualSales = 
+			    CALCULATE(
+			        SUM(FORECAST[Actual Sales]),
+			        FilteredTable,
+			        KEEPFILTERS(VALUES(FORECAST[Brand]))  -- Respect Brand selection
+			    )
+			
+			VAR CumulativeForecast = 
+			    CALCULATE(
+			        SUM(FORECAST[D. Forecast %]),
+			        FilteredTable,
+			        KEEPFILTERS(VALUES(FORECAST[Brand]))  -- Respect Brand selection
+			    )
+			
+			RETURN
+			IF(
+			    CumulativeForecast = 0 || ISBLANK(CumulativeForecast),
+			    BLANK(),
+			    DIVIDE(CumulativeActualSales, CumulativeForecast)
+			)
+			
+			```
+		lineageTag: 161250be-d803-4c31-a566-332d3dbffd00
+
+	measure RunRateDateSlicer
+		lineageTag: 329b6547-a6da-4e16-8655-7d26b4c2be3a
+
+	measure PredictedValue = ```
+			
+			    CALCULATE(
+			        LASTNONBLANK(FORECAST[YesterdayMonthly], 1) * LASTNONBLANK(FORECAST[D. Forecast %], 1),
+			        FORECAST[Date] <= TODAY() - 1
+			    ) 
+			
+			```
+		lineageTag: 35d2e77a-f918-4297-91fc-92d8cb9e3a74
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Variance_Symbol =
+			
+			VAR VarValue = SUM(Forecast_Product_Table[Actual_Qty]) - SUM(Forecast_Product_Table[Forecast_Qty_7(last 28+2)])
+			RETURN
+			    IF(VarValue > 0, "▲ " & FORMAT(VarValue, "0.00"),
+			    IF(VarValue < 0, "▼ " & FORMAT(ABS(VarValue), "0.00"),
+			    "● " & FORMAT(VarValue, "0.00")))
+		lineageTag: 73c5fd02-e311-46a6-b1c9-14dfb30e1bbc
+
+	measure LMGROWTH_Value_SRR = ```
+			
+			DIVIDE(
+			    [RUNRATE_MTD_SRR] - [Combined_MTD_Sales_and_RunRate],
+			    [Combined_MTD_Sales_and_RunRate],
+			    0
+			)
+			
+			```
+		lineageTag: 8229193a-755f-4b8b-8ca2-797d22469505
+
+	measure Combined_MTD_Sales_and_RunRate = ```
+			
+			VAR FirstSlicerDate = MIN(RunRateDateSlicer[Date])
+			VAR FirstMonthStart = DATE(YEAR(FirstSlicerDate), MONTH(FirstSlicerDate), 1)
+			VAR FirstMonthEnd = EOMONTH(FirstSlicerDate, 0)
+			
+			VAR SecondMonthStart = EOMONTH(FirstSlicerDate, 0) + 1
+			VAR SecondMonthEnd = EOMONTH(FirstSlicerDate, 1)
+			
+			VAR CurrentDate = MAX(DateTableToday[Date])
+			VAR CurrentMonthStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			
+			VAR IsFirstMonth = CurrentMonthStart = FirstMonthStart
+			VAR IsSecondMonth = CurrentMonthStart = SecondMonthStart
+			
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    IsFirstMonth, [ActualSales_FromMonthStart_ToSelectedDate],
+			    IsSecondMonth, [ActualSales_FromMonthStart_ToSelectedDate] + [RunRate_MTD_LastMonth_SRR],
+			    [RunRate_MTD_LastMonth_SRR]
+			)
+			
+			```
+		lineageTag: c7e9ff55-c8dc-4b6a-80c9-0a95536cba6a
+
+	measure Incidence_Rate% = ```
+			
+			DIVIDE(
+			    SUM(PAT[Qty]),
+			    CALCULATE(
+			        DISTINCTCOUNT(PAT[KEY]),
+			        REMOVEFILTERS(
+			            PAT[MAIN_PRODUCT_NAME],
+			            PAT[ItemDescription],
+			            PAT[CategoryDescription],
+			            PAT[OPTION_PARENT_CATEGORY_NAME],
+			            PAT[ItemID],
+			            PAT[ORDER_PRODUCT_ID],
+			            PAT[ProductName_Fixed_Option]
+			        )
+			    ),
+			    0
+			) 
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: f4cda7a0-2fe5-4f7e-a044-f95499112836
+
+	measure Incidence_Numerator =
+			
+			SUM(Shakir[Qty])
+		formatString: 0
+		lineageTag: e3b70b92-89db-4647-a58c-69cbf0148907
+
+	measure Incidence_Denominator =
+			
+			CALCULATE(
+			    DISTINCTCOUNT(PAT[KEY]),
+			    REMOVEFILTERS(
+			        PAT[MAIN_PRODUCT_NAME],
+			        PAT[ItemDescription],
+			        PAT[CategoryDescription],
+			        PAT[OPTION_PARENT_CATEGORY_NAME],
+			        PAT[ItemID],
+			        PAT[ORDER_PRODUCT_ID]
+			    )
+			)
+		formatString: 0
+		lineageTag: 1d1a647b-3e33-4fc6-aee4-d07ae5d4ebcf
+
+	measure Variance% =
+			
+			VAR _forecast = [Total_Forecast_Qty]
+			VAR _actual = [Total_Actual_Qty]
+			RETURN
+			DIVIDE(_actual - _forecast, _forecast, 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: d4c01ed5-d0ec-4e54-9f94-3730dc8c85ef
+
+	measure Total_Forecast_Ingredient_Qty =
+			
+			SUM('RECIPE FORECAST TABLE'[Forecast Qty])
+		lineageTag: 2b3b5b58-e0f8-4706-b058-67aadc4bfecf
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Variance_Ingredient_Qty =
+			
+			VAR _forecast = [Total_Forecast_Ingredient_Qty]
+			VAR _actual = [Total_Actual_Ingredient_Qty]
+			RETURN
+			_actual - _forecast
+		lineageTag: 6c5377e0-64d8-4d40-8c98-9d5b187952fe
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Variance_Ingredient_% =
+			
+			VAR _forecast = [Total_Forecast_Ingredient_Qty]
+			VAR _actual = [Total_Actual_Ingredient_Qty]
+			RETURN
+			DIVIDE(_actual - _forecast, _forecast, 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 42b0abdb-7ce9-43ff-8cda-e319e06ac78e
+
+	measure Ingredient_Risk_Flag =
+			
+			VAR ForecastQty = [Total_Forecast_Ingredient_Qty]
+			VAR ActualQty = [Total_Actual_Ingredient_Qty]
+			VAR Variance_ = ActualQty - ForecastQty
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ForecastQty = 0, "No Demand",
+			    Variance_ < 0, "⚠ Shortage Risk",
+			    Variance_ = 0, "Balanced",
+			    "Over Consumption"
+			)
+		lineageTag: 21c8106c-90d3-4f13-b859-d7679ad71d8c
+
+	measure Variance_Qty =
+			
+			[Total_Actual_Qty]- [Total_Forecast_Qty]
+		formatString: 0
+		lineageTag: 5e5ee2ab-66d9-4a46-9f0e-e848d051783b
+
+	measure LMGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [RUNRATE_LastMonth],
+			        [RUNRATE_LastMonth],
+			        0
+			    ),
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 90fcdea3-825f-448c-9079-44df3f286a80
+
+	measure LYGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [RUNRATE_CurrentMonthLastYear],
+			        [RUNRATE_CurrentMonthLastYear],
+			        0
+			    ) ,
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: e258322a-3f54-4f99-a53a-d28486d646ea
+
+	measure RRGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [Sales_LastOrCurrentMonth] - [Forecast_CurrentMonth],
+			        [Forecast_CurrentMonth],
+			        0
+			    ) ,
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: c5d118b5-55fa-45e1-bbcc-4984476cbc5c
+
+	measure RUNRATE_CurrentMonthLastYear = ```
+			
+			VAR SelectedMonth = MONTH(MAX('FORECAST'[Date])) -- Get the month from the selected date context
+			VAR SelectedYear = YEAR(MAX('FORECAST'[Date])) -- Get the year from the selected date context
+			VAR LastYear = SelectedYear - 1 -- Calculate the previous year based on selected year
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = LastYear && MONTH('FORECAST'[Date]) = SelectedMonth -- Filter for the same month from the previous year
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: d2ee3c7a-5eb0-4550-bb76-bfd1227d7393
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure RUNRATE_LastMonth = ```
+			
+			VAR SelectedMonth = MONTH(MAX('FORECAST'[Date])) -- Get the month from the maximum date context
+			VAR SelectedYear = YEAR(MAX('FORECAST'[Date])) -- Get the year from the maximum date context
+			VAR LastMonth = SelectedMonth - 1 -- Calculate the previous month
+			VAR LastMonthYear = SelectedYear - IF(LastMonth = 0, 1, 0) -- Adjust the year if LastMonth is December
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = LastMonthYear && MONTH('FORECAST'[Date]) = IF(LastMonth = 0, 12, LastMonth) -- Filter for the last month
+			    )
+			)
+			
+			```
+		lineageTag: 537bd3a9-f593-4e3d-a920-2de3e73c5ef0
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure RUNRATE_LastYear = ```
+			
+			VAR SelectedYear = YEAR(MIN('FORECAST'[Date])) -- Dynamically determine the year from the date filter
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = SelectedYear - 1 -- Include all rows for the last year relative to the selected year
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 6b206b15-eeb6-4d22-b262-3b2731128119
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure Sales_LastOrCurrentMonth = ```
+			
+			VAR CurrentDate = TODAY()  -- Get the current date
+			VAR IsBeforeOrOn15th = DAY(CurrentDate) <= 14  -- Check if today is on or before the 15th
+			VAR TargetYear = IF(IsBeforeOrOn15th, YEAR(EDATE(CurrentDate, -1)), YEAR(CurrentDate))  -- Adjust year for last month if needed
+			VAR TargetMonth = IF(IsBeforeOrOn15th, MONTH(EDATE(CurrentDate, -1)), MONTH(CurrentDate))  -- Choose last or current month
+			
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST (2)'[Actual Sales]) + SUM('FORECAST (2)'[CurrentMonthRunRate]),  -- Sum Actual Sales and Run Rate
+			    FILTER(
+			        'FORECAST (2)',
+			        YEAR('FORECAST (2)'[Date]) = TargetYear &&
+			        MONTH('FORECAST (2)'[Date]) = TargetMonth &&
+			        'FORECAST (2)'[Brand] IN VALUES('Seasonal Effect test'[Brand])  -- Match brands between tables
+			    )
+			)
+			
+			```
+		lineageTag: 783ca550-5ec5-4824-a0b8-d4785b572c15
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Sales_LastOrCurrentMonth2 = ```
+			
+			VAR CurrentDate = TODAY()  -- Get the current date
+			VAR IsBeforeOrOn15th = DAY(CurrentDate) <= 7  -- Check if today is on or before the 15th
+			VAR TargetYear = IF(IsBeforeOrOn15th, YEAR(EDATE(CurrentDate, -1)), YEAR(CurrentDate))  -- Adjust year for last month if needed
+			VAR TargetMonth = IF(IsBeforeOrOn15th, MONTH(EDATE(CurrentDate, -1)), MONTH(CurrentDate))  -- Choose last or current month
+			
+			RETURN
+			CALCULATE(
+			    SUM(FORECAST[Actual Sales]) + SUM(FORECAST[CurrentMonthRunRate]),  -- Sum Actual Sales and Run Rate
+			    FILTER(
+			        FORECAST,
+			        YEAR(FORECAST[Date]) = TargetYear &&
+			        MONTH(FORECAST[Date]) = TargetMonth &&
+			        FORECAST[Brand] IN VALUES('Seasonal Effect test'[Brand])  -- Match brands between tables
+			    )
+			)
+			
+			```
+		lineageTag: 5c0e596f-a5d5-44ac-8208-af621308d988
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure SumOfForecast = ```
+			SUM('forecast'[Forecast])
+			
+			```
+		lineageTag: 3d35139a-c1e4-4f85-b5b2-20243534a4fd
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'TOT YEAR' = ```
+			
+			VAR Variation = DIVIDE(
+			    [RUNRATE_YTD] - [FORECAST_YTD],   -- Forecast sales minus last year's sales
+			    [FORECAST_YTD],                                 -- Last year's sales (denominator)
+			    0                                                      -- Return 0 if there is an error (e.g., division by zero)
+			) * 100                                                   -- Multiply by 100 to show as percentage
+			RETURN 
+			    FORMAT(Variation, "0.00") & "%"                         -- Format the result as a string with 2 decimal places and add the '%' sign
+			
+			```
+		lineageTag: 5f518e7e-3608-42f0-8b96-b836f2f151ae
+
+	measure TotalSales_ForecastMonth = ```
+			
+			SUM('FORECAST MONTHLY'[TotalSales])
+			
+			```
+		formatString: #,0
+		lineageTag: c21cbef3-64d7-4104-a01c-e79ad15e0a21
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'Variation %' = ```
+			
+			VAR ForecastValue = SUM('forecast'[Forecast])
+			VAR YesterdayRate = [YesterdayMonthlyRunrate]
+			VAR Variation = 
+			    DIVIDE(
+			        YesterdayRate - ForecastValue, 
+			        ForecastValue, 
+			        0
+			    ) * 100
+			RETURN 
+			    FORMAT(Variation, "0.00") & " %"
+			
+			```
+		lineageTag: 40316adc-b29a-4b41-b0e0-866d453232d5
+
+	measure Variation_Percentage = ```
+			
+			VAR Variation = DIVIDE(
+			    [RUNRATE_YTD] - [RUNRATE_LastYear],   -- Forecast sales minus last year's sales
+			    [RUNRATE_LastYear],                                 -- Last year's sales (denominator)
+			    0                                                      -- Return 0 if there is an error (e.g., division by zero)
+			) * 100                                                   -- Multiply by 100 to show as percentage
+			RETURN 
+			    FORMAT(Variation, "0.00") & "%"                         -- Format the result as a string with 2 decimal places and add the '%' sign
+			
+			```
+		lineageTag: c7fc7420-4756-436e-9ce7-22b6cbae4247
+
+	measure YesterdayDate = TODAY() - 1
+		formatString: General Date
+		lineageTag: 10018a9d-148d-4b96-ae5e-ae1a28ed944b
+
+	measure YesterdayMonthlyRunRate =
+			
+			CALCULATE(
+			    MAX(FORECAST[MonthlyRunRate_MTD]),
+			    FILTER(
+			        FORECAST,
+			        FORECAST[Date] = TODAY() - 1
+			    )
+			)
+		formatString: #,0
+		lineageTag: fde2321a-18c2-4f26-845e-30b17c9a6c3d
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure Componenet_Variance_Qty =
+			
+			[Component_Actual_Qty]- [Component_Forecast_Qty]
+		lineageTag: c0f7dc4c-5d49-4baf-aee0-38eb6432640b
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Submission Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 5ef2af78-9f06-40e9-b78a-ae839b77d0c9
+		summarizeBy: none
+		sourceColumn: Submission Date
+
+		variation Variation
+			isDefault
+			relationship: d3d999b8-4e1e-4af5-91d2-1ec979b9c6c4
+			defaultHierarchy: LocalDateTable_b3a1fa3c-d137-4316-bd91-9e0e6c4348a3.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Branch
+		dataType: string
+		lineageTag: 99bf35fd-5489-4eda-bf7b-888a68c21914
+		summarizeBy: none
+		sourceColumn: Branch
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order ID'
+		dataType: string
+		lineageTag: 90c917e4-a933-4075-b84a-d55b728b52a0
+		summarizeBy: none
+		sourceColumn: Order ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Name'
+		dataType: string
+		lineageTag: 5f6f520f-36d1-408c-ac98-cb7c5d16638a
+		summarizeBy: none
+		sourceColumn: Customer Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Rate Order'
+		dataType: double
+		formatString: 0.0
+		lineageTag: a88cb1c8-469e-401d-a5ad-f1aa03aa9dc1
+		summarizeBy: sum
+		sourceColumn: Rate Order
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Is it a complaint'
+		dataType: string
+		lineageTag: d1fe6dc5-c44f-4d5e-983c-fbaa556592ac
+		summarizeBy: none
+		sourceColumn: Is it a complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Complaint
+		dataType: string
+		lineageTag: 062726e7-6f43-4009-a761-57f0c984cbd4
+		summarizeBy: none
+		sourceColumn: Complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Comments
+		dataType: string
+		lineageTag: 002bba44-1692-46a7-8564-202b7a99fead
+		summarizeBy: none
+		sourceColumn: Comments
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'From Survey'
+		dataType: string
+		lineageTag: 04bb81b0-095b-479b-8fd7-dd388ffd445a
+		summarizeBy: none
+		sourceColumn: From Survey
+
+		annotation SummarizationSetBy = Automatic
+
+	column Location = ```
+			LOOKUPVALUE(Location_Table[LOCATIONID],Location_Table[LOCATIONID],Append1[Branch])
+			
+			```
+		lineageTag: 705d82a9-1d3c-4255-8e62-20dfa6d9a8ad
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Brand
+		dataType: string
+		lineageTag: a9812100-8291-4c7f-a76b-eaf3cfac9de3
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Select Brand and Store Location'
+		dataType: string
+		lineageTag: 7fd38574-f365-4d6a-8c98-6daa4e846f1c
+		summarizeBy: none
+		sourceColumn: Select Brand and Store Location
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Append1 = m
+		mode: import
+		source =
+				let
+				    Source = Table.Combine({#"Talabat Ratings", SURVEY}),
+				    #"Removed Columns" = Table.RemoveColumns(Source,{"Customer Phone Number", "Submission ID", "Agent Name"}),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Removed Columns",{{"Submission Date", type date}, {"Rate Order", type number}}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Changed Type","Fnaitess","Yard",Replacer.ReplaceText,{"Branch"}),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value","Qurtuba","Qortuba",Replacer.ReplaceText,{"Branch"}),
+				    #"Replaced Value2" = Table.ReplaceValue(#"Replaced Value1","abdullah Al Salem","Abdullah Alsalem (Dahiya)",Replacer.ReplaceText,{"Branch"})
+				in
+				    #"Replaced Value2"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

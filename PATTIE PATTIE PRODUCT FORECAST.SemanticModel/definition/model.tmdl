@@ -1,0 +1,77 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		fastCombine
+		legacyRedirects
+		returnErrorValuesAsNull
+
+/// Errors in queries that were loaded on 06-05-2026 7.37.08 PM.
+queryGroup 'Query Errors - 06-05-2026 7 37 08 PM'
+
+	annotation PBI_QueryGroupOrder = 0
+
+annotation PBI_QueryOrder = ["FORECAST","HEADER","SALES DATA","EBITDA","SURVEY","Talabat Ratings","Append1","Seasonal Effect test","BUR","SLICE","CHP__","JUSTC LINE","DELIVERY CHARGES","CHC LINE","SLC LINE","YELO_","MISHMASH","YELO LINE","MSH LINE","JUSTC FOODICS","PAT FOODICS","YP FOODICS","GeneralJournalAccountEntryBiEntities","GeneralJournalEntryBiEntities","BBT FOODICS","SS FOODICS","SLICE FOODICS","CHP FOODICS","MSH FOODICS","TBL FOODICS","STANDARDTARGET","PAT","PAT BRANCHES","FORECAST ARD","MSH","FORECAST ADL","FORECAST HWL","FORECAST JHR","FORECAST MIS","FORECAST SAL","FORECAST YRD","Errors in SURVEY","MM HEADER","MM BRANCHES","BBT HEADER","BBT BRANCHES","CHP HEADER","CHP BRANCHES","JUSTC HEADER","JUSTC BRANCHES","SLICE HEADER","SLICE BRANCHES","TBL BRANCHES","TBL HEADER","YELO BRANCHES","YELO HEADER","SS HEADER","SS BRANCHES","FORECAST (2)","SS","TBL","PRODUCTS","PRODUCTS (2)","PRODUCTS (3)","OPTIONS FOODICS","MM BRANCHES (2)","CHP PRODUCTS","BUR PRODUCTS","YELO PRODUCTS","BBT_","RECIPE TABLE","Seasonal Effect Branch","ITEM TABLE"]
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_ProTooling = ["WebModelingEdit","DevMode"]
+
+ref table FORECAST
+ref table DateTableTemplate_8ea7b4ec-b701-4943-97a9-2d9e23ad0c5a
+ref table HEADER
+ref table LocalDateTable_2f34e67e-bdbd-47cc-8dca-e1aff8653956
+ref table 'SALES DATA'
+ref table EBITDA
+ref table LocalDateTable_3cf0566d-ecc1-4978-9a4f-9209939ca69b
+ref table DateTableToday
+ref table SURVEY
+ref table LocalDateTable_575e8e30-daf7-4626-bb6e-28db8dac9503
+ref table 'Talabat Ratings'
+ref table Append1
+ref table LocalDateTable_afd211d1-97e1-4ae3-b747-a04825ca3fb8
+ref table 'Seasonal Effect test'
+ref table LocalDateTable_25b3ba6f-5806-4af9-a2f9-4cda4008b433
+ref table LocalDateTable_2d378d15-89a4-4595-b956-76790432dfdf
+ref table Brand
+ref table Location_Table
+ref table 'DELIVERY CHARGES'
+ref table LocalDateTable_f6cc44db-6182-454d-bfd4-a81c55a1c412
+ref table MISHMASH
+ref table LocalDateTable_ca398ee5-99e5-41d5-a4c2-5ce017dd6af7
+ref table STANDARDTARGET
+ref table LocalDateTable_414f4e23-6cad-475c-8c6d-970738dd9810
+ref table RunRateDateSlicer
+ref table LocalDateTable_2a06431e-98b3-41d7-af97-372dd75bf246
+ref table PAT
+ref table Incidence_Table
+ref table AOV_Table
+ref table Forecast_Product_Table
+ref table LocalDateTable_b3a1fa3c-d137-4316-bd91-9e0e6c4348a3
+ref table LocalDateTable_5394bdf1-6214-43a4-8ce2-2c8016335200
+ref table LocalDateTable_203a283f-61c9-4af3-8b65-0020c332700e
+ref table DateTable
+ref table LocalDateTable_492a931a-e872-4d50-90f1-ba211f213eef
+ref table Diagnostic_Check
+ref table LocalDateTable_675ae88f-7b59-4284-bbf3-e54ca04cdff6
+ref table 'FORECAST (2)'
+ref table LocalDateTable_1ea6180f-4f3b-474c-ad6f-f9f6c41bcd11
+ref table LocalDateTable_0777414d-c193-47a2-aa16-8128276b5a4b
+ref table PRODUCTS
+ref table 'PRODUCTS (2)'
+ref table Incidence_Denominator
+ref table LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b
+ref table LocalDateTable_8f30a05f-5113-4ac7-83b5-6fd9e6ba64f2
+ref table 'RECIPE TABLE'
+ref table Forecast_Spine
+ref table 'Seasonal Effect Branch'
+ref table LocalDateTable_b15e752f-d75b-4392-ab97-7ffe306de037
+ref table LocalDateTable_ae412d17-baad-4e0c-864d-fca0e0f5c31a
+ref table Prep_Filter_Options
+ref table 'ITEM TABLE'
+ref table LocalDateTable_a93eb2ca-817f-4cfb-be50-c8c2f7e1340b
+ref table LocalDateTable_93fd8f69-89fd-4ec2-bb66-6b361c617b9b
+
+ref cultureInfo en-US
+

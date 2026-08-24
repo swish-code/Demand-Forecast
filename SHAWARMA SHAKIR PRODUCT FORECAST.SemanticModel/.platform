@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "SHAWARMA SHAKIR PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "bcbe537e-60a6-401d-b010-a1442789b779"
+  }
+}

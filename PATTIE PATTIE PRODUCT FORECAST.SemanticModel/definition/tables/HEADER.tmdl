@@ -1,0 +1,167 @@
+table HEADER
+	lineageTag: 7ac67320-989e-4f21-9248-c2785a4c9f46
+
+	measure DLC2 = ```
+			
+			DIVIDE (
+			    SUM ( HEADER[TotalDiscounts] ),
+			    SUM ( HEADER[TotalSales] )
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 9712af88-8078-4665-9700-3d91a943aadb
+
+	column NetSales = HEADER[TotalSales] -( HEADER[TotalDiscounts]+HEADER[ProductDelivery])
+		lineageTag: b7696d8c-6ff9-45fb-8946-ffb7394e695c
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ProductDelivery = ```
+			
+			IF(
+			    'HEADER'[VOUCHERDATE] < TODAY(),  -- Check if the date is before today
+			    COALESCE(
+			        LOOKUPVALUE(
+			            'Delivery Charges'[DeliveryCharges],          -- Column from HEADER table to return
+			            'Delivery Charges'[VoucherDate],       -- First column from HEADER table to match
+			            'HEADER'[VOUCHERDATE],            -- First column from FORECAST table to match
+			            'Delivery Charges'[CHAINID],             -- Second column from HEADER table to match
+			            'HEADER'[Brand]            -- Second column from FORECAST table to match
+			        ), 
+			        0  -- If no value is found, return 0
+			    ),
+			    BLANK()  -- Return blank if the date is today or in the future
+			)
+			
+			```
+		lineageTag: 43f7afa1-0d92-4119-8e2f-d4612d9a5c45
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column DLC = HEADER[TotalDiscounts]/HEADER[TotalSales]
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e6c4ec0b-4419-4aef-91a2-831499b85418
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Brand
+		dataType: string
+		lineageTag: ab49cffc-8153-4754-b460-48ec9d8895ae
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 30ba076b-4281-40ea-b900-68700379b8ca
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column TotalSales
+		dataType: double
+		lineageTag: e802c845-afd8-4d37-b19e-c5a788920a2c
+		summarizeBy: sum
+		sourceColumn: TotalSales
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TotalDiscounts
+		dataType: double
+		lineageTag: a3ebd858-6bb3-4600-8f4b-ffb4fae56aa5
+		summarizeBy: sum
+		sourceColumn: TotalDiscounts
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TotalOrders
+		dataType: int64
+		formatString: 0
+		lineageTag: 2eb5663a-8d27-4058-9b02-f826a7018a9e
+		summarizeBy: sum
+		sourceColumn: TotalOrders
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCATIONID
+		dataType: string
+		lineageTag: 8755fc75-2eba-4cfc-a35e-8fc705b1d9d4
+		summarizeBy: none
+		sourceColumn: LOCATIONID
+
+		annotation SummarizationSetBy = Automatic
+
+	partition HEADER = m
+		mode: import
+		source =
+				let
+				    // ==============================
+				    // 1️⃣ Connect to Snowflake
+				    // ==============================
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+				    AIRBYTE_PAT_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_PAT",Kind="Schema"]}[Data],
+				    ORDERSVIEW_View = AIRBYTE_PAT_Schema{[Name="ORDERSVIEW",Kind="View"]}[Data],
+				    // ==============================
+				    // 2️⃣ Basic Cleanup
+				    // ==============================
+				    #"Changed Type" = Table.TransformColumnTypes(ORDERSVIEW_View,{{"ID", type text}, {"BUSINESS_DATE", type date}, {"CREATED_AT", type datetime}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"CUSTOMER_MOBILE", "CUSTOMER_EMAIL", "CUSTOMER_NAME", "CUSTOMER_ID", "EXTERNAL_SOURCE", "EXTERNAL_NUMBER", "CUSTOMER_NOTES", "KITCHEN_NOTES", "BUSINESS_DATE_IN_UTC", "UPDATED_AT", "CLOSED_AT", "GUESTS", "ID", "BRANCH_TYPE"}),
+				    #"Renamed Columns2" = Table.RenameColumns(#"Removed Columns",{{"CREATED_AT", "STARTTIME"}}),
+				    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns2", {"BRANCH_ID"}, #"PAT BRANCHES", {"ID"}, "PAT BRANCHES", JoinKind.LeftOuter),
+				    #"Expanded PAT BRANCHES" = Table.ExpandTableColumn(#"Merged Queries", "PAT BRANCHES", {"NAME"}, {"PAT BRANCHES.NAME"}),
+				    #"Split Column by Delimiter" = Table.SplitColumn(#"Expanded PAT BRANCHES", "PAT BRANCHES.NAME", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"PAT BRANCHES.NAME.1", "PAT BRANCHES.NAME.2"}),
+				    #"Renamed Columns4" = Table.RenameColumns(#"Split Column by Delimiter",{{"PAT BRANCHES.NAME.2", "BRAND"}, {"PAT BRANCHES.NAME.1", "LOCATIONID"}}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Renamed Columns4","HAW","HWL",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Added Custom1" = Table.AddColumn(#"Replaced Value", "Custom", each DateTimeZone.SwitchZone(DateTime.AddZone([STARTTIME], 0), 3)),
+				
+				    #"Sorted Rows" = Table.Sort(#"Added Custom1",{{"BRANCH_NAME", Order.Ascending}}),
+				    #"Filtered Rows1" = Table.SelectRows(#"Sorted Rows", each ([STATUS] <> 7)),
+				    #"Changed Type2" = Table.TransformColumnTypes(#"Filtered Rows1",{{"STARTTIME", type datetime}}),
+				    #"Changed Type4" = Table.TransformColumnTypes(#"Changed Type2",{{"Custom", type datetime}}),
+				
+				    #"Sorted Rows2" = Table.Sort(#"Changed Type4",{{"Custom", Order.Ascending}}),
+				    #"Sorted Rows3" = Table.Sort(#"Sorted Rows2",{{"Custom", Order.Ascending}}),
+				    #"Renamed Columns3" = Table.RenameColumns(#"Sorted Rows3",{{"STARTTIME", "START"}}),
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns3",{{"Custom", type datetime}}),
+				    #"Sorted Rows1" = Table.Sort(#"Changed Type3",{{"Custom", Order.Descending}}),
+				    #"Sorted Rows4" = Table.Sort(#"Sorted Rows1",{{"Custom", Order.Ascending}}),
+				
+				    // ==============================
+				    // 4️⃣ Brand, Grouping, and Renames
+				    // ==============================
+				    #"Added Custom" = Table.AddColumn(#"Sorted Rows4", "customs", each "PAT"),
+				    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"customs", "Brand"}}),
+				    #"Removed Columns1" = Table.RemoveColumns(#"Renamed Columns",{"BRANCH_NAME"}),
+				    #"Grouped Rows" = Table.Group(#"Removed Columns1", {"Brand", "BUSINESS_DATE", "LOCATIONID"}, {{"TotalAmount", each List.Sum([SUBTOTAL_PRICE]), type nullable number}, {"TotalDiscount", each List.Sum([DISCOUNT_AMOUNT]), type nullable number}, {"TotalOrders", each Table.RowCount(_), Int64.Type}}),
+				
+				    #"Filtered Rows" = Table.SelectRows(#"Grouped Rows", each ([BUSINESS_DATE] <> null)),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Brand", type text}}),
+				    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type1",{
+				        {"BUSINESS_DATE", "VOUCHERDATE"},
+				        {"TotalAmount", "TotalSales"},
+				        {"TotalDiscount", "TotalDiscounts"}
+				    }),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Renamed Columns1","QAD","QDS",Replacer.ReplaceText,{"LOCATIONID"})
+				in
+				    #"Replaced Value1"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

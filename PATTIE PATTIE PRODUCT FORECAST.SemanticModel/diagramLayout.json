@@ -1,0 +1,402 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 10791.651387982331,
+        "y": 1746.7292361979892
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 367.11024064074968,
+            "y": 2470.882530105715
+          },
+          "nodeIndex": "HEADER",
+          "nodeLineageTag": "7ac67320-989e-4f21-9248-c2785a4c9f46",
+          "size": {
+            "height": 176,
+            "width": 234
+          },
+          "zIndex": 11
+        },
+        {
+          "location": {
+            "x": 0,
+            "y": 2013.6247660443628
+          },
+          "nodeIndex": "FORECAST",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 19
+        },
+        {
+          "location": {
+            "x": 1124.2503247542522,
+            "y": 2063.4418938335984
+          },
+          "nodeIndex": "SALES DATA",
+          "nodeLineageTag": "54cb4775-07e5-476e-b446-de61ccb16966",
+          "size": {
+            "height": 272,
+            "width": 234
+          },
+          "zIndex": 20,
+          "expandedHeight": 300
+        },
+        {
+          "location": {
+            "x": 2939,
+            "y": 2075.6247660443628
+          },
+          "nodeIndex": "EBITDA",
+          "nodeLineageTag": "4bcad509-0258-4062-b587-ecbaf0d1b382",
+          "size": {
+            "height": 176,
+            "width": 234
+          },
+          "zIndex": 13
+        },
+        {
+          "location": {
+            "x": 3417.1789522532222,
+            "y": 2752.3712015733008
+          },
+          "nodeIndex": "DateTableToday",
+          "nodeLineageTag": "0a43d315-dcae-4f9a-ae28-9fbf8766c7b5",
+          "size": {
+            "height": 145,
+            "width": 234
+          },
+          "zIndex": 22
+        },
+        {
+          "location": {
+            "x": 3791,
+            "y": 2206.1247660443628
+          },
+          "nodeIndex": "SURVEY",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 14
+        },
+        {
+          "location": {
+            "x": 4075,
+            "y": 2220.1247660443628
+          },
+          "nodeIndex": "Append1",
+          "nodeLineageTag": "e6e28130-68ba-4bc4-9bca-3cb18f1a4051",
+          "size": {
+            "height": 272,
+            "width": 234
+          },
+          "zIndex": 15
+        },
+        {
+          "location": {
+            "x": 4359,
+            "y": 2206.1247660443628
+          },
+          "nodeIndex": "Talabat Ratings",
+          "nodeLineageTag": "c8aac890-69b6-45af-a3b6-0b06d69a8806",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 16
+        },
+        {
+          "location": {
+            "x": 5211,
+            "y": 2280.1247660443628
+          },
+          "nodeIndex": "Seasonal Effect test",
+          "nodeLineageTag": "69837428-b48a-4f54-bf6a-5a24169b68bc",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 10
+        },
+        {
+          "location": {
+            "x": 4899.1045754815123,
+            "y": 2981.0950368101585
+          },
+          "nodeIndex": "Brand",
+          "nodeLineageTag": "7f193277-9f7a-42b5-8858-a7af9c0fd595",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 17
+        },
+        {
+          "location": {
+            "x": 8335,
+            "y": 2623.4809141387332
+          },
+          "nodeIndex": "DELIVERY CHARGES",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 7
+        },
+        {
+          "location": {
+            "x": 8619,
+            "y": 2599.4809141387332
+          },
+          "nodeIndex": "MISHMASH",
+          "nodeLineageTag": "e2143456-0eb2-4611-ae8b-96ec4a65e5f5",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 8
+        },
+        {
+          "location": {
+            "x": 8903,
+            "y": 2615.5360344591081
+          },
+          "nodeIndex": "STANDARDTARGET",
+          "nodeLineageTag": "e6dac8af-f2f2-473a-a541-0e4ecf860a2d",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 3
+        },
+        {
+          "location": {
+            "x": 9187,
+            "y": 2591.5360344591081
+          },
+          "nodeIndex": "RunRateDateSlicer",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 4
+        },
+        {
+          "location": {
+            "x": 11958.295058075406,
+            "y": 2107.2665507054994
+          },
+          "nodeIndex": "AOV_Table",
+          "nodeLineageTag": "668df708-e1c2-4f6d-966f-f1d35b434d43",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 1
+        },
+        {
+          "location": {
+            "x": 10791.165744111338,
+            "y": 2216.4371279678735
+          },
+          "nodeIndex": "Forecast_Product_Table",
+          "nodeLineageTag": "9af598eb-f872-4983-9513-6a72c814ae69",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 2
+        },
+        {
+          "location": {
+            "x": 10784.13496655143,
+            "y": 3031.0175890794353
+          },
+          "nodeIndex": "Incidence_Table",
+          "nodeLineageTag": "5f392655-3864-43eb-9411-02b7011b3783",
+          "size": {
+            "height": 194.40150885833987,
+            "width": 234
+          },
+          "zIndex": 21
+        },
+        {
+          "location": {
+            "x": 13094.295058075406,
+            "y": 2591.5360344591081
+          },
+          "nodeIndex": "DateTable",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 13378.295058075406,
+            "y": 2591.5360344591081
+          },
+          "nodeIndex": "Diagnostic_Check",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 7614.0610661672163,
+            "y": 2206.2093699972879
+          },
+          "nodeIndex": "Location_Table",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 13662.295058075406,
+            "y": 2591.5360344591081
+          },
+          "nodeIndex": "FORECAST (2)",
+          "nodeLineageTag": "b86d5f66-ea02-4c86-bacb-3fe59cecbf23",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 14564.295058075406,
+            "y": 2491.5360344591086
+          },
+          "nodeIndex": "PRODUCTS",
+          "nodeLineageTag": "6222646c-e5a4-4f64-9db3-6139fb5d254f",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 14280.295058075406,
+            "y": 2491.5360344591086
+          },
+          "nodeIndex": "PRODUCTS (2)",
+          "nodeLineageTag": "dcbf5bdb-a3e8-4c8f-9fa7-33b728956c00",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 15366.295058075406,
+            "y": 2579.0360344591081
+          },
+          "nodeIndex": "Incidence_Denominator",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 17070.295058075404,
+            "y": 2427.3344319910693
+          },
+          "nodeIndex": "RECIPE TABLE",
+          "nodeLineageTag": "08a4e57a-beca-4d8d-8224-36a73797a2b0",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 17354.295058075404,
+            "y": 2456.2406819910693
+          },
+          "nodeIndex": "Forecast_Spine",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 18490.295058075404,
+            "y": 1750.7089437098193
+          },
+          "nodeIndex": "Seasonal Effect Branch",
+          "nodeLineageTag": "f6dc38b3-a3d6-4763-a596-01b30486ee71",
+          "size": {
+            "height": 296,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 18774.295058075404,
+            "y": 1569.7603607364661
+          },
+          "nodeIndex": "Prep_Filter_Options",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 19058.295058075404,
+            "y": 1227.0828221794768
+          },
+          "nodeIndex": "ITEM TABLE",
+          "nodeLineageTag": "ed4964c4-b088-40d9-b2b6-d579480c3eca",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 11459,
+            "y": 2541.5360344591086
+          },
+          "nodeIndex": "PAT",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        }
+      ],
+      "name": "All tables",
+      "zoomValue": 35.723911128792174,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "All tables",
+  "defaultDiagram": "All tables"
+}

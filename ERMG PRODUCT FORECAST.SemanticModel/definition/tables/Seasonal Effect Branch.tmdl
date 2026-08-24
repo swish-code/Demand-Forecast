@@ -1,0 +1,326 @@
+table 'Seasonal Effect Branch'
+	lineageTag: f6dc38b3-a3d6-4763-a596-01b30486ee71
+
+	measure Sales_LastOrCurrentMonth_Branch =
+			
+			VAR CurrentDate = TODAY()
+			VAR IsBeforeOrOn15th = DAY(CurrentDate) <= 14
+			
+			VAR TargetYear =
+			    IF(
+			        IsBeforeOrOn15th,
+			        YEAR(EDATE(CurrentDate, -1)),
+			        YEAR(CurrentDate)
+			    )
+			
+			VAR TargetMonth =
+			    IF(
+			        IsBeforeOrOn15th,
+			        MONTH(EDATE(CurrentDate, -1)),
+			        MONTH(CurrentDate)
+			    )
+			
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST (2)'[Actual Sales]) +
+			    SUM('FORECAST (2)'[CurrentMonthRunRate]),
+			    FILTER(
+			        'FORECAST (2)',
+			        YEAR('FORECAST (2)'[Date]) = TargetYear
+			            && MONTH('FORECAST (2)'[Date]) = TargetMonth
+			            && 'FORECAST (2)'[Branch] IN VALUES('Seasonal Effect Branch'[Branch])
+			            && 'FORECAST (2)'[Brand] IN VALUES('Seasonal Effect Branch'[Brand])
+			    )
+			)
+		lineageTag: a7ee8116-911c-419d-af8b-2f9cabfa0435
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: af6134b5-1011-43e3-b644-3cc0dfbb2b49
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 2396d742-962e-4d30-b3f3-b91dc27f3993
+			defaultHierarchy: LocalDateTable_b15e752f-d75b-4392-ab97-7ffe306de037.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Brand
+		dataType: string
+		lineageTag: cd83b139-bae9-4e22-ad49-d6c6700ec5c0
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Seasonal Effect'
+		dataType: double
+		lineageTag: cbd149a6-0f08-49b4-9e14-755de7255f04
+		summarizeBy: sum
+		sourceColumn: Seasonal Effect
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Branch
+		dataType: string
+		lineageTag: 18c26e8b-c642-4314-a762-d1e8b7db1c3a
+		summarizeBy: none
+		sourceColumn: Branch
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column6
+		dataType: string
+		lineageTag: 3a3c8816-5b69-418b-8178-bdddbd8261ef
+		summarizeBy: none
+		sourceColumn: Column6
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column7
+		dataType: string
+		lineageTag: a92f118f-6227-4d10-b199-b201f8acd186
+		summarizeBy: none
+		sourceColumn: Column7
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column8
+		dataType: string
+		lineageTag: 516fa994-26bd-4b95-b4a2-69756ac6fe09
+		summarizeBy: none
+		sourceColumn: Column8
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column9
+		dataType: string
+		lineageTag: 4d576fe6-d8f3-43fb-9d26-46f850bd0561
+		summarizeBy: none
+		sourceColumn: Column9
+
+		annotation SummarizationSetBy = Automatic
+
+	column Today = TODAY()
+		formatString: General Date
+		lineageTag: 55b44e31-e187-4b27-89e7-01d9ff59d925
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: bcca270a-21ec-4330-b570-71d254a0a9fb
+			defaultHierarchy: LocalDateTable_ae412d17-baad-4e0c-864d-fca0e0f5c31a.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column NextMonth = ```
+			
+			VAR CurrentDate = TODAY()
+			VAR CurrentMonth = MONTH(CurrentDate)
+			VAR CurrentYear = YEAR(CurrentDate)
+			VAR CurrentDay = DAY(CurrentDate)
+			VAR DateMonth = MONTH('Seasonal Effect Branch'[Date])
+			VAR DateYear = YEAR('Seasonal Effect Branch'[Date])
+			
+			RETURN 
+			    IF(
+			        DateYear = CurrentYear && DateMonth = CurrentMonth, 
+			        IF(CurrentDay < 15, 1, BLANK()),  -- Show 1 for dates in the first 15 days of the current month
+			        IF(DateYear = CurrentYear && DateMonth = CurrentMonth + 1, 
+			            IF(CurrentDay >= 15, 1, 0),  -- If today is after the 15th, show 1 for next month (February)
+			            IF(DateYear = CurrentYear && DateMonth > CurrentMonth + 1, 0, BLANK()))  -- Show 0 for months after next (March and onwards)
+			    )
+			
+			```
+		formatString: 0
+		lineageTag: 8662b684-01cc-4e19-b550-010b9629721f
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column NewColumn = ```
+			
+			VAR CurrentDate = TODAY()
+			VAR CurrentDay = DAY(CurrentDate)
+			VAR CurrentMonth = MONTH(CurrentDate)
+			VAR CurrentYear = YEAR(CurrentDate)
+			
+			VAR DateValue = 'Seasonal Effect Branch'[Date]
+			VAR DateMonth = MONTH(DateValue)
+			VAR DateYear = YEAR(DateValue)
+			
+			VAR IsCurrentMonth = DateYear = CurrentYear && DateMonth = CurrentMonth
+			VAR IsNextMonth = 
+			    (DateYear = CurrentYear && DateMonth = CurrentMonth + 1)
+			    || (CurrentMonth = 12 && DateYear = CurrentYear + 1 && DateMonth = 1)
+			VAR IsAfterNextMonth = 
+			    (DateYear > CurrentYear || (DateYear = CurrentYear && DateMonth > CurrentMonth + 1))
+			    || (CurrentMonth = 12 && DateYear > CurrentYear + 1)
+			    || (CurrentMonth = 12 && DateYear = CurrentYear + 1 && DateMonth > 1)
+			
+			RETURN 
+			    IF(
+			        IsCurrentMonth,
+			        IF(CurrentDay < 15, 1, BLANK()),
+			        IF(
+			            IsNextMonth,
+			            IF(CurrentDay >= 15, 1, 0),
+			            IF(
+			                IsAfterNextMonth,
+			                0,
+			                BLANK()
+			            )
+			        )
+			    )
+			```
+		formatString: 0
+		lineageTag: 4fdd59a7-eae0-4f36-a8de-a476a7d76d2a
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column NewSeasonalEffect = ```
+			
+			VAR CurrentDate  = 'Seasonal Effect Branch'[Date]
+			VAR CurrentBrand = 'Seasonal Effect Branch'[Brand]
+			VAR CurrentBranch = 'Seasonal Effect Branch'[Branch]
+			VAR NextMonthFlag = 'Seasonal Effect Branch'[NewColumn]
+			
+			VAR PreviousMonths =
+			    FILTER(
+			        'Seasonal Effect Branch',
+			        'Seasonal Effect Branch'[Date] <= CurrentDate &&
+			        'Seasonal Effect Branch'[Brand] = CurrentBrand &&
+			        'Seasonal Effect Branch'[Branch] = CurrentBranch &&
+			        NOT ISBLANK('Seasonal Effect Branch'[NewColumn])
+			    )
+			
+			VAR CumulativeProduct =
+			    CALCULATE(
+			        PRODUCTX(
+			            PreviousMonths,
+			            'Seasonal Effect Branch'[Seasonal Effect]
+			        )
+			    )
+			
+			RETURN
+			    IF(
+			        NOT ISBLANK(NextMonthFlag) && (NextMonthFlag = 0 || NextMonthFlag = 1),
+			        IF(
+			            NextMonthFlag = 1,
+			            'Seasonal Effect Branch'[Seasonal Effect],
+			            CumulativeProduct
+			        ),
+			        BLANK()
+			    )
+			
+			```
+		lineageTag: 24165a10-3b9c-4b97-9d1f-80a339a802e4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SeasonalMonth = [Sales_LastOrCurrentMonth]*'Seasonal Effect Branch'[NewSeasonalEffect]
+		lineageTag: 2d82435d-089b-41dd-b0ed-4f9372c5d368
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Sales_LastOrCurrentMonth = [Sales_LastOrCurrentMonth_Branch]
+		lineageTag: f5beae9d-b9fd-4b80-977e-271b245d7cb2
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column DifferenceColumn =
+			
+			VAR DateValue = 'Seasonal Effect Branch'[date]
+			VAR TodayValue = 'Seasonal Effect Branch'[today]
+			RETURN DATEDIFF(DateValue, TodayValue, DAY)
+		formatString: 0
+		lineageTag: 639be6a3-466e-4369-9139-d1b1b736044e
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year_SeasonalEffect = ```
+			YEAR('Seasonal Effect Branch'[Date])
+			
+			```
+		formatString: 0
+		lineageTag: 9e01a9f1-c477-48db-adc1-c783e61125dd
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column Month_SeasonalEffect = MONTH('Seasonal Effect Branch'[Date])
+		formatString: 0
+		lineageTag: d9b3f70e-d47b-48a4-8be2-0840999bca7f
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Seasonal Effect after' = 'Seasonal Effect Branch'[Seasonal Effect]-1
+		lineageTag: 9b426281-8c7f-482d-9d7e-9a6315786d8d
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SeasonalEffectTest = ```
+			
+			VAR SelectedMonth = MONTH('Seasonal Effect Branch'[Date]) 
+			VAR SelectedBrand = 'Seasonal Effect Branch'[Brand]
+			VAR CurrentMonth = MONTH(TODAY())  -- This gives the current month
+			VAR CurrentYear = YEAR(TODAY())   -- This gives the current year
+			VAR SalesWithRunrate = 
+			    CALCULATE(
+			        SUM('FORECAST (2)'[Actual Sales]) + SUM('FORECAST (2)'[CurrentMonthRunrate]),
+			        FILTER(
+			            'FORECAST (2)', 
+			            'FORECAST (2)'[Brand] = SelectedBrand && 
+			            MONTH('FORECAST (2)'[Date]) = CurrentMonth &&
+			            YEAR('FORECAST (2)'[Date]) = CurrentYear  -- Ensure we are filtering for the current year as well
+			        )
+			    )
+			RETURN SalesWithRunrate
+			
+			```
+		lineageTag: 36c5d31c-3926-442e-9baf-5789fcb3fda5
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Seasonal Effect Branch' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_elsayed_swishhh_net/Documents/Yelo%20Run%20Rate.xlsx"), null, true),
+				    #"SEASONALITY BRANCH_Sheet" = Source{[Item="SEASONALITY BRANCH",Kind="Sheet"]}[Data],
+				    #"Promoted Headers1" = Table.PromoteHeaders(#"SEASONALITY BRANCH_Sheet", [PromoteAllScalars=true]),
+				    #"Filtered Rows" = Table.SelectRows(#"Promoted Headers1", each ([Brand] <> null)),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"Date", type date}, {"Brand", type text}, {"Seasonal Effect", type number}, {"Branch", type text}, {"Column6", type any}, {"Column7", type any}, {"Column8", type any}, {"Column9", type any}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Column5"})
+				in
+				    #"Removed Columns"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

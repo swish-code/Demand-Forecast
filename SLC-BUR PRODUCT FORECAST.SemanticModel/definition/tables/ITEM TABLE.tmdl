@@ -1,0 +1,88 @@
+table 'ITEM TABLE'
+	lineageTag: ed4964c4-b088-40d9-b2b6-d579480c3eca
+
+	column SCHEMA_NAME
+		dataType: string
+		lineageTag: f86ce205-9ec9-45dc-9e99-77f69ff94900
+		summarizeBy: none
+		sourceColumn: SCHEMA_NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column SOURCE_TABLE
+		dataType: string
+		lineageTag: a0738c54-4b44-4226-b56b-413763b88f3f
+		summarizeBy: none
+		sourceColumn: SOURCE_TABLE
+
+		annotation SummarizationSetBy = Automatic
+
+	column ID
+		dataType: string
+		lineageTag: 575edcb7-bc29-4a73-b868-25730606bddf
+		summarizeBy: none
+		sourceColumn: ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column NAME
+		dataType: string
+		lineageTag: c32e8ac8-9840-4ca2-bf6d-be961b8cbac8
+		summarizeBy: none
+		sourceColumn: NAME
+
+		annotation SummarizationSetBy = Automatic
+
+	column SKU
+		dataType: string
+		lineageTag: ba4b93d3-b251-49e6-a98f-17dfda247314
+		summarizeBy: none
+		sourceColumn: SKU
+
+		annotation SummarizationSetBy = Automatic
+
+	column PRICE
+		dataType: double
+		lineageTag: 84c0ed2b-0072-46ef-aed6-52d5afb883e6
+		summarizeBy: sum
+		sourceColumn: PRICE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CREATED_AT
+		dataType: string
+		lineageTag: 934b218f-9f28-4ff6-b1be-2a3c35365927
+		summarizeBy: none
+		sourceColumn: CREATED_AT
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'ITEM TABLE' = m
+		mode: import
+		source =
+				let
+				    // ==============================
+				    // 1️⃣ Connect to Snowflake
+				    // ==============================
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    // ==============================
+				    // 1️⃣ Connect to Snowflake
+				    // ==============================
+				    AIRBYTE_FOODICS_Database = Source{[Name="AIRBYTE_FOODICS",Kind="Database"]}[Data],
+				    // ==============================
+				    // 1️⃣ Connect to Snowflake
+				    // ==============================
+				    AIRBYTE_FOODICS_Schema = AIRBYTE_FOODICS_Database{[Name="AIRBYTE_FOODICS",Kind="Schema"]}[Data],
+				    // ==============================
+				    // 1️⃣ Connect to Snowflake
+				    // ==============================
+				    VW_PRODUCTS_MODIFIER_OPTIONS_View = AIRBYTE_FOODICS_Schema{[Name="VW_PRODUCTS_MODIFIER_OPTIONS",Kind="View"]}[Data]
+				in
+				    VW_PRODUCTS_MODIFIER_OPTIONS_View
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

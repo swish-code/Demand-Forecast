@@ -1,0 +1,134 @@
+table SURVEY
+	excludeFromModelRefresh
+	lineageTag: e06edc97-17eb-4ea0-ba46-6c85e4e36901
+
+	column 'Submission Date'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 118a754c-1368-4299-9727-5a4baa951505
+		summarizeBy: none
+		sourceColumn: Submission Date
+
+		variation Variation
+			isDefault
+			relationship: 311ea000-c462-4274-8176-492fc3192bee
+			defaultHierarchy: LocalDateTable_575e8e30-daf7-4626-bb6e-28db8dac9503.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Agent Name'
+		dataType: string
+		lineageTag: 5eaea789-5b41-477b-93fd-e0b0e7a41149
+		summarizeBy: none
+		sourceColumn: Agent Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column Branch
+		dataType: string
+		lineageTag: ee7169ed-7d27-4127-ae6a-701bd0eeebca
+		summarizeBy: none
+		sourceColumn: Branch
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order ID'
+		dataType: string
+		lineageTag: 9216031f-23bf-40bc-a860-de96ee90e378
+		summarizeBy: none
+		sourceColumn: Order ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Name'
+		dataType: string
+		lineageTag: e0d66c64-396b-4685-8395-e018af265f19
+		summarizeBy: none
+		sourceColumn: Customer Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Phone Number'
+		dataType: int64
+		formatString: 0
+		lineageTag: a1c7416d-016a-45d5-b6a7-5aa305c092cb
+		summarizeBy: sum
+		sourceColumn: Customer Phone Number
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Rate Order'
+		dataType: double
+		formatString: 0
+		lineageTag: 57205155-a82c-43aa-aadc-adb38236cfd3
+		summarizeBy: sum
+		sourceColumn: Rate Order
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Is it a complaint'
+		dataType: string
+		lineageTag: 0897c025-eccd-4bfc-b1d9-d6fabe6a62d0
+		summarizeBy: none
+		sourceColumn: Is it a complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Complaint
+		dataType: string
+		lineageTag: cac93eaf-3c0e-4c5b-a39a-986ee351a5bd
+		summarizeBy: none
+		sourceColumn: Complaint
+
+		annotation SummarizationSetBy = Automatic
+
+	column Comments
+		dataType: string
+		lineageTag: 54bf9b74-106f-4ace-a439-70f0bc10a295
+		summarizeBy: none
+		sourceColumn: Comments
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Submission ID'
+		dataType: int64
+		formatString: 0
+		lineageTag: c0c8e86e-3922-4d61-828f-195ca3e1aecb
+		summarizeBy: count
+		sourceColumn: Submission ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'From Survey'
+		dataType: string
+		lineageTag: d01d94e9-059a-422e-9bb9-e422f212d24d
+		summarizeBy: none
+		sourceColumn: From Survey
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Select Brand and Store Location'
+		dataType: string
+		lineageTag: f2919ce0-6990-4287-8155-6436c73d1617
+		summarizeBy: none
+		sourceColumn: Select Brand and Store Location
+
+		annotation SummarizationSetBy = Automatic
+
+	partition SURVEY = m
+		mode: import
+		source =
+				let
+				    Source = GoogleSheets.Contents("https://docs.google.com/spreadsheets/d/1Od0gK36yprUirDxGtuvyuZFXRd8cwJmevKwST7FEQXw/edit?gid=2144851209#gid=2144851209"),
+				    #"Form responses_Table" = Source{[name="Form responses",ItemKind="Table"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Form responses_Table", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Submission Date", type datetime}, {"Agent Name", type text}, {"Branch", type text}, {"Order ID", type any}, {"Customer Name", type any}, {"Customer Phone Number", Int64.Type}, {"Rate Order", Int64.Type}, {"Is it a complaint", type text}, {"Complaint", type text}, {"Comments", type text}, {"Submission ID", Int64.Type}}),
+				    #"Added Custom" = Table.AddColumn(#"Changed Type", "From Survey", each "Yes"),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom",{{"From Survey", type text}, {"Rate Order", type number}})
+				in
+				    #"Changed Type1"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

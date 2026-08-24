@@ -1,0 +1,100 @@
+table MISHMASH
+	lineageTag: e2143456-0eb2-4611-ae8b-96ec4a65e5f5
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: bbcb9f29-b32c-4b8f-b43e-5bb218f6a324
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		variation Variation
+			isDefault
+			relationship: 5f00c4f9-b1a5-4177-8b22-8f839159b058
+			defaultHierarchy: LocalDateTable_ca398ee5-99e5-41d5-a4c2-5ce017dd6af7.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column Brand
+		dataType: string
+		lineageTag: 704eab3e-b13c-4e45-865c-36ba04e382d3
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column TotalSales
+		dataType: double
+		lineageTag: b9f51448-3ce8-4370-919d-57a58caab1a9
+		summarizeBy: sum
+		sourceColumn: TotalSales
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TotalDiscounts
+		dataType: double
+		lineageTag: 5d97e292-e4ec-454d-ba03-c22fd9281a72
+		summarizeBy: sum
+		sourceColumn: TotalDiscounts
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DeliveryCharge
+		dataType: double
+		lineageTag: cc629314-aaa0-491a-8561-acef58d836fc
+		summarizeBy: sum
+		sourceColumn: DeliveryCharge
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition MISHMASH = m
+		mode: import
+		source =
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_MSH_Database = Source{[Name="AIRBYTE_MSH",Kind="Database"]}[Data],
+				    MISHMASH_Schema = AIRBYTE_MSH_Database{[Name="MISHMASH",Kind="Schema"]}[Data],
+				    HEADER_Table = MISHMASH_Schema{[Name="HEADER",Kind="Table"]}[Data],
+				    // Convert column names to uppercase
+				    #"Uppercase Column Names" = Table.RenameColumns(HEADER_Table, List.Zip({Table.ColumnNames(HEADER_Table), List.Transform(Table.ColumnNames(HEADER_Table), Text.Upper)})),
+				
+				    // Filter rows based on conditions
+				    #"Filtered Rows" = Table.SelectRows(#"Uppercase Column Names", each ([ORDERTYPE] <> "SM") and ([LOCATIONID] <> "CT1")),
+				    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each ([VOUCHERSTATUS] = "S")),
+				
+				    // Remove the custom discount logic and use COTDiscountAmount directly
+				    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+				
+				    // Change Discount column type
+				    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom",{{"Discount", type number}}),
+				
+				    // Add Brand column
+				    #"Added Custom2" = Table.AddColumn(#"Changed Type2", "Brand", each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" then [CHAINID] & " " & [LOCATIONID] else [CHAINID]),
+				
+				    // Change Brand column type
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2",{{"Brand", type text}}),
+				    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates",{{"VOUCHERDATE", type datetime}}),
+				
+				    // Group rows by VoucherDate and Brand
+				    #"Grouped Rows" = Table.Group(#"Changed Type", {"VOUCHERDATE", "Brand"}, {{"TotalSales", each List.Sum([TRXSALES]), type nullable number}, {"TotalDiscounts", each List.Sum([Discount]), type nullable number}, {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type nullable number}}),
+				
+				    // Filter rows based on date
+				    #"Filtered Rows1" = Table.SelectRows(#"Grouped Rows", each [VOUCHERDATE] >= #datetime(2023, 1, 1, 0, 0, 0)),
+				
+				    // Change types for the final columns
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows1",{{"TotalDiscounts", type number}, {"DeliveryCharge", type number}})
+				in
+				    #"Changed Type1"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

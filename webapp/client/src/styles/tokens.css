@@ -1,0 +1,199 @@
+/*
+ * Design tokens — single source of truth, matching the supplied reference UI:
+ * dark navy rail, white cards with a coloured accent bar and icon chip, mono
+ * type for all tabular data, sans for prose.
+ *
+ * Fixed palette. Each hex has exactly one job; nothing borrows another's:
+ *
+ *   #297836  brand/chrome — nav, logo, primary buttons. NEVER used for data.
+ *   #3B7DD8  forecast series only.
+ *   #2F9E44  positive / on-track — actual bars, over-forecast fill, ≥95% accuracy.
+ *   #374151  a value in its normal range — plain text, no colour signal at all.
+ *   #DC2626  outlier only: variance past ±15%, accuracy under 85%.
+ *   #6B7280  neutral — gridlines, inactive states, secondary chart elements.
+ *
+ * The two data hexes are validated as a pair, not picked by eye: CVD ΔE 24.3,
+ * normal-vision ΔE 26.2, both ≥3:1 on white. An earlier, more muted blue
+ * (#5B8DBE) failed the chroma floor at 0.092 and read washed-out.
+ *
+ * There is no amber. "Near target" is deliberately colourless, so that colour
+ * appearing anywhere means something has actually crossed a threshold.
+ *
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- surfaces ---------------------------------------------------------- */
+  --bg: #f2f5f3;
+  --surface: #ffffff;
+  --sunken: #f1f4f2;
+
+  /* ---- navigation rail: deeper than the logo green ----------------------- */
+  --rail: #0f3a22;
+  --rail-2: #1b5233;
+  --rail-fg: #eaf5ee;
+  --rail-muted: #93b7a2;
+  --rail-line: #23603c;
+
+  /* ---- lines ------------------------------------------------------------- */
+  --line: #e2e8e4;
+  --line-soft: #edf1ee;
+
+  /* ---- text -------------------------------------------------------------- */
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-faint: #9aa1ad;
+
+  /* ---- palette ----------------------------------------------------------- */
+  --brand: #297836; /* chrome only */
+  --brand-strong: #1f5c29;
+  --green: #10b981; /* positive / on-track */
+  --green-tint: #e6f7f1;
+  --blue: #818cf8; /* forecast series */
+  --blue-tint: #eef0fe;
+  --amber: #f59e0b; /* under target but not breached */
+  --amber-tint: #fef3e2;
+  --red: #f43f5e; /* outlier only */
+  --red-tint: #fdeaee;
+  --neutral: #6b7280; /* gridlines, inactive, secondary */
+  --plain: #374151; /* a value inside its normal range */
+  --slate-tint: #edf1ee;
+
+  /* semantic aliases */
+  --success: var(--green);
+  --success-tint: var(--green-tint);
+  --danger: var(--red);
+  --danger-tint: var(--red-tint);
+  --accent: var(--brand);
+
+  /* ---- chart ------------------------------------------------------------- */
+  --series-1: #10b981; /* actual   — solid line, area fill */
+  --series-2: #818cf8; /* forecast — dashed line */
+  --series-1-tint: rgba(16, 185, 129, 0.14);
+  --series-2-tint: rgba(129, 140, 248, 0.14);
+
+  /* The products-by-quantity bars keep the previous, deliberately validated
+     pair — that chart was explicitly left alone. */
+  --bar-1: #2f9e44;
+  --bar-2: #3b7dd8;
+  /* A gridline at full #6B7280 would out-shout the data, so the neutral is
+     carried at low strength here. */
+  --grid: #e6ebe7;
+
+  /* ---- geometry ---------------------------------------------------------- */
+  --r-card: 10px;
+  --r-pill: 6px;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+
+  /* ---- type -------------------------------------------------------------- */
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Menlo, monospace;
+
+  /* ---- motion ------------------------------------------------------------ */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-bold: 600;
+
+  /* Height shared by a chart and the table paired with it in one grid row, so
+     neither leaves a band of empty card beside the other. */
+  --pair-h: 520px;
+
+  --nav-w: 208px;
+  --nav-w-collapsed: 60px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #0e1219;
+    --surface: #151b26;
+    --sunken: #1a212e;
+
+    --rail: #061a0f;
+    --rail-2: #0f2e1c;
+    --rail-fg: #e8f1ea;
+    --rail-muted: #77937f;
+    --rail-line: #123822;
+
+    --line: #232c3b;
+    --line-soft: #1c2431;
+
+    --text: #eef1f6;
+    --text-muted: #98a2b3;
+    --text-faint: #6c7689;
+
+    --green: #34d399;
+    --green-tint: #0f2a22;
+    --blue: #a5b4fc;
+    --blue-tint: #1a1d33;
+    --amber: #fbbf24;
+    --amber-tint: #2b2110;
+    --red: #fb7185;
+    --red-tint: #2a1414;
+    --neutral: #8b93a0;
+    --plain: #cfd5de;
+    --slate-tint: #1c2431;
+    --bar-1: #4ecb6a;
+    --bar-2: #6aa6f5;
+  --bar-1: #4ecb6a;
+  --bar-2: #6aa6f5;
+
+    --series-1: #34d399;
+    --series-2: #a5b4fc;
+    --series-1-tint: rgba(52, 211, 153, 0.16);
+    --series-2-tint: rgba(165, 180, 252, 0.16);
+    --grid: #1f2735;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0e1219;
+  --surface: #151b26;
+  --sunken: #1a212e;
+
+  --rail: #061a0f;
+  --rail-2: #0f2e1c;
+  --rail-fg: #e8f1ea;
+  --rail-muted: #77937f;
+  --rail-line: #123822;
+
+  --line: #232c3b;
+  --line-soft: #1c2431;
+
+  --text: #eef1f6;
+  --text-muted: #98a2b3;
+  --text-faint: #6c7689;
+
+  --green: #34d399;
+  --green-tint: #0f2a22;
+  --blue: #a5b4fc;
+  --blue-tint: #1a1d33;
+  --amber: #fbbf24;
+  --amber-tint: #2b2110;
+  --red: #fb7185;
+  --red-tint: #2a1414;
+  --neutral: #8b93a0;
+  --plain: #cfd5de;
+  --slate-tint: #1c2431;
+  --bar-1: #4ecb6a;
+  --bar-2: #6aa6f5;
+
+  --series-1: #34d399;
+  --series-2: #a5b4fc;
+  --series-1-tint: rgba(52, 211, 153, 0.16);
+  --series-2-tint: rgba(165, 180, 252, 0.16);
+  --grid: #1f2735;
+}

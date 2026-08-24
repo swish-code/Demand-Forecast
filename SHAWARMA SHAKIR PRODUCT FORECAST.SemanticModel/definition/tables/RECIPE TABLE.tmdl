@@ -1,0 +1,141 @@
+table 'RECIPE TABLE'
+	lineageTag: 08a4e57a-beca-4d8d-8224-36a73797a2b0
+
+	column Product_Name_Fixed =
+			
+			CALCULATE(
+			    MAX(Forecast_Product_Table[ProductName_Fixed_Option]),
+			    FILTER(
+			        Forecast_Product_Table,
+			        Forecast_Product_Table[Clean_ItemID] = 'RECIPE TABLE'[Product PLU]
+			    )
+			)
+		lineageTag: d2de8efd-46b8-4fa2-b00f-e1631dec6b05
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Product PLU'
+		dataType: string
+		lineageTag: 1bc95d3c-8faf-47b0-8ea9-5d123516f2b8
+		summarizeBy: none
+		sourceColumn: Product PLU
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Product Name'
+		dataType: string
+		lineageTag: e138a4f1-a19d-4162-89eb-fdf469e6617e
+		summarizeBy: none
+		sourceColumn: Product Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Recipe Group'
+		dataType: string
+		lineageTag: 9f23df79-fb46-42e0-acc0-24248e9cc426
+		summarizeBy: none
+		sourceColumn: Recipe Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Recipe
+		dataType: string
+		lineageTag: d2dd0671-8c59-47f6-8c8f-1dd5c68b22f4
+		summarizeBy: none
+		sourceColumn: Recipe
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Node Type'
+		dataType: string
+		lineageTag: 8cb4765e-8b30-4265-884a-696125fcb9ed
+		summarizeBy: none
+		sourceColumn: Node Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Has Children'
+		dataType: string
+		lineageTag: 53d2bca1-217b-4667-8b78-21f3595b782d
+		summarizeBy: none
+		sourceColumn: Has Children
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Item No.'
+		dataType: int64
+		formatString: 0
+		lineageTag: cb10bbb8-56fd-4c06-ad0d-26f81a96fc50
+		summarizeBy: sum
+		sourceColumn: Item No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item
+		dataType: string
+		lineageTag: b81d7a42-aed2-4fad-bf85-aa25741edad2
+		summarizeBy: none
+		sourceColumn: Item
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Parent Recipe'
+		dataType: string
+		lineageTag: b601224d-29a9-4834-94c7-2390978b5923
+		summarizeBy: none
+		sourceColumn: Parent Recipe
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Recipe Path'
+		dataType: string
+		lineageTag: 1a8e7eda-31b8-4ce3-86c9-df8301a79d75
+		summarizeBy: none
+		sourceColumn: Recipe Path
+
+		annotation SummarizationSetBy = Automatic
+
+	column Level
+		dataType: int64
+		formatString: 0
+		lineageTag: 2c9a5506-41e4-4b89-99e8-1af5cae528b1
+		summarizeBy: sum
+		sourceColumn: Level
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'QTY BU'
+		dataType: double
+		lineageTag: 4e934315-1764-4130-8b30-6356c343b499
+		summarizeBy: sum
+		sourceColumn: QTY BU
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column BU
+		dataType: string
+		lineageTag: bbc89fda-9a4a-46cc-87b8-41376654633c
+		summarizeBy: none
+		sourceColumn: BU
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'RECIPE TABLE' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/RECIPIE%20FILE%20SWISH.xlsx"), null, true),
+				    FULL_BREAKDOWN_RECIPIE_Table = Source{[Item="FULL_BREAKDOWN_RECIPIE",Kind="Table"]}[Data],
+				    #"Changed Type" = Table.TransformColumnTypes(FULL_BREAKDOWN_RECIPIE_Table,{{"Product PLU", Int64.Type}, {"Product Name", type text}, {"Recipe Group", type text}, {"Recipe", type text}, {"Node Type", type text}, {"Has Children", type text}, {"Item No.", Int64.Type}, {"Item", type text}, {"Parent Recipe", type text}, {"Recipe Path", type text}, {"Level", Int64.Type}, {"QTY BU", type number}, {"BU", type text}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

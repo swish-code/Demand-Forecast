@@ -1,0 +1,42 @@
+table Brand
+	lineageTag: 7f193277-9f7a-42b5-8858-a7af9c0fd595
+
+	column ChainName
+		lineageTag: 5c968483-4267-4de0-940a-339b042c7f26
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [ChainName]
+
+		annotation SummarizationSetBy = Automatic
+
+	column ChainCode
+		lineageTag: 956f39d9-4c3f-41c0-8998-d6700da820a6
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [ChainCode]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Brand = calculated
+		mode: import
+		source = ```
+				
+				DATATABLE(
+				    "ChainName", STRING,
+				    "ChainCode", STRING,
+				    {
+				        {"BBT", "BBT"},
+				        {"Chili Pepper", "CHP"},
+				        {"Just C", "BUR"},
+				        {"Lovebird", "LVB"},
+				        {"Pattie Pattie", "PAT"},
+				        {"Shawarma Shakir", "SS"},
+				        {"Slice", "SLC"},
+				        {"Yelo Pizza", "YP"},{"Yelo Pizza COOP", "YP COOP"},{"Mishmash", "MM"},{"TABEL", "TBL"}
+				    }
+				)
+				
+				```
+
+	annotation PBI_Id = a433e6daf4544b1e84d123dd91943479
+

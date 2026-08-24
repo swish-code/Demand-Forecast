@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "YELO PRODUCT FORECAST"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "dc398c2c-8ebc-4491-a4ef-f88d8d1ad5de"
+  }
+}

@@ -1,0 +1,1384 @@
+<title>Demand Forecast Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ------------------------------------------------------------------ tokens
+     Taken from the application's own styles/tokens.css rather than invented:
+     documentation for a product should wear the product's identity, and the
+     severity colours below mean exactly what they mean on the dashboard. */
+  :root {
+    color-scheme: light;
+
+    --bg: #f2f5f3;
+    --surface: #ffffff;
+    --sunken: #f1f4f2;
+    --rail: #0f3a22;
+    --rail-fg: #eaf5ee;
+    --rail-muted: #93b7a2;
+
+    --line: #e2e8e4;
+    --line-soft: #edf1ee;
+
+    --ink: #111827;
+    --muted: #6b7280;
+    --faint: #9aa1ad;
+
+    --brand: #297836;
+    --brand-strong: #1f5c29;
+    --green: #0f7a4f;
+    --green-tint: #e6f4ec;
+    --amber: #b45309;
+    --amber-tint: #fdf1e3;
+    --red: #be123c;
+    --red-tint: #fdeaee;
+    --blue: #4f46e5;
+    --blue-tint: #eef0fe;
+
+    --sans: 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+
+    --r-card: 10px;
+    --r-pill: 6px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      --bg: #0e1219;
+      --surface: #151b26;
+      --sunken: #1a212e;
+      --rail: #061a0f;
+      --rail-fg: #e8f1ea;
+      --rail-muted: #77937f;
+      --line: #232c3b;
+      --line-soft: #1c2431;
+      --ink: #eef1f6;
+      --muted: #98a2b3;
+      --faint: #6c7689;
+      --brand: #4ea75c;
+      --brand-strong: #6fc07c;
+      --green: #34d399;
+      --green-tint: #10291f;
+      --amber: #fbbf24;
+      --amber-tint: #2b2110;
+      --red: #fb7185;
+      --red-tint: #2a1418;
+      --blue: #a5b4fc;
+      --blue-tint: #1a1d33;
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --bg: #0e1219;
+    --surface: #151b26;
+    --sunken: #1a212e;
+    --rail: #061a0f;
+    --rail-fg: #e8f1ea;
+    --rail-muted: #77937f;
+    --line: #232c3b;
+    --line-soft: #1c2431;
+    --ink: #eef1f6;
+    --muted: #98a2b3;
+    --faint: #6c7689;
+    --brand: #4ea75c;
+    --brand-strong: #6fc07c;
+    --green: #34d399;
+    --green-tint: #10291f;
+    --amber: #fbbf24;
+    --amber-tint: #2b2110;
+    --red: #fb7185;
+    --red-tint: #2a1418;
+    --blue: #a5b4fc;
+    --blue-tint: #1a1d33;
+  }
+
+  /* ------------------------------------------------------------------ base */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--brand-strong); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  /* ---------------------------------------------------------------- header
+     The deep green rail is the app's own chrome; opening with it makes the
+     document read as part of the product rather than about it. */
+  .masthead {
+    background: var(--rail);
+    color: var(--rail-fg);
+    padding: 44px 32px 40px;
+  }
+
+  .masthead__inner { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rail-muted);
+    margin: 0 0 10px;
+  }
+
+  .masthead h1 {
+    margin: 0;
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  .masthead p {
+    margin: 14px 0 0;
+    max-width: 62ch;
+    color: #b9d4c4;
+    font-size: 16px;
+  }
+
+  .brandstrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 24px;
+  }
+
+  .brandstrip span {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #cfe6d9;
+  }
+
+  /* ----------------------------------------------------------------- shell */
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 32px 96px;
+    display: grid;
+    grid-template-columns: 218px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+
+  .toc {
+    position: sticky;
+    top: 28px;
+    padding-top: 40px;
+    font-size: 13.5px;
+  }
+
+  .toc h2 {
+    margin: 0 0 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+
+  .toc a {
+    display: block;
+    padding: 5px 10px;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid var(--line);
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+
+  .toc a:hover { color: var(--ink); border-left-color: var(--brand); }
+
+  main { padding-top: 40px; min-width: 0; }
+
+  /* --------------------------------------------------------------- sections */
+  section { padding-top: 8px; }
+  section + section { margin-top: 52px; }
+
+  h2.rule {
+    margin: 0 0 8px;
+    padding-top: 22px;
+    border-top: 2px solid var(--brand);
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .lede { margin: 0 0 24px; color: var(--muted); max-width: 66ch; }
+
+  h3 {
+    margin: 34px 0 10px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+  }
+
+  h4 {
+    margin: 24px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  p { margin: 0 0 14px; max-width: 68ch; }
+  ul, ol.prose { margin: 0 0 16px; padding-left: 20px; max-width: 66ch; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--faint); }
+
+  strong { font-weight: 600; }
+
+  /* ---------------------------------------------------------------- tables
+     Styled after the app's own data tables: muted uppercase heads, hairline
+     row rules, tabular figures. Each one scrolls inside its own container so
+     the page body never moves sideways. */
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    margin: 0 0 20px;
+  }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  td:first-child { font-weight: 500; white-space: nowrap; }
+  td code { white-space: nowrap; }
+
+  /* --------------------------------------------------------------- callouts */
+  .note {
+    display: flex;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: var(--r-card);
+    border-left: 3px solid var(--muted);
+    background: var(--sunken);
+    margin: 0 0 20px;
+    max-width: 72ch;
+  }
+
+  .note p { margin: 0 0 8px; }
+  .note p:last-child { margin: 0; }
+  .note__tag {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 4px;
+    width: 62px;
+  }
+
+  .note--do { border-left-color: var(--amber); background: var(--amber-tint); }
+  .note--do .note__tag { color: var(--amber); }
+  .note--stop { border-left-color: var(--red); background: var(--red-tint); }
+  .note--stop .note__tag { color: var(--red); }
+  .note--why { border-left-color: var(--blue); background: var(--blue-tint); }
+  .note--why .note__tag { color: var(--blue); }
+
+  /* Severity pills carry the dashboard's own meaning, not decoration. */
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 8px;
+    border-radius: var(--r-pill);
+    white-space: nowrap;
+  }
+  .pill--good { color: var(--green); background: var(--green-tint); }
+  .pill--warn { color: var(--amber); background: var(--amber-tint); }
+  .pill--bad { color: var(--red); background: var(--red-tint); }
+  .pill--flat { color: var(--muted); background: var(--sunken); }
+
+  /* Worked examples: the numbers doing the explaining. */
+  .example {
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    padding: 16px 18px;
+    margin: 0 0 16px;
+    max-width: 72ch;
+  }
+  .example__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+  .example__row + .example__row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .example__name { font-weight: 600; font-size: 14px; }
+  .example__fig { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .example__says { width: 100%; color: var(--muted); font-size: 13px; }
+
+  .footer {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 32px 64px;
+    border-top: 1px solid var(--line);
+    color: var(--faint);
+    font-size: 12.5px;
+  }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 22px 72px; }
+    .toc { position: static; padding-top: 32px; }
+    .toc ol { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .toc a { border-left: none; border: 1px solid var(--line); border-radius: var(--r-pill); padding: 4px 10px; }
+    .masthead { padding: 34px 22px 30px; }
+    .note { flex-direction: column; gap: 6px; }
+    .note__tag { width: auto; padding-top: 0; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <p class="eyebrow">Swishhh · internal</p>
+    <h1>Demand Forecast</h1>
+    <p>
+      A web front end over the Swishhh Power BI product-forecast models. It reads the same semantic
+      models as the Power BI reports and reuses their own DAX measures, so a number here and the same
+      number in Power BI cannot drift apart.
+    </p>
+    <div class="brandstrip">
+      <span>BBT</span><span>Chilli Pepper</span><span>Pattie Pattie</span><span>Shawarma Shakir</span>
+      <span>Yelo Pizza</span><span>Slice</span><span>Just C</span><span>Mishmash</span><span>Tabel</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#running">Running it</a></li>
+      <li><a href="#signing-in">Signing in</a></li>
+      <li><a href="#roles">Roles and statuses</a></li>
+      <li><a href="#pages">The pages</a></li>
+      <li><a href="#metrics">Every metric</a></li>
+      <li><a href="#why">Why forecast and actual differ</a></li>
+      <li><a href="#admin">Administration</a></li>
+      <li><a href="#email">Daily email reports</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#outstanding">Outstanding items</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="running">
+      <h2 class="rule">Running it</h2>
+      <p class="lede">
+        Nine brands, each its own semantic model. Choosing a brand selects a different model rather
+        than filtering a column — two models hold two brands each (SLC-BUR and ERMG), and the chain
+        is pinned automatically, so Slice and Just C never show each other's numbers.
+      </p>
+
+      <p>
+        <code>npm.cmd run dev</code> starts two processes: the API on <strong>7005</strong> and the
+        dev server on <strong>7006</strong>. Open <code>http://localhost:7006</code>.
+      </p>
+      <p>
+        Use <code>npm.cmd</code>, not <code>npm</code> — PowerShell's execution policy blocks
+        <code>npm.ps1</code> on this machine. There is no hosting setup here by design; the folder is
+        handed to IT for that.
+      </p>
+    </section>
+
+    <section id="signing-in">
+      <h2 class="rule">Signing in</h2>
+      <p class="lede">
+        <strong>Microsoft is the way in.</strong> Staff use their Swishhh work account, and nobody has
+        to be issued another password. OpenID Connect with PKCE against the same app registration that
+        reads Power BI, so the only setup is the redirect URI — already registered.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Why</span>
+        <div>
+          <p>
+            Signing in with Microsoft proves <em>who someone is</em>. It deliberately does not decide
+            <em>what they may see</em> — that still comes from the users table. Someone with a valid
+            tenant account who has never been set up lands as a <strong>pending</strong> account with
+            no scope, appears in the approval banner, and sees nothing until an administrator grants
+            them a role and a brand.
+          </p>
+          <p>
+            The password form is kept behind a link rather than removed: the first admin exists before
+            anyone has signed in with Microsoft, and if the redirect URI is ever misconfigured the
+            password form is the only way back in.
+          </p>
+        </div>
+      </div>
+      <p>
+        The session lives in an HttpOnly cookie for 12 hours and can be revoked instantly from the
+        admin page — which is why sessions are server-side rather than JWTs.
+      </p>
+
+      <div class="note note--do">
+        <span class="note__tag">Do first</span>
+        <div>
+          <p>
+            The first admin is seeded from <code>.env</code>. <strong>Change that password once you
+            are in</strong> — open your own row in the users table and use <em>Change my
+            password</em>.
+          </p>
+          <p>
+            Your current tab stays signed in; every other device signed in as you is signed out.
+          </p>
+        </div>
+      </div>
+
+      <h3>Three brakes on the sign-in form</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Brake</th><th>Behaviour</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Per-IP throttle</td>
+              <td>More than <strong>20 attempts a minute</strong> from one address is refused</td>
+            </tr>
+            <tr>
+              <td>Account lockout</td>
+              <td><strong>5 failed attempts</strong> locks the account for <strong>15 minutes</strong>, and raises an alert on the admin page</td>
+            </tr>
+            <tr>
+              <td>Uniform errors</td>
+              <td>An unknown email and a wrong password give the same message and take the same time, so the form cannot be used to discover who has an account</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Only a SHA-256 of the session token is stored, so the database cannot be used to impersonate
+        anyone.
+      </p>
+    </section>
+
+    <section id="roles">
+      <h2 class="rule">Roles and statuses</h2>
+      <p class="lede">
+        <strong>Role</strong> is what someone can see. <strong>Status</strong> is whether they can get
+        in at all. They are separate on purpose: you can suspend a stakeholder without losing the
+        brand grants you set up for them, then reactivate them unchanged.
+      </p>
+
+      <h4>Departments</h4>
+      <p>
+        Which part of the business someone sits in: Production, Branches, Warehouse, Operations,
+        Supply Chain, Finance, Marketing, IT, Management. Kept separate from role, because the two do
+        not line up — a warehouse lead and a GM can both be stakeholders. A fixed list rather than free
+        text, because the usage figures group on it.
+      </p>
+
+      <h4>Roles</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Role</th><th>Sees</th></tr></thead>
+          <tbody>
+            <tr><td>admin</td><td>Every brand and location, plus the Administration tab</td></tr>
+            <tr><td>stakeholder</td><td>Read-only across the brands granted to them. For head office</td></tr>
+            <tr><td>store</td><td>Read-only, normally locked to one brand and its own branches</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Statuses</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="pill pill--good">active</span></td>
+              <td>Can sign in now. The normal state</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill--warn">pending</span></td>
+              <td>Account exists, sign-in refused. For setting someone up before they should have access. Shows in the amber "awaiting approval" banner</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill--bad">suspended</span></td>
+              <td>Blocked, <strong>and every open session ends immediately</strong>. For a temporary block — someone on leave, or an account you suspect is compromised</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill--flat">disabled</span></td>
+              <td>Same block, same instant sign-out. Means "gone for good". Keeping the row rather than deleting preserves their sign-in history</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Suspended and disabled behave identically to the server. The distinction is for whoever reads
+        the user list in six months.
+      </p>
+
+      <h3>Scope</h3>
+      <p>
+        Scope is read from the database against the session on every request, <strong>never</strong>
+        from the request body — editing a payload cannot widen access. If Power BI cannot be reached
+        to resolve a location list, the request fails closed rather than serving unscoped data.
+      </p>
+      <ul>
+        <li>No brands granted → sees nothing.</li>
+        <li>Brands but no locations → every location in those brands.</li>
+        <li>Brands and locations → the intersection.</li>
+      </ul>
+    </section>
+
+    <section id="pages">
+      <h2 class="rule">The pages</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Page</th><th>Question it answers</th><th>For</th></tr></thead>
+          <tbody>
+            <tr><td>Forecast Summary</td><td>How did we do against forecast, and why</td><td>Everyone</td></tr>
+            <tr><td>Product Level</td><td>Which articles and products were off, and by how much</td><td>Everyone</td></tr>
+            <tr><td>Component Level</td><td>What ingredients and packaging the forecast implies</td><td>Kitchen, purchasing</td></tr>
+            <tr><td>Production Plan</td><td>What each branch prepares tomorrow</td><td>Branch staff</td></tr>
+            <tr><td>Administration</td><td>Accounts, alerts, the morning digest, email reports</td><td>Admins only</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        All slicers are multi-select, <strong>brand included</strong>. Several brands are queried
+        separately and added together: quantities add, and variance and accuracy are recomputed from
+        the totals rather than averaged — the average of two brands' percentages is not the percentage
+        of their combined totals unless the brands happen to be the same size.
+      </p>
+      <p>
+        Selections survive a brand change. Picking a date, switching brand and finding the date gone is
+        the kind of small betrayal that makes a tool feel unreliable, so the window carries over and is
+        clamped into the new model's calendar. Any location or product the new brand has never heard of
+        is dropped, because keeping it would silently filter the page down to nothing.
+      </p>
+
+      <h3>Date presets</h3>
+      <div class="note note--why">
+        <span class="note__tag">Why</span>
+        <div>
+          <p>
+            Backward ranges — last 7, 14, 30 days and month to date — <strong>end yesterday, not
+            today</strong>. Today's actuals are still being written, so including it compares a full
+            day of forecast against a part day of sales and drags every figure down for a reason that
+            has nothing to do with the forecast.
+          </p>
+          <p>
+            Forward ranges — next 7 and next 30 days — are the opposite case. They are about what is
+            still to come, so they start today.
+          </p>
+        </div>
+      </div>
+      <p>
+        On the Production Plan the article slicer lists <strong>product names</strong> with the
+        article code beside them. The model has no article-name column — an article is a bare code
+        like <code>83001108300117</code> — so pairing it with its product is what makes it findable.
+      </p>
+    </section>
+
+    <section id="metrics">
+      <h2 class="rule">Every metric, explained</h2>
+
+      <h3>Thresholds</h3>
+      <p>These are the same everywhere in the app, including the emails and the digest.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Threshold</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Accuracy target</td><td>95%</td><td>At or above: <span class="pill pill--good">on track</span></td></tr>
+            <tr><td>Accuracy floor</td><td>85%</td><td>Below: <span class="pill pill--bad">outlier</span></td></tr>
+            <tr><td>Variance OK</td><td>±5%</td><td>Inside: <span class="pill pill--good">on track</span></td></tr>
+            <tr><td>Variance limit</td><td>±15%</td><td>Beyond: <span class="pill pill--bad">outlier</span>. Between the two: <span class="pill pill--warn">drifting</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Core figures</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Figure</th><th>Definition</th></tr></thead>
+          <tbody>
+            <tr><td>Actual qty</td><td>Units sold in the selected window</td></tr>
+            <tr><td>Forecast qty</td><td>Units the model expected over the same window</td></tr>
+            <tr><td>Variance</td><td><code>(actual − forecast) ÷ forecast</code>. Negative means actual came in below forecast</td></tr>
+            <tr><td>Accuracy</td><td><code>1 − |actual − forecast| ÷ actual</code>. Direction-blind: 10% over and 10% under both read as 90%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note--why">
+        <span class="note__tag">Naming</span>
+        <div>
+          <p>
+            <strong>Over-forecast</strong> and <strong>under-forecast</strong> are named from the
+            forecast's point of view. Forecast <em>above</em> actual is over-forecast — prep that was
+            not needed. Forecast <em>below</em> actual is under-forecast — branches ran short. The
+            shaded bands on the trend chart use the same convention.
+          </p>
+        </div>
+      </div>
+
+      <h3>Forecast Summary</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Visual</th><th>What it shows</th></tr></thead>
+          <tbody>
+            <tr><td>Demand tracking</td><td>Daily actual against forecast, shaded where they diverge, with a grey envelope showing where actual normally lands</td></tr>
+            <tr><td>Gap contributors</td><td>Products ranked by their share of the total miss, with the running cumulative share</td></tr>
+            <tr><td>Rolling 7-day accuracy</td><td>Seven-day accuracy against the 95% target. A single day is noisy; the rolling figure is not</td></tr>
+            <tr><td>Accuracy by day of week</td><td>Bias per weekday. Answers whether one day is always wrong, which is the part that can be fixed</td></tr>
+            <tr><td>Products by quantity</td><td>Every product, actual against forecast, variance labelled. Click a bar to open it in Product Level</td></tr>
+            <tr><td>By location</td><td>Every branch, worst accuracy first</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Demand vs prev</h3>
+      <p>
+        How much that article <strong>actually sold</strong> in the selected window against the window
+        immediately before it, of the same length. With "Last 30 days" chosen, that is roughly
+        21 Jul – 19 Aug against 21 Jun – 20 Jul.
+      </p>
+      <p>
+        It sits beside the variance because together they separate two very different situations:
+      </p>
+
+      <div class="example">
+        <div class="example__row">
+          <span class="example__name">French Fries</span>
+          <span class="example__fig">demand <strong>−72.9%</strong></span>
+          <span class="example__fig">variance −28.7%</span>
+          <span class="example__says">Demand collapsed and the forecast has not caught up. A demand event.</span>
+        </div>
+        <div class="example__row">
+          <span class="example__name">SALT</span>
+          <span class="example__fig">demand <strong>−62.3%</strong></span>
+          <span class="example__fig">variance −10.8%</span>
+          <span class="example__says">Demand fell just as hard and the forecast largely tracked it. The model did its job.</span>
+        </div>
+      </div>
+
+      <p>
+        A <strong>—</strong> means nothing sold in the earlier window, so there is no comparison to
+        make. About 44% of BBT's articles fall into that bucket — they are ordinary low-volume lines,
+        not new products, which is why the cell shows nothing rather than inventing a percentage.
+      </p>
+
+      <h3>Production Plan</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Figure</th><th>Definition</th></tr></thead>
+          <tbody>
+            <tr><td>Tomorrow forecast qty</td><td>Total units to prepare tomorrow</td></tr>
+            <tr><td>Products to prepare</td><td>Distinct articles on the plan</td></tr>
+            <tr><td>Extra prep needed</td><td>Demand up more than 20% on the recent average</td></tr>
+            <tr><td>Reduced prep needed</td><td>Demand down more than 20%</td></tr>
+            <tr><td>Demand change</td><td>Tomorrow's forecast against the average of the last two matching weekdays</td></tr>
+            <tr><td>Prep pressure by branch</td><td>Products per branch split by which way demand has moved, ordered by how much is <em>changing</em> rather than by size</td></tr>
+            <tr><td>How much to trust these numbers</td><td>Recent accuracy restated as a share of the plan — see below</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        These figures deliberately ignore the date slicer, matching the Power BI report: the
+        underlying measures resolve their own dates from <code>TODAY()</code>.
+      </p>
+
+      <h3>How much to trust these numbers</h3>
+      <p>
+        The panel above the plan, and the same block in the store email. It restates recent accuracy
+        as the question a kitchen actually asks: of what the plan says to prepare, how much has been
+        selling?
+      </p>
+      <div class="example">
+        <div class="example__row">
+          <span class="example__name">BBT, all branches</span>
+          <span class="example__fig">typically <strong>95%</strong></span>
+          <span class="example__fig">80% – 106%</span>
+          <span class="example__says">On a normal day about 95% of what the plan asks for sells; eight days in ten land between 80% and 106% of it.</span>
+        </div>
+        <div class="example__row">
+          <span class="example__name">SMY only</span>
+          <span class="example__fig">typically <strong>93%</strong></span>
+          <span class="example__fig">79% – 108%</span>
+          <span class="example__says">Computed for whatever is on screen, so a single branch gets its own figure rather than the brand's.</span>
+        </div>
+      </div>
+      <p>
+        A share of the plan rather than a variance percentage, because "about 95% of this has been
+        selling" can be acted on and "the forecast runs 4.7% above actual" cannot.
+      </p>
+    </section>
+
+    <section id="why">
+      <h2 class="rule">Why forecast and actual differ</h2>
+      <p class="lede">
+        The most common question this app gets asked is some version of "the plan told us to prepare
+        more than we sold — is the dashboard wrong?". Usually it is not, and the real reason is
+        measurable.
+      </p>
+
+      <p>
+        One endpoint measures the <strong>last 30 complete days</strong> and returns a cause. It
+        ignores the date slicer on purpose — "is this normal for us?" is a question about the recent
+        past, not about whichever range happens to be selected — but it does respect location and
+        product filters, so a branch asking about its own numbers is answered about its own numbers.
+      </p>
+      <p>
+        The Forecast Summary and the Production Plan read the same answer from the same place, so a
+        branch and head office are never told different things.
+      </p>
+
+      <h3>The five verdicts</h3>
+      <p>Checked in this order; the first that applies is the one shown.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Verdict</th><th>Fires when</th><th>What it means</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Demand has moved</td>
+              <td>Demand shifted ≥5% week on week and the forecast lagged by ≥3pp</td>
+              <td>Sales changed and the forecast has not caught up. External</td>
+            </tr>
+            <tr>
+              <td>A weekday pattern</td>
+              <td>One weekday leans ≥8% and correcting weekdays would save ≥1pp</td>
+              <td>Predictable rather than random. Prepare toward the appropriate end on that day</td>
+            </tr>
+            <tr>
+              <td>A steady offset</td>
+              <td>Consistent lean ≥3% and larger than the scatter</td>
+              <td><strong>The forecast itself.</strong> A fixed offset for whoever maintains the model</td>
+            </tr>
+            <tr>
+              <td>Normal variation</td>
+              <td>No consistent lean; scatter dominates</td>
+              <td>Some days over, some under. A gap this size on any one day is expected</td>
+            </tr>
+            <tr>
+              <td>Not explained</td>
+              <td>None of the above</td>
+              <td><strong>Worth raising.</strong> None of the usual causes account for it</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note--why">
+        <span class="note__tag">Why</span>
+        <div>
+          <p>
+            The last two rows are the point. A panel that always finds an outside cause gets noticed
+            within a fortnight and then nobody believes any of it — including the true readings. Two
+            of the five verdicts point at the forecast.
+          </p>
+        </div>
+      </div>
+
+      <h3>The supporting numbers</h3>
+      <p>
+        <strong>Steady lean</strong> — the average signed error. A consistent offset that
+        recalibrating the model would remove.
+      </p>
+      <p>
+        <strong>Day-to-day scatter</strong> — what is left after the lean. Varies either way with no
+        pattern, and no adjustment removes it.
+      </p>
+      <p>
+        The split matters more than the total. A typical daily gap of 9.8% made of 4.7pp lean and
+        5.2pp scatter means roughly half is somebody's to fix and half is not.
+      </p>
+      <p>
+        <strong>Sold this week / Forecast this week</strong> — week-on-week change in each, with the
+        chart beside them. When the lines move together the forecast is tracking demand. When actual
+        turns and forecast does not, the space between the lines <em>is</em> the explanation.
+      </p>
+
+      <h3>The "usual range" band</h3>
+      <p>
+        The grey envelope on the trend chart covers the <strong>10th to 90th percentile</strong> of
+        this brand's own recent daily variance. Actual inside it is an ordinary day; outside it is
+        genuinely unusual.
+      </p>
+      <p>
+        Percentiles rather than a standard deviation on purpose — one closure or one promotion would
+        inflate an SD exactly when the band needs to be tight.
+      </p>
+
+      <h3>Weekday guidance</h3>
+      <p>
+        A banner above the production plan, shown only when tomorrow's weekday leans <strong>5% or
+        more</strong>. It stays quiet otherwise rather than crying wolf. BBT's pattern at the time of
+        writing:
+      </p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Day</th><th>Lean</th><th>Banner</th></tr></thead>
+          <tbody>
+            <tr><td>Mon</td><td>+7.0%</td><td><span class="pill pill--warn">shows</span></td></tr>
+            <tr><td>Tue</td><td>+4.3%</td><td><span class="pill pill--flat">quiet</span></td></tr>
+            <tr><td>Wed</td><td>+15.0%</td><td><span class="pill pill--warn">shows</span></td></tr>
+            <tr><td>Thu</td><td>+12.7%</td><td><span class="pill pill--warn">shows</span></td></tr>
+            <tr><td>Fri</td><td>+3.2%</td><td><span class="pill pill--flat">quiet</span></td></tr>
+            <tr><td>Sat</td><td>−8.1%</td><td><span class="pill pill--warn">shows</span></td></tr>
+            <tr><td>Sun</td><td>−2.1%</td><td><span class="pill pill--flat">quiet</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Branch lean</h3>
+      <p>
+        Every branch's signed lean, sorted. The meaning is in the pattern, not any single bar. All
+        branches leaning the same way is a brand-wide offset no branch can do anything about — and the
+        panel says so. A lone branch leaning the other way is the one worth investigating, and this is
+        the only view where that stands out.
+      </p>
+    </section>
+
+    <section id="admin">
+      <h2 class="rule">Administration</h2>
+      <p class="lede">
+        Admin-only tab. A non-admin has no route to it and the server refuses its requests regardless.
+      </p>
+
+      <h4>Layout, top to bottom</h4>
+      <ol class="prose">
+        <li>Counts — total, active, seen in 30 days, pending or blocked</li>
+        <li>Add a user — directly under the counts, with pending accounts as one-click chips</li>
+        <li>This morning (the digest) beside Alerts</li>
+        <li>Sign-in activity and Where the app is used</li>
+        <li>Users table</li>
+        <li>Daily reports</li>
+        <li>Recent sign-in attempts</li>
+      </ol>
+
+      <h3>Adding a user</h3>
+      <p>
+        Set role, status, then brands and — for a store account — locations. The location list is read
+        <strong>live from Power BI</strong> for whichever brands are ticked, so a new branch appears
+        the moment it exists in the model.
+      </p>
+      <div class="note note--do">
+        <span class="note__tag">Once only</span>
+        <div>
+          <p>
+            The password is generated (16 characters) and <strong>shown exactly once</strong>. Nobody,
+            including you, can read it back. If it is lost, reset it and issue a new one. You may also
+            type a password instead; minimum 12 characters.
+          </p>
+        </div>
+      </div>
+      <p>
+        Resetting anyone's password signs them out everywhere. Changing your own signs out your other
+        devices but keeps the tab you are working in.
+      </p>
+      <p>
+        Guards that cannot be overridden: the last active admin cannot be demoted, suspended, disabled
+        or deleted, and you cannot delete your own account. Every change writes to an audit log with
+        who did it and when.
+      </p>
+
+      <h3>This morning — the daily digest</h3>
+      <p>
+        Built automatically at <strong>07:00</strong> local, stored one row per day so the message
+        stays the same all morning rather than shifting under you on every page load.
+        <em>Check now</em> rebuilds it; <em>Mark as read</em> records who read it.
+      </p>
+      <p>
+        It walks every brand and reports: stale actuals, a brand that cannot be read at all,
+        <strong>yesterday's accuracy against a 90% threshold</strong>, variance past ±15% with the
+        direction named, branches below the floor, accuracy trending down, an empty production plan,
+        and an unusual share of extra prep — above 40%, since roughly a quarter to a third is normal
+        and reporting that every morning would just be noise.
+      </p>
+
+      <h3>Yesterday, every brand</h3>
+      <p>
+        The digest opens with a roll call: <strong>all nine brands with yesterday's accuracy</strong>,
+        worst first, whether or not they breached anything. Each tile carries the figure and the two
+        numbers behind it, with a coloured edge for anything under the threshold.
+      </p>
+      <div class="example">
+        <div class="example__row">
+          <span class="example__name">Slice</span>
+          <span class="example__fig"><strong>83.8%</strong></span>
+          <span class="example__fig">4,998 sold vs 5,806</span>
+          <span class="example__says">Under the threshold — edge marked amber.</span>
+        </div>
+        <div class="example__row">
+          <span class="example__name">Chilli Pepper</span>
+          <span class="example__fig"><strong>98.6%</strong></span>
+          <span class="example__fig">1,416 sold vs 1,396</span>
+          <span class="example__says">Fine, and still listed — a quiet morning should read as quiet rather than as nothing having run.</span>
+        </div>
+      </div>
+      <p>
+        State sits on the edge of each tile rather than filling it. Nine tinted blocks at once would
+        read as an alarm even on a morning when everything is fine. The findings underneath still name
+        only the brands that need something done: the scoreboard answers "how did everyone do?", the
+        findings answer "what do I do?"
+      </p>
+
+      <h3>Accuracy in the digest is one day, not thirty</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Yesterday's accuracy</th><th>Severity</th></tr></thead>
+          <tbody>
+            <tr><td>below 90%</td><td><span class="pill pill--warn">worth a look</span></td></tr>
+            <tr><td>below 80%</td><td><span class="pill pill--bad">needs attention</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        A month-long average is slow to move and slow to recover, so it reports the same brands as
+        "under target" for weeks after the day that caused it — which is not a morning message. One
+        day is what an operator can still do something about, and the finding quotes the figures
+        behind it:
+      </p>
+      <div class="example">
+        <div class="example__row">
+          <span class="example__name">Slice</span>
+          <span class="example__fig"><strong>83.8%</strong> on Fri 21 Aug</span>
+          <span class="example__says">Under the 90% daily threshold. Sold 4,998 against a forecast of 5,806.</span>
+        </div>
+      </div>
+      <p>
+        The line sits at 90% rather than the 95% used for a period, because a single day swings far
+        more than a month does; holding one day to 95% would flag every brand every morning. The 80%
+        floor is not "missed it" but "had a bad day".
+      </p>
+      <p>
+        Everything else in the digest — trends, branch checks, variance — still looks back over the
+        full 30 days, because those only mean anything across a period. The panel says which is which.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Why</span>
+        <div>
+          <p>
+            <strong>The digest measures to the last complete day, not to today.</strong> Today is
+            still being written, and a half-finished day drags accuracy down for reasons that have
+            nothing to do with the forecast.
+          </p>
+          <p>
+            This is why a digest figure can read higher than the same brand's card on the dashboard,
+            whose window runs to today by default. The panel states its window for exactly this
+            reason.
+          </p>
+        </div>
+      </div>
+
+      <h3>Alerts</h3>
+      <p>
+        Faults, as opposed to forecast findings. The digest is <em>what the forecast says</em> and is
+        read once; alerts are <em>what is broken</em> and stay until someone clears them.
+      </p>
+      <p>
+        Fed by real failures: Power BI refusing a brand, mail failing to send, any 5xx from the API,
+        and account lockouts. Repeats fold into one row with a count, so a loop failing every thirty
+        seconds is one line saying "×214" rather than two hundred lines. Clearing one by hand records
+        who did it.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Self-heal</span>
+        <div>
+          <p>
+            <strong>Most alerts clear themselves.</strong> A brand that reads successfully on the next
+            digest run retires its own alert, and a route that returns a non-5xx response retires its
+            own. Only faults that cannot prove they are fixed — a failed send, for instance — wait for
+            a person.
+          </p>
+          <p>
+            Alerts that linger after the problem has gone are how a team learns to stop reading the
+            list.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="email">
+      <h2 class="rule">Daily email reports</h2>
+      <p class="lede">
+        Sent through Microsoft Graph as the mailbox in <code>OUTLOOK_EMAIL</code>, using the same app
+        registration that reads Power BI.
+      </p>
+
+      <h3>Comparing against Power BI</h3>
+      <p>
+        The app and the models agree exactly — verified across all nine brands, all dates: every
+        actual and every forecast matches a direct model query to the unit.
+      </p>
+      <div class="note note--do">
+        <span class="note__tag">Check first</span>
+        <div>
+          <p>
+            If a figure looks different, check the <strong>date range</strong>. The Power BI reports
+            open with <strong>no date selection</strong> — the whole year — while the app defaults to
+            the last 30 days ending yesterday. Comparing those two compares different windows.
+          </p>
+        </div>
+      </div>
+
+      <h3>Who receives what</h3>
+      <p>
+        Recipients are chosen explicitly on the admin page, not inferred from accounts. An address
+        does not need a dashboard login: a distribution list, an area manager, or a kitchen's shared
+        mailbox are all legitimate recipients, and requiring an account for each would mean creating
+        logins nobody uses.
+      </p>
+      <p>
+        Each recipient carries an address, one report, a scope, and <strong>who it goes to</strong> —
+        Branches, Warehouse, Operations and so on, from the same list as user departments. That last
+        one changes nothing about what is sent; it is so a list of forty addresses can be read at a
+        glance.
+      </p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Report</th><th>Contains</th><th>Scope</th></tr></thead>
+          <tbody>
+            <tr><td>Tomorrow's prep list</td><td>One branch, what to prepare</td><td>Needs at least one store — one email per store</td></tr>
+            <tr><td>Tomorrow across stores</td><td>Every store in the chosen brands, ranked by how far from a normal day</td><td>Brands; none chosen means all</td></tr>
+            <tr><td>Morning digest</td><td>Yesterday's accuracy for every brand, plus anything needing attention</td><td>The whole group</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Sending can be paused per recipient, which keeps the setup but stops the mail. The same
+        address cannot be added to the same report twice, so nobody gets two copies. Existing store
+        and stakeholder accounts were carried over automatically when this replaced role-based
+        sending, so nothing stopped silently.
+      </p>
+
+      <h3>The two audiences, in detail</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Role</th><th>Receives</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>store</td>
+              <td>
+                Their own branch's prep list for tomorrow and nothing else: products, article, quantity
+                to prepare, recent average, demand change and prep status, ordered by volume. A branch
+                manager needs a prep list, not a group KPI
+              </td>
+            </tr>
+            <tr>
+              <td>stakeholder</td>
+              <td>
+                Tomorrow across every brand they are scoped to, <strong>broken down by store</strong>,
+                ranked by how far each branch departs from its normal day rather than by size — the big
+                branch is big every day; the one about to do 26% more is the news
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Scope comes from the same code the API uses, so an email can never show someone a branch the
+        dashboard would refuse them. <strong>A store account with no branch assigned is skipped</strong>,
+        not sent the whole brand.
+      </p>
+
+      <h3>Controls</h3>
+      <p>Ordered so that everything reversible happens before the send.</p>
+      <ol class="prose">
+        <li><strong>Mailbox check</strong> — whether mail can actually be sent</li>
+        <li><strong>Recipients</strong> — who would be reached, and what each would get</li>
+        <li><strong>Preview</strong> — renders one person's actual report without sending</li>
+        <li><strong>Dry run</strong> — builds every report, sends nothing</li>
+        <li><strong>Send now</strong></li>
+      </ol>
+      <p>
+        Every attempt is logged, successes included. When a branch says the plan never arrived, the
+        answer needs to be a row with a timestamp.
+      </p>
+
+      <div class="note note--do">
+        <span class="note__tag">Test mode</span>
+        <div>
+          <p>
+            While <code>MAIL_TEST_TO</code> is set, <strong>every</strong> report is delivered to that
+            address instead of its real recipient, with the intended address in the subject line.
+          </p>
+          <p>
+            The override is applied at the moment of sending rather than when the list is built, so
+            there is no path where a half-configured run reaches real branches. Clear the line in
+            <code>.env</code> to send for real; <code>MAIL_ENABLED=0</code> keeps the 07:00 schedule
+            off entirely.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="config">
+      <h2 class="rule">Configuration</h2>
+      <div class="note note--stop">
+        <span class="note__tag">Secret</span>
+        <div>
+          <p>
+            <code>webapp/.env</code> holds a live client secret and is gitignored. Keep it that way,
+            and rotate the secret if the file has ever been shared.
+          </p>
+        </div>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td>API port (7005)</td></tr>
+            <tr><td><code>MS_TENANT_ID</code></td><td>Entra app registration</td></tr>
+            <tr><td><code>MS_CLIENT_ID</code></td><td>Entra app registration</td></tr>
+            <tr><td><code>MS_CLIENT_SECRET</code></td><td>Entra app registration</td></tr>
+            <tr><td><code>PBI_WORKSPACE_ID</code></td><td>Power BI workspace</td></tr>
+            <tr><td><code>PBI_DATASETS</code></td><td><code>code|Label|datasetId[|chain]</code>, comma separated</td></tr>
+            <tr><td><code>DEMO_MODE</code></td><td><code>1</code> generates sample data and makes no Power BI calls</td></tr>
+            <tr><td><code>CACHE_TTL</code></td><td>Seconds a query result is cached (600)</td></tr>
+            <tr><td><code>PBI_MAX_CONCURRENCY</code></td><td>Simultaneous Power BI queries (3)</td></tr>
+            <tr><td><code>ADMIN_EMAIL</code></td><td>Seeds the first admin on first run</td></tr>
+            <tr><td><code>ADMIN_PASSWORD</code></td><td>Seeds the first admin on first run</td></tr>
+            <tr><td><code>SESSION_TTL_HOURS</code></td><td>Session lifetime (12)</td></tr>
+            <tr><td><code>COOKIE_INSECURE</code></td><td><strong>Local development only.</strong> Must not ship to production</td></tr>
+            <tr><td><code>DIGEST_HOUR</code></td><td>Local hour the morning digest is built (7)</td></tr>
+            <tr><td><code>OUTLOOK_EMAIL</code></td><td>Mailbox reports are sent as</td></tr>
+            <tr><td><code>MAIL_TEST_TO</code></td><td>Redirect every report here while testing</td></tr>
+            <tr><td><code>MAIL_HOUR</code></td><td>Local hour reports go out (7)</td></tr>
+            <tr><td><code>MAIL_ENABLED</code></td><td><code>0</code> disables the schedule</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The reports carry hidden filters — the app copies them</h3>
+      <p>
+        Every Power BI report applies filters hidden from the reader, and the app reproduces them so
+        the two agree. The one that matters excludes products whose name begins <code>SM</code>. It is
+        not marginal — on 22 August it removed:
+      </p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Brand</th><th>Removed</th><th>Share</th></tr></thead>
+          <tbody>
+            <tr><td>Yelo Pizza</td><td>2,842 units</td><td><span class="pill pill--bad">10.4%</span></td></tr>
+            <tr><td>Pattie Pattie</td><td>343</td><td><span class="pill pill--bad">9.8%</span></td></tr>
+            <tr><td>Just C</td><td>8</td><td><span class="pill pill--warn">5.9%</span></td></tr>
+            <tr><td>Mishmash</td><td>674</td><td><span class="pill pill--warn">4.7%</span></td></tr>
+            <tr><td>Tabel</td><td>296</td><td><span class="pill pill--warn">3.2%</span></td></tr>
+            <tr><td>BBT</td><td>752</td><td><span class="pill pill--flat">1.9%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        With the filter applied, BBT for that day reads <strong>39,739 sold against a forecast of
+        41,018 — identical to the report</strong>.
+      </p>
+      <p>
+        Two further report filters (excluding brand <code>YP COOP</code>, and a null
+        <code>ChainName</code>) were measured against all nine models and changed nothing, so they are
+        deliberately not reproduced. Inert filters on every query would be surface area with no
+        benefit.
+      </p>
+      <div class="note note--do">
+        <span class="note__tag">Caveat</span>
+        <div>
+          <p>
+            The report matches on the first two characters, so it also removes genuine products that
+            merely start with "Sm" — <em>Smokey Rolls Beef</em> among them.
+          </p>
+          <p>
+            The app copies that behaviour on purpose: agreeing with the report matters more than being
+            cleverer than it. Fixing it belongs in the report, and both would then need changing
+            together.
+          </p>
+        </div>
+      </div>
+
+      <h3>Power BI access</h3>
+      <p>
+        The service principal needs <strong>Contributor</strong> on the workspace — Viewer is not
+        enough, because <code>executeQueries</code> requires Build permission. Add the principal by
+        its <strong>display name</strong> (BPA Web Platform); the picker does not resolve GUIDs.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Gotcha</span>
+        <div>
+          <p>
+            Power BI returns <strong>404</strong> rather than 403 for a workspace the principal cannot
+            see. A "workspace cannot be found" error almost always means permissions, not a wrong ID.
+          </p>
+        </div>
+      </div>
+      <h3>Load speed</h3>
+      <p>
+        Each slicer list is its own DAX round trip against every selected model, so pages ask only for
+        the lists they actually render — the summary page fetches two instead of nine. That alone took
+        a cold slicer load from <strong>1.9s to 0.4s</strong>. Results are cached per dataset for
+        <code>CACHE_TTL</code> seconds, and the list of requested options is part of the cache key, so
+        a page asking for four lists is never served an entry that only fetched two.
+      </p>
+      <p>Three further changes, each measured against the live capacity:</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Change</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Concurrency 3 &rarr; 8</td>
+              <td>Nine brands is 45 queries a load; a gate of three serialised them into fifteen rounds. Sweeping 3–16 produced no throttling at any level</td>
+            </tr>
+            <tr>
+              <td>KPIs derived from the trend</td>
+              <td>Verified equal to the dedicated KPI query for all nine models, to the unit — one fewer round trip per selected brand</td>
+            </tr>
+            <tr>
+              <td>A 20s deadline per query</td>
+              <td>The important one, see below</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note note--why">
+        <span class="note__tag">The fix</span>
+        <div>
+          <p>
+            This network stalls intermittently — whole loads hung, at every concurrency level, on
+            every model. Per-attempt timeouts alone multiply: four attempts at twelve seconds each,
+            plus backoff, let one stalled query hold a page for over a minute.
+          </p>
+          <p>
+            Capping the <em>total</em> time a query may consume turns that into a bounded twenty
+            seconds. Nine brands cold now measures <strong>1.8–6.4s across eight consecutive runs
+            with no outliers</strong>, against 3.7–64s before.
+          </p>
+        </div>
+      </div>
+      <p>
+        Power BI throttles <code>executeQueries</code>. The client gates concurrency, honours
+        <code>Retry-After</code> and backs off. If 429s appear, raise <code>CACHE_TTL</code> or lower
+        <code>PBI_MAX_CONCURRENCY</code>.
+      </p>
+
+      <h3>When Power BI cannot be reached</h3>
+      <p>
+        Transient network failures are retried four times with backoff (0.6s, 1.8s, 4.5s), and each
+        request times out after 60 seconds (<code>PBI_TIMEOUT_MS</code>) so a hung socket cannot hold
+        a page open. A genuine refusal such as a 403 still fails immediately — a permission error does
+        not fix itself by asking again.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Was broken</span>
+        <div>
+          <p>
+            The retry originally tested only the HTTP status code, and a network failure rejects with
+            no status at all. A single dropped socket therefore failed a whole page instantly, showing
+            the useless message <em>"Could not load data. fetch failed"</em>, when a 600ms retry would
+            almost always have succeeded.
+          </p>
+          <p>
+            Errors that never reached the service now say what happened: <em>"Could not reach Power BI
+            — the connection was reset mid-request. Tried 4 times."</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="outstanding">
+      <h2 class="rule">Outstanding items</h2>
+
+      <h3>Mail.Send permission</h3>
+      <p>
+        Reports cannot be sent until the app registration is granted the <code>Mail.Send</code>
+        application permission with admin consent on the tenant. It currently has <strong>no</strong>
+        Graph application permissions at all — Power BI works through workspace membership, which is a
+        different mechanism.
+      </p>
+      <p>
+        Entra admin centre → App registrations → <em>BPA Web Platform</em> → API permissions → Add a
+        permission → Microsoft Graph → <strong>Application permissions</strong> →
+        <code>Mail.Send</code> → add → <strong>Grant admin consent</strong>. Confirm it shows
+        <em>Granted</em>, then press Refresh on the Daily reports panel.
+      </p>
+      <div class="note note--why">
+        <span class="note__tag">Scope</span>
+        <div>
+          <p>
+            <code>Mail.Send</code> (Application) allows sending as any mailbox in the tenant. If that
+            is too broad, the standard narrowing is an Exchange Online <strong>application access
+            policy</strong> scoping it to <code>automation@swishhh.net</code> alone. Worth mentioning
+            when you request it.
+          </p>
+        </div>
+      </div>
+
+      <h3>Brand logos</h3>
+      <p>
+        Drop eight PNGs into <code>webapp/client/public/brands/</code> named <code>bbt.png</code>,
+        <code>chp.png</code>, <code>pat.png</code>, <code>ss.png</code>, <code>yp.png</code>,
+        <code>slc.png</code>, <code>mm.png</code>, <code>tbl.png</code>. The wiring is done and falls
+        back to coloured code chips until the files exist.
+      </p>
+
+      <h3>Before production</h3>
+      <ul>
+        <li>Remove <code>COOKIE_INSECURE</code>.</li>
+        <li>Change the seeded admin password.</li>
+        <li>Delete the <code>store@test.local</code> and <code>stake@test.local</code> test accounts.</li>
+        <li>Rotate the client secret if <code>.env</code> has ever been shared.</li>
+      </ul>
+
+      <h3>A note on brand colours</h3>
+      <p>
+        Each brand has its own colour on its chip. Nine brands is past what colour alone can carry — an
+        even nine-step hue circle still leaves the closest pair well below the separation a reader
+        needs, and no hand-picked set does better. The colour is a scanning aid; the three-letter code
+        is the identity and is always shown. Every step clears 3:1 contrast so the text stays legible.
+      </p>
+    </section>
+  </main>
+</div>
+
+<footer class="footer">
+  Demand Forecast · internal documentation. Figures quoted throughout are real readings taken from the
+  live models on 20 August 2026 and are there to show what each measure looks like in practice.
+</footer>

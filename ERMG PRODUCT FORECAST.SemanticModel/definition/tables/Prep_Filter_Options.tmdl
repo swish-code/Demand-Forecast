@@ -1,0 +1,64 @@
+table Prep_Filter_Options
+	lineageTag: fa3cefe3-a962-4f9b-a337-344edcac9e2b
+
+	measure 'Product Prep Status' =
+			
+			VAR DemandChange = [Demand Change %]
+			RETURN
+			    SWITCH(
+			        TRUE(),
+			        ISBLANK(DemandChange), "Normal",
+			        DemandChange > 0.20, "Extra Prep Needed",
+			        DemandChange < -0.20, "Reduced Prep Needed",
+			        "Normal"
+			    )
+		lineageTag: 40fa814b-4334-4894-be5c-5d62c7f07c2f
+
+	measure 'Prep Slicer Filter Toggle' =
+			
+			VAR SelectedStatus = SELECTEDVALUE(Prep_Filter_Options[Prep Status], "All")
+			VAR CurrentProductStatus = [Product Prep Status]
+			
+			RETURN
+			    IF(
+			        SelectedStatus = "All" || CurrentProductStatus = SelectedStatus,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: e551ace0-96b3-4552-829b-cbd324156d3a
+
+	column 'Prep Status'
+		lineageTag: 4f43a821-6078-4d85-8781-5ad58ad65fc4
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Prep Status]
+		sortByColumn: 'Sort Order'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Sort Order'
+		formatString: 0
+		lineageTag: 3f982446-bdf6-48e9-820c-91607f2a0bf7
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort Order]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Prep_Filter_Options = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Prep Status", STRING,
+				    "Sort Order", INTEGER,
+				    {
+				        {"Extra Prep Needed", 1},
+				        {"Normal", 2},
+				        {"Reduced Prep Needed", 3}
+				    }
+				)
+
+	annotation PBI_Id = 79fd5a789726405b9d9d84a71c253473
+

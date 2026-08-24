@@ -1,0 +1,357 @@
+table 'SALES DATA'
+	lineageTag: 54cb4775-07e5-476e-b446-de61ccb16966
+
+	column Net = 'SALES DATA'[TrxSales]-'SALES DATA'[COTDiscountAmount]
+		lineageTag: 34507392-6eaa-47a2-a4df-9e3dfb02a676
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column OrderSource = ```
+			
+			SWITCH(
+			    TRUE(),
+			    
+			    // In-Store for empty or "In-Store" address
+			    'SALES DATA'[CustAddress8] = "" || 'SALES DATA'[CustAddress8] = "In-Store", "In-Store",
+			    
+			    // Cari conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) IN {"Ca", "CA"} &&
+			    'SALES DATA'[OrderType] = "DL" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Cari",
+			    
+			    // Call Center conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) = "CO" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Call Center",
+			    
+			    // Deliveroo conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) IN {"De", "DE"} &&
+			    'SALES DATA'[OrderType] = "DL" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Deliveroo",
+			    
+			    // Application Lovebird & Other Apps
+			    LEFT('SALES DATA'[CustAddress8], 2) = "DR" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Application",
+			    
+			    // Jahez conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) = "Ja" &&
+			    'SALES DATA'[OrderType] = "DL" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Jahez",
+			    
+			    // Ordable conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) IN {"Or", "OR"} &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Ordable",
+			    
+			    // Talabat conditions
+			    LEFT('SALES DATA'[CustAddress8], 2) IN {"Ta", "TA"} &&
+			    'SALES DATA'[OrderType] = "DL" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Talabat",
+			    
+			    // WhatsApp / Zajel (W/Z prefixes)
+			    LEFT('SALES DATA'[CustAddress8], 1) IN {"W", "Z"} &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "Ordable",
+			    
+			    // V-Throu conditions
+			    LEFT('SALES DATA'[CustAddress8], 1) = "V" &&
+			    NOT(ISBLANK('SALES DATA'[COTRefnumber])), "V-Throu",
+			    
+			    // Default
+			    "In-Store"
+			)
+			
+			```
+		lineageTag: 7d3b6937-2d56-4dad-a1dc-0bf02fe66149
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayName = ```
+			FORMAT('SALES DATA'[VoucherDate], "dddd")
+			
+			```
+		lineageTag: 0eb5014f-30c9-4794-b7b8-71736a9ab9a3
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column KEY
+		dataType: string
+		lineageTag: f11a6e1e-bc5a-44a4-96ec-c64ac5d4206a
+		summarizeBy: none
+		sourceColumn: KEY
+
+		annotation SummarizationSetBy = Automatic
+
+	column Discount = ```
+			
+			VAR IsJahezOrderSource = ('SALES DATA'[OrderSource] = "Jahez")
+			VAR OrderDate = 'SALES DATA'[VoucherDate]
+			VAR TransactionSales = 'SALES DATA'[TrxSales]
+			VAR COTDiscountAmount = 'SALES DATA'[COTDiscountAmount]
+			RETURN
+			    IF(
+			       IsJahezOrderSource,
+			        IF(
+			            OrderDate = DATE(2024, 12, 1), 
+			            TransactionSales * 0.30,
+			            IF(
+			                OrderDate >= DATE(2024, 12, 2) && OrderDate <= DATE(2024, 12, 8), 
+			                TransactionSales * 0.25,
+			                IF(
+			                    OrderDate > DATE(2024, 12, 8) && OrderDate <= DATE(2024, 12, 22), 
+			                    TransactionSales * 0.40,
+			                    COTDiscountAmount
+			                )
+			            )
+			        ),
+			        COTDiscountAmount
+			    )
+			
+			```
+		lineageTag: 60f25575-eea6-4d8d-bc65-90d7419f9e79
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NetAmount = 'SALES DATA'[TrxSales]-'SALES DATA'[Discount]
+		lineageTag: 463831e8-6d5b-48ea-a569-e47f96f657d7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ConcatenatedColumn = ```
+			'SALES DATA'[BRAND] & " - " & 'SALES DATA'[LocationID]
+			
+			```
+		lineageTag: 49bb0f75-259f-457b-872c-9b687441f84c
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column BRAND
+		dataType: string
+		lineageTag: 2445152f-709c-49dc-92c1-a00d133fa68d
+		summarizeBy: none
+		sourceColumn: BRAND
+
+		annotation SummarizationSetBy = Automatic
+
+	column ENDDATE
+		dataType: string
+		lineageTag: 7743fd37-8dca-4405-916f-cc4ff92b0bba
+		summarizeBy: none
+		sourceColumn: ENDDATE
+
+		annotation SummarizationSetBy = Automatic
+
+	column ENDTIME
+		dataType: string
+		lineageTag: 674b8f55-3526-4e59-9fa0-2dcbd7f8b6ce
+		summarizeBy: none
+		sourceColumn: ENDTIME
+
+		annotation SummarizationSetBy = Automatic
+
+	column TRXSALES
+		dataType: double
+		lineageTag: e6e01ffc-e138-4b01-b4d5-d2336312e4a1
+		summarizeBy: sum
+		sourceColumn: TRXSALES
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column COMPANYID
+		dataType: string
+		lineageTag: 87afa463-ab04-4169-a780-1db76be020cc
+		summarizeBy: none
+		sourceColumn: COMPANYID
+
+		annotation SummarizationSetBy = Automatic
+
+	column ORDERTYPE
+		dataType: string
+		lineageTag: db3bd755-ebf9-47ff-9ce4-4670d994b146
+		summarizeBy: none
+		sourceColumn: ORDERTYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	column STARTDATE
+		dataType: string
+		lineageTag: 278e2955-c6b7-40e1-8ee5-9d427feb3cb3
+		summarizeBy: none
+		sourceColumn: STARTDATE
+
+		annotation SummarizationSetBy = Automatic
+
+	column STARTTIME
+		dataType: string
+		lineageTag: ffc78340-3740-4c63-bbd1-b6d4215e4dfe
+		summarizeBy: none
+		sourceColumn: STARTTIME
+
+		annotation SummarizationSetBy = Automatic
+
+	column UNIQUEKEY
+		dataType: string
+		lineageTag: c5b42296-0611-48aa-acbc-b88140a0ae9f
+		summarizeBy: none
+		sourceColumn: UNIQUEKEY
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCATIONID
+		dataType: string
+		lineageTag: d4064a6d-e8e8-4ee9-a2c5-88082145dde3
+		summarizeBy: none
+		sourceColumn: LOCATIONID
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: f89ee82f-005e-46e3-a0c0-e96ab20a3b72
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		annotation SummarizationSetBy = Automatic
+
+	column COTREFNUMBER
+		dataType: string
+		lineageTag: ae675649-e85c-446c-ae3e-9845209769f3
+		summarizeBy: none
+		sourceColumn: COTREFNUMBER
+
+		annotation SummarizationSetBy = Automatic
+
+	column CUSTADDRESS8
+		dataType: string
+		lineageTag: dd601979-a343-4146-8a3e-b8afa9a59c3e
+		summarizeBy: none
+		sourceColumn: CUSTADDRESS8
+
+		annotation SummarizationSetBy = Automatic
+
+	column CUSTADDRESS9
+		dataType: string
+		lineageTag: 09021c27-ff75-436d-95b0-12cf0092c486
+		summarizeBy: none
+		sourceColumn: CUSTADDRESS9
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERSTATUS
+		dataType: string
+		lineageTag: f3f1c7a6-b16e-43af-ae21-512cf24760c5
+		summarizeBy: none
+		sourceColumn: VOUCHERSTATUS
+
+		annotation SummarizationSetBy = Automatic
+
+	column COTDELIVERYCHARGE
+		dataType: double
+		lineageTag: 7292d0d3-e91a-4053-b909-b1146b87ab6d
+		summarizeBy: sum
+		sourceColumn: COTDELIVERYCHARGE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column COTDISCOUNTAMOUNT
+		dataType: double
+		lineageTag: 97634775-90b1-4879-b40c-32e5da55e15f
+		summarizeBy: sum
+		sourceColumn: COTDISCOUNTAMOUNT
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column COTCUSTOMERTELEPHONE
+		dataType: string
+		lineageTag: a198362b-7049-4524-aeca-b415584d1a34
+		summarizeBy: none
+		sourceColumn: COTCUSTOMERTELEPHONE
+
+		annotation SummarizationSetBy = Automatic
+
+	column CUSTADDRESS6
+		dataType: string
+		lineageTag: 25def5f9-8e36-4602-a5b2-3304e274237c
+		summarizeBy: none
+		sourceColumn: CUSTADDRESS6
+
+		annotation SummarizationSetBy = Automatic
+
+	column CUSTADDRESS7
+		dataType: string
+		lineageTag: 1bee5673-49ed-4eff-8bfb-c42724fb7ee1
+		summarizeBy: none
+		sourceColumn: CUSTADDRESS7
+
+		annotation SummarizationSetBy = Automatic
+
+	column CUSTADDRESS10
+		dataType: string
+		lineageTag: ae5f409e-fb7b-4ccb-bd97-a4329c81915c
+		summarizeBy: none
+		sourceColumn: CUSTADDRESS10
+
+		annotation SummarizationSetBy = Automatic
+
+	column NETSALES
+		dataType: double
+		lineageTag: 92db5d70-97ed-4471-a087-914bf84c5bf2
+		summarizeBy: sum
+		sourceColumn: NETSALES
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'SALES DATA' = m
+		mode: import
+		source =
+				let
+				    Source = Snowflake.Databases("umwijeo-if31569.snowflakecomputing.com","AIRBYTE_WAREHOUSE",[Implementation="2.0"]),
+				    AIRBYTE_MSH_Database = Source{[Name="AIRBYTE_MSH",Kind="Database"]}[Data],
+				    MISHMASH_Schema = AIRBYTE_MSH_Database{[Name="MISHMASH",Kind="Schema"]}[Data],
+				    HEADER_Table = MISHMASH_Schema{[Name="HEADER",Kind="Table"]}[Data],
+				    #"Uppercase Column Names" = Table.RenameColumns(HEADER_Table, List.Zip({Table.ColumnNames(HEADER_Table), List.Transform(Table.ColumnNames(HEADER_Table), Text.Upper)})),
+				    #"Added Custom" = Table.AddColumn(#"Uppercase Column Names", "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+				    #"Sorted Rows" = Table.Sort(#"Added Custom",{{"VOUCHERDATE", Order.Ascending}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Sorted Rows", each ([ORDERTYPE] <> "SM") and ([VOUCHERSTATUS] = "S")),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"COTDISCOUNTAMOUNT", type number}}),
+				    #"Added Custom1" = Table.AddColumn(#"Changed Type", "NETAMOUNT", each [TRXSALES] - [COTDISCOUNTAMOUNT]),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom1",{{"NETAMOUNT", type number}}),
+				    #"Renamed Columns" = Table.RenameColumns(#"Changed Type1",{{"CHAINID", "BRAND"}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Renamed Columns",{"VOUCHERNO", "ORDERNUMBER", "EMPLOYEE_ID", "VOIDCOUNT", "VOIDAMOUNT", "ISKITCHENPRINTED", "CUSTOMERCARDNO", "VOID_USER", "VOIDDATE", "VOIDTIME", "SL_TABLE_NO", "GUESTCOUNT", "COTCUSTOMERTELEPHONEEXT", "COTGRIDID", "COTDELIVERYTIME", "COTMODIFIED", "COTREFDATE", "COTCOMMENTS", "COTCOMPLAINTCOMMENTS", "COTSTATUS", "COTDRIVERLEFT", "COTDRIVERBACK", "COTOTHERCHARGE", "COTTIMERECEIVED", "COTTIMEDORDER", "COTTELEORDER", "COTDELIVERYMINUTES", "COTORDERONHOLD", "SALESTAXBASEAMOUNT", "SERVICETAXBASEAMOUNT", "SALESAFTERDISCOUNTANDTAX", "COVERCHARGE", "SALESTAXINPRICE", "SERVICETAXINPRICE", "SALESTAXID", "SALESTAXPERCENTAGE", "SALESTAXAMOUNT", "SERVICETAXID", "SERVICETAXPERCENTAGE", "SERVICETAXAMOUNT", "DELIVERYMINUTES", "COMMENTS", "REPRINTCOUNT", "PAYMENTDETAILS", "TIPS", "SPLITCOUNT", "CHECKPRINTEDBY", "CHECKPRINTEDAT", "PAIDBY", "PAIDAT", "CASHTIPS", "CREDITTIPS", "CUSTADDRESS1", "CUSTADDRESS2", "CUSTADDRESS3", "CUSTADDRESS4", "CUSTADDRESS5"}),
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Removed Columns",{{"COTDELIVERYCHARGE", type number}}),
+				    #"Removed Columns1" = Table.RemoveColumns(#"Changed Type3",{"_AIRBYTE_RAW_ID", "_AIRBYTE_EXTRACTED_AT", "_AIRBYTE_META", "_AIRBYTE_GENERATION_ID"}),
+				    #"Removed Duplicates" = Table.Distinct(#"Removed Columns1", {"UNIQUEKEY"}),
+				    #"Renamed Columns1" = Table.RenameColumns(#"Removed Duplicates",{{"NETAMOUNT", "NETSALES"}}),
+				    #"Changed Type4" = Table.TransformColumnTypes(#"Renamed Columns1",{{"VOUCHERDATE", type datetime}}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Changed Type4","TARD","ARD",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value","KMHB","MHB",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Replaced Value2" = Table.ReplaceValue(#"Replaced Value1","TSAL","SAL",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Replaced Value3" = Table.ReplaceValue(#"Replaced Value2","TSBS","SBS",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Replaced Value4" = Table.ReplaceValue(#"Replaced Value3","TMHB","MHB",Replacer.ReplaceText,{"LOCATIONID"}),
+				    #"Renamed Columns2" = Table.RenameColumns(#"Replaced Value4",{{"BRAND", "BRAND"}}),
+				    #"Filtered Rows1" = Table.SelectRows(#"Renamed Columns2", each [VOUCHERDATE] >= #datetime(2026, 2, 1, 0, 0, 0))
+				in
+				    #"Filtered Rows1"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+
