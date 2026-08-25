@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { config } from '../config.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { hashPassword } from './passwords.js'
 
 /**
@@ -163,21 +163,24 @@ const bootstrapAdmins = () =>
 const isBootstrapAdmin = (email) => bootstrapAdmins().has(String(email).trim().toLowerCase())
 
 export async function accountFor({ email, name }) {
-  const existing = db
-    .prepare('SELECT id, email, name, role, status FROM users WHERE email = ?')
-    .get(email)
+  // Matched without regard to case: Entra returns whatever casing the directory
+  // holds, which is not necessarily how the account was first written down.
+  const existing = await pg.get(
+    'SELECT id, email, name, role, status FROM users WHERE lower(email) = lower(?)',
+    [email]
+  )
 
   if (existing) {
     // Fill in a name we did not have, but never overwrite one an admin set.
     if (name && !existing.name) {
-      db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, existing.id)
+      await pg.run('UPDATE users SET name = ? WHERE id = ?', [name, existing.id])
     }
-    db.prepare("UPDATE users SET auth_provider = 'microsoft' WHERE id = ?").run(existing.id)
+    await pg.run("UPDATE users SET auth_provider = 'microsoft' WHERE id = ?", [existing.id])
 
     // A named administrator who was created pending by an earlier sign-in is
     // let in now rather than waiting for somebody who cannot exist yet.
     if (isBootstrapAdmin(email) && (existing.status !== 'active' || existing.role !== 'admin')) {
-      db.prepare("UPDATE users SET status = 'active', role = 'admin' WHERE id = ?").run(existing.id)
+      await pg.run("UPDATE users SET status = 'active', role = 'admin' WHERE id = ?", [existing.id])
       console.log(`  [auth] ${email} activated as an administrator (named in ADMIN_EMAILS)`)
       return {
         user: { ...existing, status: 'active', role: 'admin' },
@@ -193,23 +196,15 @@ export async function accountFor({ email, name }) {
   const unusable = await hashPassword(b64url(randomBytes(32)))
   const bootstrap = isBootstrapAdmin(email)
   if (bootstrap) console.log(`  [auth] ${email} created as an administrator (named in ADMIN_EMAILS)`)
-  const info = db
-    .prepare(
-      `INSERT INTO users (email, name, password_hash, role, status, auth_provider)
-       VALUES (?, ?, ?, ?, ?, 'microsoft')`
-    )
-    .run(
-      email,
-      name || '',
-      unusable,
-      bootstrap ? 'admin' : 'store',
-      bootstrap ? 'active' : 'pending'
-    )
-
-  const user = db
-    .prepare('SELECT id, email, name, role, status FROM users WHERE id = ?')
-    .get(Number(info.lastInsertRowid))
-  return { user, created: true }
+  // RETURNING gives the whole row, so there is no second query and no reliance
+  // on a last-insert id that PostgreSQL does not report the same way.
+  const { rows } = await pg.run(
+    `INSERT INTO users (email, name, password_hash, role, status, auth_provider)
+     VALUES (?, ?, ?, ?, ?, 'microsoft')
+     RETURNING id, email, name, role, status`,
+    [email, name || '', unusable, bootstrap ? 'admin' : 'store', bootstrap ? 'active' : 'pending']
+  )
+  return { user: rows[0], created: true }
 }
 
 export { STATE_COOKIE }

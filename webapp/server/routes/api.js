@@ -149,8 +149,12 @@ api.get('/health', (req, res) => {
 
 /** Everything past this point needs a session and carries a scope. */
 api.use(requireAuth, (req, res, next) => {
-  req.scope = loadScope(req.user.id, req.user.role)
-  next()
+  loadScope(req.user.id, req.user.role)
+    .then((scope) => {
+      req.scope = scope
+      next()
+    })
+    .catch(next)
 })
 
 /** Refuse cleanly when a user's grants cover nothing in the requested brand. */
@@ -206,10 +210,10 @@ function guardMany(req, res) {
 /** Wrap a handler so thrown errors reach the Express error middleware. */
 const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next)
 
-api.get('/brands', requireAuth, (req, res) => {
-  const scope = loadScope(req.user.id, req.user.role)
+api.get('/brands', requireAuth, handle(async (req, res) => {
+  const scope = await loadScope(req.user.id, req.user.role)
   res.json({ brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })) })
-})
+}))
 
 /**
  * Slicer options for the selected brands.

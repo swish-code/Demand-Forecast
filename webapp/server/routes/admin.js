@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { generatePassword, hashPassword } from '../auth/passwords.js'
 import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
@@ -33,18 +34,40 @@ const STATUSES = ['pending', 'active', 'suspended', 'disabled']
 
 const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next)
 
-/** Every change an admin makes is recorded, so the trail exists from day one. */
+/**
+ * Every change an admin makes is recorded, so the trail exists from day one.
+ *
+ * Not awaited by its callers: an audit row that cannot be written must not turn
+ * a change that did happen into an error. A failure is logged instead.
+ */
 function audit(actorId, action, target, detail) {
-  db.prepare(
-    'INSERT INTO audit_log (actor_user_id, action, target, detail_json) VALUES (?, ?, ?, ?)'
-  ).run(actorId, action, target ?? null, detail ? JSON.stringify(detail) : null)
+  return pg
+    .run(
+      'INSERT INTO audit_log (actor_user_id, action, target, detail_json) VALUES (?, ?, ?, ?)',
+      [actorId, action, target ?? null, detail ? JSON.stringify(detail) : null]
+    )
+    .catch((err) => console.warn(`  [admin] could not write an audit row (${err.message})`))
 }
 
-function scopesOf(userId) {
-  return db
-    .prepare('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ? ORDER BY brand_code, location_id')
-    .all(userId)
-    .map((r) => ({ brand: r.brand_code, location: r.location_id }))
+async function scopesOf(userId) {
+  const rows = await pg.all(
+    'SELECT brand_code, location_id FROM user_scopes WHERE user_id = ? ORDER BY brand_code, location_id',
+    [userId]
+  )
+  return rows.map((r) => ({ brand: r.brand_code, location: r.location_id }))
+}
+
+/** Every user's grants in one query, so a list of forty is not forty queries. */
+async function scopesByUser() {
+  const rows = await pg.all(
+    'SELECT user_id, brand_code, location_id FROM user_scopes ORDER BY brand_code, location_id'
+  )
+  const out = new Map()
+  for (const r of rows) {
+    if (!out.has(r.user_id)) out.set(r.user_id, [])
+    out.get(r.user_id).push({ brand: r.brand_code, location: r.location_id })
+  }
+  return out
 }
 
 /**
@@ -52,7 +75,7 @@ function scopesOf(userId) {
  * a spread: `SELECT *` would carry password_hash out to the browser, and a
  * denylist only stays correct until someone adds a column.
  */
-function userRow(row) {
+function userRow(row, scopes = []) {
   return {
     id: row.id,
     email: row.email,
@@ -63,8 +86,8 @@ function userRow(row) {
     created_at: row.created_at,
     last_login_at: row.last_login_at,
     locked_until: row.locked_until,
-    login_count: row.login_count ?? 0,
-    scopes: scopesOf(row.id),
+    login_count: Number(row.login_count ?? 0),
+    scopes,
   }
 }
 
@@ -72,18 +95,22 @@ function userRow(row) {
 
 admin.get(
   '/users',
-  handle((req, res) => {
-    const rows = db
-      .prepare(
-        `SELECT u.id, u.email, u.name, u.role, u.status, u.department, u.created_at, u.last_login_at,
-                u.locked_until,
-                (SELECT COUNT(*) FROM login_events e
-                  WHERE e.user_id = u.id AND e.success = 1) AS login_count
-           FROM users u
-          ORDER BY u.status = 'pending' DESC, u.created_at DESC`
-      )
-      .all()
-    res.json({ users: rows.map(userRow), roles: ROLES, statuses: STATUSES, departments: DEPARTMENTS })
+  handle(async (req, res) => {
+    const rows = await pg.all(
+      `SELECT u.id, u.email, u.name, u.role, u.status, u.department, u.created_at, u.last_login_at,
+              u.locked_until,
+              (SELECT COUNT(*) FROM login_events e
+                WHERE e.user_id = u.id AND e.success = 1) AS login_count
+         FROM users u
+        ORDER BY (u.status = 'pending') DESC, u.created_at DESC`
+    )
+    const scopes = await scopesByUser()
+    res.json({
+      users: rows.map((r) => userRow(r, scopes.get(r.id) ?? [])),
+      roles: ROLES,
+      statuses: STATUSES,
+      departments: DEPARTMENTS,
+    })
   })
 )
 
@@ -103,34 +130,33 @@ admin.post(
     if (department && !isDepartment(department)) {
       return res.status(400).json({ error: 'Unknown department' })
     }
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
+    if (await pg.get('SELECT 1 FROM users WHERE lower(email) = lower(?)', [email])) {
       return res.status(409).json({ error: 'That email already has an account' })
     }
 
     // Generated rather than chosen by the admin, so it is never a guessable
     // pattern and is shown exactly once.
     const password = req.body?.password || generatePassword()
-    const info = db
-      .prepare(
-        `INSERT INTO users (email, name, password_hash, role, status, department)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(email, name, await hashPassword(password), role, status, department)
+    const { rows } = await pg.run(
+      `INSERT INTO users (email, name, password_hash, role, status, department)
+       VALUES (?, ?, ?, ?, ?, ?)
+       RETURNING *`,
+      [email, name, await hashPassword(password), role, status, department]
+    )
+    const row = rows[0]
 
-    const id = Number(info.lastInsertRowid)
-    writeScopes(id, scopes)
+    await writeScopes(row.id, scopes)
     audit(req.user.id, 'user.create', email, { role, status, department, scopes })
 
-    const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
-    res.status(201).json({ user: userRow(row), password })
+    res.status(201).json({ user: userRow(row, await scopesOf(row.id)), password })
   })
 )
 
 admin.patch(
   '/users/:id',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const id = Number(req.params.id)
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
+    const user = await pg.get('SELECT * FROM users WHERE id = ?', [id])
     if (!user) return res.status(404).json({ error: 'No such user' })
 
     const patch = {}
@@ -151,22 +177,23 @@ admin.patch(
 
     // An admin must not be able to lock every admin out of the system.
     if ((patch.role && patch.role !== 'admin') || (patch.status && patch.status !== 'active')) {
-      if (user.role === 'admin' && lastActiveAdmin(user.id)) {
+      if (user.role === 'admin' && (await lastActiveAdmin(user.id))) {
         return res.status(409).json({ error: 'This is the last active admin — promote someone else first' })
       }
     }
 
     if (Object.keys(patch).length) {
       const sets = Object.keys(patch).map((k) => `${k} = ?`).join(', ')
-      db.prepare(`UPDATE users SET ${sets} WHERE id = ?`).run(...Object.values(patch), id)
+      await pg.run(`UPDATE users SET ${sets} WHERE id = ?`, [...Object.values(patch), id])
     }
-    if (Array.isArray(req.body?.scopes)) writeScopes(id, req.body.scopes)
+    if (Array.isArray(req.body?.scopes)) await writeScopes(id, req.body.scopes)
 
     // Losing access should take effect now, not whenever the session expires.
-    if (patch.status && patch.status !== 'active') revokeAllForUser(id)
+    if (patch.status && patch.status !== 'active') await revokeAllForUser(id)
 
     audit(req.user.id, 'user.update', user.email, { ...patch, scopes: req.body?.scopes })
-    res.json({ user: userRow(db.prepare('SELECT * FROM users WHERE id = ?').get(id)) })
+    const fresh = await pg.get('SELECT * FROM users WHERE id = ?', [id])
+    res.json({ user: userRow(fresh, await scopesOf(id)) })
   })
 )
 
@@ -176,7 +203,7 @@ admin.post(
   '/users/:id/password',
   handle(async (req, res) => {
     const id = Number(req.params.id)
-    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(id)
+    const user = await pg.get('SELECT email FROM users WHERE id = ?', [id])
     if (!user) return res.status(404).json({ error: 'No such user' })
 
     // A chosen password is allowed — it is the only way to retire the seeded
@@ -187,9 +214,10 @@ admin.post(
     }
     const password = chosen ?? generatePassword()
 
-    db.prepare(
-      'UPDATE users SET password_hash = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?'
-    ).run(await hashPassword(password), id)
+    await pg.run(
+      'UPDATE users SET password_hash = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?',
+      [await hashPassword(password), id]
+    )
 
     // Every other session for this account dies. Changing your own password
     // keeps the session you are sitting in, so an admin is not thrown out
@@ -203,37 +231,41 @@ admin.post(
 
 admin.delete(
   '/users/:id',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const id = Number(req.params.id)
-    const user = db.prepare('SELECT email, role FROM users WHERE id = ?').get(id)
+    const user = await pg.get('SELECT email, role FROM users WHERE id = ?', [id])
     if (!user) return res.status(404).json({ error: 'No such user' })
     if (id === req.user.id) return res.status(409).json({ error: 'You cannot delete your own account' })
-    if (user.role === 'admin' && lastActiveAdmin(id)) {
+    if (user.role === 'admin' && (await lastActiveAdmin(id))) {
       return res.status(409).json({ error: 'This is the last active admin' })
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id)
+    await pg.run('DELETE FROM users WHERE id = ?', [id])
     audit(req.user.id, 'user.delete', user.email, null)
     res.json({ ok: true })
   })
 )
 
-function lastActiveAdmin(excludingId) {
-  const { n } = db
-    .prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active' AND id != ?`)
-    .get(excludingId)
+async function lastActiveAdmin(excludingId) {
+  const { n } = await pg.get(
+    `SELECT COUNT(*)::int AS n FROM users WHERE role = 'admin' AND status = 'active' AND id != ?`,
+    [excludingId]
+  )
   return n === 0
 }
 
 /** Scopes are replaced wholesale — simpler to reason about than diffing rows. */
-function writeScopes(userId, scopes) {
-  db.prepare('DELETE FROM user_scopes WHERE user_id = ?').run(userId)
-  const insert = db.prepare('INSERT INTO user_scopes (user_id, brand_code, location_id) VALUES (?, ?, ?)')
+async function writeScopes(userId, scopes) {
+  await pg.run('DELETE FROM user_scopes WHERE user_id = ?', [userId])
   for (const s of scopes) {
     const brand = s?.brand ? String(s.brand) : null
     const location = s?.location ? String(s.location) : null
     if (!brand && !location) continue
-    insert.run(userId, brand, location)
+    await pg.run('INSERT INTO user_scopes (user_id, brand_code, location_id) VALUES (?, ?, ?)', [
+      userId,
+      brand,
+      location,
+    ])
   }
 }
 
@@ -241,115 +273,118 @@ function writeScopes(userId, scopes) {
 
 admin.get(
   '/analytics',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const days = Math.min(180, Math.max(7, Number(req.query.days) || 30))
-    const since = `-${days} days`
 
-    const totals = db
-      .prepare(
-        `SELECT
-           COUNT(*)                                                   AS total,
-           SUM(CASE WHEN status = 'active'  THEN 1 ELSE 0 END)         AS active,
-           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)         AS pending,
-           SUM(CASE WHEN status IN ('suspended','disabled') THEN 1 ELSE 0 END) AS inactive,
-           SUM(CASE WHEN last_login_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS seen_recently,
-           SUM(CASE WHEN last_login_at IS NULL THEN 1 ELSE 0 END)      AS never_signed_in
-         FROM users`
-      )
-      .get(since)
+    /*
+     * The cut-off, as the same TEXT shape the columns hold.
+     *
+     * Timestamps are stored as 'YYYY-MM-DD HH:MM:SS' strings rather than as
+     * timestamptz — the application slices and compares them as text in a dozen
+     * places — so the boundary is rendered into that shape and compared as
+     * text. Lexical order and chronological order agree for this format, which
+     * is the whole reason it was chosen.
+     */
+    const since = `${days} days`
+    const SINCE = "to_char(now() - ?::interval, 'YYYY-MM-DD HH24:MI:SS')"
+    const DAY = 'substr(created_at, 1, 10)'
+
+    const totals = await pg.get(
+      `SELECT
+         COUNT(*)::int                                                            AS total,
+         SUM(CASE WHEN status = 'active'  THEN 1 ELSE 0 END)::int                 AS active,
+         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)::int                 AS pending,
+         SUM(CASE WHEN status IN ('suspended','disabled') THEN 1 ELSE 0 END)::int AS inactive,
+         SUM(CASE WHEN last_login_at >= ${SINCE} THEN 1 ELSE 0 END)::int          AS seen_recently,
+         SUM(CASE WHEN last_login_at IS NULL THEN 1 ELSE 0 END)::int              AS never_signed_in
+       FROM users`,
+      [since]
+    )
 
     // Daily sign-ins, distinct people rather than raw events — one person
     // logging in six times is one user, not six.
-    const daily = db
-      .prepare(
-        `SELECT date(created_at) AS day,
-                COUNT(*) AS logins,
-                COUNT(DISTINCT user_id) AS users
-           FROM login_events
-          WHERE success = 1 AND created_at >= datetime('now', ?)
-          GROUP BY day ORDER BY day`
-      )
-      .all(since)
+    const daily = await pg.all(
+      `SELECT ${DAY} AS day,
+              COUNT(*)::int AS logins,
+              COUNT(DISTINCT user_id)::int AS users
+         FROM login_events
+        WHERE success = 1 AND created_at >= ${SINCE}
+        GROUP BY ${DAY} ORDER BY day`,
+      [since]
+    )
 
-    const failures = db
-      .prepare(
-        `SELECT date(created_at) AS day, COUNT(*) AS failures
-           FROM login_events
-          WHERE success = 0 AND created_at >= datetime('now', ?)
-          GROUP BY day ORDER BY day`
-      )
-      .all(since)
+    const failures = await pg.all(
+      `SELECT ${DAY} AS day, COUNT(*)::int AS failures
+         FROM login_events
+        WHERE success = 0 AND created_at >= ${SINCE}
+        GROUP BY ${DAY} ORDER BY day`,
+      [since]
+    )
 
-    const byRole = db
-      .prepare(
-        `SELECT u.role,
-                COUNT(DISTINCT u.id) AS users,
-                COUNT(e.id)          AS logins
-           FROM users u
-           LEFT JOIN login_events e
-                  ON e.user_id = u.id AND e.success = 1 AND e.created_at >= datetime('now', ?)
-          GROUP BY u.role ORDER BY u.role`
-      )
-      .all(since)
+    const byRole = await pg.all(
+      `SELECT u.role,
+              COUNT(DISTINCT u.id)::int AS users,
+              COUNT(e.id)::int          AS logins
+         FROM users u
+         LEFT JOIN login_events e
+                ON e.user_id = u.id AND e.success = 1 AND e.created_at >= ${SINCE}
+        GROUP BY u.role ORDER BY u.role`,
+      [since]
+    )
 
     // Usage per brand and per store, resolved through each user's grants.
     //
     // The DISTINCT subqueries matter: a store user granted two locations of one
     // brand has two scope rows, and joining login events straight onto those
     // would count every sign-in twice.
-    const brandRows = db
-      .prepare(
-        `SELECT g.brand_code AS brand,
-                COUNT(DISTINCT g.user_id) AS users,
-                COUNT(e.id)               AS logins
-           FROM (SELECT DISTINCT user_id, brand_code FROM user_scopes
-                  WHERE brand_code IS NOT NULL) g
-           LEFT JOIN login_events e
-                  ON e.user_id = g.user_id AND e.success = 1 AND e.created_at >= datetime('now', ?)
-          GROUP BY g.brand_code
-          ORDER BY logins DESC, users DESC`
-      )
-      .all(since)
+    const brandRows = await pg.all(
+      `SELECT g.brand_code AS brand,
+              COUNT(DISTINCT g.user_id)::int AS users,
+              COUNT(e.id)::int               AS logins
+         FROM (SELECT DISTINCT user_id, brand_code FROM user_scopes
+                WHERE brand_code IS NOT NULL) g
+         LEFT JOIN login_events e
+                ON e.user_id = g.user_id AND e.success = 1 AND e.created_at >= ${SINCE}
+        GROUP BY g.brand_code
+        ORDER BY logins DESC, users DESC`,
+      [since]
+    )
 
-    const byLocation = db
-      .prepare(
-        `SELECT g.location_id AS location,
-                COUNT(DISTINCT g.user_id) AS users,
-                COUNT(e.id)               AS logins
-           FROM (SELECT DISTINCT user_id, location_id FROM user_scopes
-                  WHERE location_id IS NOT NULL) g
-           LEFT JOIN login_events e
-                  ON e.user_id = g.user_id AND e.success = 1 AND e.created_at >= datetime('now', ?)
-          GROUP BY g.location_id
-          ORDER BY logins DESC, users DESC
-          LIMIT 20`
-      )
-      .all(since)
+    const byLocation = await pg.all(
+      `SELECT g.location_id AS location,
+              COUNT(DISTINCT g.user_id)::int AS users,
+              COUNT(e.id)::int               AS logins
+         FROM (SELECT DISTINCT user_id, location_id FROM user_scopes
+                WHERE location_id IS NOT NULL) g
+         LEFT JOIN login_events e
+                ON e.user_id = g.user_id AND e.success = 1 AND e.created_at >= ${SINCE}
+        GROUP BY g.location_id
+        ORDER BY logins DESC, users DESC
+        LIMIT 20`,
+      [since]
+    )
 
     const labels = new Map(config.brands.map((b) => [b.code, b.label]))
     const byBrand = brandRows.map((r) => ({ ...r, label: labels.get(r.brand) ?? r.brand }))
 
-    const byDepartment = db
-      .prepare(
-        `SELECT COALESCE(u.department, 'Not set') AS department,
-                COUNT(DISTINCT u.id) AS users,
-                COUNT(e.id)          AS logins
-           FROM users u
-           LEFT JOIN login_events e
-                  ON e.user_id = u.id AND e.success = 1 AND e.created_at >= datetime('now', ?)
-          GROUP BY COALESCE(u.department, 'Not set')
-          ORDER BY logins DESC, users DESC`
-      )
-      .all(since)
+    const byDepartment = await pg.all(
+      `SELECT COALESCE(u.department, 'Not set') AS department,
+              COUNT(DISTINCT u.id)::int AS users,
+              COUNT(e.id)::int          AS logins
+         FROM users u
+         LEFT JOIN login_events e
+                ON e.user_id = u.id AND e.success = 1 AND e.created_at >= ${SINCE}
+        GROUP BY COALESCE(u.department, 'Not set')
+        ORDER BY logins DESC, users DESC`,
+      [since]
+    )
 
-    const recent = db
-      .prepare(
-        `SELECT e.created_at, e.email_attempted, e.success, e.reason, e.ip, u.name, u.role
-           FROM login_events e
-           LEFT JOIN users u ON u.id = e.user_id
-          ORDER BY e.id DESC LIMIT 50`
-      )
-      .all()
+    const recent = await pg.all(
+      `SELECT e.created_at, e.email_attempted, e.success, e.reason, e.ip, u.name, u.role
+         FROM login_events e
+         LEFT JOIN users u ON u.id = e.user_id
+        ORDER BY e.id DESC LIMIT 50`
+    )
 
     res.json({ days, totals, daily, failures, byRole, byBrand, byLocation, byDepartment, recent })
   })
@@ -359,15 +394,13 @@ admin.get(
 
 admin.get(
   '/audit',
-  handle((req, res) => {
-    const rows = db
-      .prepare(
-        `SELECT a.created_at, a.action, a.target, a.detail_json, u.email AS actor
-           FROM audit_log a
-           LEFT JOIN users u ON u.id = a.actor_user_id
-          ORDER BY a.id DESC LIMIT 200`
-      )
-      .all()
+  handle(async (req, res) => {
+    const rows = await pg.all(
+      `SELECT a.created_at, a.action, a.target, a.detail_json, u.email AS actor
+         FROM audit_log a
+         LEFT JOIN users u ON u.id = a.actor_user_id
+        ORDER BY a.id DESC LIMIT 200`
+    )
     res.json({ entries: rows })
   })
 )
@@ -381,14 +414,16 @@ admin.get(
  */
 admin.get(
   '/insights',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const day = req.query.day ? String(req.query.day) : null
     const digest = day ? digestFor(day) : latestDigest()
+    // The digest itself still lives in SQLite; who acknowledged it is an
+    // account, and accounts moved.
     const row = digest
       ? db.prepare('SELECT acked_by, acked_at FROM digests WHERE day = ?').get(digest.day)
       : null
     const ackedBy = row?.acked_by
-      ? db.prepare('SELECT email, name FROM users WHERE id = ?').get(row.acked_by)
+      ? await pg.get('SELECT email, name FROM users WHERE id = ?', [row.acked_by])
       : null
 
     res.json({

@@ -1520,6 +1520,12 @@ table.dt tbody tr.clickable {
   color: var(--text);
 }
 
+.signin__requestWho {
+  margin: var(--s2) 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
 /* Accounts waiting for access, with the action beside each name. */
 .grantrow {
   display: flex;

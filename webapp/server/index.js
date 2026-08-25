@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { config, missingSettings } from './config.js'
 import { migrate } from './db/index.js'
 import { seedFirstAdmin } from './db/seed.js'
+import { initAccounts } from './db/accounts.js'
 import { attachUser } from './auth/middleware.js'
 import { purgeExpiredSessions } from './auth/sessions.js'
 import { api } from './routes/api.js'
@@ -18,8 +19,17 @@ import { raise, clear, isOpen } from './insights/alerts.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const clientDist = path.join(__dirname, '..', 'client', 'dist')
 
+/*
+ * SQLite first — it still holds the forecast copy and the mail tables — then
+ * the accounts database, which is PostgreSQL and therefore asynchronous.
+ *
+ * Awaited before the server listens: a request arriving against a database with
+ * no tables would fail in a way that looks like a bug rather than like a boot
+ * still in progress.
+ */
 migrate()
-purgeExpiredSessions()
+await initAccounts()
+await purgeExpiredSessions()
 
 /**
  * The route an alert belongs to, stable wherever it is read from.
@@ -159,3 +169,4 @@ server.on('error', (err) => {
   console.error('[server]', err)
   process.exit(1)
 })
+

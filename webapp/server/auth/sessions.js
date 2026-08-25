@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 
 /**
  * Server-side sessions in a cookie.
@@ -26,41 +26,41 @@ const REMEMBER_HOURS = (Number(process.env.SESSION_REMEMBER_DAYS) || 7) * 24
 const hash = (raw) => createHash('sha256').update(raw).digest('hex')
 const isoIn = (hours) => new Date(Date.now() + hours * 3600_000).toISOString()
 
-export function createSession(userId, { ip, userAgent, remember = false } = {}) {
+export async function createSession(userId, { ip, userAgent, remember = false } = {}) {
   const raw = randomBytes(32).toString('base64url')
-  db.prepare(
-    `INSERT INTO sessions (id, user_id, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)`
-  ).run(hash(raw), userId, isoIn(remember ? REMEMBER_HOURS : TTL_HOURS), ip ?? null, userAgent ?? null)
+  await pg.run(
+    `INSERT INTO sessions (id, user_id, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)`,
+    [hash(raw), userId, isoIn(remember ? REMEMBER_HOURS : TTL_HOURS), ip ?? null, userAgent ?? null]
+  )
   return raw
 }
 
 /** The user behind a session id, or null if it is unknown, expired or revoked. */
-export function resolveSession(raw) {
+export async function resolveSession(raw) {
   if (!raw) return null
 
-  const row = db
-    .prepare(
-      `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status
-         FROM sessions s
-         JOIN users u ON u.id = s.user_id
-        WHERE s.id = ?
-          AND s.revoked_at IS NULL
-          AND s.expires_at > datetime('now')`
-    )
-    .get(hash(raw))
+  const row = await pg.get(
+    `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status
+       FROM sessions s
+       JOIN users u ON u.id = s.user_id
+      WHERE s.id = ?
+        AND s.revoked_at IS NULL
+        AND s.expires_at > to_char(now(), 'YYYY-MM-DD HH24:MI:SS')`,
+    [hash(raw)]
+  )
 
   if (!row) return null
   // A suspended or disabled account loses access without needing a logout.
   if (row.status !== 'active') return null
 
-  db.prepare(`UPDATE sessions SET last_seen_at = datetime('now') WHERE id = ?`).run(row.sid)
+  await pg.run(`UPDATE sessions SET last_seen_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, [row.sid])
 
   return { id: row.id, email: row.email, name: row.name, role: row.role, status: row.status }
 }
 
-export function revokeSession(raw) {
+export async function revokeSession(raw) {
   if (!raw) return
-  db.prepare(`UPDATE sessions SET revoked_at = datetime('now') WHERE id = ?`).run(hash(raw))
+  await pg.run(`UPDATE sessions SET revoked_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, [hash(raw)])
 }
 
 /**
@@ -70,22 +70,27 @@ export function revokeSession(raw) {
  * password does not sign you out of the tab you are changing it in. Every other
  * device holding that account still gets cut off, which is the point.
  */
-export function revokeAllForUser(userId, keepRaw = null) {
+export async function revokeAllForUser(userId, keepRaw = null) {
   if (keepRaw) {
-    db.prepare(
-      `UPDATE sessions SET revoked_at = datetime('now')
-        WHERE user_id = ? AND revoked_at IS NULL AND id != ?`
-    ).run(userId, hash(keepRaw))
+    await pg.run(
+      `UPDATE sessions SET revoked_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        WHERE user_id = ? AND revoked_at IS NULL AND id != ?`,
+      [userId, hash(keepRaw)]
+    )
     return
   }
-  db.prepare(
-    `UPDATE sessions SET revoked_at = datetime('now')
-      WHERE user_id = ? AND revoked_at IS NULL`
-  ).run(userId)
+  await pg.run(
+    `UPDATE sessions SET revoked_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+      WHERE user_id = ? AND revoked_at IS NULL`,
+    [userId]
+  )
 }
 
-export function purgeExpiredSessions() {
-  return db.prepare(`DELETE FROM sessions WHERE expires_at < datetime('now', '-7 days')`).run().changes
+export async function purgeExpiredSessions() {
+  const { changes } = await pg.run(
+    `DELETE FROM sessions WHERE expires_at < to_char(now() - interval '7 days', 'YYYY-MM-DD HH24:MI:SS')`
+  )
+  return changes
 }
 
 /**

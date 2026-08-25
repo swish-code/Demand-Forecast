@@ -55,7 +55,7 @@ export function Login({ onSignedIn }) {
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [methods, setMethods] = useState({ microsoft: true, password: true })
+  const [methods, setMethods] = useState({ microsoft: true, password: true, contact: null })
 
   useEffect(() => {
     fetch('/api/auth/methods')
@@ -192,12 +192,30 @@ export function Login({ onSignedIn }) {
 
         <hr className="signin__rule" />
 
+        {/*
+          A request that reaches a person.
+          
+          This used to send you back through Microsoft sign-in, which creates a
+          pending account and tells you to wait — the same dead end you were
+          already looking at. It now writes to whoever administers the
+          deployment, with the address filled in.
+        */}
         <div className="signin__request">
           <p>Don&apos;t have access yet?</p>
-          <a className="signin__requestBtn" href="/api/auth/microsoft/start">
+          <a
+            className="signin__requestBtn"
+            href={
+              methods.contact
+                ? `mailto:${methods.contact}?subject=${encodeURIComponent('Demand Forecast — access request')}&body=${encodeURIComponent(
+                    'Please give me access to Demand Forecast.\n\nName:\nBrand(s):\nBranch(es):\n'
+                  )}`
+                : '/api/auth/microsoft/start'
+            }
+          >
             <MailIcon />
             Request access
           </a>
+          {methods.contact && <p className="signin__requestWho">Goes to {methods.contact}</p>}
         </div>
       </main>
 

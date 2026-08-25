@@ -1,4 +1,4 @@
-import { db } from './index.js'
+import { pg } from './accounts.js'
 import { generatePassword, hashPassword } from '../auth/passwords.js'
 
 /**
@@ -10,17 +10,18 @@ import { generatePassword, hashPassword } from '../auth/passwords.js'
  * never stored in plain text, so it cannot be recovered afterwards.
  */
 export async function seedFirstAdmin() {
-  const { count } = db.prepare('SELECT COUNT(*) AS count FROM users').get()
+  const { count } = (await pg.get('SELECT COUNT(*)::int AS count FROM users')) ?? { count: 0 }
   if (count > 0) return null
 
   const email = process.env.ADMIN_EMAIL || 'admin@swishhh.net'
   const password = process.env.ADMIN_PASSWORD || generatePassword()
   const generated = !process.env.ADMIN_PASSWORD
 
-  db.prepare(
+  await pg.run(
     `INSERT INTO users (email, name, password_hash, role, status)
-     VALUES (?, ?, ?, 'admin', 'active')`
-  ).run(email, 'Administrator', await hashPassword(password))
+     VALUES (?, ?, ?, 'admin', 'active')`,
+    [email, 'Administrator', await hashPassword(password)]
+  )
 
   return { email, password, generated }
 }

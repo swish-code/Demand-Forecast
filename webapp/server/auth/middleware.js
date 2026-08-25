@@ -1,4 +1,4 @@
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 import { COOKIE_NAME, readCookie, resolveSession } from './sessions.js'
 
@@ -10,10 +10,21 @@ import { COOKIE_NAME, readCookie, resolveSession } from './sessions.js'
  * and read another branch's numbers.
  */
 
-/** Attaches req.user when a valid session cookie is present. Never rejects. */
-export function attachUser(req, res, next) {
+/**
+ * Attaches req.user when a valid session cookie is present. Never rejects.
+ *
+ * A failure here is a failure to read the accounts database, which is not the
+ * visitor's fault and must not become a 500 on every route: the request carries
+ * on unauthenticated and whatever needed a session says so itself.
+ */
+export async function attachUser(req, res, next) {
   req.sessionToken = readCookie(req, COOKIE_NAME)
-  req.user = resolveSession(req.sessionToken)
+  try {
+    req.user = await resolveSession(req.sessionToken)
+  } catch (err) {
+    console.warn(`  [auth] could not read the session (${err.message})`)
+    req.user = null
+  }
   next()
 }
 
@@ -35,10 +46,10 @@ export function requireRole(...roles) {
  *   brands    Set of brand codes, or null for every brand
  *   locations Set of location ids, or null for every location
  */
-export function loadScope(userId, role) {
+export async function loadScope(userId, role) {
   if (role === 'admin') return { brands: null, locations: null }
 
-  const rows = db.prepare('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ?').all(userId)
+  const rows = await pg.all('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ?', [userId])
   if (!rows.length) return { brands: new Set(), locations: new Set() } // no grants = nothing
 
   const brands = new Set()
