@@ -1,4 +1,10 @@
 node_modules/
 .env
 client/dist/
-data/
+
+# The runtime data directory only — the SQLite file, the local cube, anything
+# written while the app runs. Anchored with a leading slash on purpose: written
+# as a bare "data/" it also matched server/data/, which is source, and those
+# four files never reached the repository. A clean deploy then died on
+# ERR_MODULE_NOT_FOUND for server/data/index.js.
+/data/
