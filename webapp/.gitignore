@@ -8,3 +8,6 @@ client/dist/
 # four files never reached the repository. A clean deploy then died on
 # ERR_MODULE_NOT_FOUND for server/data/index.js.
 /data/
+
+# curl cookie jars from local testing.
+cookies.txt

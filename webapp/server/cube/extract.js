@@ -31,19 +31,40 @@ export const WINDOW_DAYS = Number(process.env.CUBE_DAYS) || 90
 export const RECENT_DAYS = Number(process.env.CUBE_RECENT_DAYS) || 4
 const GAP_MS = Number(process.env.CUBE_GAP_MS) || 2_000
 
-const upsertArticle = db.prepare(
-  `INSERT INTO cube_article_daily (brand, date, article, product, actual, forecast)
-   VALUES (?, ?, ?, ?, ?, ?)
-   ON CONFLICT(brand, date, article, product)
-   DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
-)
+/**
+ * Prepared on first use rather than on import.
+ *
+ * Every ES module in the process is evaluated before index.js reaches
+ * migrate(), so preparing a statement in a module body runs it against a
+ * database that may have no tables yet. On a machine that has run the app
+ * before this is invisible — the file already has its schema. On a fresh
+ * deployment it is fatal: a new container starts with an empty database and
+ * the process died at import with "no such table: cube_article_daily", before
+ * a single line of migration had run.
+ *
+ * Deferring costs one null check per write and makes the module safe to import
+ * in any order.
+ */
+let statements = null
 
-const upsert = db.prepare(
-  `INSERT INTO cube_daily (brand, date, location, product, actual, forecast)
-   VALUES (?, ?, ?, ?, ?, ?)
-   ON CONFLICT(brand, date, location, product)
-   DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
-)
+function sql() {
+  if (statements) return statements
+  statements = {
+    article: db.prepare(
+      `INSERT INTO cube_article_daily (brand, date, article, product, actual, forecast)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(brand, date, article, product)
+       DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
+    ),
+    daily: db.prepare(
+      `INSERT INTO cube_daily (brand, date, location, product, actual, forecast)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(brand, date, location, product)
+       DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
+    ),
+  }
+  return statements
+}
 
 /**
  * Replace everything in the slice's scope, rather than only overwriting what
@@ -77,7 +98,7 @@ function writeRows(brand, rows, scope) {
   try {
     if (scope) clearScope(brand, scope)
     for (const r of rows) {
-      upsert.run(
+      sql().daily.run(
         brand,
         String(r.Date ?? '').slice(0, 10),
         String(r.LocationID ?? ''),
@@ -149,7 +170,7 @@ function writeArticles(brand, rows, scope) {
       db.prepare(`DELETE FROM cube_article_daily WHERE ${sql.join(' AND ')}`).run(...args)
     }
     for (const r of rows) {
-      upsertArticle.run(
+      sql().article.run(
         brand,
         String(r.Date ?? '').slice(0, 10),
         String(r.Clean_ItemID ?? ''),
