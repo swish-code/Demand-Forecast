@@ -727,11 +727,17 @@ admin.get(
 )
 
 /** Where to send the browser to connect the sending mailbox. */
-admin.get('/email/mailbox/connect', (req, res) => {
-  res.json(beginConnect())
-})
+admin.get(
+  '/email/mailbox/connect',
+  handle(async (req, res) => {
+    res.json(await beginConnect())
+  })
+)
 
-admin.post('/email/mailbox/disconnect', (req, res) => {
-  disconnectMailbox()
-  res.json({ ok: true })
-})
+admin.post(
+  '/email/mailbox/disconnect',
+  handle(async (req, res) => {
+    await disconnectMailbox()
+    res.json({ ok: true })
+  })
+)

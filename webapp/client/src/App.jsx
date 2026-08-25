@@ -100,6 +100,28 @@ const iso = (d) => new Date(d).toISOString().slice(0, 10)
 
 export default function App({ session, onSignedOut }) {
   const [tab, setTab] = useState('summary')
+  const [mailboxResult, setMailboxResult] = useState(null)
+
+  /*
+   * What happened to the mailbox consent.
+   *
+   * Microsoft sends the browser back to the app with the outcome in the query
+   * string. Nothing read it, so a consent that failed and one that worked both
+   * looked identical — the Overview, as if the button had done nothing. It now
+   * says which, and lands on the page where the mailbox lives.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const outcome = params.get('mailbox')
+    if (!outcome) return
+    setMailboxResult(
+      outcome === 'connected'
+        ? { tone: 'ok', text: `Connected. Reports will be sent as ${params.get('email') || 'that mailbox'}.` }
+        : { tone: 'warn', text: `The mailbox was not connected. ${params.get('reason') || ''}`.trim() }
+    )
+    setTab('admin')
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [])
   const [health, setHealth] = useState(null)
   const [brands, setBrands] = useState([])
   const [brandCodes, setBrandCodes] = useState(() => {
@@ -369,6 +391,11 @@ export default function App({ session, onSignedOut }) {
         )}
 
         <div className="scroll" ref={pageRef}>
+          {mailboxResult && (
+            <InfoBanner tone={mailboxResult.tone === 'ok' ? 'info' : 'warn'}>
+              {mailboxResult.text}
+            </InfoBanner>
+          )}
           {page.adminOnly ? (
             <Admin session={session} />
           ) : (

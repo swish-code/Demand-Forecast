@@ -168,6 +168,14 @@ CREATE TABLE IF NOT EXISTS mail_identity (
 -- grain lives in its own table without the branch column; with it that is four
 -- hundred thousand rows per brand per sixty days, past what the Power BI query
 -- API returns in one go.
+-- A consent in flight: the PKCE verifier, waiting for Microsoft to send the
+-- browser back. Rows live for ten minutes and are deleted as they are redeemed.
+CREATE TABLE IF NOT EXISTS mail_consents (
+  state      TEXT PRIMARY KEY,
+  verifier   TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cube_daily (
   brand    TEXT NOT NULL,
   date     TEXT NOT NULL,

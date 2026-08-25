@@ -29,11 +29,34 @@ export const STATE_PREFIX = 'mbx.'
 
 const b64url = (buf) => buf.toString('base64url')
 const STATE_TTL_MS = 10 * 60_000
-const pending = new Map()
 
-const sweep = () => {
-  const now = Date.now()
-  for (const [k, v] of pending) if (v.expires < now) pending.delete(k)
+/*
+ * The half-finished consent is kept in the database, not in memory.
+ *
+ * Between pressing "Connect a mailbox" and Microsoft sending the browser back,
+ * the deployment may have restarted — a redeploy, a crash, or simply a second
+ * instance answering the callback. A Map in one process loses the verifier in
+ * all three cases, and the person is told their consent link expired seconds
+ * after they used it.
+ *
+ * The row is deleted the moment it is redeemed, so a code cannot be replayed.
+ */
+async function rememberState(state, verifier) {
+  await pg.run(
+    `INSERT INTO mail_consents (state, verifier, expires_at)
+     VALUES (?, ?, to_char(now() + interval '10 minutes', 'YYYY-MM-DD HH24:MI:SS'))
+     ON CONFLICT (state) DO UPDATE SET verifier = excluded.verifier, expires_at = excluded.expires_at`,
+    [state, verifier]
+  )
+  // Anything long abandoned goes with it; there is no other sweeper.
+  await pg.run("DELETE FROM mail_consents WHERE expires_at < to_char(now(), 'YYYY-MM-DD HH24:MI:SS')")
+}
+
+async function redeemState(state) {
+  const row = await pg.get('SELECT verifier, expires_at FROM mail_consents WHERE state = ?', [state])
+  if (row) await pg.run('DELETE FROM mail_consents WHERE state = ?', [state])
+  if (!row) return null
+  return row.expires_at >= new Date().toISOString().slice(0, 19).replace('T', ' ') ? row : null
 }
 
 /* ------------------------------------------------------------ storage --- */
@@ -70,11 +93,10 @@ export async function disconnectMailbox() {
 
 /* --------------------------------------------------------- the consent --- */
 
-export function beginConnect() {
-  sweep()
+export async function beginConnect() {
   const state = STATE_PREFIX + b64url(randomBytes(24))
   const verifier = b64url(randomBytes(32))
-  pending.set(state, { verifier, expires: Date.now() + STATE_TTL_MS })
+  await rememberState(state, verifier)
 
   const url = new URL(`${AUTHORITY()}/oauth2/v2.0/authorize`)
   url.searchParams.set('client_id', config.ms.clientId)
@@ -114,8 +136,7 @@ async function exchange(body) {
 
 /** Finish the consent and remember the mailbox. */
 export async function completeConnect({ code, state, actorId }) {
-  const held = pending.get(state)
-  pending.delete(state)
+  const held = await redeemState(state)
   if (!held) throw new Error('That consent link has expired. Start again.')
 
   const token = await exchange({
@@ -127,13 +148,33 @@ export async function completeConnect({ code, state, actorId }) {
     throw new Error('Microsoft did not return a refresh token, so this could not be kept for tomorrow.')
   }
 
-  const me = await fetch(`${GRAPH}/me`, {
+  /*
+   * Who did we just become?
+   *
+   * This used to swallow every failure and store an empty address, which is how
+   * the panel came to report a connected mailbox of "undefined": the consent had
+   * worked, the token was kept, and nobody knew whose it was. A mailbox we
+   * cannot name is not connected, so the failure is raised instead — with what
+   * Graph actually said, which is usually a missing User.Read consent.
+   */
+  const meResponse = await fetch(`${GRAPH}/me`, {
     headers: { Authorization: `Bearer ${token.access_token}` },
+  }).catch((err) => {
+    throw new Error(`Signed in, but Microsoft could not be asked who it was: ${err.message}`)
   })
-    .then((r) => r.json())
-    .catch(() => ({}))
+
+  const me = await meResponse.json().catch(() => ({}))
+  if (!meResponse.ok) {
+    throw new Error(
+      `Signed in, but reading the account failed (${meResponse.status}): ` +
+        `${me?.error?.message ?? 'no detail'}. The app registration needs delegated User.Read.`
+    )
+  }
 
   const email = me.mail || me.userPrincipalName || ''
+  if (!email) {
+    throw new Error('Signed in, but that account has no mailbox address on it, so there is nothing to send as.')
+  }
   await pg.run(
     `INSERT INTO mail_identity (id, email, refresh_token, connected_at, connected_by)
      VALUES (1, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?)

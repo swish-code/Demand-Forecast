@@ -334,6 +334,64 @@ export function Admin({ session }) {
         </button>
       </section>
 
+      {/* The list sits directly under the controls that change it: somebody who
+          has just added or approved an account looks for it here, not past the
+          charts. */}
+      <Panel
+        title="Users"
+        count={busy ? undefined : `${users.length} accounts`}
+        sub="Click a row to change role, scope or status"
+        flush
+        tools={
+          <>
+            <button type="button" className="btn" onClick={load}>
+              <IconRefresh size={12} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!users.length}
+              onClick={() =>
+                downloadCsv(
+                  'demand-forecast-users.csv',
+                  rows,
+                  [
+                    { key: 'email', label: 'Email' },
+                    { key: 'name', label: 'Name' },
+                    { key: 'role', label: 'Role' },
+                    { key: 'department', label: 'Department' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'scope', label: 'Sees' },
+                    { key: 'login_count', label: 'Logins' },
+                    { key: 'last_login_at', label: 'Last login' },
+                  ]
+                )
+              }
+            >
+              <IconDownload size={12} />
+              CSV
+            </button>
+          </>
+        }
+      >
+        {busy ? (
+          <div style={{ padding: 16 }}>
+            <ChartSkeleton height={280} />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={rows}
+            initialSort={{ key: 'last_login_at', dir: 'desc' }}
+            searchPlaceholder="Search name or email…"
+            paginate={users.length > 50}
+            maxHeight={520}
+            onRowClick={(row) => setEditing({ mode: 'edit', user: row })}
+          />
+        )}
+      </Panel>
+
       {/* What the forecast says, beside what has broken. Two different jobs:
           one is read each morning, the other is cleared when it is fixed. */}
       <div className="grid2">
@@ -389,61 +447,6 @@ export function Admin({ session }) {
           )}
         </Panel>
       </div>
-
-      <Panel
-        title="Users"
-        count={busy ? undefined : `${users.length} accounts`}
-        sub="Click a row to change role, scope or status"
-        flush
-        tools={
-          <>
-            <button type="button" className="btn" onClick={load}>
-              <IconRefresh size={12} />
-              Refresh
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!users.length}
-              onClick={() =>
-                downloadCsv(
-                  'demand-forecast-users.csv',
-                  rows,
-                  [
-                    { key: 'email', label: 'Email' },
-                    { key: 'name', label: 'Name' },
-                    { key: 'role', label: 'Role' },
-                    { key: 'department', label: 'Department' },
-                    { key: 'status', label: 'Status' },
-                    { key: 'scope', label: 'Sees' },
-                    { key: 'login_count', label: 'Logins' },
-                    { key: 'last_login_at', label: 'Last login' },
-                  ]
-                )
-              }
-            >
-              <IconDownload size={12} />
-              CSV
-            </button>
-          </>
-        }
-      >
-        {busy ? (
-          <div style={{ padding: 16 }}>
-            <ChartSkeleton height={280} />
-          </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            rows={rows}
-            initialSort={{ key: 'last_login_at', dir: 'desc' }}
-            searchPlaceholder="Search name or email…"
-            paginate={users.length > 50}
-            maxHeight={520}
-            onRowClick={(row) => setEditing({ mode: 'edit', user: row })}
-          />
-        )}
-      </Panel>
 
       <EmailPanel />
 
