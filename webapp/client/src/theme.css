@@ -3559,6 +3559,14 @@ table.dt thead th:hover .th__sort--idle {
    * On a short viewport both collapse to nothing and the page flows normally.
    */
   margin-top: auto;
+  /*
+   * Extra air under the masthead, which lifts it clear of the card.
+   *
+   * Both auto margins shrink by half of whatever is added here, so the heading
+   * rises and the card settles a little lower — the wordmark reads as the
+   * page's title rather than as a label stuck to the top of the box.
+   */
+  margin-bottom: clamp(16px, 5vh, 56px);
   display: flex;
   align-items: center;
   gap: var(--s3);
