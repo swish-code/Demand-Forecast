@@ -1504,6 +1504,101 @@ table.dt tbody tr.clickable {
   color: var(--text-muted);
 }
 
+/* The recipient list as a spreadsheet: one line per branch. */
+.modal__card--wide {
+  max-width: min(1080px, 96vw);
+}
+
+.rtable__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.rtable__pick {
+  min-width: 190px;
+}
+
+.rtable__find {
+  margin-left: auto;
+  width: 210px;
+}
+
+.rtable__wrap {
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r2, 8px);
+}
+
+.rtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rtable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2, #f4f6f5);
+  text-align: left;
+  padding: 7px 8px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+
+.rtable td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line-soft, var(--line));
+}
+
+.rtable__n {
+  text-align: right;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rtable__in {
+  width: 100%;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.rtable__in:hover {
+  border-color: var(--line);
+}
+
+.rtable__in:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: var(--surface);
+}
+
+.rtable__in:disabled {
+  color: var(--text-faint);
+  background: transparent;
+}
+
+.rtable__row--bad .rtable__in {
+  border-color: var(--red);
+}
+
+.choice--tiny {
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
 /* One recipient: the address, and the brands and branches that address gets. */
 .rcard {
   border: 1px solid var(--line);
@@ -3567,6 +3662,12 @@ table.dt thead th:hover .th__sort--idle {
    * page's title rather than as a label stuck to the top of the box.
    */
   margin-bottom: clamp(16px, 5vh, 56px);
+  /*
+   * Nudged left of centre. The logo and the wordmark read as one unit, and
+   * centring the pair on the page leaves the words sitting right of where the
+   * eye expects the title to start.
+   */
+  margin-right: clamp(12px, 4vw, 56px);
   display: flex;
   align-items: center;
   gap: var(--s3);

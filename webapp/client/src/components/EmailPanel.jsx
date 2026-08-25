@@ -5,6 +5,7 @@ import { DataTable } from './DataTable.jsx'
 import { IconRefresh, IconCheck } from './Icons.jsx'
 import { RecipientEditor } from './RecipientEditor.jsx'
 import { BulkRecipients } from './BulkRecipients.jsx'
+import { RecipientTable } from './RecipientTable.jsx'
 
 /**
  * Controls for the daily reports.
@@ -37,6 +38,7 @@ export function EmailPanel() {
   const [editing, setEditing] = useState(null)
   const [transport, setTransport] = useState(null)
   const [importing, setImporting] = useState(false)
+  const [listing, setListing] = useState(false)
 
   const connectMailbox = async () => {
     const { url } = await api.admin.connectMailbox()
@@ -122,6 +124,16 @@ export function EmailPanel() {
           </button>
           <button type="button" className="btn" onClick={() => setEditing({ mode: 'create' })}>
             Add recipient
+          </button>
+          {/* Only once the list has arrived: the table seeds itself from it, and
+              opening early would show an empty grid over a full list. */}
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !state}
+            onClick={() => setListing(true)}
+          >
+            Edit as table
           </button>
           <button type="button" className="btn" onClick={() => setImporting(true)}>
             Import list
@@ -305,6 +317,20 @@ export function EmailPanel() {
           onClose={() => setEditing(null)}
           onSaved={(message) => {
             setEditing(null)
+            setNote(message)
+            load()
+          }}
+        />
+      )}
+      {listing && (
+        <RecipientTable
+          recipients={state?.recipients}
+          reports={state?.reports}
+          brands={state?.brands}
+          departments={state?.departments}
+          onClose={() => setListing(false)}
+          onSaved={(message) => {
+            setListing(false)
             setNote(message)
             load()
           }}
