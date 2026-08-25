@@ -1,6 +1,6 @@
 import { config } from '../config.js'
 import { data } from '../data/index.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { sendMail } from './transport.js'
 import { buildForRecipient } from './reports.js'
 import { dueRecipients } from './recipients.js'
@@ -21,10 +21,13 @@ function today() {
 }
 
 function log({ day, userId, email, role, subject, status, error, meta }) {
-  db.prepare(
-    `INSERT INTO email_log (day, user_id, email, role, subject, status, error, meta_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(day, userId ?? null, email, role, subject ?? null, status, error ?? null, meta ? JSON.stringify(meta) : null)
+  return pg
+    .run(
+      `INSERT INTO email_log (day, user_id, email, role, subject, status, error, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [day, userId ?? null, email, role, subject ?? null, status, error ?? null, meta ? JSON.stringify(meta) : null]
+    )
+    .catch((err) => console.warn(`  [mail] could not record a send (${err.message})`))
 }
 
 /**
@@ -37,12 +40,12 @@ export async function sendDailyReports({ dryRun = false, onlyUserId = null, reas
   const started = Date.now()
   const results = []
 
-  let people = dueRecipients()
+  let people = await dueRecipients()
   if (onlyUserId) people = people.filter((p) => p.id === Number(onlyUserId))
 
   // Fetched once for the whole run rather than per recipient: everyone taking
   // the digest gets the same morning.
-  const digest = people.some((p) => p.report === 'daily_digest') ? latestDigest() : null
+  const digest = people.some((p) => p.report === 'daily_digest') ? await latestDigest() : null
 
   for (const person of people) {
     if (person.skip) {
@@ -164,26 +167,26 @@ export async function sendDailyReports({ dryRun = false, onlyUserId = null, reas
 }
 
 export function sendLog(limit = 100) {
-  return db
-    .prepare(
-      `SELECT id, day, email, role, subject, status, error, created_at, meta_json
-         FROM email_log ORDER BY id DESC LIMIT ?`
-    )
-    .all(limit)
+  return pg.all(
+    `SELECT id, day, email, role, subject, status, error, created_at, meta_json
+       FROM email_log ORDER BY id DESC LIMIT ?`,
+    [limit]
+  )
 }
 
 export function sendSummary(days = 14) {
-  return db
-    .prepare(
-      `SELECT day,
-              SUM(status = 'sent')    AS sent,
-              SUM(status = 'failed')  AS failed,
-              SUM(status = 'skipped') AS skipped
-         FROM email_log
-        WHERE created_at >= datetime('now', ?)
-        GROUP BY day ORDER BY day DESC`
-    )
-    .all(`-${days} days`)
+  // SUM over a boolean is a SQLite idiom; PostgreSQL wants the comparison
+  // spelled out as a CASE, and the counts cast back to plain integers.
+  return pg.all(
+    `SELECT day,
+            SUM(CASE WHEN status = 'sent'    THEN 1 ELSE 0 END)::int AS sent,
+            SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END)::int AS failed,
+            SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END)::int AS skipped
+       FROM email_log
+      WHERE created_at >= to_char(now() - ?::interval, 'YYYY-MM-DD HH24:MI:SS')
+      GROUP BY day ORDER BY day DESC`,
+    [`${days} days`]
+  )
 }
 
 /**
@@ -236,7 +239,7 @@ export function startMailSchedule() {
     if (running) return
     const nowHour = new Date().getHours()
     if (nowHour < hour) return
-    const already = db.prepare(`SELECT 1 FROM email_log WHERE day = ? LIMIT 1`).get(today())
+    const already = await pg.get(`SELECT 1 FROM email_log WHERE day = ? LIMIT 1`, [today()])
     if (already) return
 
     const fresh = await dataIsFresh()

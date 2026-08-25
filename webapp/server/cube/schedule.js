@@ -1,5 +1,5 @@
 import { config } from '../config.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { backfillAll, backfillBrand, refreshAllRecent, coverage, rebuildRollup } from './extract.js'
 import { clearCache } from '../cache.js'
 
@@ -26,13 +26,13 @@ let running = false
 let last = null
 let lastError = null
 
-const state = () => ({
+const state = async () => ({
   enabled: !config.demoMode && process.env.CUBE_ENABLED !== '0',
   running,
   last,
   lastError,
-  brands: coverage(),
-  rows: db.prepare('SELECT COUNT(*) AS n FROM cube_daily').get().n,
+  brands: await coverage(),
+  rows: (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily'))?.n ?? 0,
 })
 
 export { state as cubeState }
@@ -44,7 +44,7 @@ async function guarded(label, run) {
   const started = Date.now()
   try {
     const result = await run()
-    rebuildRollup()
+    await rebuildRollup()
 
     // Refresh the planner's statistics after the rows change.
     //
@@ -53,7 +53,7 @@ async function guarded(label, run) {
     // created without them made the unfiltered view four times slower — SQLite
     // chose an index that skipped a sort by walking three times as many rows.
     try {
-      db.exec('ANALYZE')
+      await pg.exec('ANALYZE')
     } catch {
       // Statistics are an optimisation; a locked database is not worth failing
       // an extract over.

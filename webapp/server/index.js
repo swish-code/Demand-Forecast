@@ -2,9 +2,8 @@ import express from 'express'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config, missingSettings } from './config.js'
-import { migrate } from './db/index.js'
 import { seedFirstAdmin } from './db/seed.js'
-import { initAccounts } from './db/accounts.js'
+import { initDatabase } from './db/accounts.js'
 import { attachUser } from './auth/middleware.js'
 import { purgeExpiredSessions } from './auth/sessions.js'
 import { api } from './routes/api.js'
@@ -14,7 +13,8 @@ import { startDigestSchedule } from './insights/digest.js'
 import { startMailSchedule } from './mail/runner.js'
 import { startPrewarm } from './warm.js'
 import { startCubeSchedule, cubeState } from './cube/schedule.js'
-import { raise, clear, isOpen } from './insights/alerts.js'
+import { loadCoverage } from './cube/query.js'
+import { raise, clear, isOpen, loadOpenAlerts } from './insights/alerts.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const clientDist = path.join(__dirname, '..', 'client', 'dist')
@@ -27,8 +27,9 @@ const clientDist = path.join(__dirname, '..', 'client', 'dist')
  * no tables would fail in a way that looks like a bug rather than like a boot
  * still in progress.
  */
-migrate()
-await initAccounts()
+await initDatabase()
+await loadOpenAlerts()
+await loadCoverage()
 await purgeExpiredSessions()
 
 /**
@@ -140,7 +141,7 @@ const server = app.listen(config.port, async () => {
     }
 
     if (startCubeSchedule()) {
-      const c = cubeState()
+      const c = await cubeState()
       console.log(
         `  Local copy on — ${c.rows.toLocaleString()} rows across ${c.brands.length} brand(s), ` +
           `refreshed every ${process.env.CUBE_REFRESH_MINUTES ?? 60} min, full rebuild at ${String(process.env.CUBE_BACKFILL_HOUR ?? 2).padStart(2, '0')}:00`
@@ -169,4 +170,6 @@ server.on('error', (err) => {
   console.error('[server]', err)
   process.exit(1)
 })
+
+
 

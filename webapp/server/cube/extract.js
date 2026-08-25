@@ -1,5 +1,6 @@
 import { config } from '../config.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
+import { loadCoverage } from './query.js'
 import { executeQuery } from '../powerbi/client.js'
 import * as dax from '../powerbi/dax.js'
 
@@ -32,38 +33,38 @@ export const RECENT_DAYS = Number(process.env.CUBE_RECENT_DAYS) || 4
 const GAP_MS = Number(process.env.CUBE_GAP_MS) || 2_000
 
 /**
- * Prepared on first use rather than on import.
+ * Rows go in a few hundred at a time, not one at a time.
  *
- * Every ES module in the process is evaluated before index.js reaches
- * migrate(), so preparing a statement in a module body runs it against a
- * database that may have no tables yet. On a machine that has run the app
- * before this is invisible — the file already has its schema. On a fresh
- * deployment it is fatal: a new container starts with an empty database and
- * the process died at import with "no such table: cube_article_daily", before
- * a single line of migration had run.
+ * A round trip per row is the difference between a backfill that takes three
+ * minutes and one that takes a quarter of an hour: measured here at about two
+ * thousand rows a second row-by-row against nine and a half thousand batched.
+ * Each batch is one INSERT with many VALUES tuples, which the driver sends as a
+ * single statement.
  *
- * Deferring costs one null check per write and makes the module safe to import
- * in any order.
+ * The batch size is bounded by PostgreSQL's limit of 65,535 bind parameters per
+ * statement — six columns a row puts the ceiling near ten thousand rows, and
+ * five hundred leaves plenty of room while still amortising the round trip.
  */
-let statements = null
+const BATCH = Number(process.env.CUBE_BATCH) || 500
 
-function sql() {
-  if (statements) return statements
-  statements = {
-    article: db.prepare(
-      `INSERT INTO cube_article_daily (brand, date, article, product, actual, forecast)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(brand, date, article, product)
-       DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
-    ),
-    daily: db.prepare(
-      `INSERT INTO cube_daily (brand, date, location, product, actual, forecast)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(brand, date, location, product)
-       DO UPDATE SET actual = excluded.actual, forecast = excluded.forecast`
-    ),
+async function insertBatched(table, columns, conflict, rows, toValues) {
+  const marks = `(${columns.map(() => '?').join(', ')})`
+  const updates = columns
+    .filter((c) => !conflict.includes(c))
+    .map((c) => `${c} = excluded.${c}`)
+    .join(', ')
+
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const slice = rows.slice(i, i + BATCH)
+    const args = []
+    for (const row of slice) args.push(...toValues(row))
+    await pg.run(
+      `INSERT INTO ${table} (${columns.join(', ')})
+       VALUES ${slice.map(() => marks).join(', ')}
+       ON CONFLICT (${conflict.join(', ')}) DO UPDATE SET ${updates}`,
+      args
+    )
   }
-  return statements
 }
 
 /**
@@ -78,40 +79,38 @@ function sql() {
  * Deleting the scope first makes each extract authoritative for the range it
  * covers, which is the only way a copy can stay equal to its source.
  */
-function clearScope(brand, { from, to, location }) {
+async function clearScope(brand, { from, to, location }) {
   const sql = ['brand = ?']
   const args = [brand]
   if (from) { sql.push('date >= ?'); args.push(from) }
   if (to) { sql.push('date <= ?'); args.push(to) }
   if (location !== undefined && location !== null) { sql.push('location = ?'); args.push(String(location)) }
-  db.prepare(`DELETE FROM cube_daily WHERE ${sql.join(' AND ')}`).run(...args)
+  await pg.run(`DELETE FROM cube_daily WHERE ${sql.join(' AND ')}`, args)
 }
 
 /**
- * One transaction per slice. Row by row outside a transaction is a disk sync
- * each time, which turns twenty thousand rows into minutes instead of
- * milliseconds. node:sqlite has no transaction() helper, so this is explicit.
+ * One transaction per slice, so a half-written window is never visible and a
+ * failure leaves the previous copy intact.
  */
-function writeRows(brand, rows, scope) {
+async function writeRows(brand, rows, scope) {
   if (!rows.length && !scope) return
-  db.exec('BEGIN')
-  try {
-    if (scope) clearScope(brand, scope)
-    for (const r of rows) {
-      sql().daily.run(
+  await pg.tx(async () => {
+    if (scope) await clearScope(brand, scope)
+    await insertBatched(
+      'cube_daily',
+      ['brand', 'date', 'location', 'product', 'actual', 'forecast'],
+      ['brand', 'date', 'location', 'product'],
+      rows,
+      (r) => [
         brand,
         String(r.Date ?? '').slice(0, 10),
         String(r.LocationID ?? ''),
         String(r.ProductName_Fixed_Option ?? ''),
         Number(r.Actual_Qty) || 0,
-        Number(r.Forecast_Qty) || 0
-      )
-    }
-    db.exec('COMMIT')
-  } catch (err) {
-    db.exec('ROLLBACK')
-    throw err
-  }
+        Number(r.Forecast_Qty) || 0,
+      ]
+    )
+  })
 }
 
 /**
@@ -158,32 +157,31 @@ ${dax.summarize({
   return executeQuery(query, brand.datasetId, { bulk: true })
 }
 
-function writeArticles(brand, rows, scope) {
+async function writeArticles(brand, rows, scope) {
   if (!rows.length && !scope) return
-  db.exec('BEGIN')
-  try {
+  await pg.tx(async () => {
     if (scope) {
       const sql = ['brand = ?']
       const args = [brand]
       if (scope.from) { sql.push('date >= ?'); args.push(scope.from) }
       if (scope.to) { sql.push('date <= ?'); args.push(scope.to) }
-      db.prepare(`DELETE FROM cube_article_daily WHERE ${sql.join(' AND ')}`).run(...args)
+      await pg.run(`DELETE FROM cube_article_daily WHERE ${sql.join(' AND ')}`, args)
     }
-    for (const r of rows) {
-      sql().article.run(
+    await insertBatched(
+      'cube_article_daily',
+      ['brand', 'date', 'article', 'product', 'actual', 'forecast'],
+      ['brand', 'date', 'article', 'product'],
+      rows,
+      (r) => [
         brand,
         String(r.Date ?? '').slice(0, 10),
         String(r.Clean_ItemID ?? ''),
         String(r.ProductName_Fixed_Option ?? ''),
         Number(r.Actual_Qty) || 0,
-        Number(r.Forecast_Qty) || 0
-      )
-    }
-    db.exec('COMMIT')
-  } catch (err) {
-    db.exec('ROLLBACK')
-    throw err
-  }
+        Number(r.Forecast_Qty) || 0,
+      ]
+    )
+  })
 }
 
 const brandFilters = (brand, extra = {}) => ({
@@ -201,19 +199,22 @@ async function locationsOf(brand) {
   return rows.map((r) => r.LocationID).filter((v) => v !== null && v !== undefined)
 }
 
-function noteCoverage(brand, from, to) {
-  const rows = db
-    .prepare('SELECT COUNT(*) AS n FROM cube_daily WHERE brand = ?')
-    .get(brand.code).n
-  db.prepare(
+async function noteCoverage(brand, from, to) {
+  const { n } =
+    (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily WHERE brand = ?', [brand.code])) ?? { n: 0 }
+  // LEAST and GREATEST, not MIN and MAX: those are aggregates in PostgreSQL and
+  // will not compare two scalars.
+  await pg.run(
     `INSERT INTO cube_coverage (brand, from_date, to_date, rows, refreshed_at)
-     VALUES (?, ?, ?, ?, datetime('now'))
-     ON CONFLICT(brand) DO UPDATE SET
-       from_date = MIN(excluded.from_date, cube_coverage.from_date),
-       to_date = MAX(excluded.to_date, cube_coverage.to_date),
+     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+     ON CONFLICT (brand) DO UPDATE SET
+       from_date = LEAST(excluded.from_date, cube_coverage.from_date),
+       to_date = GREATEST(excluded.to_date, cube_coverage.to_date),
        rows = excluded.rows,
-       refreshed_at = excluded.refreshed_at`
-  ).run(brand.code, from, to, rows)
+       refreshed_at = excluded.refreshed_at`,
+    [brand.code, from, to, n]
+  )
+  await loadCoverage()
 }
 
 /**
@@ -269,20 +270,20 @@ export async function backfillBrand(brand, onStep) {
       brand,
       brandFilters(brand, { dateFrom: window.from, dateTo: window.to, locations: [location] })
     )
-    writeRows(brand.code, slice, { from: window.from, to: window.to, location })
+    await writeRows(brand.code, slice, { from: window.from, to: window.to, location })
     rows += slice.length
     onStep?.(brand.code, location, slice.length)
     await sleep(GAP_MS)
   }
 
   try {
-    writeArticles(brand.code, await fetchArticles(brand, window), { from: window.from, to: window.to })
+    await writeArticles(brand.code, await fetchArticles(brand, window), { from: window.from, to: window.to })
   } catch {
     // The Products page falls back to Power BI without this; the Overview does
     // not depend on it, so one failure here should not lose the whole brand.
   }
 
-  noteCoverage(brand, window.from, window.to)
+  await noteCoverage(brand, window.from, window.to)
   return { brand: brand.code, rows, from: window.from, to: window.to, branches: locations.length }
 }
 
@@ -306,15 +307,15 @@ export async function refreshRecent(brand) {
   const to = iso(Math.min(Date.parse(window.anchor) + DAY, Date.parse(window.to)))
 
   const slice = await fetchSlice(brand, brandFilters(brand, { dateFrom: from, dateTo: to }))
-  writeRows(brand.code, slice, { from, to })
+  await writeRows(brand.code, slice, { from, to })
 
   try {
-    writeArticles(brand.code, await fetchArticles(brand, { from, to }), { from, to })
+    await writeArticles(brand.code, await fetchArticles(brand, { from, to }), { from, to })
   } catch {
     /* as above - the Products page simply stays live for this brand */
   }
 
-  noteCoverage(brand, from, to)
+  await noteCoverage(brand, from, to)
   return { brand: brand.code, rows: slice.length, from, to }
 }
 
@@ -349,21 +350,15 @@ export async function refreshAllRecent() {
  * Local only — no queries against Power BI — so it is cheap enough to redo in
  * full rather than track which brands changed.
  */
-export function rebuildRollup() {
-  db.exec('BEGIN')
-  try {
-    db.exec('DELETE FROM cube_product_daily')
-    db.exec(`INSERT INTO cube_product_daily (brand, date, product, actual, forecast)
-             SELECT brand, date, product, SUM(actual), SUM(forecast)
-               FROM cube_daily
-              GROUP BY brand, date, product`)
-    db.exec('COMMIT')
-  } catch (err) {
-    db.exec('ROLLBACK')
-    throw err
-  }
+export async function rebuildRollup() {
+  await pg.tx(async () => {
+    await pg.run('DELETE FROM cube_product_daily')
+    await pg.run(`INSERT INTO cube_product_daily (brand, date, product, actual, forecast)
+                  SELECT brand, date, product, SUM(actual), SUM(forecast)
+                    FROM cube_daily GROUP BY brand, date, product`)
+  })
 }
 
 export function coverage() {
-  return db.prepare('SELECT * FROM cube_coverage ORDER BY brand').all()
+  return pg.all('SELECT * FROM cube_coverage ORDER BY brand')
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { data } from '../data/index.js'
-import { db, DATA_DIR } from '../db/index.js'
+import { DATA_DIR } from '../db/driver.js'
+import { pg } from '../db/accounts.js'
 import { buildContext, explain, trustNote } from '../insights/context.js'
 import {
   deriveKpis,
@@ -24,6 +25,10 @@ import {
 } from '../auth/middleware.js'
 
 export const api = Router()
+
+/** Wrap a handler so thrown errors reach the Express error middleware. */
+const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next)
+
 
 // Health is deliberately public so a monitor can reach it without credentials;
 // everything below it requires a session.
@@ -128,10 +133,10 @@ function scopedFilters(req, brand) {
  * touched here — one trivial read — and a failure is reported as unhealthy
  * rather than as a cheerful ok.
  */
-api.get('/health', (req, res) => {
+api.get('/health', handle(async (req, res) => {
   let database = 'ok'
   try {
-    db.prepare('SELECT 1 AS ok').get()
+    await pg.get('SELECT 1 AS ok')
   } catch (err) {
     database = err.message
   }
@@ -145,7 +150,7 @@ api.get('/health', (req, res) => {
     signedIn: Boolean(req.user),
     missingSettings: config.demoMode ? [] : missingSettings(),
   })
-})
+}))
 
 /** Everything past this point needs a session and carries a scope. */
 api.use(requireAuth, (req, res, next) => {
@@ -207,8 +212,6 @@ function guardMany(req, res) {
   }
 }
 
-/** Wrap a handler so thrown errors reach the Express error middleware. */
-const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next)
 
 api.get('/brands', requireAuth, handle(async (req, res) => {
   const scope = await loadScope(req.user.id, req.user.role)
@@ -554,4 +557,4 @@ api.post('/cache/clear', (req, res) => {
 })
 
 /** What the local copy holds, for the admin panel. */
-api.get('/cube', requireRole('admin'), (req, res) => res.json(cubeState()))
+api.get('/cube', requireRole('admin'), handle(async (req, res) => res.json(await cubeState())))

@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { db } from '../db/index.js'
 import { pg } from '../db/accounts.js'
 import { generatePassword, hashPassword } from '../auth/passwords.js'
 import { revokeAllForUser } from '../auth/sessions.js'
@@ -416,11 +415,9 @@ admin.get(
   '/insights',
   handle(async (req, res) => {
     const day = req.query.day ? String(req.query.day) : null
-    const digest = day ? digestFor(day) : latestDigest()
-    // The digest itself still lives in SQLite; who acknowledged it is an
-    // account, and accounts moved.
+    const digest = day ? await digestFor(day) : await latestDigest()
     const row = digest
-      ? db.prepare('SELECT acked_by, acked_at FROM digests WHERE day = ?').get(digest.day)
+      ? await pg.get('SELECT acked_by, acked_at FROM digests WHERE day = ?', [digest.day])
       : null
     const ackedBy = row?.acked_by
       ? await pg.get('SELECT email, name FROM users WHERE id = ?', [row.acked_by])
@@ -431,7 +428,7 @@ admin.get(
       today: today(),
       stale: digest ? digest.day !== today() : true,
       acknowledged: row?.acked_at ? { at: row.acked_at, by: ackedBy?.name || ackedBy?.email } : null,
-      history: recentDigests(),
+      history: await recentDigests(),
     })
   })
 )
@@ -442,19 +439,20 @@ admin.post(
   handle(async (req, res) => {
     const digest = await buildDigest({ reason: `manual:${req.user.email}` })
     audit(req.user.id, 'digest.run', digest.day, { counts: digest.counts })
-    res.json({ digest, today: today(), stale: false, acknowledged: null, history: recentDigests() })
+    res.json({ digest, today: today(), stale: false, acknowledged: null, history: await recentDigests() })
   })
 )
 
 /** Marks the day's findings as seen, so tomorrow's digest reads as new. */
 admin.post(
   '/insights/ack',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const day = String(req.body?.day || today())
-    const info = db
-      .prepare(`UPDATE digests SET acked_by = ?, acked_at = datetime('now') WHERE day = ?`)
-      .run(req.user.id, day)
-    if (!info.changes) return res.status(404).json({ error: 'No digest for that day' })
+    const { changes } = await pg.run(
+      `UPDATE digests SET acked_by = ?, acked_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE day = ?`,
+      [req.user.id, day]
+    )
+    if (!changes) return res.status(404).json({ error: 'No digest for that day' })
     audit(req.user.id, 'digest.ack', day, null)
     res.json({ ok: true })
   })
@@ -468,27 +466,27 @@ admin.post(
  */
 admin.get(
   '/alerts',
-  handle((req, res) => {
-    res.json({ open: openAlerts(), resolved: recentlyResolved(), sources: SOURCES })
+  handle(async (req, res) => {
+    res.json({ open: await openAlerts(), resolved: await recentlyResolved(), sources: SOURCES })
   })
 )
 
 admin.post(
   '/alerts/:id/resolve',
-  handle((req, res) => {
-    const changed = resolve(Number(req.params.id), req.user.id)
+  handle(async (req, res) => {
+    const changed = await resolve(Number(req.params.id), req.user.id)
     if (!changed) return res.status(404).json({ error: 'No open alert with that id' })
     audit(req.user.id, 'alert.resolve', req.params.id, null)
-    res.json({ open: openAlerts(), resolved: recentlyResolved(), sources: SOURCES })
+    res.json({ open: await openAlerts(), resolved: await recentlyResolved(), sources: SOURCES })
   })
 )
 
 admin.post(
   '/alerts/resolve-all',
-  handle((req, res) => {
-    const changed = resolveAll(req.user.id)
+  handle(async (req, res) => {
+    const changed = await resolveAll(req.user.id)
     audit(req.user.id, 'alert.resolve_all', null, { changed })
-    res.json({ open: openAlerts(), resolved: recentlyResolved(), sources: SOURCES, changed })
+    res.json({ open: await openAlerts(), resolved: await recentlyResolved(), sources: SOURCES, changed })
   })
 )
 
@@ -500,9 +498,9 @@ admin.post(
  */
 admin.get(
   '/email/recipients',
-  handle((req, res) => {
+  handle(async (req, res) => {
     res.json({
-      recipients: listRecipients(),
+      recipients: await listRecipients(),
       reports: REPORTS,
       departments: DEPARTMENTS,
       brands: config.brands.map(({ code, label }) => ({ code, label })),
@@ -510,8 +508,8 @@ admin.get(
       testTo: config.mail.testTo,
       enabled: config.mail.enabled,
       hour: config.mail.hour,
-      log: sendLog(50),
-      summary: sendSummary(),
+      log: await sendLog(50),
+      summary: await sendSummary(),
     })
   })
 )
@@ -539,7 +537,7 @@ admin.post(
     const usable = plan.entries.filter((e) => e.action !== 'unchanged')
     const counts = applyImport(plan.entries, req.user.id)
     audit(req.user.id, 'email.recipient.import', `${usable.length} recipients`, counts)
-    res.json({ ...plan, committed: true, counts, recipients: listRecipients() })
+    res.json({ ...plan, committed: true, counts, recipients: await listRecipients() })
   })
 )
 
@@ -554,7 +552,7 @@ admin.get(
 
 admin.post(
   '/email/recipients',
-  handle((req, res) => {
+  handle(async (req, res) => {
     const email = String(req.body?.email ?? '').trim()
     const report = String(req.body?.report ?? '')
     if (!email.includes('@')) return res.status(400).json({ error: 'A valid email is required' })
@@ -565,7 +563,7 @@ admin.post(
     }
 
     try {
-      const id = createRecipient(
+      const id = await createRecipient(
         {
           email,
           name: req.body?.name,
@@ -578,7 +576,7 @@ admin.post(
         req.user.id
       )
       audit(req.user.id, 'email.recipient.create', email, { report, department })
-      res.status(201).json({ id, recipients: listRecipients() })
+      res.status(201).json({ id, recipients: await listRecipients() })
     } catch (err) {
       // The unique index is the guard against the same person being added to
       // the same report twice and getting two copies every morning.
@@ -592,22 +590,22 @@ admin.post(
 
 admin.patch(
   '/email/recipients/:id',
-  handle((req, res) => {
-    const updated = updateRecipient(Number(req.params.id), req.body ?? {})
+  handle(async (req, res) => {
+    const updated = await updateRecipient(Number(req.params.id), req.body ?? {})
     if (!updated) return res.status(404).json({ error: 'No such recipient' })
     audit(req.user.id, 'email.recipient.update', updated.email, req.body)
-    res.json({ recipient: updated, recipients: listRecipients() })
+    res.json({ recipient: updated, recipients: await listRecipients() })
   })
 )
 
 admin.delete(
   '/email/recipients/:id',
-  handle((req, res) => {
-    if (!deleteRecipient(Number(req.params.id))) {
+  handle(async (req, res) => {
+    if (!(await deleteRecipient(Number(req.params.id)))) {
       return res.status(404).json({ error: 'No such recipient' })
     }
     audit(req.user.id, 'email.recipient.delete', req.params.id, null)
-    res.json({ recipients: listRecipients() })
+    res.json({ recipients: await listRecipients() })
   })
 )
 
@@ -634,11 +632,11 @@ admin.get(
 admin.get(
   '/email/preview/:userId',
   handle(async (req, res) => {
-    const person = dueRecipients().find((p) => p.id === Number(req.params.userId))
+    const person = (await dueRecipients()).find((p) => p.id === Number(req.params.userId))
     if (!person) return res.status(404).json({ error: 'Not a report recipient' })
     if (person.skip) return res.status(409).json({ error: person.skip })
 
-    const messages = await buildForRecipient(person, latestDigest())
+    const messages = await buildForRecipient(person, await latestDigest())
     if (!messages?.length) return res.status(409).json({ error: 'Nothing to report for tomorrow' })
 
     if (req.query.html === '1') {
@@ -664,7 +662,7 @@ admin.post(
       reason: `manual:${req.user.email}`,
     })
     audit(req.user.id, dryRun ? 'email.dry_run' : 'email.send', onlyUserId ? String(onlyUserId) : 'all', run.counts)
-    res.json({ run, log: sendLog(50), summary: sendSummary() })
+    res.json({ run, log: await sendLog(50), summary: await sendSummary() })
   })
 )
 

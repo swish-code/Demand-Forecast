@@ -1,6 +1,6 @@
 import { createHash, randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'node:crypto'
 import { config } from '../config.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 
 /**
  * Sending as a real mailbox, with that mailbox's own consent.
@@ -55,7 +55,7 @@ function unseal(packed) {
   return Buffer.concat([d.update(Buffer.from(body, 'base64')), d.final()]).toString('utf8')
 }
 
-const row = () => db.prepare('SELECT * FROM mail_identity WHERE id = 1').get()
+const row = () => pg.get('SELECT * FROM mail_identity WHERE id = 1')
 
 /** Who we are currently able to send as, without exposing the token. */
 export function connectedMailbox() {
@@ -64,8 +64,8 @@ export function connectedMailbox() {
   return { email: r.email, connectedAt: r.connected_at, connectedBy: r.connected_by }
 }
 
-export function disconnectMailbox() {
-  db.prepare('DELETE FROM mail_identity WHERE id = 1').run()
+export async function disconnectMailbox() {
+  await pg.run('DELETE FROM mail_identity WHERE id = 1')
 }
 
 /* --------------------------------------------------------- the consent --- */
@@ -134,15 +134,16 @@ export async function completeConnect({ code, state, actorId }) {
     .catch(() => ({}))
 
   const email = me.mail || me.userPrincipalName || ''
-  db.prepare(
+  await pg.run(
     `INSERT INTO mail_identity (id, email, refresh_token, connected_at, connected_by)
-     VALUES (1, ?, ?, datetime('now'), ?)
+     VALUES (1, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?)
      ON CONFLICT(id) DO UPDATE SET
        email = excluded.email,
        refresh_token = excluded.refresh_token,
        connected_at = excluded.connected_at,
-       connected_by = excluded.connected_by`
-  ).run(email, seal(token.refresh_token), actorId ?? null)
+       connected_by = excluded.connected_by`,
+    [email, seal(token.refresh_token), actorId ?? null]
+  )
 
   return { email }
 }
@@ -165,7 +166,7 @@ async function accessToken() {
   // Microsoft usually rotates the refresh token; keeping the new one is what
   // stops this quietly expiring in ninety days.
   if (token.refresh_token) {
-    db.prepare('UPDATE mail_identity SET refresh_token = ? WHERE id = 1').run(seal(token.refresh_token))
+    await pg.run('UPDATE mail_identity SET refresh_token = ? WHERE id = 1', [seal(token.refresh_token)])
   }
 
   cached = { value: token.access_token, expiresAt: Date.now() + (Number(token.expires_in) || 3600) * 1000 }

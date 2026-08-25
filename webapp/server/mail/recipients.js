@@ -1,4 +1,4 @@
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 export { DEPARTMENTS } from '../departments.js'
 
@@ -108,18 +108,15 @@ function shape(row) {
   }
 }
 
-export function listRecipients() {
-  return db
-    .prepare('SELECT * FROM email_recipients ORDER BY report, email')
-    .all()
-    .map(shape)
+export async function listRecipients() {
+  const rows = await pg.all('SELECT * FROM email_recipients ORDER BY report, email')
+  return rows.map(shape)
 }
 
 /** Active recipients, resolved to the brands and stores each one covers. */
-export function dueRecipients() {
-  return db
-    .prepare('SELECT * FROM email_recipients WHERE active = 1 ORDER BY report, email')
-    .all()
+export async function dueRecipients() {
+  const rows = await pg.all('SELECT * FROM email_recipients WHERE active = 1 ORDER BY report, email')
+  return rows
     .map((row) => {
       const r = shape(row)
       return { ...r, brandObjects: brandsFor(r.brands) }
@@ -133,16 +130,14 @@ export function dueRecipients() {
     })
 }
 
-export function createRecipient(
+export async function createRecipient(
   { email, name, report, department = null, brands, locations, active = true, userId = null },
   actorId
 ) {
-  const info = db
-    .prepare(
-      `INSERT INTO email_recipients (email, name, report, department, brands, locations, active, user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const { rows } = await pg.run(
+    `INSERT INTO email_recipients (email, name, report, department, brands, locations, active, user_id, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
       String(email).trim(),
       name ? String(name).trim() : null,
       report,
@@ -151,13 +146,14 @@ export function createRecipient(
       locations?.length ? JSON.stringify(locations) : null,
       active ? 1 : 0,
       userId,
-      actorId
-    )
-  return Number(info.lastInsertRowid)
+      actorId,
+    ]
+  )
+  return rows[0]?.id ?? null
 }
 
-export function updateRecipient(id, patch) {
-  const row = db.prepare('SELECT * FROM email_recipients WHERE id = ?').get(id)
+export async function updateRecipient(id, patch) {
+  const row = await pg.get('SELECT * FROM email_recipients WHERE id = ?', [id])
   if (!row) return null
 
   const next = {
@@ -184,15 +180,17 @@ export function updateRecipient(id, patch) {
     active: patch.active !== undefined ? (patch.active ? 1 : 0) : row.active,
   }
 
-  db.prepare(
+  await pg.run(
     `UPDATE email_recipients
         SET name = ?, report = ?, department = ?, brands = ?, locations = ?, active = ?
-      WHERE id = ?`
-  ).run(next.name, next.report, next.department, next.brands, next.locations, next.active, id)
+      WHERE id = ?`,
+    [next.name, next.report, next.department, next.brands, next.locations, next.active, id]
+  )
 
-  return shape(db.prepare('SELECT * FROM email_recipients WHERE id = ?').get(id))
+  return shape(await pg.get('SELECT * FROM email_recipients WHERE id = ?', [id]))
 }
 
-export function deleteRecipient(id) {
-  return db.prepare('DELETE FROM email_recipients WHERE id = ?').run(id).changes
+export async function deleteRecipient(id) {
+  const { changes } = await pg.run('DELETE FROM email_recipients WHERE id = ?', [id])
+  return changes
 }

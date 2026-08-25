@@ -93,7 +93,7 @@ export const data = {
       f,
       ds,
       async () => {
-        const local = need ? cube.listsFor(f.brand, f, need) : {}
+        const local = need ? await cube.listsFor(f.brand, f, need) : {}
         const keys = Object.keys(local)
         const rest = need ? need.filter((k) => !keys.includes(k)) : need
         const live = await provider.slicers(f, ds, rest)
@@ -114,9 +114,9 @@ export const data = {
    * figures for the 23rd, because the extract landed at 06:33.
    */
   kpis: (f, ds, { live = false } = {}) =>
-    call('kpis', f, ds, () => {
+    call('kpis', f, ds, async () => {
       if (live || !cube.canAnswer(f.brand, f)) return provider.kpis(f, ds)
-      const rows = cube.trend(f.brand, f)
+      const rows = await cube.trend(f.brand, f)
       const total = (k) => rows.reduce((n, r) => n + (Number(r[k]) || 0), 0)
       return deriveKpis(total('Actual_Qty'), total('Forecast_Qty'))
     }, live ? 'live' : undefined),

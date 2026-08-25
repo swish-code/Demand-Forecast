@@ -1,4 +1,4 @@
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 
 /**
  * Answering the Overview page from the local copy.
@@ -30,6 +30,27 @@ const HARMLESS = new Set(['defaultFrom', 'defaultTo', 'need', 'top'])
  * ignored and return too much, and a window reaching outside what has been
  * extracted would return too little. Either is worse than waiting.
  */
+/**
+ * What the copy covers, held in memory.
+ *
+ * canAnswer() is asked before nearly every read, inside conditionals that are
+ * not async — `cube.canAnswer(...) ? cube.trend(...) : provider.trend(...)`.
+ * Making it a database round trip would have meant rewriting that shape
+ * everywhere to answer a question that changes only when the extract finishes,
+ * which is once an hour.
+ *
+ * Seeded at boot and refreshed by the extract; a stale entry can only make the
+ * copy look less capable than it is, never more.
+ */
+const coverageCache = new Map()
+
+export async function loadCoverage() {
+  const rows = await pg.all('SELECT * FROM cube_coverage')
+  coverageCache.clear()
+  for (const r of rows) coverageCache.set(r.brand, r)
+  return coverageCache.size
+}
+
 export function canAnswer(brand, filters = {}) {
   for (const key of Object.keys(filters)) {
     const v = filters[key]
@@ -38,7 +59,7 @@ export function canAnswer(brand, filters = {}) {
     if (!SUPPORTED.has(key)) return false
   }
 
-  const cover = db.prepare('SELECT * FROM cube_coverage WHERE brand = ?').get(brand)
+  const cover = coverageCache.get(brand)
   if (!cover) return false
   if (filters.dateFrom && filters.dateFrom < cover.from_date) return false
   if (filters.dateTo && filters.dateTo > cover.to_date) return false
@@ -71,9 +92,9 @@ function where(brand, f = {}) {
   return { sql: sql.join(' AND '), args }
 }
 
-const rowsOf = (sql, args) => db.prepare(sql).all(...args)
+const rowsOf = (sql, args) => pg.all(sql, args)
 
-export function trend(brand, f) {
+export async function trend(brand, f) {
   // Same reasoning as topProducts: a daily total does not need the branch
   // column unless a branch filter is applied.
   const table = f.locations?.length ? 'cube_daily' : 'cube_product_daily'
@@ -90,7 +111,7 @@ export function trend(brand, f) {
   )
 }
 
-export function byLocation(brand, f) {
+export async function byLocation(brand, f) {
   const w = where(brand, f)
   return rowsOf(
     `SELECT location AS LocationID,
@@ -104,7 +125,7 @@ export function byLocation(brand, f) {
   )
 }
 
-export function topProducts(brand, f, top = 0) {
+export async function topProducts(brand, f, top = 0) {
   // Without a branch filter the branch-free rollup has the same answer over a
   // seventh of the rows. With one, it does not have the column to filter on.
   const table = f.locations?.length ? 'cube_daily' : 'cube_product_daily'
@@ -147,7 +168,7 @@ export function topProducts(brand, f, top = 0) {
  * other: narrowing to one branch narrows the product list to what that branch
  * sells, exactly as the live query does.
  */
-export function locations(brand, f) {
+export async function locations(brand, f) {
   const { sql, args } = where(brand, { ...f, locations: null })
   return rowsOf(
     `SELECT DISTINCT location AS v FROM cube_daily WHERE ${sql} AND location <> '' ORDER BY location`,
@@ -155,7 +176,7 @@ export function locations(brand, f) {
   ).map((r) => r.v)
 }
 
-export function products(brand, f) {
+export async function products(brand, f) {
   const { sql, args } = where(brand, { ...f, products: null })
   return rowsOf(
     `SELECT DISTINCT product AS v FROM cube_daily WHERE ${sql} AND product <> '' ORDER BY product`,
@@ -171,7 +192,7 @@ export function products(brand, f) {
  * rather than thirty-seven thousand. A branch-filtered article list therefore
  * has to go live, and says so by refusing here.
  */
-export function articleNames(brand, f) {
+export async function articleNames(brand, f) {
   if (f?.locations?.length) return null
   const { sql, args } = where(brand, { ...f, locations: null, products: null })
   const scoped = sql.replace(/location/g, 'article')
@@ -183,14 +204,14 @@ export function articleNames(brand, f) {
 }
 
 /** Which of the asked-for lists this copy can answer for that brand. */
-export function listsFor(brand, f, need) {
+export async function listsFor(brand, f, need) {
   if (!canAnswer(brand, f)) return {}
   const out = {}
   for (const key of need ?? []) {
-    if (key === 'locations') out.locations = locations(brand, f)
-    if (key === 'products') out.products = products(brand, f)
+    if (key === 'locations') out.locations = await locations(brand, f)
+    if (key === 'products') out.products = await products(brand, f)
     if (key === 'articleNames' || key === 'articles') {
-      const rows = articleNames(brand, f)
+      const rows = await articleNames(brand, f)
       if (!rows) continue
       out.articleNames = rows
       out.articles = rows.map((r) => r.value)
@@ -202,10 +223,13 @@ export function listsFor(brand, f, need) {
 export function canAnswerArticles(brand, filters = {}) {
   if (filters.locations?.length) return false
   if (!canAnswer(brand, filters)) return false
-  return db.prepare('SELECT COUNT(*) AS n FROM cube_article_daily WHERE brand = ?').get(brand).n > 0
+  // Whether the article table has anything for this brand is part of what the
+  // extract records, so it comes from the same cached coverage rather than a
+  // count on every request.
+  return Number(coverageCache.get(brand)?.rows ?? 0) > 0
 }
 
-export function productLevel(brand, f) {
+export async function productLevel(brand, f) {
   const sql = ['brand = ?']
   const args = [brand]
   if (f.dateFrom) { sql.push('date >= ?'); args.push(f.dateFrom) }
@@ -233,7 +257,7 @@ export function productLevel(brand, f) {
     .all(brand, ...args)
 }
 
-export function stats() {
-  const total = db.prepare('SELECT COUNT(*) AS n FROM cube_daily').get().n
-  return { rows: total, brands: db.prepare('SELECT * FROM cube_coverage ORDER BY brand').all() }
+export async function stats() {
+  const { n } = (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily')) ?? { n: 0 }
+  return { rows: n, brands: await pg.all('SELECT * FROM cube_coverage ORDER BY brand') }
 }

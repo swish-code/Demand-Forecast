@@ -274,7 +274,7 @@ export async function planImport(text) {
   }
 
   // What each one would do to the list as it stands.
-  const existing = listRecipients()
+  const existing = await listRecipients()
   const entries = [...wanted.values()].map((e) => {
     const match = existing.find(
       (r) => r.email.toLowerCase() === e.email.toLowerCase() && r.report === e.report
@@ -324,7 +324,7 @@ export async function planImport(text) {
 }
 
 /** Writes the plan. Anything already covered is left alone. */
-export function applyImport(entries, actorId) {
+export async function applyImport(entries, actorId) {
   const counts = { created: 0, updated: 0, unchanged: 0 }
   for (const e of entries) {
     if (e.action === 'unchanged') {
@@ -332,7 +332,7 @@ export function applyImport(entries, actorId) {
       continue
     }
     if (e.action === 'create') {
-      createRecipient(
+      await createRecipient(
         {
           email: e.email,
           name: e.name,
@@ -347,7 +347,7 @@ export function applyImport(entries, actorId) {
       counts.created += 1
       continue
     }
-    updateRecipient(e.id, {
+    await updateRecipient(e.id, {
       name: e.name,
       department: e.department,
       brands: e.brands,

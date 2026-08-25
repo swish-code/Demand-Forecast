@@ -1,6 +1,6 @@
 import { config } from '../config.js'
 import { data } from '../data/index.js'
-import { db } from '../db/index.js'
+import { pg } from '../db/accounts.js'
 import {
   evaluateBrand,
   worstSeverity,
@@ -223,32 +223,31 @@ export async function buildDigest({ reason = 'scheduled' } = {}) {
 
   // One row per day: a manual re-run replaces the morning's copy rather than
   // stacking a second one the admin has to choose between.
-  db.prepare(
+  await pg.run(
     `INSERT INTO digests (day, generated_at, reason, payload_json)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(day) DO UPDATE SET
        generated_at = excluded.generated_at,
        reason       = excluded.reason,
-       payload_json = excluded.payload_json`
-  ).run(digest.day, digest.generated_at, reason, JSON.stringify(digest))
+       payload_json = excluded.payload_json`,
+    [digest.day, digest.generated_at, reason, JSON.stringify(digest)]
+  )
 
   return digest
 }
 
-export function latestDigest() {
-  const row = db.prepare('SELECT payload_json FROM digests ORDER BY day DESC LIMIT 1').get()
+export async function latestDigest() {
+  const row = await pg.get('SELECT payload_json FROM digests ORDER BY day DESC LIMIT 1')
   return row ? JSON.parse(row.payload_json) : null
 }
 
-export function digestFor(day) {
-  const row = db.prepare('SELECT payload_json FROM digests WHERE day = ?').get(day)
+export async function digestFor(day) {
+  const row = await pg.get('SELECT payload_json FROM digests WHERE day = ?', [day])
   return row ? JSON.parse(row.payload_json) : null
 }
 
 export function recentDigests(limit = 14) {
-  return db
-    .prepare('SELECT day, generated_at, reason FROM digests ORDER BY day DESC LIMIT ?')
-    .all(limit)
+  return pg.all('SELECT day, generated_at, reason FROM digests ORDER BY day DESC LIMIT ?', [limit])
 }
 
 /**
@@ -267,7 +266,7 @@ export function startDigestSchedule() {
     if (running) return
     const now = new Date()
     if (now.getHours() < hour) return
-    if (db.prepare('SELECT 1 FROM digests WHERE day = ?').get(today())) return
+    if (await pg.get('SELECT 1 FROM digests WHERE day = ?', [today()])) return
 
     running = true
     try {
