@@ -715,6 +715,17 @@ select {
   z-index: 60;
   top: calc(100% + var(--s1));
   left: 0;
+}
+
+/*
+ * Placed against the viewport by Popover.jsx, so a panel that clips its content
+ * cannot cut the list in half. The coordinates arrive as inline styles.
+ */
+.pop__panel--fixed {
+  position: fixed;
+  top: auto;
+  left: auto;
+  overflow: auto;
   min-width: 244px;
   max-width: 340px;
   background: var(--surface);
@@ -1560,9 +1571,9 @@ table.dt tbody tr.clickable {
   font-size: 11.5px;
 }
 
-/* The guide: a row of jump links, then the prose. */
+/* The guide. Set as a reference sheet: jump links, then two columns of prose. */
 .guide {
-  padding: var(--s3) var(--s4) var(--s4);
+  padding: var(--s3) var(--s4) var(--s5);
 }
 
 /*
@@ -1576,18 +1587,20 @@ table.dt tbody tr.clickable {
   flex-wrap: wrap;
   gap: 6px;
   padding-bottom: var(--s3);
-  margin-bottom: var(--s4);
+  margin-bottom: var(--s5);
   border-bottom: 1px solid var(--line);
 }
 
 .guide__tocLink {
-  padding: 4px 10px;
+  padding: 5px 11px;
   border: 1px solid var(--line);
   border-radius: var(--r-pill, 999px);
   font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-faint);
   text-decoration: none;
   white-space: nowrap;
+  transition: border-color var(--t-fast, 120ms) var(--ease), color var(--t-fast, 120ms) var(--ease);
 }
 
 .guide__tocLink:hover {
@@ -1596,71 +1609,101 @@ table.dt tbody tr.clickable {
 }
 
 .guide__body {
-  /*
-   * Wide enough to use the page, narrow enough to read. Prose past about 90
-   * characters a line is hard to track back from, so the body fills the panel
-   * and the definition lists below run in two columns rather than one long one.
-   */
   max-width: none;
 }
 
-.guide__section p {
-  max-width: 88ch;
-}
-
-@media (min-width: 1080px) {
-  .guide__list {
-    columns: 2;
-    column-gap: var(--s5);
-  }
-
-  .guide__list > dt {
-    break-after: avoid;
-  }
-
-  /* A term and its description must not be split across the column break. */
-  .guide__list > dd {
-    break-before: avoid;
-    break-inside: avoid;
-    margin-bottom: var(--s3);
-  }
-}
-
+/*
+ * Each section is a band with a rule above it, so the eye can find the seam
+ * between two of them while scrolling. The first has no rule — there is nothing
+ * above it to separate from.
+ */
 .guide__section + .guide__section {
   margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line-soft, var(--line));
 }
 
 .guide__h {
-  margin: 0 0 var(--s2);
-  font-size: 15px;
+  margin: 0 0 var(--s3);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
   scroll-margin-top: var(--s3);
 }
 
 .guide__body p {
-  margin: 0 0 var(--s2);
-  font-size: 13.5px;
-  line-height: 1.65;
+  margin: 0 0 var(--s3);
+  max-width: 82ch;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--text);
 }
 
+.guide__body p:last-child {
+  margin-bottom: 0;
+}
+
+/*
+ * Term and description read as a reference table rather than a run of
+ * paragraphs: the term sits in its own narrow column on wide screens, so the
+ * eye can scan down the names without reading the prose beside them.
+ */
 .guide__list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s3) var(--s5);
   margin: 0;
 }
 
 .guide__list dt {
-  margin-top: 0;
-  font-size: 13px;
+  margin: 0;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text);
 }
 
 .guide__list dd {
   margin: 3px 0 0;
-  font-size: 13.5px;
-  line-height: 1.6;
+  max-width: 76ch;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--text-soft, var(--text-faint));
+}
+
+@media (min-width: 1000px) {
+  .guide__list {
+    grid-template-columns: 176px minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--s3) var(--s4);
+  }
+
+  .guide__list dt {
+    grid-column: 1;
+    text-align: right;
+    color: var(--text-faint);
+  }
+
+  .guide__list dd {
+    grid-column: 2;
+    margin-top: 0;
+    color: var(--text);
+  }
+}
+
+.guide__body strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide__body em {
+  font-style: normal;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2, #f4f6f5);
+  font-size: 0.94em;
+  color: var(--text);
 }
 
 /* The recipient list as a spreadsheet: one line per branch. */

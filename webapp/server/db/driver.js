@@ -120,12 +120,91 @@ async function openPg(url) {
   }
 }
 
-/** PostgreSQL in this process, so local development needs nothing installed. */
+/**
+ * One process at a time, enforced.
+ *
+ * The engine does not stop a second process opening the same directory; it just
+ * quietly gives the two of them different views of it. That is worse than an
+ * error — a stray `npm run dev` left one server reporting 138 recipients where
+ * the database held 85, and nothing anywhere said why.
+ *
+ * So the owner writes its pid and refuses to start if a living process already
+ * holds the directory. A pid belonging to nothing is a crash, not a conflict,
+ * and is taken over.
+ */
+function claimDirectory(dir) {
+  const lockFile = path.join(dir, 'owner.pid')
+  try {
+    const held = Number(fs.readFileSync(lockFile, 'utf8').trim())
+    if (held && held !== process.pid) {
+      try {
+        process.kill(held, 0) // does not signal; throws when the pid is gone
+        throw new Error(
+          `the local database at ${dir} is already open in process ${held}. ` +
+            'It allows one process at a time — stop the other copy of the app, ' +
+            'or set DATABASE_URL to use a real PostgreSQL server.'
+        )
+      } catch (err) {
+        if (err.code !== 'ESRCH') throw err
+        // ESRCH: the holder died without cleaning up. The directory is ours.
+      }
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+
+  fs.writeFileSync(lockFile, String(process.pid))
+  releaseLock = () => {
+    try {
+      if (fs.readFileSync(lockFile, 'utf8').trim() === String(process.pid)) fs.unlinkSync(lockFile)
+    } catch {
+      // Going away anyway.
+    }
+  }
+}
+
+let releaseLock = () => {}
+
+/**
+ * PostgreSQL in this process, so local development needs nothing installed.
+ *
+ * One process at a time, and only ever a local convenience: a real deployment
+ * sets DATABASE_URL and goes through openPg instead.
+ */
 async function openPglite() {
   const { PGlite } = await import('@electric-sql/pglite')
   const dir = path.join(DATA_DIR, 'pg')
   fs.mkdirSync(dir, { recursive: true })
-  const lite = await PGlite.create(dir)
+  claimDirectory(dir)
+
+  /*
+   * One retry, then a plain explanation.
+   *
+   * This engine allows a single process at a time. Nearly every failure to open
+   * is another copy of the app already holding the directory — a stray `npm run
+   * dev`, or the outgoing process of a --watch restart that has not let go yet.
+   * A brief wait clears the second case.
+   *
+   * What it deliberately does not do is move the directory aside and start
+   * fresh. That looks like recovery and is worse than the fault: if another
+   * process really is running, renaming its database out from under it turns a
+   * clear error into two half-written copies.
+   */
+  let lite
+  try {
+    lite = await PGlite.create(dir)
+  } catch (first) {
+    await new Promise((r) => setTimeout(r, 1500))
+    try {
+      lite = await PGlite.create(dir)
+    } catch (err) {
+      throw new Error(
+        `the local database at ${dir} could not be opened (${err.message}). ` +
+          'It allows one process at a time — check whether another copy of the app is running ' +
+          'against the same DATA_DIR. Set DATABASE_URL to use a real PostgreSQL server instead.'
+      )
+    }
+  }
 
   return {
     kind: 'pglite',
@@ -138,12 +217,38 @@ async function openPglite() {
     },
     async close() {
       await lite.close()
+      releaseLock()
     },
   }
 }
 
 let driver = null
 let opening = null
+
+/*
+ * Close the database when the process is asked to stop.
+ *
+ * The in-process engine writes to a directory, and being killed between two
+ * writes is what leaves it unopenable next time. `node --watch` sends SIGTERM
+ * on every restart, so without this a developer corrupts their own database
+ * simply by saving a file often enough.
+ */
+let closing = false
+const shutdown = async (signal) => {
+  if (closing) return
+  closing = true
+  try {
+    if (driver) await driver.close()
+  } catch {
+    // Nothing useful to do about it while exiting.
+  }
+  if (signal) process.exit(0)
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.once(signal, () => shutdown(signal))
+}
+process.once('beforeExit', () => shutdown(null))
 
 export function databaseUrl() {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || ''

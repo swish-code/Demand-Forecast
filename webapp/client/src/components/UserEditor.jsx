@@ -63,6 +63,27 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, busy])
 
+  /*
+   * Choosing Management grants every brand.
+   *
+   * Somebody in Management is never being restricted to one chain, and having
+   * to tick nine brands afterwards was a step that only ever ended one way.
+   * Every other department leaves the grants alone — Branches and Area Managers
+   * are precisely the ones that should be narrow.
+   *
+   * Turning the department off again does not take the brands away: they may
+   * have been chosen deliberately, and quietly revoking access is worse than
+   * leaving a tick the admin can clear.
+   */
+  const pickDepartment = (d) => {
+    const next = department === d ? '' : d
+    setDepartment(next)
+    if (next === 'Management') setBrandCodes(new Set(brands.map((b) => b.code)))
+  }
+
+  const allBrands = brands.length > 0 && brandCodes.size === brands.length
+  const allLocations = available.length > 0 && locations.size === available.length
+
   // Locations for whichever brands are ticked, straight from the model.
   useEffect(() => {
     if (!scoped || brandCodes.size === 0) {
@@ -298,7 +319,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
                         key={d}
                         type="button"
                         className={`choice${department === d ? ' choice--on' : ''}`}
-                        onClick={() => setDepartment(department === d ? '' : d)}
+                        onClick={() => pickDepartment(d)}
                       >
                         {d}
                       </button>
@@ -312,7 +333,18 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
               )}
 
               <div className="field">
-                <span className="field__label">Brands</span>
+                <span className="field__label">
+                  Brands
+                  {scoped && brands.length > 0 && (
+                    <button
+                      type="button"
+                      className="pop__link"
+                      onClick={() => setBrandCodes(allBrands ? new Set() : new Set(brands.map((b) => b.code)))}
+                    >
+                      {allBrands ? 'Clear all' : 'Select all'}
+                    </button>
+                  )}
+                </span>
                 {scoped ? (
                   <>
                     <div className="choices choices--wrap">
@@ -377,9 +409,15 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
                 <div className="field">
                   <span className="field__label">
                     Locations
-                    {locations.size > 0 && (
-                      <button type="button" className="pop__link" onClick={() => setLocations(new Set())}>
-                        Clear
+                    {available.length > 0 && (
+                      <button
+                        type="button"
+                        className="pop__link"
+                        onClick={() =>
+                          setLocations(allLocations ? new Set() : new Set(available.map((r) => r.location)))
+                        }
+                      >
+                        {allLocations ? 'Clear all' : 'Select all'}
                       </button>
                     )}
                   </span>

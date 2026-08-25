@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+
+/** A line break, named so the request body reads as a list. */
+const NEWLINE = String.fromCharCode(10)
 import { IconLock, IconUser, IconEye, IconEyeOff } from '../components/Icons.jsx'
 import { BRANDS } from '../brands.js'
 
@@ -48,12 +51,43 @@ function readCallback() {
   return detail
 }
 
+/**
+ * What the access request actually says.
+ *
+ * It used to be a blank form the applicant had to fill in and the administrator
+ * had to act on from memory. It now names the account that is waiting and links
+ * straight to the page where it is approved — the administrator opens the link,
+ * signs in, and the account is sitting at the top of Admin with a Grant access
+ * button beside it.
+ *
+ * A one-click approve straight from the mail would need a signed token in the
+ * URL, which is a standing key to granting access sitting in somebody's inbox.
+ * A link to the page costs one more click and no such key.
+ */
+function requestBody(pendingEmail) {
+  const origin = window.location.origin
+  return [
+    pendingEmail
+      ? `${pendingEmail} has signed in to Demand Forecast and is waiting for access.`
+      : 'Please give me access to Demand Forecast.',
+    '',
+    `Approve here: ${origin}/?approve=1`,
+    '(sign in, then press Grant access beside the name)',
+    '',
+    'Name:',
+    'Brand(s):',
+    'Branch(es):',
+    '',
+  ].join(NEWLINE)
+}
+
 export function Login({ onSignedIn }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [reveal, setReveal] = useState(false)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
+  const [pendingEmail, setPendingEmail] = useState(null)
   const [busy, setBusy] = useState(false)
   const [methods, setMethods] = useState({ microsoft: true, password: true, contact: null })
 
@@ -76,6 +110,7 @@ export function Login({ onSignedIn }) {
         .then((s) => s && onSignedIn(s))
         .catch(() => setError('Signed in, but the session could not be read. Try again.'))
     } else if (back.signin === 'pending') {
+      setPendingEmail(back.email ?? null)
       setNotice(
         `${back.email ?? 'Your account'} is signed in with Microsoft and is waiting for an administrator to grant access.`
       )
@@ -206,9 +241,11 @@ export function Login({ onSignedIn }) {
             className="signin__requestBtn"
             href={
               methods.contact
-                ? `mailto:${methods.contact}?subject=${encodeURIComponent('Demand Forecast — access request')}&body=${encodeURIComponent(
-                    'Please give me access to Demand Forecast.\n\nName:\nBrand(s):\nBranch(es):\n'
-                  )}`
+                ? `mailto:${methods.contact}?subject=${encodeURIComponent(
+                    pendingEmail
+                      ? `Demand Forecast — access request from ${pendingEmail}`
+                      : 'Demand Forecast — access request'
+                  )}&body=${encodeURIComponent(requestBody(pendingEmail))}`
                 : '/api/auth/microsoft/start'
             }
           >
