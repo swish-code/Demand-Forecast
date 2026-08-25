@@ -1504,6 +1504,90 @@ table.dt tbody tr.clickable {
   color: var(--text-muted);
 }
 
+/* One recipient: the address, and the brands and branches that address gets. */
+.rcard {
+  border: 1px solid var(--line);
+  border-radius: var(--r2, 8px);
+  padding: var(--s2);
+  margin-bottom: var(--s2);
+  background: var(--surface);
+}
+
+.rcard--open {
+  border-color: var(--line-strong, var(--line));
+  box-shadow: 0 1px 2px rgb(15 58 34 / 0.05);
+}
+
+.rcard__top {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.rcard__summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  width: 100%;
+  margin-top: 6px;
+  padding: 2px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.rcard__summary--todo {
+  color: var(--amber, #b45309);
+}
+
+.rcard__count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.rcard__scope {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-soft, var(--line));
+}
+
+.rcard__copy {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+/* Several addresses on one form, each its own row. */
+.people {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.people__head,
+.people__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 30px;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.people__head {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 2px;
+}
+
+.people__add {
+  margin-top: var(--s2);
+  align-self: flex-start;
+}
+
 /* The import preview: one line per recipient the file would write. */
 .bulk__actions {
   display: flex;

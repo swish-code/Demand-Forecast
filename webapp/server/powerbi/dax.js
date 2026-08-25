@@ -371,6 +371,21 @@ ${summarize({
       ['Products_To_Prepare', '[Products To Prepare]'],
       ['High_Demand_Products', '[High Demand Products]'],
       ['Low_Demand_Products', '[Low Demand Products]'],
+      // Which day the plan is actually for, read from the model's own
+      // IsTomorrow flag rather than assumed to be the next day here.
+      //
+      // [Tomorrow Forecast Qty] resolves off TODAY(), and TODAY() is the
+      // service's clock, not Kuwait's. The two are the same date for
+      // twenty-one hours a day and differ for the three between local midnight
+      // and 03:00, when the service is still on yesterday and "tomorrow" means
+      // today. A figure that disagrees with the report is nearly always this,
+      // and naming the date turns an argument into a glance.
+      ['Plan_Date', 'FORMAT(CALCULATE(MAX(Forecast_Product_Table[Date]), Forecast_Product_Table[IsTomorrow] = 1), "yyyy-MM-dd")'],
+      // Today's forecast, for the Overview. [Tomorrow Forecast Qty] is fixed to
+      // the next day, so today is read straight off the forecast column for the
+      // model's own current date rather than by shifting that measure.
+      ['Today_Forecast_Qty', 'CALCULATE([Total_Forecast_Qty], Forecast_Product_Table[Date] = TODAY())'],
+      ['Today_Date', 'FORMAT(TODAY(), "yyyy-MM-dd")'],
     ],
   })}`
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { api, fmtInt, fmtPct, fmtSignedPct, downloadCsv } from '../api.js'
+import { api, fmtInt, fmtPct, fmtSignedPct, fmtDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
 import { DataTable } from '../components/DataTable.jsx'
@@ -147,6 +147,27 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
     enabled: ready && Boolean(data),
     nonce: refreshNonce,
   })
+
+  /*
+   * Tomorrow, on a page that is otherwise about the past.
+   *
+   * The date range is dropped on purpose: tomorrow is tomorrow whichever window
+   * is selected, and passing "last 30 days" to a measure that means "the next
+   * day" would return nothing. Brand and branch still apply, so the card counts
+   * the same stores as everything above it.
+   *
+   * Deferred behind the summary for the same reason the context band is: with
+   * nine brands this is nine more queries, and it is not what the page is for.
+   */
+  const { data: tomorrow } = useData(api.productionPlanKpis, contextFilters, {
+    enabled: ready && Boolean(data),
+    nonce: refreshNonce,
+  })
+  const todayQty = tomorrow?.kpis?.Today_Forecast_Qty ?? null
+  // Named, not implied. The date comes from the model's own TODAY(), which is
+  // the service's clock, so saying which day it means is what lets this be
+  // checked against the report rather than argued about.
+  const todayDay = tomorrow?.kpis?.Today_Date ?? null
 
   const kpis = data?.kpis ?? {}
   const prev = data?.prev
@@ -333,6 +354,16 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
             loading={busy}
             value={fmtInt(forecast)}
             foot="Units expected"
+          />
+          <MetricCard
+            label="Today's forecast"
+            // The same colour as Forecast qty on purpose: both are the model's
+            // expectation, and only the day differs.
+            accent="blue"
+            progress={1}
+            loading={busy || (Boolean(data) && tomorrow === undefined)}
+            value={todayQty === null ? '—' : fmtInt(todayQty)}
+            foot={todayDay ? `Units expected · ${fmtDate(todayDay)}` : 'Units expected today'}
           />
           </>
         }

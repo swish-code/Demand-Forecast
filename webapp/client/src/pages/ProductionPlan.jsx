@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { api, fmtInt, fmtPct, fmtLongDate, downloadCsv } from '../api.js'
+import { api, fmtInt, fmtPct, fmtDate, fmtLongDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
 import {
@@ -24,7 +24,7 @@ import { useChartTheme } from '../components/charts/useChartTheme.js'
 import { IconDownload, IconCalendar } from '../components/Icons.jsx'
 
 const COLUMNS = [
-  { key: 'Clean_ItemID', label: 'Article', width: W.article, id: true, required: true },
+  { key: 'Clean_ItemID', label: 'Product PLU', width: W.article, id: true, required: true },
   { key: 'CHAINID', label: 'Brand', width: W.brand, render: (v) => <BrandTag code={v} /> },
   { key: 'LocationID', label: 'Location', width: W.location, strong: true },
   { key: 'ProductName_Fixed_Option', label: 'Product' },
@@ -107,6 +107,17 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
 
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
+  /*
+   * The day the plan is for, taken from the model rather than this browser's
+   * clock.
+   *
+   * [Tomorrow Forecast Qty] resolves off TODAY() as Power BI sees it, which is
+   * the service's date. Overnight the two can be a day apart, and a figure that
+   * looks wrong against the report is nearly always that. Naming the day makes
+   * the comparison possible instead of a guess.
+   */
+  const planDay = kpis.Plan_Date ?? null
+
   const toPrepare = kpis.Products_To_Prepare ?? 0
   const high = kpis.High_Demand_Products ?? 0
   const low = kpis.Low_Demand_Products ?? 0
@@ -174,7 +185,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             progress={0.68}
             loading={busy}
             value={fmtInt(kpis.Tomorrow_Forecast_Qty)}
-            foot="Total units to prepare"
+            foot={planDay ? `Total units for ${fmtDate(planDay)}` : 'Total units to prepare'}
           />
           <MetricCard
             label="Products to prepare"
@@ -182,7 +193,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             progress={0.62}
             loading={busy}
             value={fmtInt(toPrepare)}
-            foot="Distinct articles"
+            foot="Distinct PLUs"
           />
           <MetricCard
             label="Extra prep needed"
@@ -190,7 +201,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             progress={toPrepare ? high / toPrepare : 0}
             loading={busy}
             value={fmtInt(high)}
-            foot={`Demand up >20%${toPrepare ? ` · ${fmtPct(high / toPrepare, 0)} of articles` : ''}`}
+            foot={`Demand up >20%${toPrepare ? ` · ${fmtPct(high / toPrepare, 0)} of PLUs` : ''}`}
           />
           <MetricCard
             label="Reduced prep needed"
@@ -198,7 +209,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             progress={toPrepare ? low / toPrepare : 0}
             loading={busy}
             value={fmtInt(low)}
-            foot={`Demand down >20%${toPrepare ? ` · ${fmtPct(low / toPrepare, 0)} of articles` : ''}`}
+            foot={`Demand down >20%${toPrepare ? ` · ${fmtPct(low / toPrepare, 0)} of PLUs` : ''}`}
           />
         </div>
 
@@ -236,7 +247,11 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
       <Panel
         title="Production plan"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
-        sub="Per article, per location — sorted by tomorrow's volume"
+        sub={
+          planDay
+            ? `Per PLU, per location · ${fmtLongDate(planDay)}`
+            : 'Per PLU, per location, sorted by volume'
+        }
         flush
         tools={
           <button
@@ -261,7 +276,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             columns={COLUMNS}
             rows={rows}
             initialSort={{ key: 'Tomorrow_Forecast_Qty', dir: 'desc' }}
-            searchPlaceholder="Search product or location…"
+            searchPlaceholder="Search product, PLU or location…"
             tableId="production-plan"
             totals
           />

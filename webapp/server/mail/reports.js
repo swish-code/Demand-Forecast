@@ -407,8 +407,8 @@ export function recipients() {
  *
  *   by product   what the kitchen thinks in. "Chicken Shawarma: 420" is the
  *                number a section leader plans a shift around.
- *   by article   what the system counts in. The same demand split across the
- *                article codes stock and production are booked against.
+ *   by PLU       what the system counts in. The same demand split across the
+ *                PLU codes stock and production are booked against.
  *
  * They are the same forecast summed two ways, so the totals agree by
  * construction — if they ever disagreed it would mean rows had been dropped.
@@ -441,7 +441,7 @@ export function branchForecastHtml({ brand, location, rows, day, trust, prepared
       <tr>
         ${statCard('Total units', int(units), 'Forecast for the day')}
         ${statCard('Products', int(products.length), 'Distinct products')}
-        ${statCard('Articles', int(rows.length), 'Distinct article codes')}
+        ${statCard('Product PLUs', int(rows.length), 'Distinct PLU codes')}
         ${statCard(
           prepared.length ? 'To prepare' : 'Extra prep',
           int(prepared.length ? prepared.length : extra),
@@ -466,8 +466,8 @@ export function branchForecastHtml({ brand, location, rows, day, trust, prepared
     ${
       extra > 0
         ? `<div style="padding:10px 14px;background:#fef3e2;border-radius:8px;font-size:13px;color:${INK};">
-             <strong>${int(extra)} article${extra === 1 ? '' : 's'} need more than usual tomorrow.</strong>
-             They carry an <em>Extra prep</em> status on the Articles tab.
+             <strong>${int(extra)} PLU${extra === 1 ? '' : 's'} need more than usual tomorrow.</strong>
+             They carry an <em>Extra prep</em> status on the <em>Product PLU</em> tab.
            </div>`
         : ''
     }
@@ -583,7 +583,7 @@ export async function buildForRecipient(r, digest = null) {
         const attached = [
           {
             filename: `${brand.code}-${location}-forecast-${day}.xlsx`,
-            note: `${sheets.length} tabs — Products (what to plan the shift around), Articles (the codes stock and production are booked on)${
+            note: `${sheets.length} tabs — Products (what to plan the shift around), Product PLU (the codes stock and production are booked on)${
               prepared.length ? ', To prepare (what the kitchen makes itself)' : ''
             }.`,
           },
@@ -642,7 +642,7 @@ export async function buildForRecipient(r, digest = null) {
         attached: [
           {
             filename: `tomorrow-${day}.xlsx`,
-            note: 'Two tabs — every store by product, and the same plan by article code, with the recent average and prep status.',
+            note: 'Two tabs — every store by product, and the same plan by PLU, with the recent average and prep status.',
           },
         ],
       }),

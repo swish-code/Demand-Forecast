@@ -15,10 +15,10 @@ import { BrandPicker } from './BrandPicker.jsx'
 const SLICERS = [
   { id: 'location', key: 'locations', label: 'Location', options: 'locations', placeholder: 'All' },
   { id: 'product', key: 'products', label: 'Product', options: 'products', placeholder: 'All' },
-  { id: 'article', key: 'articles', label: 'Article', options: 'articles', placeholder: 'All' },
+  { id: 'article', key: 'articles', label: 'Product PLU', options: 'articles', placeholder: 'All' },
   // Same filter, named rather than numbered. The production plan is read by
   // branch staff, who know the product but not its article code.
-  { id: 'articleName', key: 'articles', label: 'Article', options: 'articleNames', placeholder: 'All' },
+  { id: 'articleName', key: 'articles', label: 'Product PLU', options: 'articleNames', placeholder: 'All' },
   { id: 'item', key: 'items', label: 'Component', options: 'items', placeholder: 'All' },
   { id: 'recipeGroup', key: 'recipeGroups', label: 'Recipe group', options: 'recipeGroups', placeholder: 'All' },
   { id: 'nodeType', key: 'nodeTypes', label: 'Prod. type', options: 'nodeTypes', placeholder: 'All' },

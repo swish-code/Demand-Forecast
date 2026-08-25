@@ -23,7 +23,7 @@ export const REPORTS = {
   },
   branch_forecast: {
     label: 'Branch forecast',
-    detail: "Tomorrow for one branch, by product and by article code. Needs at least one store.",
+    detail: "Tomorrow for one branch, by product and by product PLU. Needs at least one store.",
     needsLocation: true,
   },
   brand_summary: {

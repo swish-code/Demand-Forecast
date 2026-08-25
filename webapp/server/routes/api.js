@@ -398,6 +398,53 @@ api.all('/component-level', handle(async (req, res) => {
   })
 }))
 
+/**
+ * The production plan's measures across however many brands were asked for.
+ *
+ * Plan_Date is not summed — it is the day the plan covers, which every brand
+ * agrees on because they all read it from the same TODAY(). The latest is taken
+ * rather than the first so a brand whose model has not refreshed cannot make
+ * the whole page claim an older day than it is showing.
+ */
+function mergePlanKpis(list) {
+  const kpis = list.reduce(
+    (acc, r) => ({
+      Tomorrow_Forecast_Qty: acc.Tomorrow_Forecast_Qty + (Number(r?.Tomorrow_Forecast_Qty) || 0),
+      Products_To_Prepare: acc.Products_To_Prepare + (Number(r?.Products_To_Prepare) || 0),
+      High_Demand_Products: acc.High_Demand_Products + (Number(r?.High_Demand_Products) || 0),
+      Low_Demand_Products: acc.Low_Demand_Products + (Number(r?.Low_Demand_Products) || 0),
+      Today_Forecast_Qty: acc.Today_Forecast_Qty + (Number(r?.Today_Forecast_Qty) || 0),
+    }),
+    {
+      Tomorrow_Forecast_Qty: 0,
+      Products_To_Prepare: 0,
+      High_Demand_Products: 0,
+      Low_Demand_Products: 0,
+      Today_Forecast_Qty: 0,
+    }
+  )
+  const latest = (key) => {
+    const days = list.map((r) => r?.[key]).filter(Boolean).sort()
+    return days.length ? days[days.length - 1] : null
+  }
+  return { ...kpis, Plan_Date: latest('Plan_Date'), Today_Date: latest('Today_Date') }
+}
+
+/**
+ * Tomorrow's totals without tomorrow's rows.
+ *
+ * The Overview shows one figure from the production plan. Asking /production-plan
+ * for it would ship several thousand article rows to draw a single card, so the
+ * measures are fetched on their own.
+ */
+api.all('/production-plan/kpis', handle(async (req, res) => {
+  const g = guardMany(req, res)
+  if (!g) return
+
+  const results = await g.fanOut(({ ds, f }) => data.productionPlanKpis(f, ds))
+  res.json({ kpis: mergePlanKpis(results) })
+}))
+
 api.all('/production-plan', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
@@ -412,17 +459,10 @@ api.all('/production-plan', handle(async (req, res) => {
 
   if (g.single) return res.json({ kpis: results[0].kpis, rows: results[0].rows })
 
-  const kpis = results.reduce(
-    (acc, r) => ({
-      Tomorrow_Forecast_Qty: acc.Tomorrow_Forecast_Qty + (Number(r.kpis?.Tomorrow_Forecast_Qty) || 0),
-      Products_To_Prepare: acc.Products_To_Prepare + (Number(r.kpis?.Products_To_Prepare) || 0),
-      High_Demand_Products: acc.High_Demand_Products + (Number(r.kpis?.High_Demand_Products) || 0),
-      Low_Demand_Products: acc.Low_Demand_Products + (Number(r.kpis?.Low_Demand_Products) || 0),
-    }),
-    { Tomorrow_Forecast_Qty: 0, Products_To_Prepare: 0, High_Demand_Products: 0, Low_Demand_Products: 0 }
-  )
-
-  res.json({ kpis, rows: results.flatMap((r) => r.rows) })
+  res.json({
+    kpis: mergePlanKpis(results.map((r) => r.kpis)),
+    rows: results.flatMap((r) => r.rows),
+  })
 }))
 
 /**

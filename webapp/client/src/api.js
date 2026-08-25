@@ -63,6 +63,8 @@ export const api = {
   productLevel: (filters) => post('/product-level', filters),
   componentLevel: (filters) => post('/component-level', filters),
   productionPlan: (filters) => post('/production-plan', filters),
+  // Tomorrow's totals without tomorrow's rows, for the Overview card.
+  productionPlanKpis: (filters) => post('/production-plan/kpis', filters),
   clearCache: () => post('/cache/clear'),
 
   admin: {

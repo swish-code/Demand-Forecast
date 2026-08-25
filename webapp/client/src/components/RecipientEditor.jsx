@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api.js'
-import { IconClose, IconCheck, IconSearch } from './Icons.jsx'
+import { IconClose, IconCheck, IconSearch, IconPlus, IconChevron } from './Icons.jsx'
 import { InfoBanner } from './ui.jsx'
 
 /**
@@ -11,23 +11,36 @@ import { InfoBanner } from './ui.jsx'
  * login — a kitchen's shared mailbox or an area manager's address is a
  * perfectly good recipient, and requiring an account for each would mean
  * creating logins nobody uses.
+ *
+ * Several addresses can be added at once, and each one carries its own brands
+ * and branches. A shared scope was the obvious way to build this and the wrong
+ * one: the list being typed in is usually one branch's mailbox, then another
+ * branch's, then an area manager covering six — three different scopes, and
+ * one form. The report itself stays shared, because that is what the form is
+ * for: adding people to a report.
  */
 export function RecipientEditor({ mode, recipient, reports, brands, departments = [], onClose, onSaved }) {
   const creating = mode === 'create'
 
-  const [email, setEmail] = useState(recipient?.email ?? '')
-  const [name, setName] = useState(recipient?.name ?? '')
-  const [report, setReport] = useState(recipient?.report ?? 'store_plan')
-  const [brandCodes, setBrandCodes] = useState(() => new Set(recipient?.brands ?? []))
-  // Branches are held as BBT:ADL. A recipient saved before brands were kept
-  // apart has bare codes, which are matched against every brand below.
-  const [locations, setLocations] = useState(() => new Set(recipient?.locations ?? []))
-  const [active, setActive] = useState(recipient?.active ?? true)
-  const [department, setDepartment] = useState(recipient?.department ?? '')
+  const blank = () => ({ email: '', name: '', brands: [], locations: [], open: true })
 
-  const [available, setAvailable] = useState([])
-  const [loadingLocations, setLoadingLocations] = useState(false)
-  const [query, setQuery] = useState('')
+  const [people, setPeople] = useState(() => [
+    {
+      email: recipient?.email ?? '',
+      name: recipient?.name ?? '',
+      brands: recipient?.brands ?? [],
+      locations: recipient?.locations ?? [],
+      open: true,
+    },
+  ])
+
+  const [report, setReport] = useState(recipient?.report ?? 'store_plan')
+  const [department, setDepartment] = useState(recipient?.department ?? '')
+  const [active, setActive] = useState(recipient?.active ?? true)
+
+  const [byBrand, setByBrand] = useState({})
+  const [loadingBrands, setLoadingBrands] = useState([])
+  const [query, setQuery] = useState({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -37,133 +50,219 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
   // control that does nothing.
   const usesBrands = report !== 'daily_digest'
 
+  const setPerson = (i, patch) =>
+    setPeople((list) => list.map((p, n) => (n === i ? { ...p, ...patch } : p)))
+  const addPerson = () => setPeople((list) => [...list.map((p) => ({ ...p, open: false })), blank()])
+  const dropPerson = (i) =>
+    setPeople((list) => (list.length === 1 ? list : list.filter((_, n) => n !== i)))
+
+  /**
+   * A pasted list becomes rows.
+   *
+   * People arrive with addresses separated by commas, semicolons or newlines,
+   * out of Outlook or a spreadsheet column. Splitting them here saves retyping
+   * a list somebody already has. The rows inherit the scope of the one pasted
+   * into, which is right far more often than an empty scope would be.
+   */
+  const pasteInto = (i, text) => {
+    const parts = String(text)
+      .split(/[,;\n\r\t]+/)
+      .map((v) => v.trim())
+      .filter((v) => v.includes('@'))
+    if (parts.length < 2) return false
+    setPeople((list) => {
+      const next = [...list]
+      const from = next[i]
+      next[i] = { ...from, email: parts[0] }
+      next.splice(
+        i + 1,
+        0,
+        ...parts.slice(1).map((email) => ({
+          email,
+          name: '',
+          brands: [...from.brands],
+          locations: [...from.locations],
+          open: false,
+        }))
+      )
+      return next
+    })
+    return true
+  }
+
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && !busy && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, busy])
 
+  /*
+   * Branch lists are fetched per brand and shared by every row.
+   *
+   * Three people covering BBT is one query, not three. Each list is its own DAX
+   * query against that brand's model, so the saving is real.
+   */
+  const wantedBrands = useMemo(
+    () => [...new Set(people.flatMap((p) => p.brands))],
+    [people]
+  )
+
   useEffect(() => {
-    if (!needsLocation || brandCodes.size === 0) {
-      setAvailable([])
-      return
-    }
+    if (!needsLocation) return
+    const missing = wantedBrands.filter((code) => !byBrand[code])
+    if (!missing.length) return
+
     let cancelled = false
-    setLoadingLocations(true)
+    setLoadingBrands((prev) => [...new Set([...prev, ...missing])])
     Promise.all(
-      [...brandCodes].map((code) =>
+      missing.map((code) =>
         api
           .slicers({ brands: [code], need: ['locations'] })
-          .then((r) => (r.locations ?? []).map((l) => ({ brand: code, location: String(l) })))
-          .catch(() => [])
+          .then((r) => [code, (r.locations ?? []).map((l) => String(l)).sort()])
+          .catch(() => [code, []])
       )
-    )
-      .then((lists) => {
-        if (cancelled) return
-        /*
-         * Every brand keeps its own branches.
-         *
-         * These used to be folded into one list keyed on the branch code, which
-         * hid the fact that ADL is a BBT store *and* a Shawarma Shakir store —
-         * two different kitchens, two different prep lists. Kept apart, the form
-         * can show them under the brand they belong to and send only the one
-         * that was actually asked for.
-         */
-        const seen = new Set()
-        const flat = []
-        for (const row of lists.flat()) {
-          const key = `${row.brand}:${row.location}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          flat.push({ ...row, key })
-        }
-        setAvailable(flat.sort((a, b) => a.location.localeCompare(b.location)))
-      })
-      .finally(() => !cancelled && setLoadingLocations(false))
+    ).then((pairs) => {
+      if (cancelled) return
+      setByBrand((prev) => ({ ...prev, ...Object.fromEntries(pairs) }))
+      setLoadingBrands((prev) => prev.filter((c) => !missing.includes(c)))
+    })
     return () => {
       cancelled = true
     }
-  }, [brandCodes, needsLocation])
+  }, [wantedBrands, needsLocation, byBrand])
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return q ? available.filter((r) => r.location.toLowerCase().includes(q)) : available
-  }, [available, query])
+  /* ------------------------------------------------------- one person ---- */
 
-  /** The branches on screen, under the brand each one belongs to. */
-  const grouped = useMemo(() => {
-    const byBrand = new Map()
-    for (const row of visible) {
-      if (!byBrand.has(row.brand)) byBrand.set(row.brand, [])
-      byBrand.get(row.brand).push(row)
-    }
-    return [...byBrand.entries()].map(([code, rows]) => ({
-      code,
-      label: brands?.find((b) => b.code === code)?.label ?? code,
-      rows,
-    }))
-  }, [visible, brands])
+  // A bare "ADL" is how branches were written before brands were kept apart,
+  // and still means that branch in every brand the recipient covers.
+  const has = (person, code, branch) =>
+    person.locations.includes(`${code}:${branch}`) || person.locations.includes(branch)
 
-  // A bare "ADL" from before still means ADL in every brand, so it stays ticked.
-  const picked = (row) => locations.has(row.key) || locations.has(row.location)
-
-  const toggleBranch = (row) => {
-    const next = new Set(locations)
-    if (next.has(row.key)) next.delete(row.key)
-    else if (next.has(row.location)) {
-      // Splitting an old bare entry: keep it for the other brands that had it,
-      // as this one is being switched off.
-      next.delete(row.location)
-      for (const other of available) {
-        if (other.location === row.location && other.key !== row.key) next.add(other.key)
+  const toggleBranch = (i, code, branch) => {
+    const person = people[i]
+    const key = `${code}:${branch}`
+    let next
+    if (person.locations.includes(key)) next = person.locations.filter((l) => l !== key)
+    else if (person.locations.includes(branch)) {
+      // Splitting an old bare entry: it stays for the other brands that had it.
+      next = person.locations.filter((l) => l !== branch)
+      for (const other of person.brands) {
+        if (other !== code && (byBrand[other] ?? []).includes(branch)) next.push(`${other}:${branch}`)
       }
-    } else next.add(row.key)
-    setLocations(next)
+    } else next = [...person.locations, key]
+    setPerson(i, { locations: next })
   }
-
-  const chosenCount = available.filter(picked).length
 
   /*
    * Dropping a brand drops its branches with it. Leaving them behind meant a
    * recipient could keep BBT:ADL after BBT had been unticked — invisible in the
    * form, and still sent every morning.
    */
-  const toggleBrand = (code) => {
-    const next = new Set(brandCodes)
-    if (next.has(code)) {
-      next.delete(code)
-      const kept = new Set([...locations].filter((l) => !String(l).startsWith(`${code}:`)))
-      if (kept.size !== locations.size) setLocations(kept)
-    } else next.add(code)
-    setBrandCodes(next)
+  const toggleBrandFor = (i, code) => {
+    const person = people[i]
+    if (person.brands.includes(code)) {
+      setPerson(i, {
+        brands: person.brands.filter((c) => c !== code),
+        locations: person.locations.filter((l) => !String(l).startsWith(`${code}:`)),
+      })
+    } else setPerson(i, { brands: [...person.brands, code] })
   }
 
-  const toggle = (set, value, apply) => {
-    const next = new Set(set)
-    next.has(value) ? next.delete(value) : next.add(value)
-    apply(next)
+  const branchesOf = (person) =>
+    person.brands.map((code) => {
+      const q = (query[`${person.email}|${code}`] ?? '').trim().toLowerCase()
+      const all = byBrand[code] ?? []
+      return {
+        code,
+        label: brands?.find((b) => b.code === code)?.label ?? code,
+        all,
+        rows: q ? all.filter((l) => l.toLowerCase().includes(q)) : all,
+        chosen: all.filter((l) => has(person, code, l)),
+      }
+    })
+
+  const countFor = (person) =>
+    person.brands.reduce((n, code) => n + (byBrand[code] ?? []).filter((l) => has(person, code, l)).length, 0)
+
+  /** What the collapsed row says it will send. */
+  const summaryOf = (person) => {
+    if (!usesBrands) return 'Every brand'
+    if (!person.brands.length) return 'No brand chosen'
+    if (!needsLocation) return person.brands.join(', ')
+    const parts = branchesOf(person)
+      .filter((g) => g.chosen.length)
+      .map((g) => `${g.code} · ${g.chosen.join(', ')}`)
+    return parts.length ? parts.join('   ') : 'No store chosen'
   }
+
+  const ready = (person) =>
+    person.email.includes('@') &&
+    (!usesBrands || person.brands.length > 0 || !needsLocation) &&
+    (!needsLocation || countFor(person) > 0)
+
+  const valid = people.filter((p) => p.email.includes('@'))
+  const complete = people.filter(ready)
+  const canSave = complete.length > 0 && complete.length === valid.length
+
+  /* ------------------------------------------------------------ saving --- */
 
   async function save() {
     setBusy(true)
     setError(null)
-    const payload = {
-      email,
-      name,
+
+    const payloadFor = (person) => ({
+      email: person.email.trim(),
+      name: person.name.trim(),
       report,
       department: department || null,
-      brands: usesBrands ? [...brandCodes] : [],
-      locations: needsLocation ? [...locations] : [],
+      brands: usesBrands ? person.brands : [],
+      locations: needsLocation ? person.locations : [],
       active,
+    })
+
+    if (!creating) {
+      try {
+        await api.admin.updateRecipient(recipient.id, payloadFor(people[0]))
+        onSaved(`Saved ${recipient.email}.`)
+      } catch (err) {
+        setError(err.message)
+        setBusy(false)
+      }
+      return
     }
-    try {
-      if (creating) await api.admin.createRecipient(payload)
-      else await api.admin.updateRecipient(recipient.id, payload)
-      onSaved(creating ? `${email} will now receive ${meta.label ?? report}.` : `Saved ${email}.`)
-    } catch (err) {
-      setError(err.message)
+
+    /*
+     * One address at a time, and one failure does not lose the rest.
+     *
+     * An address already receiving this report comes back as a conflict from
+     * the unique index — which is the right answer, not an error worth
+     * abandoning the other nine for. So each is reported and the run carries on.
+     */
+    const added = []
+    const failed = []
+    for (const person of complete) {
+      try {
+        await api.admin.createRecipient(payloadFor(person))
+        added.push(person.email.trim())
+      } catch (err) {
+        failed.push(`${person.email.trim()} — ${err.message}`)
+      }
+    }
+
+    if (!added.length) {
+      setError(failed.join('; ') || 'Nothing was added.')
       setBusy(false)
+      return
     }
+
+    const what = meta.label ?? report
+    onSaved(
+      added.length === 1
+        ? `${added[0]} will now receive ${what}.${failed.length ? ` ${failed.length} skipped.` : ''}`
+        : `${added.length} addresses will now receive ${what}.${
+            failed.length ? ` ${failed.length} skipped: ${failed.join('; ')}` : ''
+          }`
+    )
   }
 
   async function remove() {
@@ -178,15 +277,19 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
     }
   }
 
-  const canSave = email.includes('@') && (!needsLocation || chosenCount > 0)
+  /* ------------------------------------------------------------- markup --- */
 
   return (
     <div className="modal" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="modal__card" role="dialog" aria-modal="true" aria-label={creating ? 'Add recipient' : 'Edit recipient'}>
+      <div className="modal__card" role="dialog" aria-modal="true" aria-label={creating ? 'Add recipients' : 'Edit recipient'}>
         <div className="modal__head">
           <div>
-            <h2 className="modal__title">{creating ? 'Add a recipient' : email}</h2>
-            <span className="modal__sub">Choose what this address receives each morning</span>
+            <h2 className="modal__title">{creating ? 'Add recipients' : recipient.email}</h2>
+            <span className="modal__sub">
+              {creating
+                ? 'Each address gets its own brands and branches'
+                : 'Choose what this address receives each morning'}
+            </span>
           </div>
           <button type="button" className="btn btn--icon" onClick={onClose} aria-label="Close">
             <IconClose size={14} />
@@ -195,32 +298,6 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
 
         <div className="modal__body">
           {error && <InfoBanner tone="warn">{error}</InfoBanner>}
-
-          <div className="form2">
-            <label className="field">
-              <span className="field__label">Email</span>
-              <input
-                className="field__input"
-                type="email"
-                value={email}
-                disabled={!creating}
-                placeholder="name@swishhh.net"
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <span className="field__help">
-                Does not need a dashboard account — a distribution list works.
-              </span>
-            </label>
-            <label className="field">
-              <span className="field__label">Name</span>
-              <input
-                className="field__input"
-                value={name}
-                placeholder="Optional"
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-          </div>
 
           <div className="field">
             <span className="field__label">What to send</span>
@@ -236,7 +313,7 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
                 </button>
               ))}
             </div>
-            <span className="field__help">{meta.detail}</span>
+            <span className="field__help">{meta.detail} Everyone below receives this report.</span>
           </div>
 
           {departments.length > 0 && (
@@ -255,107 +332,199 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
                 ))}
               </div>
               <span className="field__help">
-                Which part of the business this address belongs to. It does not change what is sent —
+                Which part of the business these addresses belong to. It does not change what is sent —
                 it is so a list of forty recipients can be read at a glance.
               </span>
             </div>
           )}
 
-          {usesBrands && (
-            <div className="field">
-              <span className="field__label">Brands</span>
-              <div className="choices choices--wrap">
-                {(brands ?? []).map((b) => (
-                  <button
-                    key={b.code}
-                    type="button"
-                    className={`choice${brandCodes.has(b.code) ? ' choice--on' : ''}`}
-                    onClick={() => toggleBrand(b.code)}
-                  >
-                    {brandCodes.has(b.code) && <IconCheck size={11} />}
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-              <span className="field__help">
-                {brandCodes.size === 0
-                  ? 'None chosen means every brand.'
-                  : `${brandCodes.size} of ${brands?.length ?? 0} brands.`}
-              </span>
-            </div>
-          )}
-
-          {needsLocation && brandCodes.size > 0 && (
-            <div className="field">
-              <span className="field__label">
-                Stores
-                {chosenCount > 0 && (
-                  <button type="button" className="pop__link" onClick={() => setLocations(new Set())}>
-                    Clear
-                  </button>
-                )}
-              </span>
-              {available.length > 12 && (
-                <div className="pop__search">
-                  <IconSearch size={13} />
-                  <input value={query} placeholder="Find a store…" onChange={(e) => setQuery(e.target.value)} />
-                </div>
+          <div className="field">
+            <span className="field__label">
+              {creating ? 'Recipients' : 'Address'}
+              {creating && people.length > 1 && (
+                <span className="field__help"> {people.length} on this form</span>
               )}
-              {loadingLocations ? (
-                <span className="field__help">Reading stores from Power BI…</span>
-              ) : grouped.length === 0 ? (
-                <span className="field__help">No store matches.</span>
-              ) : (
-                grouped.map((group) => {
-                  const chosen = group.rows.filter(picked)
-                  return (
-                    <div className="brandstores" key={group.code}>
-                      <div className="brandstores__head">
-                        <span className="brandstores__name">{group.label}</span>
-                        <span className="brandstores__count">
-                          {chosen.length} of {group.rows.length}
-                        </span>
-                        <button
-                          type="button"
-                          className="pop__link"
-                          onClick={() => {
-                            const next = new Set(locations)
-                            const all = chosen.length === group.rows.length
-                            for (const row of group.rows) {
-                              next.delete(row.key)
-                              next.delete(row.location)
-                              if (!all) next.add(row.key)
-                            }
-                            setLocations(next)
-                          }}
-                        >
-                          {chosen.length === group.rows.length ? 'None' : 'All'}
-                        </button>
-                      </div>
-                      <div className="checks">
-                        {group.rows.map((row) => (
+            </span>
+
+            {people.map((person, i) => {
+              const groups = branchesOf(person)
+              const count = countFor(person)
+              return (
+                <div className={`rcard${person.open ? ' rcard--open' : ''}`} key={i}>
+                  <div className="rcard__top">
+                    <input
+                      className="field__input"
+                      type="email"
+                      value={person.email}
+                      disabled={!creating}
+                      placeholder="name@swishhh.net"
+                      onChange={(e) => setPerson(i, { email: e.target.value })}
+                      onPaste={(e) => {
+                        const text = e.clipboardData.getData('text')
+                        if (creating && pasteInto(i, text)) e.preventDefault()
+                      }}
+                    />
+                    <input
+                      className="field__input"
+                      value={person.name}
+                      placeholder="Name (optional)"
+                      onChange={(e) => setPerson(i, { name: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--icon"
+                      onClick={() => setPerson(i, { open: !person.open })}
+                      aria-expanded={person.open}
+                      title={person.open ? 'Hide brands and stores' : 'Choose brands and stores'}
+                    >
+                      <IconChevron size={12} />
+                    </button>
+                    {creating && (
+                      <button
+                        type="button"
+                        className="btn btn--icon"
+                        onClick={() => dropPerson(i)}
+                        disabled={people.length === 1}
+                        title="Remove this address"
+                        aria-label="Remove this address"
+                      >
+                        <IconClose size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`rcard__summary${ready(person) ? '' : ' rcard__summary--todo'}`}
+                    onClick={() => setPerson(i, { open: !person.open })}
+                  >
+                    {summaryOf(person)}
+                    {needsLocation && count > 0 && (
+                      <span className="rcard__count">
+                        {count} email{count === 1 ? '' : 's'} a day
+                      </span>
+                    )}
+                  </button>
+
+                  {person.open && usesBrands && (
+                    <div className="rcard__scope">
+                      <div className="choices choices--wrap">
+                        {(brands ?? []).map((b) => (
                           <button
-                            key={row.key}
+                            key={b.code}
                             type="button"
-                            className={`check${picked(row) ? ' check--on' : ''}`}
-                            onClick={() => toggleBranch(row)}
+                            className={`choice${person.brands.includes(b.code) ? ' choice--on' : ''}`}
+                            onClick={() => toggleBrandFor(i, b.code)}
                           >
-                            <span className="check__box">{picked(row) && <IconCheck size={10} />}</span>
-                            <span className="check__label">{row.location}</span>
+                            {person.brands.includes(b.code) && <IconCheck size={11} />}
+                            {b.label}
                           </button>
                         ))}
                       </div>
+
+                      {i > 0 && (
+                        <button
+                          type="button"
+                          className="pop__link rcard__copy"
+                          onClick={() =>
+                            setPerson(i, {
+                              brands: [...people[0].brands],
+                              locations: [...people[0].locations],
+                            })
+                          }
+                        >
+                          Same as the first address
+                        </button>
+                      )}
+
+                      {needsLocation &&
+                        groups.map((group) => (
+                          <div className="brandstores" key={group.code}>
+                            <div className="brandstores__head">
+                              <span className="brandstores__name">{group.label}</span>
+                              <span className="brandstores__count">
+                                {group.chosen.length} of {group.all.length}
+                              </span>
+                              <button
+                                type="button"
+                                className="pop__link"
+                                onClick={() => {
+                                  const all = group.chosen.length === group.all.length
+                                  const kept = person.locations.filter(
+                                    (l) => !String(l).startsWith(`${group.code}:`) && !group.all.includes(l)
+                                  )
+                                  setPerson(i, {
+                                    locations: all ? kept : [...kept, ...group.all.map((l) => `${group.code}:${l}`)],
+                                  })
+                                }}
+                              >
+                                {group.chosen.length === group.all.length ? 'None' : 'All'}
+                              </button>
+                            </div>
+
+                            {group.all.length > 12 && (
+                              <div className="pop__search">
+                                <IconSearch size={13} />
+                                <input
+                                  value={query[`${person.email}|${group.code}`] ?? ''}
+                                  placeholder={`Find a ${group.label} store…`}
+                                  onChange={(e) =>
+                                    setQuery((q) => ({ ...q, [`${person.email}|${group.code}`]: e.target.value }))
+                                  }
+                                />
+                              </div>
+                            )}
+
+                            <div className="checks">
+                              {loadingBrands.includes(group.code) ? (
+                                <span className="field__help">Reading stores from Power BI…</span>
+                              ) : group.rows.length === 0 ? (
+                                <span className="field__help">No store matches.</span>
+                              ) : (
+                                group.rows.map((branch) => (
+                                  <button
+                                    key={branch}
+                                    type="button"
+                                    className={`check${has(person, group.code, branch) ? ' check--on' : ''}`}
+                                    onClick={() => toggleBranch(i, group.code, branch)}
+                                  >
+                                    <span className="check__box">
+                                      {has(person, group.code, branch) && <IconCheck size={10} />}
+                                    </span>
+                                    <span className="check__label">{branch}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                      {usesBrands && person.brands.length === 0 && (
+                        <span className="field__help">
+                          {needsLocation
+                            ? 'Choose a brand to see its branches.'
+                            : 'None chosen means every brand.'}
+                        </span>
+                      )}
                     </div>
-                  )
-                })
-              )}
-              <span className="field__help">
-                {chosenCount === 0
-                  ? 'A prep list needs at least one store — nothing is sent without one.'
-                  : `One email per store, ${chosenCount} in total.`}
-              </span>
-            </div>
-          )}
+                  )}
+                </div>
+              )
+            })}
+
+            {creating && (
+              <button type="button" className="btn people__add" onClick={addPerson}>
+                <IconPlus size={12} />
+                Add another
+              </button>
+            )}
+
+            <span className="field__help">
+              {creating
+                ? 'One email per branch per address. Pasting a list of addresses splits it into rows, each copying the scope of the one it was pasted into.'
+                : 'The address cannot be changed. Remove this recipient and add it again to move the report elsewhere.'}
+            </span>
+          </div>
 
           <div className="field">
             <span className="field__label">Sending</span>
@@ -393,7 +562,13 @@ export function RecipientEditor({ mode, recipient, reports, brands, departments 
             Cancel
           </button>
           <button type="button" className="btn btn--primary" disabled={busy || !canSave} onClick={save}>
-            {busy ? 'Saving…' : creating ? 'Add recipient' : 'Save'}
+            {busy
+              ? 'Saving…'
+              : !creating
+                ? 'Save'
+                : complete.length > 1
+                  ? `Add ${complete.length} recipients`
+                  : 'Add recipient'}
           </button>
         </div>
       </div>

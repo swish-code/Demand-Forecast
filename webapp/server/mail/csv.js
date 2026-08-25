@@ -45,18 +45,18 @@ const pct = (v) => (Number.isFinite(Number(v)) ? Number((Number(v) * 100).toFixe
  * One description per report, used by both writers.
  *
  * `type` is for the spreadsheet: it decides whether Excel treats a cell as a
- * number it can total or as text. An article code is text on purpose — 0090196
- * is an identifier, and as a number it loses its leading zero.
+ * number it can total or as text. A PLU is text on purpose — 0090196 is an
+ * identifier, and as a number it loses its leading zero.
  */
 
 /** One branch's plan, article by article. */
 export function planSheet(rows) {
   return {
-    name: 'Articles',
+    name: 'Product PLU',
     columns: [
       { key: 'CHAINID', label: 'Brand', type: 'text', width: 10 },
       { key: 'LocationID', label: 'Branch', type: 'text', width: 10 },
-      { key: 'Clean_ItemID', label: 'Article', type: 'text', width: 16 },
+      { key: 'Clean_ItemID', label: 'Product PLU', type: 'text', width: 16 },
       { key: 'ProductName_Fixed_Option', label: 'Product', type: 'text', width: 34 },
       { label: 'Prepare', type: 'int', value: (r) => int(r.Tomorrow_Forecast_Qty) },
       { label: 'Recent daily average', type: 'int', value: (r) => int(r.Last_Avg_Actual) },
@@ -91,7 +91,7 @@ export function productSheet(rows) {
       { key: 'Brand', label: 'Brand', type: 'text', width: 10 },
       { key: 'Branch', label: 'Branch', type: 'text', width: 10 },
       { key: 'Product', label: 'Product', type: 'text', width: 34 },
-      { key: 'articles', label: 'Articles', type: 'int' },
+      { key: 'articles', label: 'PLUs', type: 'int' },
       { label: 'Prepare', type: 'int', value: (r) => int(r.forecast) },
       { label: 'Recent daily average', type: 'int', value: (r) => int(r.recent) },
     ],

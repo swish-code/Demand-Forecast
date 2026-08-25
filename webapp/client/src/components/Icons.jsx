@@ -159,6 +159,12 @@ export const IconSort = (p) => (
   </Svg>
 )
 
+export const IconPlus = (p) => (
+  <Svg {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Svg>
+)
+
 export const IconCheck = (p) => (
   <Svg {...p}>
     <path d="m4 12.5 5 5L20 6.5" />

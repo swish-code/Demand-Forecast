@@ -24,7 +24,7 @@ const COLUMNS = [
   { key: 'Date', label: 'Date', width: 116, hiddenByDefault: true, costly: true, render: fmtDate },
   { key: 'LocationID', label: 'Branch', width: 96, hiddenByDefault: true, costly: true },
   // Always shown: without it a row has nothing identifying it.
-  { key: 'Clean_ItemID', label: 'Article', width: W.article, id: true, required: true },
+  { key: 'Clean_ItemID', label: 'Product PLU', width: W.article, id: true, required: true },
   { key: 'CHAINID', label: 'Brand', width: W.brand, render: (v) => <BrandTag code={v} /> },
   { key: 'ProductName_Fixed_Option', label: 'Product', strong: true },
   { key: 'Actual_Qty', label: 'Actual qty', width: W.qty, num: true, strong: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },
@@ -145,7 +145,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
               progress={1}
               loading={busy}
               value={fmtInt(forecast)}
-              foot={`${fmtInt(rows.length)} article × product rows`}
+              foot={`${fmtInt(rows.length)} PLU × product rows`}
             />
           </>
         }
@@ -181,10 +181,10 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub={
           future
-            ? 'What the forecast asks for, article by article'
+            ? 'What the forecast asks for, PLU by PLU'
             : comparedWith
-              ? `Actual vs forecast per article · demand compared with ${comparedWith.from} to ${comparedWith.to}`
-              : 'Actual vs forecast for every article in the selection'
+              ? `Actual vs forecast per PLU · demand compared with ${comparedWith.from} to ${comparedWith.to}`
+              : 'Actual vs forecast for every PLU in the selection'
         }
         flush
         tools={
@@ -210,7 +210,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             columns={columns}
             rows={rows}
             initialSort={{ key: 'Actual_Qty', dir: 'desc' }}
-            searchPlaceholder="Search product or article…"
+            searchPlaceholder="Search product or PLU…"
             tableId="products-detail"
             onColumnsChange={setHiddenCols}
             totals

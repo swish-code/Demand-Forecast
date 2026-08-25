@@ -29,9 +29,12 @@ const PAGES = [
     blurb: 'What sold against what was forecast, product by product',
     Icon: IconProduct,
     Component: ProductLevel,
-    // No article slicer: the table below already searches and sorts by article,
-    // so the slicer was a slower second way to do the same thing.
-    slicers: ['location', 'product', 'date'],
+    // Product PLU sits beside Product: the same demand is counted at both
+    // levels, and one product name covers several PLUs — Regular is four of
+    // them — so narrowing to a single code is a question the table's own
+    // search cannot answer. Listed by product name with the code beside it,
+    // because a bare 83001108300117 is not something anybody recognises.
+    slicers: ['location', 'product', 'articleName', 'date'],
   },
   {
     id: 'component',
