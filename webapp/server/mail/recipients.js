@@ -152,6 +152,22 @@ export async function createRecipient(
   return rows[0]?.id ?? null
 }
 
+/**
+ * Turn the whole list on or off in one go.
+ *
+ * Pausing rather than deleting, because the list is eighty-five branch
+ * mailboxes with their brands and branches attached: somebody testing wants the
+ * morning to stop, not to type all of that in again afterwards. Every row keeps
+ * its setup and stops receiving.
+ */
+export async function setAllActive(active) {
+  const { changes } = await pg.run('UPDATE email_recipients SET active = ? WHERE active != ?', [
+    active ? 1 : 0,
+    active ? 1 : 0,
+  ])
+  return changes
+}
+
 export async function updateRecipient(id, patch) {
   const row = await pg.get('SELECT * FROM email_recipients WHERE id = ?', [id])
   if (!row) return null

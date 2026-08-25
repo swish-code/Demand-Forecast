@@ -88,6 +88,23 @@ export function EmailPanel() {
     }
   }
 
+  async function pauseAll(pause) {
+    setWorking('pause')
+    setError(null)
+    try {
+      const { changed } = await api.admin.setRecipientsActive(!pause)
+      setNote(
+        pause
+          ? `${changed} recipient${changed === 1 ? '' : 's'} paused — nothing will be sent until you resume.`
+          : `${changed} recipient${changed === 1 ? '' : 's'} back on.`
+      )
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+    setWorking(null)
+  }
+
   const list = state?.recipients ?? []
   const willSend = list.filter((r) => r.active)
   const skipped = list.filter((r) => r.report === 'store_plan' && !r.locations?.length)
@@ -122,6 +139,27 @@ export function EmailPanel() {
           >
             {working === 'send' ? 'Sending…' : 'Send now'}
           </button>
+          {/* The switch to reach for before a test send: it stops the morning
+              without dismantling a list of eighty-five branch mailboxes. */}
+          {list.length > 0 && (
+            <button
+              type="button"
+              className="btn"
+              disabled={Boolean(working)}
+              onClick={() => pauseAll(willSend.length > 0)}
+              title={
+                willSend.length > 0
+                  ? 'Pause every recipient — nothing is sent until you resume'
+                  : 'Resume every recipient'
+              }
+            >
+              {working === 'pause'
+                ? 'Working…'
+                : willSend.length > 0
+                  ? `Pause all ${list.length}`
+                  : `Resume all ${list.length}`}
+            </button>
+          )}
           <button type="button" className="btn" onClick={() => setEditing({ mode: 'create' })}>
             Add recipient
           </button>

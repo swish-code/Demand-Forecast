@@ -18,6 +18,7 @@ import {
   createRecipient,
   updateRecipient,
   deleteRecipient,
+  setAllActive,
 } from '../mail/recipients.js'
 import { planImport, applyImport, templateCsv } from '../mail/bulk.js'
 import { config } from '../config.js'
@@ -595,6 +596,22 @@ admin.patch(
     if (!updated) return res.status(404).json({ error: 'No such recipient' })
     audit(req.user.id, 'email.recipient.update', updated.email, req.body)
     res.json({ recipient: updated, recipients: await listRecipients() })
+  })
+)
+
+/**
+ * Every recipient on or off at once.
+ *
+ * The switch a person reaches for before a test send: it stops the morning
+ * without dismantling the list.
+ */
+admin.post(
+  '/email/recipients/active',
+  handle(async (req, res) => {
+    const active = req.body?.active === true
+    const changed = await setAllActive(active)
+    audit(req.user.id, active ? 'email.recipients.resume_all' : 'email.recipients.pause_all', null, { changed })
+    res.json({ changed, recipients: await listRecipients() })
   })
 )
 

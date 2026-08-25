@@ -92,6 +92,7 @@ export const api = {
     deleteRecipient: (id) => send('DELETE', `/admin/email/recipients/${id}`),
     // Two calls, same body: without `commit` the server only says what it would do.
     importRecipients: (text, commit = false) => post('/admin/email/recipients/import', { text, commit }),
+    setRecipientsActive: (active) => post('/admin/email/recipients/active', { active }),
     emailCheck: () => get('/admin/email/check'),
     sendEmail: (opts) => post('/admin/email/send', opts ?? {}),
   },
