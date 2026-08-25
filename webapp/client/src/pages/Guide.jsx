@@ -22,7 +22,6 @@ const SECTIONS = [
   { id: 'mail', label: 'The daily email' },
   { id: 'recipients', label: 'Managing recipients' },
   { id: 'admin', label: 'Admin' },
-  { id: 'trouble', label: 'When something looks wrong' },
 ]
 
 function Section({ id, title, children }) {
@@ -253,37 +252,6 @@ export function Guide({ onDrill }) {
             </p>
           </Section>
 
-          <Section id="trouble" title="When something looks wrong">
-            <dl className="guide__list">
-              <dt>A number differs from Power BI</dt>
-              <dd>
-                Check the date on both first — this is nearly always the cause. Then check the brand
-                and branch selection matches. The app applies the same report-level filters as the
-                report, including the one that removes products beginning "SM".
-              </dd>
-              <dt>A page is slow</dt>
-              <dd>
-                Overview and Products are answered from a local copy that refreshes hourly, so they are
-                normally quick. Turning on Date and Branch in Build view asks Power BI directly for a
-                much larger result and will take longer.
-              </dd>
-              <dt>Nothing to prepare for tomorrow</dt>
-              <dd>
-                A branch with no forecast for the next day genuinely has no plan — it is skipped in the
-                email rather than sent an empty one.
-              </dd>
-              <dt>A branch is not receiving mail</dt>
-              <dd>
-                Open <em>Edit as table</em> and look for an outlined line. A branch filed under the
-                wrong brand matches no rows and silently sends nothing, which is the most common cause.
-              </dd>
-              <dt>Figures stop updating</dt>
-              <dd>
-                The header shows when the data was last read. Press <strong>Refresh</strong> in the
-                sidebar to clear the cache and ask again.
-              </dd>
-            </dl>
-          </Section>
         </div>
       </div>
     </Panel>
