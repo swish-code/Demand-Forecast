@@ -1504,6 +1504,98 @@ table.dt tbody tr.clickable {
   color: var(--text-muted);
 }
 
+/* The way in to the guide, above the Overview's figures. */
+.pagehelp {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: calc(var(--s2) * -1);
+}
+
+.pagehelp__btn {
+  gap: 6px;
+  color: var(--text-faint);
+}
+
+.pagehelp__btn:hover {
+  color: var(--text);
+}
+
+/* The guide: a row of jump links, then the prose. */
+.guide {
+  padding: var(--s3) var(--s4) var(--s4);
+}
+
+/*
+ * The contents sit across the top rather than down the side. A sticky column
+ * would be nicer, but .panel clips its content to keep its rounded corners and
+ * that disables position:sticky for everything inside it. A row needs no such
+ * favour and is fully visible on arrival, which is when it is used.
+ */
+.guide__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: var(--s3);
+  margin-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.guide__tocLink {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill, 999px);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.guide__tocLink:hover {
+  border-color: var(--blue);
+  color: var(--text);
+}
+
+.guide__body {
+  max-width: 72ch;
+}
+
+.guide__section + .guide__section {
+  margin-top: var(--s5);
+}
+
+.guide__h {
+  margin: 0 0 var(--s2);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  scroll-margin-top: var(--s3);
+}
+
+.guide__body p {
+  margin: 0 0 var(--s2);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.guide__list {
+  margin: 0;
+}
+
+.guide__list dt {
+  margin-top: var(--s3);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide__list dd {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-soft, var(--text-faint));
+}
+
 /* The recipient list as a spreadsheet: one line per branch. */
 .modal__card--wide {
   max-width: min(1080px, 96vw);

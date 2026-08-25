@@ -10,6 +10,7 @@ import { ProductLevel } from './pages/ProductLevel.jsx'
 import { ComponentLevel } from './pages/ComponentLevel.jsx'
 import { ProductionPlan } from './pages/ProductionPlan.jsx'
 import { Admin } from './pages/Admin.jsx'
+import { Guide } from './pages/Guide.jsx'
 
 /** One entry per report page: rail label, rail kicker, blurb and slicers. */
 const PAGES = [
@@ -55,6 +56,18 @@ const PAGES = [
     // No article slicer: the plan table searches and sorts by article already,
     // and a branch reads this by product.
     slicers: ['location', 'product', 'date', 'prepStatus'],
+  },
+  {
+    id: 'guide',
+    label: 'Guide',
+    kicker: 'How to use this app',
+    blurb: 'What each page answers, how the daily email works, and what to check when a number looks wrong',
+    Icon: IconSummary,
+    Component: Guide,
+    // Off the rail on purpose: it is one click from the Overview button, and a
+    // permanent entry would sit above the reports competing with them.
+    hidden: true,
+    slicers: [],
   },
   {
     id: 'admin',
@@ -144,6 +157,8 @@ export default function App({ session, onSignedOut }) {
     [session]
   )
   const page = useMemo(() => pages.find((p) => p.id === tab) ?? pages[0], [tab, pages])
+  // The rail shows the reports; the guide is reachable from the Overview.
+  const navPages = useMemo(() => pages.filter((p) => !p.hidden), [pages])
 
   /**
    * Brand selects the semantic model rather than filtering a column, so it
@@ -312,7 +327,7 @@ export default function App({ session, onSignedOut }) {
   return (
     <div className="shell">
       <SideNav
-        pages={pages}
+        pages={navPages}
         active={tab}
         onSelect={setTab}
         health={health}

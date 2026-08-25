@@ -15,7 +15,7 @@ import {
   MetricFlow,
   SignedQty,
 } from '../components/ui.jsx'
-import { IconDownload } from '../components/Icons.jsx'
+import { IconDownload, IconInfo } from '../components/Icons.jsx'
 import { TrendChart } from '../components/charts/TrendChart.jsx'
 import { CategoryBarChart } from '../components/charts/CategoryBarChart.jsx'
 import { WeekdayBiasChart, RollingAccuracyChart } from '../components/charts/insights.jsx'
@@ -336,6 +336,19 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
 
   return (
     <>
+      {/*
+        The way in to the guide.
+        
+        On the Overview because that is where everybody lands, and next to the
+        figures because "what am I looking at" is asked while looking at them.
+      */}
+      <div className="pagehelp">
+        <button type="button" className="btn pagehelp__btn" onClick={() => onDrill?.('guide', {})}>
+          <IconInfo size={13} />
+          How to use this app
+        </button>
+      </div>
+
       {/* Actual and forecast are inputs; variance and accuracy are derived from
           them, so they sit in one performance card downstream of the arrow. */}
       <MetricFlow
