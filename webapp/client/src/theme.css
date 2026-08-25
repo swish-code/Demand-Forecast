@@ -3550,6 +3550,15 @@ table.dt thead th:hover .th__sort--idle {
 :root[data-theme='dark'] { --signin-bg: #0e1219; --signin-chip: #ffffff; }
 
 .signin__masthead {
+  /*
+   * An auto margin above the masthead and another above the brand strip, so
+   * the free space is split evenly and the sign-in sits in the middle of what
+   * is left. Only the brand strip had one, which pushed it to the floor and
+   * left the card stranded at the top of a tall screen.
+   *
+   * On a short viewport both collapse to nothing and the page flows normally.
+   */
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: var(--s3);
