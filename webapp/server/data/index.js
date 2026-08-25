@@ -77,8 +77,31 @@ export const data = {
 
   // `need` is part of the cache key: a page asking for four lists must not be
   // served — or serve — a cached entry that only ever fetched two.
+  /*
+   * Whatever the local copy can answer comes from there; the rest goes live.
+   *
+   * Opening a slicer with nine brands selected cost one query per list per
+   * brand — fifty-four of them, about four and a half seconds. Locations,
+   * products and article codes are columns the copy already holds, so those are
+   * read locally and only the recipe-side lists are still asked for. The
+   * provider is always called: it carries the calendar, and that is one cheap
+   * row per brand rather than a list scan.
+   */
   slicers: (f, ds, need = null) =>
-    call('slicers', f, ds, () => provider.slicers(f, ds, need), need ? [...need].sort().join(',') : 'all'),
+    call(
+      'slicers',
+      f,
+      ds,
+      async () => {
+        const local = need ? cube.listsFor(f.brand, f, need) : {}
+        const keys = Object.keys(local)
+        const rest = need ? need.filter((k) => !keys.includes(k)) : need
+        const live = await provider.slicers(f, ds, rest)
+        // Local values win where present; everything else is as the model gave it.
+        return { ...live, ...local }
+      },
+      need ? [...need].sort().join(',') : 'all'
+    ),
   // Derived from the copy the same way /summary derives them, so the two pages
   // cannot show different totals for the same window.
   /*

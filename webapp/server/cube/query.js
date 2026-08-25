@@ -129,6 +129,76 @@ export function topProducts(brand, f, top = 0) {
  * filter is applied — canAnswerArticles enforces that rather than leaving it to
  * the caller to remember.
  */
+/* ------------------------------------------------------- slicer lists --- */
+
+/**
+ * The values a slicer offers, from the local copy.
+ *
+ * These were the slowest thing in the application and nobody noticed, because
+ * the cost only appears with several brands selected: one DAX query per list
+ * per brand, so six lists across nine brands is fifty-four queries and about
+ * four and a half seconds before a dropdown opens.
+ *
+ * Three of those lists are columns the copy already holds. Answering them here
+ * leaves only the recipe-side lists to fetch, and those belong to a model the
+ * copy does not mirror.
+ *
+ * The same filters apply as anywhere else, so the lists still cross-filter each
+ * other: narrowing to one branch narrows the product list to what that branch
+ * sells, exactly as the live query does.
+ */
+export function locations(brand, f) {
+  const { sql, args } = where(brand, { ...f, locations: null })
+  return rowsOf(
+    `SELECT DISTINCT location AS v FROM cube_daily WHERE ${sql} AND location <> '' ORDER BY location`,
+    args
+  ).map((r) => r.v)
+}
+
+export function products(brand, f) {
+  const { sql, args } = where(brand, { ...f, products: null })
+  return rowsOf(
+    `SELECT DISTINCT product AS v FROM cube_daily WHERE ${sql} AND product <> '' ORDER BY product`,
+    args
+  ).map((r) => r.v)
+}
+
+/**
+ * Articles, with the product they belong to.
+ *
+ * Only when no branch is chosen: the article table is kept without a location
+ * column, because carrying one would make it four hundred thousand rows a brand
+ * rather than thirty-seven thousand. A branch-filtered article list therefore
+ * has to go live, and says so by refusing here.
+ */
+export function articleNames(brand, f) {
+  if (f?.locations?.length) return null
+  const { sql, args } = where(brand, { ...f, locations: null, products: null })
+  const scoped = sql.replace(/location/g, 'article')
+  return rowsOf(
+    `SELECT DISTINCT article AS v, product AS p FROM cube_article_daily WHERE ${scoped} AND article <> ''
+      ORDER BY product, article`,
+    args
+  ).map((r) => ({ value: r.v, label: r.p || String(r.v), hint: String(r.v) }))
+}
+
+/** Which of the asked-for lists this copy can answer for that brand. */
+export function listsFor(brand, f, need) {
+  if (!canAnswer(brand, f)) return {}
+  const out = {}
+  for (const key of need ?? []) {
+    if (key === 'locations') out.locations = locations(brand, f)
+    if (key === 'products') out.products = products(brand, f)
+    if (key === 'articleNames' || key === 'articles') {
+      const rows = articleNames(brand, f)
+      if (!rows) continue
+      out.articleNames = rows
+      out.articles = rows.map((r) => r.value)
+    }
+  }
+  return out
+}
+
 export function canAnswerArticles(brand, filters = {}) {
   if (filters.locations?.length) return false
   if (!canAnswer(brand, filters)) return false

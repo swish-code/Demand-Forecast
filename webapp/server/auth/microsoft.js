@@ -138,6 +138,30 @@ export async function completeSignIn({ code, state }) {
  * and a scope. They can sign in successfully and still see nothing until that
  * happens, which is the intended behaviour, not a bug.
  */
+/**
+ * The addresses that are administrators the moment they sign in.
+ *
+ * Without this a fresh deployment is a locked room. The first person to sign in
+ * with Microsoft is created pending, waiting for an administrator to approve
+ * them — and there is no administrator, because the password form is hidden
+ * whenever Microsoft sign-in is working. Somebody has to be let in by
+ * configuration rather than by another user.
+ *
+ * ADMIN_EMAILS is a comma-separated list and falls back to ADMIN_EMAIL, so a
+ * deployment that only names one still works. Matching is case-insensitive:
+ * Entra returns whatever casing the directory holds, which is not necessarily
+ * what was typed into the variable.
+ */
+const bootstrapAdmins = () =>
+  new Set(
+    String(process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
+      .split(',')
+      .map((v) => v.trim().toLowerCase())
+      .filter(Boolean)
+  )
+
+const isBootstrapAdmin = (email) => bootstrapAdmins().has(String(email).trim().toLowerCase())
+
 export async function accountFor({ email, name }) {
   const existing = db
     .prepare('SELECT id, email, name, role, status FROM users WHERE email = ?')
@@ -149,18 +173,38 @@ export async function accountFor({ email, name }) {
       db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, existing.id)
     }
     db.prepare("UPDATE users SET auth_provider = 'microsoft' WHERE id = ?").run(existing.id)
+
+    // A named administrator who was created pending by an earlier sign-in is
+    // let in now rather than waiting for somebody who cannot exist yet.
+    if (isBootstrapAdmin(email) && (existing.status !== 'active' || existing.role !== 'admin')) {
+      db.prepare("UPDATE users SET status = 'active', role = 'admin' WHERE id = ?").run(existing.id)
+      console.log(`  [auth] ${email} activated as an administrator (named in ADMIN_EMAILS)`)
+      return {
+        user: { ...existing, status: 'active', role: 'admin' },
+        created: false,
+        promoted: true,
+      }
+    }
     return { user: existing, created: false }
   }
 
   // No password is ever used for these accounts; the column is NOT NULL, so it
   // gets an unusable random value rather than anything guessable.
   const unusable = await hashPassword(b64url(randomBytes(32)))
+  const bootstrap = isBootstrapAdmin(email)
+  if (bootstrap) console.log(`  [auth] ${email} created as an administrator (named in ADMIN_EMAILS)`)
   const info = db
     .prepare(
       `INSERT INTO users (email, name, password_hash, role, status, auth_provider)
-       VALUES (?, ?, ?, 'store', 'pending', 'microsoft')`
+       VALUES (?, ?, ?, ?, ?, 'microsoft')`
     )
-    .run(email, name || '', unusable)
+    .run(
+      email,
+      name || '',
+      unusable,
+      bootstrap ? 'admin' : 'store',
+      bootstrap ? 'active' : 'pending'
+    )
 
   const user = db
     .prepare('SELECT id, email, name, role, status FROM users WHERE id = ?')

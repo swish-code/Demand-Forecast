@@ -1556,7 +1556,34 @@ table.dt tbody tr.clickable {
 }
 
 .guide__body {
-  max-width: 72ch;
+  /*
+   * Wide enough to use the page, narrow enough to read. Prose past about 90
+   * characters a line is hard to track back from, so the body fills the panel
+   * and the definition lists below run in two columns rather than one long one.
+   */
+  max-width: none;
+}
+
+.guide__section p {
+  max-width: 88ch;
+}
+
+@media (min-width: 1080px) {
+  .guide__list {
+    columns: 2;
+    column-gap: var(--s5);
+  }
+
+  .guide__list > dt {
+    break-after: avoid;
+  }
+
+  /* A term and its description must not be split across the column break. */
+  .guide__list > dd {
+    break-before: avoid;
+    break-inside: avoid;
+    margin-bottom: var(--s3);
+  }
 }
 
 .guide__section + .guide__section {
@@ -1583,7 +1610,7 @@ table.dt tbody tr.clickable {
 }
 
 .guide__list dt {
-  margin-top: var(--s3);
+  margin-top: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
