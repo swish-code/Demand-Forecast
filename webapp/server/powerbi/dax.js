@@ -127,6 +127,40 @@ export const M = {
  * Distinct values for one slicer. Slicers cross-filter each other: passing the
  * rest of the filter state narrows the list the way Power BI slicers do.
  */
+/**
+ * A recipe-side slicer, narrowed to what the current selection actually uses.
+ *
+ * These three listed the whole recipe table regardless of anything chosen. On a
+ * model holding one brand that was merely untidy; on the two that hold two
+ * brands each — Slice with Just C, Mishmash with Tabel — it was wrong: choosing
+ * Tabel offered Mishmash's components, and picking one returned nothing.
+ *
+ * 'RECIPE TABLE' has no relationship to the forecast, so the narrowing follows
+ * the same join the [Component_Forecast_Qty] measure makes: Product PLU against
+ * Clean_ItemID. Whatever filters are in play — brand, branch, product, date —
+ * decide which PLUs are in scope, and the recipe rows follow from those.
+ */
+function recipeSlicer(f = {}, column) {
+  const filters = filterArgs(f, { skip: ['items', 'recipeGroups', 'nodeTypes'] })
+  const scope = filters.length ? `,\n    ${filters.join(',\n    ')}` : ''
+  return `EVALUATE
+VAR PLUs =
+  CALCULATETABLE(
+    VALUES(Forecast_Product_Table[Clean_ItemID])${scope}
+  )
+RETURN
+FILTER(
+  DISTINCT(
+    SELECTCOLUMNS(
+      FILTER('RECIPE TABLE', 'RECIPE TABLE'[Product PLU] IN PLUs),
+      "${column}", 'RECIPE TABLE'[${column}]
+    )
+  ),
+  NOT ISBLANK([${column}])
+)
+ORDER BY [${column}] ASC`
+}
+
 export const slicerQuery = {
   brands: (f) => `EVALUATE
 FILTER(
@@ -189,26 +223,9 @@ FILTER(
 )
 ORDER BY Forecast_Product_Table[ProductName_Fixed_Option] ASC, Forecast_Product_Table[Clean_ItemID] ASC`,
 
-  items: () => `EVALUATE
-FILTER(
-  DISTINCT(SELECTCOLUMNS('RECIPE TABLE', "Item", 'RECIPE TABLE'[Item])),
-  NOT ISBLANK([Item])
-)
-ORDER BY [Item] ASC`,
-
-  recipeGroups: () => `EVALUATE
-FILTER(
-  DISTINCT(SELECTCOLUMNS('RECIPE TABLE', "Recipe Group", 'RECIPE TABLE'[Recipe Group])),
-  NOT ISBLANK([Recipe Group])
-)
-ORDER BY [Recipe Group] ASC`,
-
-  nodeTypes: () => `EVALUATE
-FILTER(
-  DISTINCT(SELECTCOLUMNS('RECIPE TABLE', "Node Type", 'RECIPE TABLE'[Node Type])),
-  NOT ISBLANK([Node Type])
-)
-ORDER BY [Node Type] ASC`,
+  items: (f) => recipeSlicer(f, 'Item'),
+  recipeGroups: (f) => recipeSlicer(f, 'Recipe Group'),
+  nodeTypes: (f) => recipeSlicer(f, 'Node Type'),
 
   prepStatus: () => `EVALUATE
 DISTINCT(

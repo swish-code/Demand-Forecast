@@ -721,7 +721,7 @@ admin.get(
     res.json({
       ...(await verifyTransport()),
       transport: transportName(),
-      connectedMailbox: connectedMailbox(),
+      connectedMailbox: await connectedMailbox(),
     })
   })
 )

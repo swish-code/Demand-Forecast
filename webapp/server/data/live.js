@@ -61,9 +61,12 @@ export const liveProvider = {
       maybe('products', () => once(datasetId, dax.slicerQuery.products(filters))),
       maybe('articles', () => once(datasetId, dax.slicerQuery.articles(filters))),
       maybe('articleNames', () => once(datasetId, dax.slicerQuery.articleNames(filters))),
-      maybe('items', () => once(datasetId, dax.slicerQuery.items())),
-      maybe('recipeGroups', () => once(datasetId, dax.slicerQuery.recipeGroups())),
-      maybe('nodeTypes', () => once(datasetId, dax.slicerQuery.nodeTypes())),
+      // These three take the filters too. They used to be called bare, which is
+      // why a model holding two brands offered both brands' components whichever
+      // one was chosen.
+      maybe('items', () => once(datasetId, dax.slicerQuery.items(filters))),
+      maybe('recipeGroups', () => once(datasetId, dax.slicerQuery.recipeGroups(filters))),
+      maybe('nodeTypes', () => once(datasetId, dax.slicerQuery.nodeTypes(filters))),
       maybe('prepStatus', () => once(datasetId, dax.slicerQuery.prepStatus())),
       once(datasetId, dax.slicerQuery.dateRange()),
     ])

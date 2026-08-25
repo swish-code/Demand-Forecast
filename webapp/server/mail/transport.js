@@ -57,10 +57,10 @@ const sameAddress = (a, b) =>
   Boolean(a && b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase()
 
 /** Null when the mailbox that would send is the right one; a sentence when not. */
-function senderMismatch() {
+async function senderMismatch() {
   if (TRANSPORT !== 'delegated') return null
   const from = sender()
-  const mailbox = connectedMailbox()
+  const mailbox = await connectedMailbox()
   if (!from || !mailbox) return null
   if (sameAddress(mailbox.email, from)) return null
   return (
@@ -75,7 +75,7 @@ export const transportName = () => TRANSPORT
 export const sendingAddress = () => sender()
 
 /** What each one needs before it can be used at all. */
-export function transportReadiness() {
+export async function transportReadiness() {
   const from = sender()
   switch (TRANSPORT) {
     case 'smtp':
@@ -88,8 +88,8 @@ export function transportReadiness() {
     case 'flow':
       return { ...flowReadiness(), endpoint: describeFlow() }
     case 'delegated': {
-      const mailbox = connectedMailbox()
-      const wrong = senderMismatch()
+      const mailbox = await connectedMailbox()
+      const wrong = await senderMismatch()
       return {
         transport: 'delegated',
         ready: Boolean(mailbox) && !wrong,
@@ -146,7 +146,7 @@ export async function sendMail({ to, subject, html, replyTo, attachments = [] })
   if (TRANSPORT === 'delegated') {
     // Checked here rather than only on the admin page: the schedule sends
     // without anybody looking at a page first.
-    const wrong = senderMismatch()
+    const wrong = await senderMismatch()
     if (wrong) throw new Error(wrong)
     return sendDelegated({ to, subject, html, replyTo, attachments })
   }
@@ -160,7 +160,7 @@ export async function sendMail({ to, subject, html, replyTo, attachments = [] })
 
 /** A pre-flight the admin page can call before anyone waits on a schedule. */
 export async function verifyTransport() {
-  const readiness = transportReadiness()
+  const readiness = await transportReadiness()
   if (!readiness.ready) {
     return { ...readiness, ok: false, detail: `Not configured: ${readiness.missing.join(', ')}` }
   }

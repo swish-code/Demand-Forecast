@@ -81,8 +81,8 @@ function unseal(packed) {
 const row = () => pg.get('SELECT * FROM mail_identity WHERE id = 1')
 
 /** Who we are currently able to send as, without exposing the token. */
-export function connectedMailbox() {
-  const r = row()
+export async function connectedMailbox() {
+  const r = await row()
   if (!r) return null
   return { email: r.email, connectedAt: r.connected_at, connectedBy: r.connected_by }
 }
@@ -196,7 +196,7 @@ let cached = null
 async function accessToken() {
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.value
 
-  const r = row()
+  const r = await row()
   if (!r) throw new Error('No mailbox is connected. Connect one on the admin page.')
 
   const token = await exchange({
