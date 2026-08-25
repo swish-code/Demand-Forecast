@@ -69,6 +69,59 @@ export function Admin({ session }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(true)
   const [editing, setEditing] = useState(null)
+  const load = useCallback(async () => {
+    setBusy(true)
+    try {
+      const [users, stats] = await Promise.all([api.admin.users(), api.admin.analytics()])
+      setData(users)
+      setAnalytics(stats)
+      setError(null)
+    } catch (err) {
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const [granting, setGranting] = useState(null)
+
+  /*
+   * One press: active, and able to see every brand.
+   *
+   * Every brand rather than none, because an account that is active with no
+   * grants can sign in and see an empty application, which reads as broken
+   * rather than as restricted. Narrowing afterwards is a deliberate act with
+   * the scope editor; the common case here is a colleague who should see the
+   * lot.
+   */
+  const grant = useCallback(
+    async (user) => {
+      setGranting(user.id)
+      try {
+        /*
+         * One row per brand, every location.
+         *
+         * "All brands" has no single representation — a scope row with neither
+         * a brand nor a location is discarded on the way in, so granting it
+         * that way produced an active account that could see nothing at all,
+         * which looks broken rather than restricted. A row per brand with no
+         * location says the same thing in the form the scope table holds.
+         */
+        await api.admin.updateUser(user.id, {
+          name: user.name ?? '',
+          role: user.role,
+          status: 'active',
+          department: user.department ?? null,
+          scopes: (session?.brands ?? []).map((b) => ({ brand: b.code, location: null })),
+        })
+        await load()
+      } catch (err) {
+        setError(err.message)
+      }
+      setGranting(null)
+    },
+    [load]
+  )
   const [notice, setNotice] = useState(null)
   const [usageBy, setUsageBy] = useState('role')
 
@@ -86,20 +139,6 @@ export function Admin({ session }) {
   const { data: context, loading: contextLoading } = useData(api.context, contextFilters, {
     enabled: (session?.brands ?? []).length > 0,
   })
-
-  const load = useCallback(async () => {
-    setBusy(true)
-    try {
-      const [users, stats] = await Promise.all([api.admin.users(), api.admin.analytics()])
-      setData(users)
-      setAnalytics(stats)
-      setError(null)
-    } catch (err) {
-      setError(err)
-    } finally {
-      setBusy(false)
-    }
-  }, [])
 
   useEffect(() => {
     load()
@@ -182,12 +221,41 @@ export function Admin({ session }) {
         </InfoBanner>
       )}
 
+      {/*
+        Approving somebody was always possible and never visible: it meant
+        opening the row, finding the status control and switching it. Somebody
+        signing in and being told to wait for an administrator deserves an
+        administrator who can see them and act in one press.
+      */}
       {pending.length > 0 && (
-        <InfoBanner>
-          <strong>
-            {pending.length} account{pending.length === 1 ? '' : 's'} awaiting approval
-          </strong>{' '}
-          — open a row to set a role and scope, then mark it active.
+        <InfoBanner tone="warn">
+          <div className="grantrow">
+            <div>
+              <strong>
+                {pending.length} account{pending.length === 1 ? '' : 's'} waiting for access
+              </strong>{' '}
+              — signed in with Microsoft and cannot see anything yet.
+            </div>
+            <div className="grantrow__list">
+              {pending.map((u) => (
+                <span className="grantrow__one" key={u.id}>
+                  <span className="grantrow__who">{u.name || u.email}</span>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    disabled={granting === u.id}
+                    onClick={() => grant(u)}
+                    title={`Give ${u.email} access to every brand`}
+                  >
+                    {granting === u.id ? 'Granting…' : 'Grant access'}
+                  </button>
+                  <button type="button" className="btn btn--sm" onClick={() => setEditing({ mode: 'edit', user: u })}>
+                    Choose scope
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
         </InfoBanner>
       )}
 
