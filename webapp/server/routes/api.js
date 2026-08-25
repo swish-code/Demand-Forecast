@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { data } from '../data/index.js'
+import { db, DATA_DIR } from '../db/index.js'
 import { buildContext, explain, trustNote } from '../insights/context.js'
 import {
   deriveKpis,
@@ -119,9 +120,26 @@ function scopedFilters(req, brand) {
  * Public on purpose: an uptime monitor must reach it without credentials, and
  * it exposes only configuration facts, never data.
  */
+/**
+ * Is this instance actually serving?
+ *
+ * A platform health check that only proves the process is listening will keep
+ * routing traffic to an instance whose database has gone. So the database is
+ * touched here — one trivial read — and a failure is reported as unhealthy
+ * rather than as a cheerful ok.
+ */
 api.get('/health', (req, res) => {
-  res.json({
-    ok: true,
+  let database = 'ok'
+  try {
+    db.prepare('SELECT 1 AS ok').get()
+  } catch (err) {
+    database = err.message
+  }
+  const ok = database === 'ok'
+  res.status(ok ? 200 : 503).json({
+    ok,
+    database,
+    storage: DATA_DIR,
     mode: data.mode,
     workspaceId: config.pbi.workspaceId,
     signedIn: Boolean(req.user),
