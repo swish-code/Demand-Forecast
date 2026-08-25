@@ -81,13 +81,22 @@ export const data = {
     call('slicers', f, ds, () => provider.slicers(f, ds, need), need ? [...need].sort().join(',') : 'all'),
   // Derived from the copy the same way /summary derives them, so the two pages
   // cannot show different totals for the same window.
-  kpis: (f, ds) =>
+  /*
+   * `live` refuses the local copy for this one call.
+   *
+   * The copy is refreshed hourly, so it can be an hour behind the model — fine
+   * for a page, wrong for the morning digest, which states the day it measured.
+   * That day was read live from the model while the figures came from a copy
+   * that had not caught up: the digest built at 05:55 said 24 August above
+   * figures for the 23rd, because the extract landed at 06:33.
+   */
+  kpis: (f, ds, { live = false } = {}) =>
     call('kpis', f, ds, () => {
-      if (!cube.canAnswer(f.brand, f)) return provider.kpis(f, ds)
+      if (live || !cube.canAnswer(f.brand, f)) return provider.kpis(f, ds)
       const rows = cube.trend(f.brand, f)
       const total = (k) => rows.reduce((n, r) => n + (Number(r[k]) || 0), 0)
       return deriveKpis(total('Actual_Qty'), total('Forecast_Qty'))
-    }),
+    }, live ? 'live' : undefined),
 
   /*
    * The three Overview queries prefer the local copy.
@@ -104,9 +113,13 @@ export const data = {
    * The extract clears the cache when it changes anything, so the two cannot
    * drift apart.
    */
-  trend: (f, ds) =>
-    call('trend', f, ds, () =>
-      cube.canAnswer(f.brand, f) ? cube.trend(f.brand, f) : provider.trend(f, ds)
+  trend: (f, ds, { live = false } = {}) =>
+    call(
+      'trend',
+      f,
+      ds,
+      () => (!live && cube.canAnswer(f.brand, f) ? cube.trend(f.brand, f) : provider.trend(f, ds)),
+      live ? 'live' : undefined
     ),
 
   topProducts: (f, top, ds) =>

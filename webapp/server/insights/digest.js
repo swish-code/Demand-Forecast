@@ -81,9 +81,19 @@ async function forBrand(brand) {
     const window = windowFor(range)
     const f = { ...base, ...window }
 
+    /*
+     * Live, not from the local copy.
+     *
+     * The digest states the day it measured, and that day is read from the
+     * model. Taking the figures from a copy refreshed on its own schedule let
+     * the two disagree: the 25 August digest was built at 05:55 and reported
+     * "24 August" over the 23rd's numbers, because the extract that brought in
+     * the 24th did not land until 06:33. Nine extra queries once a morning is a
+     * cheap price for the header and the figures being about the same day.
+     */
     const [kpis, trend, locations, plan] = await Promise.all([
-      withRetry(() => data.kpis(f, brand.datasetId)),
-      withRetry(() => data.trend(f, brand.datasetId)),
+      withRetry(() => data.kpis(f, brand.datasetId, { live: true })),
+      withRetry(() => data.trend(f, brand.datasetId, { live: true })),
       withRetry(() => data.byLocation(f, brand.datasetId)),
       withRetry(() => data.productionPlan(base, brand.datasetId)).catch(() => null),
     ])
@@ -133,6 +143,18 @@ async function forBrand(brand) {
   }
 }
 
+/**
+ * The one day every brand reported, or null when they disagree.
+ *
+ * A brand whose model has not caught up measures to an earlier day than the
+ * rest. Rather than pick one and imply the others match it, the panel is left
+ * to say nothing — a missing date is a smaller lie than a wrong one.
+ */
+function measuredDay(daily) {
+  const days = [...new Set((daily ?? []).map((d) => String(d.date ?? '').slice(0, 10)).filter(Boolean))]
+  return days.length === 1 ? days[0] : null
+}
+
 /** Runs every brand and writes one digest row. Returns the stored digest. */
 export async function buildDigest({ reason = 'scheduled' } = {}) {
   const startedAt = Date.now()
@@ -179,9 +201,17 @@ export async function buildDigest({ reason = 'scheduled' } = {}) {
     daily,
     dailyThreshold: DAILY_ACCURACY_THRESHOLD,
     windows,
-    // The single date every brand was measured to, when they agree — which is
-    // the normal case, and lets the panel say it in one line.
-    measuredTo: windows.length && windows.every((w) => w.to === windows[0].to) ? windows[0].to : null,
+    /*
+     * The day the figures below are actually for, not the day the window
+     * reached.
+     *
+     * These were two different things. The window's end came from the model's
+     * calendar; each brand's figure came from the last row that had sales in
+     * it. When they disagreed the panel stated one date over the other's
+     * numbers, which is worse than saying nothing. Taken from the rows
+     * themselves, the label cannot be wrong about what is under it.
+     */
+    measuredTo: measuredDay(daily),
     worst: worstSeverity(findings),
     counts: {
       critical: findings.filter((f) => f.severity === 'critical').length,

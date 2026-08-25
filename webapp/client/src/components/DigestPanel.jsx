@@ -162,7 +162,13 @@ export function DigestPanel() {
           {digest.daily?.length > 0 && (
             <div className="score">
               <h3 className="digest__groupHead">
-                <span>Yesterday, every brand</span>
+                {/* Named, not "yesterday": the figures are for the last day
+                    every brand had sales in, which is usually yesterday and
+                    occasionally the day before, and the reader should not have
+                    to work out which. */}
+                <span>
+                  {digest.measuredTo ? longDay(digest.measuredTo) : 'Yesterday'}, every brand
+                </span>
                 <span className="score__note">
                   worst first · threshold {fmtPct(digest.dailyThreshold ?? 0.9, 0)}
                 </span>

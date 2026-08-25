@@ -163,6 +163,8 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
     enabled: ready && Boolean(data),
     nonce: refreshNonce,
   })
+  const tomorrowQty = tomorrow?.kpis?.Tomorrow_Forecast_Qty ?? null
+  const tomorrowDay = tomorrow?.kpis?.Plan_Date ?? null
   const todayQty = tomorrow?.kpis?.Today_Forecast_Qty ?? null
   // Named, not implied. The date comes from the model's own TODAY(), which is
   // the service's clock, so saying which day it means is what lets this be
@@ -364,6 +366,14 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
             loading={busy || (Boolean(data) && tomorrow === undefined)}
             value={todayQty === null ? '—' : fmtInt(todayQty)}
             foot={todayDay ? `Units expected · ${fmtDate(todayDay)}` : 'Units expected today'}
+          />
+          <MetricCard
+            label="Tomorrow's forecast"
+            accent="blue"
+            progress={1}
+            loading={busy || (Boolean(data) && tomorrow === undefined)}
+            value={tomorrowQty === null ? '—' : fmtInt(tomorrowQty)}
+            foot={tomorrowDay ? `Units to prepare · ${fmtDate(tomorrowDay)}` : 'Units to prepare'}
           />
           </>
         }
