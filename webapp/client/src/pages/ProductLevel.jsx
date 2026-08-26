@@ -23,8 +23,10 @@ const COLUMNS = [
   // Off unless asked for: each one splits every row by that field.
   { key: 'Date', label: 'Date', width: 116, hiddenByDefault: true, costly: true, render: fmtDate },
   { key: 'LocationID', label: 'Branch', width: 96, hiddenByDefault: true, costly: true },
-  // Always shown: without it a row has nothing identifying it.
-  { key: 'Clean_ItemID', label: 'Product PLU', width: W.article, id: true, required: true },
+  // The PLU column is out at the moment — asked for on 25 Aug 2026. The
+  // rows are still grouped by it, so two products sharing a name stay on
+  // separate lines; only the code itself is hidden. Restore by putting the
+  // Clean_ItemID column back here and the article slicers back in App.jsx.
   { key: 'CHAINID', label: 'Brand', width: W.brand, render: (v) => <BrandTag code={v} /> },
   { key: 'ProductName_Fixed_Option', label: 'Product', strong: true },
   { key: 'Actual_Qty', label: 'Actual qty', width: W.qty, num: true, strong: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },

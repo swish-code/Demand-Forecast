@@ -24,7 +24,10 @@ import { useChartTheme } from '../components/charts/useChartTheme.js'
 import { IconDownload, IconCalendar } from '../components/Icons.jsx'
 
 const COLUMNS = [
-  { key: 'Clean_ItemID', label: 'Product PLU', width: W.article, id: true, required: true },
+  // The PLU column is out at the moment — asked for on 25 Aug 2026. The
+  // rows are still grouped by it, so two products sharing a name stay on
+  // separate lines; only the code itself is hidden. Restore by putting the
+  // Clean_ItemID column back here and the article slicers back in App.jsx.
   { key: 'CHAINID', label: 'Brand', width: W.brand, render: (v) => <BrandTag code={v} /> },
   { key: 'LocationID', label: 'Location', width: W.location, strong: true },
   { key: 'ProductName_Fixed_Option', label: 'Product' },
@@ -128,38 +131,15 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         Planning for <strong>tomorrow · {tomorrow ? fmtLongDate(tomorrow) : '—'}</strong>
       </InfoBanner>
 
-      {/* How far to trust the numbers below, in the terms a kitchen works in.
-          Placed above the plan because it changes how the plan is read. */}
-      {/* One line, because this is read at six in the morning.
-          The verdict and the evidence for it, and the bar so the spread can be
-          seen rather than parsed. Everything else moved to the email. */}
-      {context?.trustNote && (
-        <section className="trust">
-          <div className="trust__head">
-            <h2 className="trust__question">{context.trustNote.question}</h2>
-            <span className="trust__basis">{context.trustNote.basis}</span>
-          </div>
-
-          <p className="trust__headline">{context.trustNote.headline}</p>
-
-          <div className="trust__scale" aria-hidden="true">
-            <span className="trust__track">
-              <span
-                className="trust__band"
-                style={{
-                  left: `${pos(context.trustNote.low)}%`,
-                  width: `${Math.max(3, pos(context.trustNote.high) - pos(context.trustNote.low))}%`,
-                }}
-              />
-              <span className="trust__mark" style={{ left: `${pos(context.trustNote.typical)}%` }} />
-              <span className="trust__hundred" style={{ left: `${pos(1)}%` }} />
-            </span>
-            <span className="trust__ticks">
-              <span>60%</span><span>80%</span><span>100%</span><span>120%</span>
-            </span>
-          </div>
-        </section>
-      )}
+      {/*
+        * The "How much can you trust this prep plan?" card is out at the
+        * moment — asked for on 25 Aug 2026.
+        *
+        * Nothing else changed: /api/context still returns trustNote and the
+        * daily email still carries it, so restoring this is putting the section
+        * back, not rebuilding it. The band it quotes was also narrowed to the
+        * middle half of days at the same time.
+        */}
 
       {/* Read before the plan, not after the complaint: a branch that knows
           Wednesday habitually lands under can prepare for it. */}

@@ -114,7 +114,24 @@ export function buildContext({ trend = [], byLocation = [], today = null } = {})
   // one closure or one promotion would widen an SD enough to make the band
   // useless exactly when it matters.
   const daily = rows.map((r, i) => err[i] / num(r.Actual_Qty)).sort((a, b) => a - b)
-  const band = { lo: quantile(daily, 0.1), hi: quantile(daily, 0.9), median: quantile(daily, 0.5) }
+
+  /*
+   * The middle half of days, not the middle eight-tenths.
+   *
+   * At the tenth and ninetieth percentiles the band came out around 87–104 for
+   * every 100 prepped — seventeen points wide, which is too loose to prep
+   * against: a range that covers almost everything tells a section leader
+   * nothing they can act on. The quartiles describe the day they are actually
+   * likely to get. The two worst and two best days in a month sit outside it on
+   * purpose, and `low`/`high` are still honest about which days those are.
+   */
+  const BAND_LOW = 0.25
+  const BAND_HIGH = 0.75
+  const band = {
+    lo: quantile(daily, BAND_LOW),
+    hi: quantile(daily, BAND_HIGH),
+    median: quantile(daily, 0.5),
+  }
 
   // The same band restated as the question a kitchen actually asks: of what the
   // plan tells us to prepare, how much has been selling?
@@ -278,7 +295,7 @@ export function trustNote(ctx) {
   // you have been selling between 88 and 104" is a thing a section leader can
   // picture. The long version below still exists for the API.
   const per = (v) => Math.round(v * 100)
-  const evidence = `For every 100 you prep, you have usually sold between ${per(low)} and ${per(high)}.`
+  const evidence = `For every 100 you prep, you have most often sold between ${per(low)} and ${per(high)}.`
 
   // Both halves of the advice in one line, because the halves point opposite
   // ways and only giving one of them is how a kitchen ends up short.
@@ -302,7 +319,7 @@ export function trustNote(ctx) {
     headline,
     question: 'How much can you trust this prep plan?',
     lead: `Looking at the last ${days} days: most days, about ${perHundred} out of every 100 units on the plan actually got sold.`,
-    range: `On 8 out of 10 days, actual sales were somewhere between ${pct(low)} and ${pct(high)} of what the plan said.`,
+    range: `On half of the days, actual sales landed between ${pct(low)} and ${pct(high)} of what the plan said.`,
     meaningTitle: 'What this means for prepping',
     ...advice,
     basis: `Based on the last ${days} completed days.`,

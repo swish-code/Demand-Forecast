@@ -77,13 +77,19 @@ export const liveProvider = {
       locations: locations ? locations.map((x) => x.LocationID) : [],
       products: products ? products.map((x) => x.ProductName_Fixed_Option) : [],
       articles: articles ? articles.map((x) => x.Clean_ItemID) : [],
-      // { value, label } so a slicer can show the product name and still filter
-      // on the article code the rows are actually keyed by.
+      /*
+       * The PLU is the label; the product name is what sits beside it.
+       *
+       * This slicer is called Product PLU and a PLU is a number, so the number
+       * is what the list shows. The name is carried as the hint, which the
+       * search also matches — somebody who knows "Beef Arayes" and not 2005 can
+       * still type the words and find it.
+       */
       articleNames: articleNames
         ? articleNames.map((x) => ({
             value: x.Clean_ItemID,
-            label: x.ProductName_Fixed_Option || String(x.Clean_ItemID),
-            hint: String(x.Clean_ItemID),
+            label: String(x.Clean_ItemID),
+            hint: x.ProductName_Fixed_Option || '',
           }))
         : [],
       items: items ? items.map((x) => x.Item) : [],

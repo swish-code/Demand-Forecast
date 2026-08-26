@@ -26,8 +26,18 @@ let running = false
 let last = null
 let lastError = null
 
+/**
+ * Whether the copy is being kept at all — a plain answer, not a promise.
+ *
+ * state() has to await the database to count what it holds, but the schedule
+ * starts before anything is awaited and only wants this one flag. Reading it off
+ * the promise returned `undefined`, which read as "disabled" and silently left
+ * the copy never refreshing itself.
+ */
+const enabled = () => !config.demoMode && process.env.CUBE_ENABLED !== '0'
+
 const state = async () => ({
-  enabled: !config.demoMode && process.env.CUBE_ENABLED !== '0',
+  enabled: enabled(),
   running,
   last,
   lastError,
@@ -82,7 +92,7 @@ export const runBackfill = () => guarded('backfill', () => backfillAll())
  * overnight run, which is the slow behaviour the copy exists to replace.
  */
 async function backfillMissing() {
-  const have = new Set(coverage().map((c) => c.brand))
+  const have = new Set((await coverage()).map((c) => c.brand))
   const missing = config.brands.filter((b) => !have.has(b.code))
   if (!missing.length) return
   await guarded('initial backfill', async () => {
@@ -107,16 +117,34 @@ function untilHour(hour) {
 }
 
 export function startCubeSchedule() {
-  if (!state().enabled) return false
+  if (!enabled()) return false
+
+  /*
+   * A background job must never be able to take the site down.
+   *
+   * These run detached from any request, so a rejection here is nobody's to
+   * catch and Node ends the process for it — which is how a fault in filling the
+   * copy came to stop the server answering at all. Keeping stale figures is a
+   * far better failure than serving none, so the error is recorded and the site
+   * carries on reading live.
+   */
+  const detached = (label, run) => {
+    Promise.resolve()
+      .then(run)
+      .catch((err) => {
+        lastError = `${label}: ${err.message}`
+        console.log(`  [cube] ${label} failed: ${err.message.slice(0, 120)}`)
+      })
+  }
 
   setTimeout(() => {
-    backfillMissing().then(() => refreshRecentAll())
-    setInterval(refreshRecentAll, REFRESH_MINUTES * 60_000).unref?.()
+    detached('initial backfill', () => backfillMissing().then(() => refreshRecentAll()))
+    setInterval(() => detached('recent refresh', refreshRecentAll), REFRESH_MINUTES * 60_000).unref?.()
   }, FIRST_RUN_MS).unref?.()
 
   setTimeout(() => {
-    runBackfill()
-    setInterval(runBackfill, 24 * HOUR).unref?.()
+    detached('nightly backfill', runBackfill)
+    setInterval(() => detached('nightly backfill', runBackfill), 24 * HOUR).unref?.()
   }, untilHour(BACKFILL_HOUR)).unref?.()
 
   return true

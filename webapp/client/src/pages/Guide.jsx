@@ -1,4 +1,14 @@
 import { Panel } from '../components/ui.jsx'
+import {
+  IconSummary,
+  IconProduct,
+  IconComponent,
+  IconPlan,
+  IconCalendar,
+  IconFilter,
+  IconColumns,
+  IconArrowRight,
+} from '../components/Icons.jsx'
 
 /**
  * How to use the app, written for the people who actually open it.
@@ -13,7 +23,137 @@ import { Panel } from '../components/ui.jsx'
  * am I looking at, which number do I trust, why does this differ from Power BI.
  */
 
+/*
+ * The quick view: the whole app on one screen, before any prose.
+ *
+ * Most people who open this page are not going to read eight sections. They
+ * want to know which of the four pages answers their question and how to get
+ * the figures they came for, and they want it in about fifteen seconds. So the
+ * top of the guide is a picture of the app rather than a description of it —
+ * three steps, four page cards, and the handful of colours the reports use.
+ *
+ * Each page keeps one colour and one shape wherever it appears here, so the
+ * card, the step strip and the legend all point at the same thing. The colours
+ * are the report palette, used here to identify a page rather than to signal a
+ * threshold — the legend at the bottom is where they carry their real meaning.
+ */
+const STEPS = [
+  {
+    n: 1,
+    title: 'Pick your brand',
+    body: 'Top left. Choose more than one and the figures add up across them.',
+    Icon: IconFilter,
+  },
+  {
+    n: 2,
+    title: 'Pick a date range',
+    body: 'Top right. Last 7 days, this month, tomorrow — everything follows it.',
+    Icon: IconCalendar,
+  },
+  {
+    n: 3,
+    title: 'Open the page that answers your question',
+    body: 'The four below. Add columns with Build view once you are there.',
+    Icon: IconColumns,
+  },
+]
+
+/** A small drawing of what each page looks like, so the card is recognisable. */
+const Spark = () => (
+  <svg viewBox="0 0 72 28" className="qv__art" aria-hidden="true">
+    <path d="M2 20 L14 14 L26 17 L38 8 L50 11 L62 4 L70 6" fill="none" strokeWidth="2.5" />
+    <path
+      d="M2 24 L14 19 L26 21 L38 14 L50 16 L62 10 L70 12"
+      fill="none"
+      strokeWidth="2"
+      strokeDasharray="3 3"
+      opacity="0.55"
+    />
+  </svg>
+)
+
+const Bars = () => (
+  <svg viewBox="0 0 72 28" className="qv__art" aria-hidden="true">
+    {[
+      [4, 22],
+      [18, 16],
+      [32, 19],
+      [46, 10],
+      [60, 14],
+    ].map(([x, h]) => (
+      <rect key={x} x={x} y={26 - h} width="8" height={h} rx="2" strokeWidth="0" />
+    ))}
+  </svg>
+)
+
+const Stack = () => (
+  <svg viewBox="0 0 72 28" className="qv__art" aria-hidden="true">
+    <rect x="6" y="4" width="60" height="6" rx="3" strokeWidth="0" />
+    <rect x="6" y="13" width="42" height="6" rx="3" strokeWidth="0" opacity="0.72" />
+    <rect x="6" y="22" width="26" height="6" rx="3" strokeWidth="0" opacity="0.45" />
+  </svg>
+)
+
+const Checks = () => (
+  <svg viewBox="0 0 72 28" className="qv__art" aria-hidden="true">
+    {[3, 13, 23].map((y) => (
+      <g key={y}>
+        <path d={`M4 ${y + 3} l3 3 l6 -7`} fill="none" strokeWidth="2.5" strokeLinecap="round" />
+        <rect x="20" y={y} width={y === 13 ? 32 : 46} height="5" rx="2.5" strokeWidth="0" opacity="0.35" />
+      </g>
+    ))}
+  </svg>
+)
+
+const PAGES = [
+  {
+    id: 'summary',
+    tone: 'green',
+    label: 'Overview',
+    asks: 'Are we tracking to forecast?',
+    body: 'Sold against forecast for the period, accuracy, and the branches furthest from normal.',
+    Icon: IconSummary,
+    Art: Spark,
+  },
+  {
+    id: 'product',
+    tone: 'blue',
+    label: 'Products',
+    asks: 'Which lines moved the number?',
+    body: 'The same comparison per product, so a variance can be traced to what caused it.',
+    Icon: IconProduct,
+    Art: Bars,
+  },
+  {
+    id: 'component',
+    tone: 'amber',
+    label: 'Ingredients',
+    asks: 'What do we need to buy and prep?',
+    body: 'Raw materials and prepared items the forecast implies, grouped by recipe and type.',
+    Icon: IconComponent,
+    Art: Stack,
+  },
+  {
+    id: 'production',
+    tone: 'violet',
+    label: "Tomorrow's Prep",
+    asks: 'What does each branch make tomorrow?',
+    body: 'The production plan for the next day, per branch, with a prep status on every line.',
+    Icon: IconPlan,
+    Art: Checks,
+  },
+]
+
+/** The colours that carry a meaning, stated once where they can be looked up. */
+const LEGEND = [
+  { tone: 'green', term: 'On target', meaning: 'Accuracy 95% or better, or demand within its normal range.' },
+  { tone: 'amber', term: 'Watch', meaning: 'Under target but not breached — worth a look, not an alarm.' },
+  { tone: 'red', term: 'Outlier', meaning: 'Far enough from normal that somebody should check it.' },
+  { tone: 'blue', term: 'Forecast', meaning: 'Every forecast figure and the dashed line on charts.' },
+]
+
 const SECTIONS = [
+  { id: 'quick', label: 'Quick view' },
   { id: 'start', label: 'Where to start' },
   { id: 'pages', label: 'The four pages' },
   { id: 'filters', label: 'Choosing what you see' },
@@ -61,6 +201,65 @@ export function Guide({ onDrill }) {
         </nav>
 
         <div className="guide__body">
+          {/* The picture first. Everything below it is the same thing in words,
+              for whoever needs more than the picture. */}
+          <section className="qv" id="quick">
+            <ol className="qv__steps">
+              {STEPS.map((s) => (
+                <li className="qv__step" key={s.n}>
+                  <span className="qv__num" aria-hidden="true">
+                    {s.n}
+                  </span>
+                  <span className="qv__stepIcon" aria-hidden="true">
+                    <s.Icon size={14} />
+                  </span>
+                  <span className="qv__stepText">
+                    <strong>{s.title}</strong>
+                    <span>{s.body}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div className="qv__pages">
+              {PAGES.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={`qv__card qv__card--${p.tone}`}
+                  onClick={() => onDrill?.(p.id, {})}
+                  disabled={!onDrill}
+                  title={onDrill ? `Open ${p.label}` : undefined}
+                >
+                  <span className="qv__cardHead">
+                    <span className="qv__badge" aria-hidden="true">
+                      <p.Icon size={15} />
+                    </span>
+                    <span className="qv__cardName">{p.label}</span>
+                    {onDrill && (
+                      <span className="qv__go" aria-hidden="true">
+                        <IconArrowRight size={13} />
+                      </span>
+                    )}
+                  </span>
+                  <p.Art />
+                  <span className="qv__asks">{p.asks}</span>
+                  <span className="qv__cardBody">{p.body}</span>
+                </button>
+              ))}
+            </div>
+
+            <ul className="qv__legend">
+              {LEGEND.map((l) => (
+                <li className={`qv__key qv__key--${l.tone}`} key={l.tone}>
+                  <span className="qv__dot" aria-hidden="true" />
+                  <strong>{l.term}</strong>
+                  <span>{l.meaning}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <Section id="start" title="Where to start">
             <p>
               This app answers one question in several ways: <strong>what did we expect to sell, and
@@ -87,8 +286,8 @@ export function Guide({ onDrill }) {
 
               <dt>Products</dt>
               <dd>
-                The same comparison broken down to each product and PLU. This is where you find which
-                lines drove a variance. Every row is actual against forecast for the window you chose.
+                The same comparison broken down to each product. This is where you find which lines
+                drove a variance. Every row is actual against forecast for the window you chose.
               </dd>
 
               <dt>Ingredients</dt>
@@ -110,8 +309,8 @@ export function Guide({ onDrill }) {
           <Section id="filters" title="Choosing what you see">
             <p>
               The bar along the top is the same on every page, minus whatever does not apply. Brands
-              can be multi-selected; the figures then add up across them. Location, Product and Product
-              PLU narrow the rows. The date picker offers the usual ranges plus{' '}
+              can be multi-selected; the figures then add up across them. Location and Product narrow
+              the rows. The date picker offers the usual ranges plus{' '}
               <strong>Tomorrow</strong>, which is useful on Products when you want to see what the
               model expects rather than what happened.
             </p>
@@ -145,9 +344,10 @@ export function Guide({ onDrill }) {
               <dt>Product and Product PLU</dt>
               <dd>
                 A PLU is the code the till sells against and the code stock and recipes are booked to.
-                One product name usually covers several PLUs — <em>Regular</em> is four of them. Plan
-                a shift from the product; order and book against the PLU. Both totals come to the same
-                number, so never add them together.
+                One product name usually covers several PLUs — <em>Regular</em> is four of them, so a
+                product name can appear on more than one line. The PLU column and its filter are
+                switched off at the moment; the rows are still counted per PLU underneath, which is
+                why two lines can share a name.
               </dd>
 
               <dt>Accuracy</dt>

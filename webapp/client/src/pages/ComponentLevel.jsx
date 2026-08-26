@@ -187,40 +187,56 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
           />
         )}
       </Panel>
-      <Panel
-        title="Top components by unit"
-        sub={
-          busy || !facets.length
-            ? undefined
-            : `Largest requirement in each of the ${facets.length} unit${facets.length === 1 ? '' : 's'} · bars compare within a unit`
-        }
-      >
+      {/*
+        * One card per unit, three of them, none of them scrolling.
+        *
+        * These were a single panel holding every unit in a scrolling list, which
+        * put the second unit below the fold and the rest out of sight entirely —
+        * a ranking nobody scrolls is a ranking nobody reads. Three cards share
+        * the column height evenly, so all three are visible at once and the last
+        * one ends level with the table beside it.
+        *
+        * Kilograms and "each" share no axis, so each card draws its bars against
+        * its own leader and never across units. Any unit past the third is still
+        * in the table on the left, and the note under the stack says so rather
+        * than letting it disappear.
+        */}
+      <div className="unitcol">
         {busy ? (
-          <ChartSkeleton height={300} />
+          <>
+            <ChartSkeleton height={150} />
+            <ChartSkeleton height={150} />
+            <ChartSkeleton height={150} />
+          </>
         ) : facets.length === 0 ? (
-          <Empty />
+          <Panel title="Top components by unit">
+            <Empty />
+          </Panel>
         ) : (
-          <div className="units">
-            {facets.map((facet) => (
-              <section className="units__unit" key={facet.unit}>
-                <header className="units__head">
-                  <h4 className="units__name">{facet.unit}</h4>
-                  <span className="units__meta">
-                    {fmtNum(facet.total)} across {fmtInt(facet.count)} component
-                    {facet.count === 1 ? '' : 's'}
-                  </span>
-                </header>
+          <>
+            {facets.slice(0, 3).map((facet) => (
+              <Panel
+                key={facet.unit}
+                title={`Top by ${facet.unit.toLowerCase()}`}
+                sub={`${fmtNum(facet.total)} across ${fmtInt(facet.count)} component${
+                  facet.count === 1 ? '' : 's'
+                } · bars compare within this unit`}
+              >
                 <ol className="units__list">
-                  {facet.rows.map((r) => (
+                  {facet.rows.slice(0, 4).map((r) => (
                     <li className="units__row" key={r.Item}>
-                      <span className="units__item" title={r.Item}>
+                      <span className="units__item units__item--tight" title={r.Item}>
                         {r.Item}
                       </span>
                       <span className="units__track" aria-hidden="true">
                         <span
                           className="units__fill"
                           style={{
-                            width: `${facet.leader ? Math.max(2, (r.Component_Forecast_Qty / facet.leader) * 100) : 0}%`,
+                            width: `${
+                              facet.leader
+                                ? Math.max(2, (r.Component_Forecast_Qty / facet.leader) * 100)
+                                : 0
+                            }%`,
                           }}
                         />
                       </span>
@@ -228,11 +244,17 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
                     </li>
                   ))}
                 </ol>
-              </section>
+              </Panel>
             ))}
-          </div>
+            {facets.length > 3 && (
+              <p className="unitcol__more">
+                {facets.length - 3} further unit{facets.length - 3 === 1 ? '' : 's'} (
+                {facets.slice(3).map((f) => f.unit).join(', ')}) — in the table on the left.
+              </p>
+            )}
+          </>
         )}
-      </Panel>
+      </div>
 
       </div>
     </>

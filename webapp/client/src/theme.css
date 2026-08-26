@@ -1576,6 +1576,260 @@ table.dt tbody tr.clickable {
   padding: var(--s3) var(--s4) var(--s5);
 }
 
+/* ------------------------------------------------ the guide's quick view --- */
+
+/*
+ * A picture of the app, above the prose.
+ *
+ * Colour here identifies a page rather than reporting a threshold, which is the
+ * opposite of what it does everywhere else in this stylesheet. Two things keep
+ * that from being confusing: the tints are used flat and large (a card face, a
+ * badge) where the reports use them as small saturated marks, and the legend at
+ * the foot of the block states what each colour means where it *does* report
+ * something. Nothing outside this block uses .qv styles.
+ */
+/* The stand-in where variance and accuracy would be, before a day completes. */
+.perf__pending {
+  margin: var(--s3) 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 46ch;
+}
+
+.qv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin-bottom: var(--s6);
+}
+
+.qv__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3);
+}
+
+.qv__step {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--sunken);
+}
+
+.qv__num {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.qv__stepIcon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.qv__stepText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qv__stepText strong {
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+.qv__stepText span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* Four cards, equal width, wrapping to two rows before they get cramped. */
+.qv__pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: var(--s3);
+}
+
+/* A button, because it navigates. It is styled as a card and keeps a visible
+   focus ring from the base :focus-visible rule. */
+.qv__card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  padding: var(--s3);
+  text-align: left;
+  border: 1px solid var(--card-line, var(--line));
+  border-radius: var(--r-card);
+  background: var(--card-bg, var(--surface));
+  cursor: pointer;
+  transition: transform var(--t-fast, 120ms) ease, box-shadow var(--t-fast, 120ms) ease;
+}
+
+.qv__card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgb(17 24 39 / 8%);
+}
+
+.qv__card:disabled {
+  cursor: default;
+}
+
+.qv__cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.qv__badge {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--card-ink, var(--brand));
+  color: #fff;
+  flex: none;
+}
+
+.qv__cardName {
+  font-size: 13px;
+  font-weight: var(--w-bold);
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.qv__go {
+  margin-left: auto;
+  color: var(--card-ink, var(--text-faint));
+  flex: none;
+}
+
+/* The little drawing. Stroke and fill both follow the card's colour, so each
+   shape reads as belonging to its page. */
+.qv__art {
+  width: 100%;
+  height: 30px;
+  stroke: var(--card-ink, var(--neutral));
+  fill: var(--card-ink, var(--neutral));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.qv__asks {
+  font-size: 12px;
+  font-weight: var(--w-bold);
+  color: var(--card-ink, var(--text));
+  line-height: 1.35;
+}
+
+.qv__cardBody {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* The tints come from the theme and follow it into dark mode on their own. The
+   ink does not: the report greens and blues are pitched to be read as a small
+   mark on a white ground, and at badge size with white text on them they are
+   too light. So each tone carries its own ink, darkened for the light tints
+   here and lightened for the dark ones below. Violet has no token at all —
+   nothing else in the app needed a fourth identifying colour. */
+.qv__card--green  { --card-ink: #0e7c5a; --card-bg: var(--green-tint); --card-line: #cbeadd; }
+.qv__card--blue   { --card-ink: #4c56c0; --card-bg: var(--blue-tint);  --card-line: #d7dbfb; }
+.qv__card--amber  { --card-ink: #a1650a; --card-bg: var(--amber-tint); --card-line: #f4e0bd; }
+.qv__card--violet { --card-ink: #7c3aed; --card-bg: #f3ecfe;           --card-line: #e2d5fb; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .qv__card--green  { --card-ink: #34d399; --card-line: #1c4436; }
+  :root:not([data-theme='light']) .qv__card--blue   { --card-ink: #a5b4fc; --card-line: #2b3050; }
+  :root:not([data-theme='light']) .qv__card--amber  { --card-ink: #fbbf24; --card-line: #453619; }
+  :root:not([data-theme='light']) .qv__card--violet { --card-ink: #c4a6fd; --card-bg: #1e1830; --card-line: #362a52; }
+  :root:not([data-theme='light']) .qv__badge { color: #10151d; }
+  :root:not([data-theme='light']) .qv__card:hover:not(:disabled) { box-shadow: 0 4px 14px rgb(0 0 0 / 35%); }
+}
+
+:root[data-theme='dark'] .qv__card--green  { --card-ink: #34d399; --card-line: #1c4436; }
+:root[data-theme='dark'] .qv__card--blue   { --card-ink: #a5b4fc; --card-line: #2b3050; }
+:root[data-theme='dark'] .qv__card--amber  { --card-ink: #fbbf24; --card-line: #453619; }
+:root[data-theme='dark'] .qv__card--violet { --card-ink: #c4a6fd; --card-bg: #1e1830; --card-line: #362a52; }
+:root[data-theme='dark'] .qv__badge { color: #10151d; }
+:root[data-theme='dark'] .qv__card:hover:not(:disabled) { box-shadow: 0 4px 14px rgb(0 0 0 / 35%); }
+
+/* ---- the legend ---- */
+.qv__legend {
+  list-style: none;
+  margin: 0;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--s2) var(--s4);
+}
+
+.qv__key {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.qv__key strong {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.qv__key span {
+  color: var(--text-muted);
+}
+
+.qv__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--key-color, var(--neutral));
+  transform: translateY(1px);
+}
+
+.qv__key--green { --key-color: var(--green); }
+.qv__key--amber { --key-color: var(--amber); }
+.qv__key--red   { --key-color: var(--red); }
+.qv__key--blue  { --key-color: var(--blue); }
+
+@media (max-width: 780px) {
+  .qv__steps { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qv__card { transition: none; }
+  .qv__card:hover:not(:disabled) { transform: none; }
+}
+
 /*
  * The contents sit across the top rather than down the side. A sticky column
  * would be nicer, but .panel clips its content to keep its rounded corners and
@@ -3688,7 +3942,7 @@ table.dt thead th:hover .th__sort--idle {
    long column of nothing beside it. Both are given the same height and both
    scroll inside it, so the pair reads as one block however much is in either. */
 .split--pair {
-  height: clamp(520px, 72vh, 860px);
+  height: clamp(560px, 74vh, 880px);
   align-items: stretch;
 }
 
@@ -3699,6 +3953,58 @@ table.dt thead th:hover .th__sort--idle {
 }
 
 .split--pair > .panel > .panel__head { flex: 0 0 auto; }
+
+/* ---------------------------------------- the three unit cards ----------- */
+
+/* Three cards sharing the column, each sized by the column rather than by its
+   contents. `flex: 1 1 0` with `min-height: 0` is what makes them equal: without
+   the zero basis a card with longer names claims more room and pushes the third
+   one past the bottom edge, which is the overflow this layout exists to remove.
+
+   The bodies hide rather than scroll. Four rows of one line each always fit the
+   space three cards get at the container's smallest height, so nothing is
+   actually clipped — the rule is there to guarantee no scrollbar can appear at
+   an unusual zoom or font size. */
+.unitcol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-height: 0;
+  min-width: 0;
+}
+
+.unitcol > .panel {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.unitcol > .panel > .panel__head { flex: 0 0 auto; }
+
+.unitcol > .panel > .panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.unitcol__more {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* One line, ellipsised, with the full name on hover and in the table beside it.
+   The two-line treatment used elsewhere makes row height depend on the name,
+   and a card that must not scroll cannot have a variable row height. */
+.units__item--tight {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: none;
+}
 
 /* The scrolling happens in the body, not the panel, so the heading stays put. */
 .split--pair > .panel:not(.panel--fill) > .panel__body {

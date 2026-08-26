@@ -5,35 +5,90 @@
  */
 export class UnauthorizedError extends Error {}
 
-/** Reads a JSON endpoint, routing an expired session back to the login screen. */
-async function get(path) {
-  const res = await fetch(`/api${path}`)
-  const json = await res.json().catch(() => ({}))
+/*
+ * Telling "the server broke" apart from "the server was not there".
+ *
+ * The API answers a fault with {"error": "..."} and the message goes on screen.
+ * Nothing answers at all when the server is between restarts — in development
+ * the dev proxy replies 500 with a plain-text body, in production the platform
+ * replies 502 or 503, and a dropped connection makes fetch reject outright.
+ * All three used to arrive as the bare "Request failed (500)", which reads as a
+ * fault in the data somebody has just selected and sends them looking in
+ * entirely the wrong place.
+ *
+ * So a response with no error field in it is reported as what it is, and marked
+ * for one retry.
+ */
+const UNREACHABLE = new Set([500, 502, 503, 504])
+const UNREACHABLE_TEXT =
+  'The server is not responding — it may be restarting. Press Retry in a moment.'
+
+function unreachable(message) {
+  const err = new Error(message)
+  err.retryable = true
+  return err
+}
+
+async function request(method, path, body) {
+  let res
+  try {
+    res = await fetch(
+      `/api${path}`,
+      method === 'GET'
+        ? undefined
+        : {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body ?? {}),
+          }
+    )
+  } catch {
+    // fetch rejects only when the request never reached a server at all.
+    throw unreachable(UNREACHABLE_TEXT)
+  }
+
+  const json = await res.json().catch(() => null)
+
   if (res.status === 401) {
     window.dispatchEvent(new CustomEvent('df:unauthorized'))
-    throw new UnauthorizedError(json.error || 'Session expired')
+    throw new UnauthorizedError(json?.error || 'Session expired')
   }
-  if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
-  return json
+  if (!res.ok) {
+    if (json?.error) throw new Error(json.error)
+    if (UNREACHABLE.has(res.status)) throw unreachable(`${UNREACHABLE_TEXT} (${res.status})`)
+    throw new Error(`Request failed (${res.status})`)
+  }
+  return json ?? {}
 }
+
+/**
+ * One retry, for reads only.
+ *
+ * A restart takes a second or two, and a page that fails for the whole of it
+ * makes the reader press Retry for something they did not cause. Reads are safe
+ * to repeat; writes are not, so they go through `send` and fail on the spot
+ * rather than risk sending an email or creating a user twice.
+ */
+async function read(method, path, body) {
+  try {
+    return await request(method, path, body)
+  } catch (err) {
+    if (!err.retryable) throw err
+    await new Promise((r) => setTimeout(r, 900))
+    return request(method, path, body)
+  }
+}
+
+/** Reads a JSON endpoint, routing an expired session back to the login screen. */
+const get = (path) => read('GET', path)
 
 /** POST/PATCH/DELETE share one path so they share one set of error rules. */
-async function send(method, path, body) {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent('df:unauthorized'))
-    throw new UnauthorizedError(json.error || 'Session expired')
-  }
-  if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`)
-  return json
-}
+const send = (method, path, body) => request(method, path, body)
 
 const post = (path, body) => send('POST', path, body)
+
+/** The report queries: reads, whatever verb carries their filters. */
+const query = (path, body) => read('POST', path, body)
 
 export const api = {
   me: async () => {
@@ -57,14 +112,14 @@ export const api = {
     if (!res.ok) throw new Error(`Server not reachable (${res.status})`)
     return res.json()
   },
-  slicers: (filters) => post('/slicers', filters),
-  summary: (filters) => post('/summary', filters),
-  context: (filters) => post('/context', filters),
-  productLevel: (filters) => post('/product-level', filters),
-  componentLevel: (filters) => post('/component-level', filters),
-  productionPlan: (filters) => post('/production-plan', filters),
+  slicers: (filters) => query('/slicers', filters),
+  summary: (filters) => query('/summary', filters),
+  context: (filters) => query('/context', filters),
+  productLevel: (filters) => query('/product-level', filters),
+  componentLevel: (filters) => query('/component-level', filters),
+  productionPlan: (filters) => query('/production-plan', filters),
   // Tomorrow's totals without tomorrow's rows, for the Overview card.
-  productionPlanKpis: (filters) => post('/production-plan/kpis', filters),
+  productionPlanKpis: (filters) => query('/production-plan/kpis', filters),
   clearCache: () => post('/cache/clear'),
 
   admin: {

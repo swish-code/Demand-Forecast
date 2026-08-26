@@ -94,16 +94,32 @@ function where(brand, f = {}) {
 
 const rowsOf = (sql, args) => pg.all(sql, args)
 
+/**
+ * The rollup is an optimisation, not a source of truth.
+ *
+ * cube_product_daily is cube_daily summed across branches, rebuilt after each
+ * extract. Between a brand's rows landing and that rebuild running it is empty,
+ * and reading it alone made a covered brand report zero — a wrong answer given
+ * confidently, which is worse than a slow one. So an empty result falls back to
+ * the table the rows actually live in.
+ */
+async function fromRollupOr(daily, sqlFor, args) {
+  const rows = await rowsOf(sqlFor(daily), args)
+  if (rows.length || daily === 'cube_daily') return rows
+  return rowsOf(sqlFor('cube_daily'), args)
+}
+
 export async function trend(brand, f) {
   // Same reasoning as topProducts: a daily total does not need the branch
   // column unless a branch filter is applied.
   const table = f.locations?.length ? 'cube_daily' : 'cube_product_daily'
   const w = where(brand, f)
-  return rowsOf(
-    `SELECT date AS Date,
-            SUM(actual)   AS Actual_Qty,
-            SUM(forecast) AS Forecast_Qty
-       FROM ${table}
+  return fromRollupOr(
+    table,
+    (t) => `SELECT date AS "Date",
+            SUM(actual)   AS "Actual_Qty",
+            SUM(forecast) AS "Forecast_Qty"
+       FROM ${t}
       WHERE ${w.sql}
       GROUP BY date
       ORDER BY date ASC`,
@@ -114,13 +130,13 @@ export async function trend(brand, f) {
 export async function byLocation(brand, f) {
   const w = where(brand, f)
   return rowsOf(
-    `SELECT location AS LocationID,
-            SUM(actual)   AS Actual_Qty,
-            SUM(forecast) AS Forecast_Qty
+    `SELECT location AS "LocationID",
+            SUM(actual)   AS "Actual_Qty",
+            SUM(forecast) AS "Forecast_Qty"
        FROM cube_daily
       WHERE ${w.sql}
       GROUP BY location
-      ORDER BY Actual_Qty DESC`,
+      ORDER BY SUM(actual) DESC`,
     w.args
   )
 }
@@ -131,14 +147,15 @@ export async function topProducts(brand, f, top = 0) {
   const table = f.locations?.length ? 'cube_daily' : 'cube_product_daily'
   const w = where(brand, f)
   const limit = Number(top) > 0 ? ` LIMIT ${Math.floor(Number(top))}` : ''
-  return rowsOf(
-    `SELECT product AS ProductName_Fixed_Option,
-            SUM(actual)   AS Actual_Qty,
-            SUM(forecast) AS Forecast_Qty
-       FROM ${table}
+  return fromRollupOr(
+    table,
+    (t) => `SELECT product AS "ProductName_Fixed_Option",
+            SUM(actual)   AS "Actual_Qty",
+            SUM(forecast) AS "Forecast_Qty"
+       FROM ${t}
       WHERE ${w.sql}
       GROUP BY product
-      ORDER BY Actual_Qty DESC${limit}`,
+      ORDER BY SUM(actual) DESC${limit}`,
     w.args
   )
 }
@@ -198,9 +215,9 @@ export async function articleNames(brand, f) {
   const scoped = sql.replace(/location/g, 'article')
   return rowsOf(
     `SELECT DISTINCT article AS v, product AS p FROM cube_article_daily WHERE ${scoped} AND article <> ''
-      ORDER BY product, article`,
+      ORDER BY article`,
     args
-  ).map((r) => ({ value: r.v, label: r.p || String(r.v), hint: String(r.v) }))
+  ).map((r) => ({ value: r.v, label: String(r.v), hint: r.p || '' }))
 }
 
 /** Which of the asked-for lists this copy can answer for that brand. */
@@ -239,22 +256,21 @@ export async function productLevel(brand, f) {
     args.push(...f.products.map(String))
   }
 
-  return db
-    .prepare(
-      `SELECT article  AS Clean_ItemID,
-              ?        AS CHAINID,
-              product  AS ProductName_Fixed_Option,
-              SUM(actual)   AS Actual_Qty,
-              SUM(forecast) AS Forecast_Qty,
-              SUM(actual) - SUM(forecast) AS Variance_Qty,
-              CASE WHEN SUM(forecast) = 0 THEN 0
-                   ELSE (SUM(actual) - SUM(forecast)) / SUM(forecast) END AS Variance_Pct
-         FROM cube_article_daily
-        WHERE ${sql.join(' AND ')}
-        GROUP BY article, product
-        ORDER BY Actual_Qty DESC`
-    )
-    .all(brand, ...args)
+  return pg.all(
+    `SELECT article  AS "Clean_ItemID",
+            ?        AS "CHAINID",
+            product  AS "ProductName_Fixed_Option",
+            SUM(actual)   AS "Actual_Qty",
+            SUM(forecast) AS "Forecast_Qty",
+            SUM(actual) - SUM(forecast) AS "Variance_Qty",
+            CASE WHEN SUM(forecast) = 0 THEN 0
+                 ELSE (SUM(actual) - SUM(forecast)) / SUM(forecast) END AS "Variance_Pct"
+       FROM cube_article_daily
+      WHERE ${sql.join(' AND ')}
+      GROUP BY article, product
+      ORDER BY SUM(actual) DESC`,
+    [brand, ...args]
+  )
 }
 
 export async function stats() {

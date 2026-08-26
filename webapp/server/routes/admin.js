@@ -11,6 +11,7 @@ import { openAlerts, recentlyResolved, resolve, resolveAll, SOURCES } from '../i
 import { reviewModels } from '../insights/modelReview.js'
 import { sendDailyReports, sendLog, sendSummary } from '../mail/runner.js'
 import { buildForRecipient } from '../mail/reports.js'
+import { cubeState, runBackfill } from '../cube/schedule.js'
 import {
   REPORTS,
   listRecipients,
@@ -740,6 +741,35 @@ admin.get(
       transport: transportName(),
       connectedMailbox: await connectedMailbox(),
     })
+  })
+)
+
+/**
+ * The local copy, and a way to fill it.
+ *
+ * A fresh deployment starts with an empty copy, and until it is filled every
+ * page goes live to Power BI — which is the difference between the Products
+ * page answering in a fifth of a second and in a minute. The schedule fills it
+ * on its own, but somebody standing in front of a slow deployment should not
+ * have to wait for a timer they cannot see.
+ */
+admin.get(
+  '/cube',
+  handle(async (req, res) => {
+    res.json(await cubeState())
+  })
+)
+
+admin.post(
+  '/cube/backfill',
+  handle(async (req, res) => {
+    const state = await cubeState()
+    if (state.running) return res.status(409).json({ error: 'A refresh is already running' })
+    audit(req.user.id, 'cube.backfill', null, null)
+    // Deliberately not awaited: it walks every brand one branch at a time and
+    // takes minutes. The page polls /cube to watch it fill.
+    runBackfill()
+    res.json({ started: true })
   })
 )
 

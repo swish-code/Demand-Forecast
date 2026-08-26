@@ -221,7 +221,7 @@ FILTER(
   })},
   NOT ISBLANK(Forecast_Product_Table[Clean_ItemID])
 )
-ORDER BY Forecast_Product_Table[ProductName_Fixed_Option] ASC, Forecast_Product_Table[Clean_ItemID] ASC`,
+ORDER BY Forecast_Product_Table[Clean_ItemID] ASC`,
 
   items: (f) => recipeSlicer(f, 'Item'),
   recipeGroups: (f) => recipeSlicer(f, 'Recipe Group'),

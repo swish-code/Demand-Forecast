@@ -30,12 +30,10 @@ const PAGES = [
     blurb: 'What sold against what was forecast, product by product',
     Icon: IconProduct,
     Component: ProductLevel,
-    // Product PLU sits beside Product: the same demand is counted at both
-    // levels, and one product name covers several PLUs — Regular is four of
-    // them — so narrowing to a single code is a question the table's own
-    // search cannot answer. Listed by product name with the code beside it,
-    // because a bare 83001108300117 is not something anybody recognises.
-    slicers: ['location', 'product', 'articleName', 'date'],
+    // The Product PLU slicer is out at the moment, alongside its column —
+    // asked for on 25 Aug 2026. Put 'articleName' back after 'product' to
+    // restore it; the options are still built and returned by the server.
+    slicers: ['location', 'product', 'date'],
   },
   {
     id: 'component',
@@ -44,7 +42,8 @@ const PAGES = [
     blurb: 'Product articles, prep items and raw materials the forecast implies you need',
     Icon: IconComponent,
     Component: ComponentLevel,
-    slicers: ['location', 'product', 'article', 'date', 'item', 'recipeGroup', 'nodeType'],
+    // 'article' is out with the rest of the PLU slicers — see Products above.
+    slicers: ['location', 'product', 'date', 'item', 'recipeGroup', 'nodeType'],
   },
   {
     id: 'production',

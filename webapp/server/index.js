@@ -103,6 +103,48 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: err.message || 'Internal error' })
 })
 
+/*
+ * A stray promise must not be able to take the site down.
+ *
+ * Node ends the process on an unhandled rejection. Inside a request that is
+ * fine — Express catches it and answers 500. Outside one it is not: a rejection
+ * in a scheduled job, a timer or a fire-and-forget write kills a server that
+ * was otherwise answering perfectly, and every request in flight dies with it.
+ * On a hosted deployment the platform restarts the container and the person
+ * using the app sees an error with no message in it, on whatever page they
+ * happened to be on — which is exactly how this presented.
+ *
+ * Staying up with one broken background task beats dropping every request, so a
+ * rejection is logged, recorded as an alert an administrator can actually see,
+ * and otherwise ignored.
+ *
+ * An uncaught exception is treated differently. That one can leave state
+ * genuinely broken, so it is recorded and then allowed to end the process, and
+ * the platform restarts it clean. The exit is deferred a moment so the alert
+ * has a chance to reach the database first.
+ */
+function recordCrash(kind, err) {
+  const message = err instanceof Error ? err.stack || err.message : String(err)
+  console.error(`  [${kind}]`, message)
+  return raise({
+    source: 'app',
+    key: `process:${kind}`,
+    severity: 'critical',
+    title: `Unhandled ${kind} in a background task`,
+    detail: message.slice(0, 2000),
+  })
+}
+
+process.on('unhandledRejection', (reason) => {
+  recordCrash('rejection', reason)
+})
+
+process.on('uncaughtException', (err) => {
+  recordCrash('exception', err).finally(() => {
+    setTimeout(() => process.exit(1), 250).unref?.()
+  })
+})
+
 const server = app.listen(config.port, async () => {
   const seeded = await seedFirstAdmin()
   if (seeded) {

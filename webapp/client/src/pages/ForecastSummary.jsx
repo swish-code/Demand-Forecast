@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { api, fmtInt, fmtPct, fmtSignedPct, fmtDate, downloadCsv } from '../api.js'
+import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
 import { DataTable } from '../components/DataTable.jsx'
@@ -14,8 +15,9 @@ import {
   MetricCard,
   MetricFlow,
   SignedQty,
+  InfoBanner,
 } from '../components/ui.jsx'
-import { IconDownload, IconInfo } from '../components/Icons.jsx'
+import { IconDownload, IconInfo, IconCalendar } from '../components/Icons.jsx'
 import { TrendChart } from '../components/charts/TrendChart.jsx'
 import { CategoryBarChart } from '../components/charts/CategoryBarChart.jsx'
 import { WeekdayBiasChart, RollingAccuracyChart } from '../components/charts/insights.jsx'
@@ -123,6 +125,9 @@ function Sparkline({ points, color, width = 96, height = 24 }) {
 }
 
 /** Mirrors the report's FORECAST SUMMARY page. */
+/** Columns that compare against what sold, and so mean nothing before it has. */
+const FUTURE_DROP = ['Actual_Qty', 'Variance_Pct', 'Accuracy']
+
 export function ForecastSummary({ filters, options, ready, refreshNonce, onLoaded, onDrill }) {
   const colors = useChartTheme()
   const contextFilters = useMemo(
@@ -330,6 +335,21 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
     },
   ]
 
+  /*
+   * A window that has not happened yet.
+   *
+   * Products already did this; the Overview did not, and picking Tomorrow filled
+   * it with an actual of zero, a variance of −100% and an accuracy the page drew
+   * in red. None of that is a miss — nobody has cooked tomorrow yet — but it
+   * reads exactly like a catastrophic one, which is what people were reporting
+   * as an error on this page.
+   *
+   * So the figures that need a completed day are withheld rather than computed
+   * from nothing, and the banner says why. The forecast itself is the whole
+   * point of looking at a future day and stays.
+   */
+  const future = isFutureWindow(filters, options?.dateRange)
+
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
   const belowTarget = locationRows.filter((r) => r.Accuracy !== null && r.Accuracy < ACCURACY_FLOOR).length
@@ -349,6 +369,13 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         </button>
       </div>
 
+      {future && (
+        <InfoBanner icon={<IconCalendar size={15} />}>
+          <strong>These days have not happened yet.</strong> Only the forecast is shown — actual
+          sales, variance and accuracy appear the day after each one completes.
+        </InfoBanner>
+      )}
+
       {/* Actual and forecast are inputs; variance and accuracy are derived from
           them, so they sit in one performance card downstream of the arrow. */}
       <MetricFlow
@@ -357,10 +384,10 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           <MetricCard
             label="Actual qty"
             accent="green"
-            progress={forecast ? actual / forecast : 0}
+            progress={future ? 0 : forecast ? actual / forecast : 0}
             loading={busy}
-            value={fmtInt(actual)}
-            foot="Units sold"
+            value={future ? '—' : fmtInt(actual)}
+            foot={future ? 'Nothing sold yet' : 'Units sold'}
           />
           <MetricCard
             label="Forecast qty"
@@ -393,6 +420,14 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
       >
         {busy ? (
           <div className="perf skel" style={{ height: 208, border: 'none' }} aria-hidden="true" />
+        ) : future ? (
+          <div className="perf">
+            <span className="perf__title">Performance</span>
+            <p className="perf__pending">
+              Variance and accuracy compare a forecast against what actually sold, and these days have
+              not happened yet. They will appear here the day after each one completes.
+            </p>
+          </div>
         ) : (
           <div className="perf">
             <span className="perf__title">Performance</span>
@@ -575,9 +610,11 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
             sub={
               busy
                 ? undefined
-                : belowTarget > 0
-                  ? `${belowTarget} below ${fmtPct(ACCURACY_FLOOR, 0)} accuracy · worst first`
-                  : 'Sorted worst accuracy first'
+                : future
+                  ? 'Forecast per branch · nothing sold yet to compare against'
+                  : belowTarget > 0
+                    ? `${belowTarget} below ${fmtPct(ACCURACY_FLOOR, 0)} accuracy · worst first`
+                    : 'Sorted worst accuracy first'
             }
             tools={<ExportButton rows={locationRows} name="bbt-qty-by-location.csv" />}
             flush
@@ -590,9 +627,13 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
               <Empty />
             ) : (
               <DataTable
-                columns={LOCATION_COLUMNS}
+                columns={
+                  future
+                    ? LOCATION_COLUMNS.filter((c) => !FUTURE_DROP.includes(c.key))
+                    : LOCATION_COLUMNS
+                }
                 rows={locationRows}
-                initialSort={{ key: 'Accuracy', dir: 'asc' }}
+                initialSort={future ? { key: 'Forecast_Qty', dir: 'desc' } : { key: 'Accuracy', dir: 'asc' }}
                 searchable={false}
                 paginate={false}
                 totals
