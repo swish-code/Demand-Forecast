@@ -4392,6 +4392,19 @@ table.dt thead th:hover .th__sort--idle {
 .signin__submit:hover:not(:disabled) { filter: brightness(1.08); }
 .signin__submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Shown in place of the sign-in button when the tenant is not configured: the
+   only way in is Microsoft, so this is the whole story rather than a fallback. */
+.signin__down {
+  margin: 0;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--sunken);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
 .signin__assure {
   margin: var(--s4) 0 0;
   font-size: 12px;

@@ -3,7 +3,7 @@ import { pg } from '../db/accounts.js'
 import { generatePassword, hashPassword } from '../auth/passwords.js'
 import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
-import { DEPARTMENTS, isDepartment } from '../departments.js'
+import { DEPARTMENTS, DEPARTMENT_NODE_TYPES, isDepartment } from '../departments.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
 import { buildDigest, latestDigest, digestFor, recentDigests, today } from '../insights/digest.js'
@@ -111,6 +111,10 @@ admin.get(
       roles: ROLES,
       statuses: STATUSES,
       departments: DEPARTMENTS,
+      // What a department restricts on its own, sent so the form can say so
+      // while it is being filled in rather than after the account is made. One
+      // source of truth: the same map the requests are narrowed by.
+      departmentScopes: DEPARTMENT_NODE_TYPES,
     })
   })
 )
@@ -148,16 +152,10 @@ admin.post(
      * not a fixed placeholder, which would be the same unusable value on every
      * account everywhere.
      */
-    /*
-     * PASSWORD_LOGIN=1 lets a password be set here, and nothing else does.
-     *
-     * The flag is off in every deployment, so in production this is always the
-     * unusable branch. It exists so that work on a machine with no browser
-     * round trip through Entra can still create an account and sign in as it —
-     * which is what verifying a change to who-can-see-what actually requires.
-     */
-    const chosen = process.env.PASSWORD_LOGIN === '1' && req.body?.password
-    const unusable = await hashPassword(chosen ? String(req.body.password) : generatePassword())
+    // Nothing reads this column any more — there is no route that verifies a
+    // password — but it is NOT NULL, so it takes a value nobody holds rather
+    // than a blank or a placeholder repeated on every account.
+    const unusable = await hashPassword(generatePassword())
     const { rows } = await pg.run(
       `INSERT INTO users (email, name, password_hash, role, status, department, auth_provider)
        VALUES (?, ?, ?, ?, ?, ?, 'microsoft')

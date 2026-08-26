@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 
 /** A line break, named so the request body reads as a list. */
 const NEWLINE = String.fromCharCode(10)
-import { IconLock, IconUser, IconEye, IconEyeOff } from '../components/Icons.jsx'
 import { BRANDS } from '../brands.js'
 
 /**
@@ -12,13 +11,9 @@ import { BRANDS } from '../brands.js'
  * own: there is nothing here to forget or leak, and revoking someone in Entra
  * revokes them here.
  *
- * A password form still exists in this file but is unreachable unless the
- * server is started with PASSWORD_LOGIN=1, which no deployment sets. It is the
- * way back in if the Entra app registration or its redirect URI is ever broken
- * badly enough to lock every administrator out of their own tool.
- *
- * The server returns the same message for every credential failure, so this
- * screen never reveals whether an email exists.
+ * There is no password form, and no endpoint that would take one. If Microsoft
+ * sign-in is not configured, nobody signs in — the way back from that is fixing
+ * the app registration, not a second door left open in case.
  */
 
 /** Microsoft's own mark, drawn inline so the page pulls in nothing external. */
@@ -83,9 +78,6 @@ function requestBody(pendingEmail) {
 }
 
 export function Login({ onSignedIn }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [reveal, setReveal] = useState(false)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
   const [pendingEmail, setPendingEmail] = useState(null)
@@ -98,8 +90,7 @@ export function Login({ onSignedIn }) {
       .then(setMethods)
       .catch(() => {
         // If the server cannot be asked, leave Microsoft on: it is the only
-        // route staff have, and showing a password box they cannot use would be
-        // worse than showing nothing.
+        // route in, so offering it and failing is better than offering nothing.
       })
 
     const back = readCallback()
@@ -122,26 +113,6 @@ export function Login({ onSignedIn }) {
     }
   }, [onSignedIn])
 
-  const submit = async (e) => {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || `Sign-in failed (${res.status})`)
-      onSignedIn(json)
-    } catch (err) {
-      setError(err.message)
-      setPassword('')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <div className="signin">
@@ -175,54 +146,11 @@ export function Login({ onSignedIn }) {
           </a>
         )}
 
-        {/* There is no password to enter. The form below appears only when the
-            server says it will actually accept one — PASSWORD_LOGIN=1, which is
-            off unless somebody set it — and Microsoft is unavailable. That pair
-            is the way back in if the Entra app registration or its redirect URI
-            breaks, and it is not a second door in normal use. */}
-        {!methods.microsoft && methods.password && (
-          <form onSubmit={submit} className="signin__form">
-            <label className="signin__field">
-              <span className="signin__label">Email</span>
-              <span className="signin__input">
-                <IconUser size={16} />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
-                  placeholder="name@swishhh.net"
-                  required
-                />
-              </span>
-            </label>
-
-            <label className="signin__field">
-              <span className="signin__label">Password</span>
-              <span className="signin__input">
-                <IconLock size={16} />
-                <input
-                  type={reveal ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  className="signin__reveal"
-                  onClick={() => setReveal((r) => !r)}
-                  aria-label={reveal ? 'Hide password' : 'Show password'}
-                >
-                  {reveal ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                </button>
-              </span>
-            </label>
-
-            <button type="submit" className="signin__submit" disabled={busy || !email || !password}>
-              {busy ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
+        {!methods.microsoft && (
+          <p className="signin__down">
+            Microsoft sign-in is not configured on this server, and it is the only way in. An
+            administrator needs to set the app registration before anybody can sign in.
+          </p>
         )}
 
         <p className="signin__assure">Secure session · your access is scoped to your role.</p>

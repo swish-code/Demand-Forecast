@@ -28,7 +28,7 @@ const STATUS_HELP = {
   disabled: 'Blocked. Use for people who have left.',
 }
 
-export function UserEditor({ mode, user, roles, statuses, departments = [], brands, currentUserId, onClose, onSaved }) {
+export function UserEditor({ mode, user, roles, statuses, departments = [], departmentScopes = {}, brands, currentUserId, onClose, onSaved }) {
   const creating = mode === 'create'
 
   const [email, setEmail] = useState(user?.email ?? '')
@@ -73,10 +73,28 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
    * have been chosen deliberately, and quietly revoking access is worse than
    * leaving a tick the admin can clear.
    */
+  /** The production types this department is confined to, or null for all. */
+  const departmentTypes = departmentScopes[department] ?? null
+
+  /*
+   * Choosing a department that works across the business grants every brand.
+   *
+   * Management already did this. Production, Bakery and Warehouse are the same
+   * shape of job: somebody in the warehouse handles raw materials for every
+   * chain, not for one of them, and leaving the form saying "this account will
+   * see no data at all" after picking their department is a step that only ever
+   * ended one way.
+   *
+   * Turning the department off again does not take the brands away: they may
+   * have been chosen deliberately, and quietly revoking access is worse than
+   * leaving a tick the admin can clear.
+   */
   const pickDepartment = (d) => {
     const next = department === d ? '' : d
     setDepartment(next)
-    if (next === 'Management') setBrandCodes(new Set(brands.map((b) => b.code)))
+    if (next === 'Management' || departmentScopes[next]) {
+      setBrandCodes(new Set(brands.map((b) => b.code)))
+    }
   }
 
   const allBrands = brands.length > 0 && brandCodes.size === brands.length
@@ -311,6 +329,18 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
                     Which part of the business they sit in. Separate from role — role decides what
                     they may see; this is who they are, and the usage figures group on it.
                   </span>
+                  {departmentTypes && (
+                    <InfoBanner>
+                      <strong>
+                        {department} sees the Ingredients page, production {'type'}
+                        {departmentTypes.length === 1 ? '' : 's'} {departmentTypes.join(' and ')}.
+                      </strong>{' '}
+                      Components of any other type are hidden, and the Overview, Products and
+                      Tomorrow&rsquo;s Prep pages are not shown — production type has no meaning
+                      against a product total, so those pages could not honour the restriction.
+                      Every brand has been ticked below; untick any they should not see.
+                    </InfoBanner>
+                  )}
                 </div>
               )}
 

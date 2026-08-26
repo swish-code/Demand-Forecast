@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { pg } from '../db/accounts.js'
 import { raise } from '../insights/alerts.js'
-import { verifyPassword } from '../auth/passwords.js'
 import {
   clearedCookie,
   createSession,
@@ -16,30 +15,18 @@ import { isConnectState, completeConnect } from '../mail/delegated.js'
 
 export const auth = Router()
 
-/**
- * Login is the entire attack surface — there is no SSO in front of it — so it
- * carries three independent brakes:
- *   1. per-IP throttle, to slow a spray across many accounts
- *   2. per-account lockout, to slow a focused attack on one account
- *   3. a uniform error message and constant-ish timing, so the response never
- *      reveals whether an email exists
+/*
+ * Brute force was a password problem, and the passwords are gone.
+ *
+ * A per-IP throttle and a per-account lockout guarded the one endpoint that
+ * took a guessable secret. Microsoft sign-in has no such endpoint here: the
+ * guessing, the lockout and the second factor all happen in the tenant, and
+ * what comes back is a signed token that is either valid or is not.
+ *
+ * The sign-in log stays. It is how somebody notices an account being used
+ * from somewhere it should not be, which is a question the tenant cannot
+ * answer for them.
  */
-const MAX_ATTEMPTS = 5
-const LOCK_MINUTES = 15
-const IP_WINDOW_MS = 60_000
-const IP_MAX = 20
-
-const ipHits = new Map()
-
-function ipThrottled(ip) {
-  const now = Date.now()
-  const hits = (ipHits.get(ip) ?? []).filter((t) => now - t < IP_WINDOW_MS)
-  hits.push(now)
-  ipHits.set(ip, hits)
-  if (ipHits.size > 5000) ipHits.clear() // crude bound; restarts are cheap
-  return hits.length > IP_MAX
-}
-
 const clientIp = (req) => (req.headers['x-forwarded-for'] ?? '').toString().split(',')[0].trim() || req.ip
 
 /**
@@ -82,109 +69,17 @@ async function sessionPayload(user) {
 }
 
 /*
- * Sign-in is Microsoft, and only Microsoft.
+ * There is no password sign-in, and no route that would accept one.
  *
- * Nobody here should be keeping a second password for a second copy of the
- * staff directory: the accounts already exist in Entra, they already have a
- * password policy and whatever second factor the tenant enforces, and an
- * account disabled there should not still open this. A local password was a
- * way in that survived all of that.
+ * Staff already have a work account with the tenant's password policy and
+ * whatever second factor it enforces behind it. A password kept here was a
+ * way in that survived all of that: someone disabled in Entra could still
+ * open this, and every account meant a credential handed over somewhere.
  *
- * PASSWORD_LOGIN=1 puts the form back. It is off unless it is set, so a
- * deployment that does not name it has no password sign-in at all. It exists
- * for two situations and no others: local development against a machine with
- * no Entra app registration, and getting back in if the tenant configuration
- * is broken badly enough that nobody can sign in to fix it.
+ * POST /auth/login is gone rather than disabled, so there is nothing to
+ * re-enable by setting a variable and nothing to find by guessing. Getting
+ * back in after a broken app registration means fixing the registration.
  */
-const PASSWORD_LOGIN = process.env.PASSWORD_LOGIN === '1'
-
-auth.post('/login', async (req, res) => {
-  if (!PASSWORD_LOGIN) {
-    return res.status(404).json({
-      error: 'This app signs in with Microsoft. There is no password to enter.',
-    })
-  }
-
-  const email = String(req.body?.email ?? '').trim()
-  const password = String(req.body?.password ?? '')
-  const ip = clientIp(req)
-
-  if (ipThrottled(ip)) {
-    record(null, email, false, 'ip_throttled', req)
-    return res.status(429).json({ error: 'Too many attempts. Wait a minute and try again.' })
-  }
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' })
-  }
-
-  const user = await pg.get(
-    `SELECT id, email, name, password_hash, role, status, department, failed_attempts, locked_until
-       FROM users WHERE lower(email) = lower(?)`,
-    [email]
-  )
-
-  // Same message for every failure: never confirm whether an account exists.
-  const refuse = (reason, status = 401) => {
-    record(user?.id, email, false, reason, req)
-    return res.status(status).json({ error: 'Email or password is incorrect' })
-  }
-
-  if (!user) {
-    // Burn comparable time so a missing account is not measurably faster.
-    await verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA')
-    return refuse('unknown_email')
-  }
-
-  if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    record(user.id, email, false, 'locked', req)
-    return res.status(429).json({ error: 'Account temporarily locked. Try again shortly.' })
-  }
-
-  const ok = await verifyPassword(password, user.password_hash)
-
-  if (!ok) {
-    const attempts = user.failed_attempts + 1
-    const lock = attempts >= MAX_ATTEMPTS ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null
-    await pg.run('UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?', [attempts, lock, user.id])
-
-    // A lockout is either someone who forgot their password and needs help, or
-    // someone guessing at an account. Either way an admin should see it.
-    if (lock) {
-      raise({
-        source: 'auth',
-        key: `auth:lockout:${user.email}`,
-        severity: 'warning',
-        title: `${user.email} was locked out after ${MAX_ATTEMPTS} failed sign-ins`,
-        detail: `Locked until ${new Date(lock).toLocaleTimeString('en-GB')}. Reset their password from the users table if they need back in sooner.`,
-      })
-    }
-    return refuse('bad_password')
-  }
-
-  if (user.status !== 'active') {
-    record(user.id, email, false, `status_${user.status}`, req)
-    const message =
-      user.status === 'pending'
-        ? 'Your account is awaiting approval'
-        : 'Your account is not active. Contact an administrator.'
-    return res.status(403).json({ error: message })
-  }
-
-  await pg.run(
-    `UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
-    [user.id]
-  )
-
-  // Honoured only for the password form. A Microsoft sign-in keeps the standard
-  // window, because that session's lifetime is the tenant's business.
-  const remember = req.body?.keepSignedIn === true
-  const token = await createSession(user.id, { ip, userAgent: req.headers['user-agent'], remember })
-  await record(user.id, email, true, null, req)
-
-  res.setHeader('Set-Cookie', sessionCookie(token, { remember }))
-  res.json(await sessionPayload(user))
-})
 
 auth.post('/logout', async (req, res, next) => {
   try {
@@ -214,7 +109,7 @@ auth.get('/methods', (req, res) => {
    * them to wait again.
    */
   const contact = process.env.ADMIN_CONTACT || process.env.ADMIN_EMAIL || null
-  res.json({ microsoft: isConfigured(), password: PASSWORD_LOGIN, contact })
+  res.json({ microsoft: isConfigured(), password: false, contact })
 })
 
 auth.get('/microsoft/start', (req, res) => {

@@ -1,4 +1,4 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
+import { randomBytes, scrypt as scryptCb } from 'node:crypto'
 import { promisify } from 'node:util'
 
 const scrypt = promisify(scryptCb)
@@ -30,25 +30,17 @@ export async function hashPassword(plain) {
   return ['scrypt', PARAMS.N, PARAMS.r, PARAMS.p, salt.toString('base64'), key.toString('base64')].join('$')
 }
 
-/** Constant-time verify. Returns false rather than throwing on a malformed hash. */
-export async function verifyPassword(plain, stored) {
-  try {
-    const [scheme, N, r, p, saltB64, hashB64] = String(stored).split('$')
-    if (scheme !== 'scrypt') return false
-
-    const salt = Buffer.from(saltB64, 'base64')
-    const expected = Buffer.from(hashB64, 'base64')
-    const actual = await scrypt(plain, salt, expected.length, {
-      N: Number(N),
-      r: Number(r),
-      p: Number(p),
-      maxmem: 64 * 1024 * 1024,
-    })
-    return actual.length === expected.length && timingSafeEqual(actual, expected)
-  } catch {
-    return false
-  }
-}
+/*
+ * There is no verify, on purpose.
+ *
+ * Sign-in is Microsoft, so nothing in the app compares a password against
+ * this column any more. What remains is hashing, and only so the NOT NULL
+ * column can be filled with a value nobody holds — a hash of a random string
+ * rather than a blank or the same placeholder on every account.
+ *
+ * Deleting the comparison rather than leaving it unused is the point: an
+ * unused verifier is one route away from being a way in again.
+ */
 
 /** A readable one-time password for seeded or admin-reset accounts. */
 export function generatePassword(length = 16) {
