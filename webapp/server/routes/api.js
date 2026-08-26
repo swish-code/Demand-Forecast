@@ -17,6 +17,7 @@ import { config, missingSettings } from '../config.js'
 import {
   allowedBrands,
   applyLocationScope,
+  locationsForBrand,
   loadScope,
   requireAuth,
   requireRole,
@@ -118,7 +119,9 @@ function scopedFilters(req, brand) {
   // are otherwise indistinguishable once you are past the dataset id.
   if (brand?.code) f.brand = brand.code
   if (brand?.chain) f.brands = [brand.chain]
-  return applyLocationScope(f, req.scope)
+  // Narrowed within this brand: a branch granted on another brand must not
+  // widen this one, and branch codes are not unique across chains.
+  return applyLocationScope(f, req.scope, brand?.code ?? null)
 }
 
 /**
@@ -232,7 +235,25 @@ api.all('/slicers', handle(async (req, res) => {
   const src = req.method === 'POST' ? req.body || {} : req.query || {}
   const need = Array.isArray(src.need) && src.need.length ? src.need : null
 
-  const results = await g.fanOut(({ f, ds }) => data.slicers(f, ds, need))
+  /*
+   * The branch list is a grant, not a catalogue.
+   *
+   * The model answers with every branch the brand has, which is right for an
+   * administrator and wrong for everybody else: a store account was being shown
+   * the names of fifteen branches it could not open, and picking one returned a
+   * 403 rather than data. The figures were never exposed — every query is
+   * narrowed server-side — but the names were, and a dropdown whose entries
+   * refuse to work is its own kind of broken.
+   *
+   * Narrowed per brand for the same reason the queries are: branch codes repeat
+   * across chains.
+   */
+  const results = await g.fanOut(async ({ f, ds, brand }) => {
+    const out = await data.slicers(f, ds, need)
+    const granted = locationsForBrand(req.scope, brand?.code ?? null)
+    if (!granted || !out?.locations) return out
+    return { ...out, locations: out.locations.filter((l) => granted.has(String(l))) }
+  })
   if (g.single) return res.json(results[0])
 
   res.json({

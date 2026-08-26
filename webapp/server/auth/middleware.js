@@ -42,32 +42,94 @@ export function requireRole(...roles) {
 }
 
 /**
- * A user's grants.
+ * A user's grants, kept as brand-and-branch pairs rather than two flat lists.
+ *
+ * The rows are stored as pairs and always were. Reading them into one set of
+ * brands and one set of branches threw the pairing away, and two real faults
+ * came straight out of that.
+ *
+ * The first: the Add-user form writes one row for the brand itself — (BBT,
+ * null) — and one row per branch chosen — (BBT, SAD). Flattened, that null read
+ * as "every branch", so granting one branch of a brand silently granted all
+ * fourteen of them. The grant that was meant to be the restriction was the
+ * thing that removed it.
+ *
+ * The second: branch codes are not unique across brands. ARD, JHR, KHR, MNF and
+ * SAL each exist in more than one chain, so a user holding (BBT, SAD) and
+ * (MM, ARD) would, on BBT, be allowed BBT's own ARD — a branch nobody granted
+ * them.
+ *
+ * So: per brand, the branches named for that brand are the grant. A brand with
+ * no branch named against it means every branch of that brand, which is what
+ * ticking a brand and no branches is asking for.
+ *
  *   brands    Set of brand codes, or null for every brand
- *   locations Set of location ids, or null for every location
+ *   locations the union, for callers that only want to know if it is unlimited
+ *   byBrand   Map of brand code to a Set of branches, or null for all of them
+ *   anyBrand  branches granted without a brand, or null for all of them
  */
 export async function loadScope(userId, role) {
-  if (role === 'admin') return { brands: null, locations: null }
+  if (role === 'admin') return { brands: null, locations: null, byBrand: null, anyBrand: null }
 
   const rows = await pg.all('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ?', [userId])
-  if (!rows.length) return { brands: new Set(), locations: new Set() } // no grants = nothing
+  // No grants means nothing, never everything.
+  if (!rows.length) return { brands: new Set(), locations: new Set(), byBrand: new Map(), anyBrand: new Set() }
 
   const brands = new Set()
-  const locations = new Set()
+  const collected = new Map()
+  const anyBrand = new Set()
   let allBrands = false
-  let allLocations = false
+  let anyBrandUnlimited = false
 
   for (const r of rows) {
-    if (r.brand_code) brands.add(r.brand_code)
-    else allBrands = true
-    if (r.location_id) locations.add(r.location_id)
-    else allLocations = true
+    const brand = r.brand_code || null
+    const location = r.location_id || null
+
+    if (!brand) {
+      // A row with no brand grants every brand; its branch, if it names one,
+      // applies wherever no brand-specific grant does.
+      allBrands = true
+      if (location) anyBrand.add(location)
+      else anyBrandUnlimited = true
+      continue
+    }
+
+    brands.add(brand)
+    if (!collected.has(brand)) collected.set(brand, new Set())
+    if (location) collected.get(brand).add(location)
   }
+
+  const byBrand = new Map()
+  for (const [brand, set] of collected) byBrand.set(brand, set.size ? set : null)
+
+  // The union, and whether anything in it is unrestricted.
+  const union = new Set()
+  let unlimited = anyBrandUnlimited
+  for (const set of byBrand.values()) {
+    if (!set) unlimited = true
+    else for (const l of set) union.add(l)
+  }
+  for (const l of anyBrand) union.add(l)
 
   return {
     brands: allBrands ? null : brands,
-    locations: allLocations ? null : locations,
+    locations: unlimited ? null : union,
+    byBrand,
+    anyBrand: anyBrandUnlimited ? null : anyBrand,
   }
+}
+
+/**
+ * The branches a user may see *within one brand*. null means all of them.
+ *
+ * A brand the user holds an explicit grant for answers from that grant alone —
+ * another brand's branches never widen it. A brand reached only through an
+ * all-brands grant falls back to whatever that grant named.
+ */
+export function locationsForBrand(scope, brandCode) {
+  if (!scope || !scope.byBrand) return scope?.locations ?? null
+  if (brandCode && scope.byBrand.has(brandCode)) return scope.byBrand.get(brandCode)
+  return scope.anyBrand ?? null
 }
 
 /** Brands this user may select, in the configured order. */
@@ -114,10 +176,11 @@ export function resolveScopedBrands(scope, requested) {
  * failing. An empty intersection means they asked only for branches they cannot
  * see, and the caller refuses.
  */
-export function applyLocationScope(filters, scope) {
-  if (!scope.locations) return { filters, denied: false }
+export function applyLocationScope(filters, scope, brandCode = null) {
+  const granted = locationsForBrand(scope, brandCode)
+  if (!granted) return { filters, denied: false }
 
-  const allowed = [...scope.locations]
+  const allowed = [...granted]
   if (!allowed.length) return { filters, denied: true }
 
   const requested = Array.isArray(filters.locations) ? filters.locations.map(String) : []
