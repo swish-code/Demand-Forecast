@@ -148,7 +148,16 @@ admin.post(
      * not a fixed placeholder, which would be the same unusable value on every
      * account everywhere.
      */
-    const unusable = await hashPassword(generatePassword())
+    /*
+     * PASSWORD_LOGIN=1 lets a password be set here, and nothing else does.
+     *
+     * The flag is off in every deployment, so in production this is always the
+     * unusable branch. It exists so that work on a machine with no browser
+     * round trip through Entra can still create an account and sign in as it —
+     * which is what verifying a change to who-can-see-what actually requires.
+     */
+    const chosen = process.env.PASSWORD_LOGIN === '1' && req.body?.password
+    const unusable = await hashPassword(chosen ? String(req.body.password) : generatePassword())
     const { rows } = await pg.run(
       `INSERT INTO users (email, name, password_hash, role, status, department, auth_provider)
        VALUES (?, ?, ?, ?, ?, ?, 'microsoft')

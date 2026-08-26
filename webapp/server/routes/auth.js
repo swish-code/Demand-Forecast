@@ -9,6 +9,7 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
+import { nodeTypesFor, pagesFor } from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -59,12 +60,23 @@ function record(userId, email, success, reason, req) {
 async function sessionPayload(user) {
   const scope = await loadScope(user.id, user.role)
   return {
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      department: user.department ?? null,
+    },
     brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })),
     scope: {
       allBrands: scope.brands === null,
       allLocations: scope.locations === null,
       locations: scope.locations ? [...scope.locations] : null,
+      // What the rail should show, and which production types this department
+      // may see. Both are enforced on the server as well — this is so the shell
+      // does not offer a tab that would answer 403.
+      pages: pagesFor(user.department),
+      nodeTypes: nodeTypesFor(user.department),
     },
   }
 }
@@ -107,7 +119,7 @@ auth.post('/login', async (req, res) => {
   }
 
   const user = await pg.get(
-    `SELECT id, email, name, password_hash, role, status, failed_attempts, locked_until
+    `SELECT id, email, name, password_hash, role, status, department, failed_attempts, locked_until
        FROM users WHERE lower(email) = lower(?)`,
     [email]
   )

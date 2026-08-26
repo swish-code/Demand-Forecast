@@ -4005,23 +4005,49 @@ table.dt thead th:hover .th__sort--idle {
    cutting every name at the same width was what made four different rows look
    like the same row four times. */
 
-/* The three columns line up down the card: the name takes what is left, the bar
-   is a fixed share so bars are comparable by eye, and the value column is fixed
-   and tabular so the digits stack in a straight edge rather than drifting with
-   the width of each number. */
+/* The three columns line up down the card.
+ *
+ * The name takes what is left, the bar is a fixed width so bars are comparable
+ * by eye down the whole card, and the value column is fixed and tabular so the
+ * digits stack in a straight edge instead of drifting with the width of each
+ * number — "1,020.47" and "422.02" now end on the same pixel.
+ *
+ * The bar and the value sit on the first line of the name rather than in the
+ * middle of it: a name that wraps to two lines would otherwise drag its own bar
+ * half a line below its neighbours, and the row would read as misaligned even
+ * though the grid was not.
+ */
 .unitcol .units__row {
-  grid-template-columns: minmax(0, 1fr) 88px 76px;
-  align-items: start;
-  padding-block: 2px;
+  grid-template-columns: minmax(0, 1fr) 84px 92px;
+  align-items: baseline;
+  column-gap: var(--s3);
+  padding-block: 3px;
 }
 
 .unitcol .units__value {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  white-space: nowrap;
 }
 
+/* A bar has no baseline of its own, so it is placed against the text's. */
 .unitcol .units__track {
-  margin-top: 3px;
+  align-self: start;
+  margin-top: 5px;
+}
+
+/* Room to scroll past the last row rather than ending flush against the edge,
+   which reads as a row cut in half. */
+.unitcol .units__list {
+  margin-top: 0;
+  padding-bottom: var(--s2);
+}
+
+/* A narrow card cannot afford 84px of bar and 92px of number beside a wrapping
+   name; the bar is what gives way, because the number is the answer. */
+@media (max-width: 1320px) {
+  .unitcol .units__row { grid-template-columns: minmax(0, 1fr) 56px 88px; }
 }
 
 /* The scrolling happens in the body, not the panel, so the heading stays put. */

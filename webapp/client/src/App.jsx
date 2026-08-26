@@ -173,10 +173,23 @@ export default function App({ session, onSignedOut }) {
 
   // The admin tab is not merely hidden — a non-admin has no route to it, and
   // the server would refuse its requests anyway.
-  const pages = useMemo(
-    () => PAGES.filter((p) => !p.adminOnly || session?.user?.role === 'admin'),
-    [session]
-  )
+  /*
+   * A department restricted to part of the recipe gets the pages that can
+   * honour the restriction, and no others.
+   *
+   * Production type is a recipe-side attribute with no meaning against a
+   * product total, so the Overview, Products and the prep plan would answer
+   * with everything — the server refuses them for these accounts, and the rail
+   * should not offer a tab that answers 403.
+   */
+  const pages = useMemo(() => {
+    const allowed = session?.scope?.pages ?? null
+    return PAGES.filter(
+      (p) =>
+        (!p.adminOnly || session?.user?.role === 'admin') &&
+        (!allowed || allowed.includes(p.id) || (p.adminOnly && session?.user?.role === 'admin'))
+    )
+  }, [session])
   const page = useMemo(() => pages.find((p) => p.id === tab) ?? pages[0], [tab, pages])
   // The rail shows the reports; the guide is reachable from the Overview.
   const navPages = useMemo(() => pages.filter((p) => !p.hidden), [pages])

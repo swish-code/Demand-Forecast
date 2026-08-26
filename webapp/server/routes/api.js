@@ -14,6 +14,7 @@ import {
 import { clearCache } from '../cache.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
+import { nodeTypesFor, pagesFor } from '../departments.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -119,6 +120,32 @@ function scopedFilters(req, brand) {
   // are otherwise indistinguishable once you are past the dataset id.
   if (brand?.code) f.brand = brand.code
   if (brand?.chain) f.brands = [brand.chain]
+
+  /*
+   * The production types this department may see.
+   *
+   * Same rule as branches and for the same reason: read from the session, never
+   * from the request, so editing the payload cannot widen it. Asking for a type
+   * outside the grant leaves the intersection rather than erroring, so a stale
+   * bookmark degrades to their own rows; asking only for types they cannot see
+   * leaves nothing, and that is a refusal.
+   */
+  const types = nodeTypesFor(req.user?.department)
+  if (types) {
+    const asked = Array.isArray(f.nodeTypes) ? f.nodeTypes.map(String) : []
+    const narrowed = asked.length ? types.filter((t) => asked.includes(t)) : types
+    if (!narrowed.length) {
+      return {
+        filters: f,
+        denied: true,
+        reason:
+          `The ${req.user.department} department sees ` +
+          `${types.join(' and ')} components. Clear the production type filter to see them.`,
+      }
+    }
+    f.nodeTypes = narrowed
+  }
+
   // Narrowed within this brand: a branch granted on another brand must not
   // widen this one, and branch codes are not unique across chains.
   return applyLocationScope(f, req.scope, brand?.code ?? null)
@@ -165,6 +192,24 @@ api.use(requireAuth, (req, res, next) => {
     .catch(next)
 })
 
+/*
+ * Pages a restricted department may not open, refused rather than hidden.
+ *
+ * The rail hides them too, but a hidden tab is a decoration: the request is
+ * what has to be refused, because a bookmark, a drill-through link or a typed
+ * URL all reach the same route without going near the rail.
+ */
+function pageDenied(req, res, page) {
+  const allowed = pagesFor(req.user?.department)
+  if (!allowed || allowed.includes(page)) return false
+  res.status(403).json({
+    error:
+      `The ${req.user.department} department sees ingredients rather than product figures. ` +
+      'Ask an administrator if you need the other pages.',
+  })
+  return true
+}
+
 /** Refuse cleanly when a user's grants cover nothing in the requested brand. */
 function guard(req, res) {
   const brand = brandOf(req)
@@ -196,14 +241,23 @@ function guardMany(req, res) {
   }
 
   const parts = []
+  // Why the last brand was refused, so the message can say which restriction
+  // did it. A branch outside the grant and a production type outside it are
+  // different problems with different answers, and telling somebody to check
+  // their locations when they filtered by production type sends them looking in
+  // the wrong place.
+  let refusal = null
   for (const brand of brands) {
-    const { filters, denied } = scopedFilters(req, brand)
-    if (denied) continue
+    const { filters, denied, reason } = scopedFilters(req, brand)
+    if (denied) {
+      refusal = reason ?? refusal
+      continue
+    }
     parts.push({ brand, ds: brand.datasetId, f: filters })
   }
 
   if (!parts.length) {
-    res.status(403).json({ error: 'You do not have access to the requested locations.' })
+    res.status(403).json({ error: refusal ?? 'You do not have access to the requested locations.' })
     return null
   }
 
@@ -251,8 +305,18 @@ api.all('/slicers', handle(async (req, res) => {
   const results = await g.fanOut(async ({ f, ds, brand }) => {
     const out = await data.slicers(f, ds, need)
     const granted = locationsForBrand(req.scope, brand?.code ?? null)
-    if (!granted || !out?.locations) return out
-    return { ...out, locations: out.locations.filter((l) => granted.has(String(l))) }
+    const types = nodeTypesFor(req.user?.department)
+
+    const narrowed = { ...out }
+    if (granted && out?.locations) {
+      narrowed.locations = out.locations.filter((l) => granted.has(String(l)))
+    }
+    // Same reasoning as the branch list: offering a production type this
+    // account cannot open is a dropdown entry that answers with nothing.
+    if (types && out?.nodeTypes) {
+      narrowed.nodeTypes = out.nodeTypes.filter((t) => types.includes(String(t)))
+    }
+    return narrowed
   })
   if (g.single) return res.json(results[0])
 
@@ -290,6 +354,7 @@ export function previousWindow(f) {
 }
 
 api.all('/summary', handle(async (req, res) => {
+  if (pageDenied(req, res, 'summary')) return
   const g = guardMany(req, res)
   if (!g) return
   const src = req.method === 'POST' ? req.body : req.query
@@ -359,6 +424,7 @@ api.all('/summary', handle(async (req, res) => {
 }))
 
 api.all('/product-level', handle(async (req, res) => {
+  if (pageDenied(req, res, 'product')) return
   const g = guardMany(req, res)
   if (!g) return
 
@@ -484,6 +550,7 @@ function mergePlanKpis(list) {
  * measures are fetched on their own.
  */
 api.all('/production-plan/kpis', handle(async (req, res) => {
+  if (pageDenied(req, res, 'production')) return
   const g = guardMany(req, res)
   if (!g) return
 
@@ -492,6 +559,7 @@ api.all('/production-plan/kpis', handle(async (req, res) => {
 }))
 
 api.all('/production-plan', handle(async (req, res) => {
+  if (pageDenied(req, res, 'production')) return
   const g = guardMany(req, res)
   if (!g) return
 
@@ -528,6 +596,7 @@ const CONTEXT_DAYS = 30
 const DATE_ONLY = []
 
 api.all('/context', handle(async (req, res) => {
+  if (pageDenied(req, res, 'summary')) return
   const g = guardMany(req, res)
   if (!g) return
   const { ds, f } = g.parts[0]

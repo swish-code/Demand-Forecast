@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, fmtNum, fmtInt, fmtDate, downloadCsv } from '../api.js'
+import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
 import { Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
@@ -40,7 +41,7 @@ const COLUMNS = [
 ]
 
 /** Mirrors the report's COMPONENT LEVEL page. */
-export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
+export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded }) {
   /*
    * Which extra dimensions the reader has switched on.
    *
@@ -135,6 +136,19 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
       .sort((a, b) => b.count - a.count)
   }, [rows])
 
+  /*
+   * Tomorrow has no actual and never will until it arrives.
+   *
+   * The same rule the Products table follows: a component requirement for a day
+   * nobody has cooked is a plan, not a shortfall, and a column of zeroes beside
+   * the forecast reads as one.
+   */
+  const future = isFutureWindow(filters, options?.dateRange)
+  const columns = useMemo(
+    () => (future ? COLUMNS.filter((c) => c.key !== 'Component_Actual_Qty') : COLUMNS),
+    [future]
+  )
+
   const groups = useMemo(() => new Set(rows.map((r) => r['Recipe Group'])).size, [rows])
 
   const units = useMemo(() => [...new Set(rows.map((r) => r.BU).filter(Boolean))], [rows])
@@ -192,7 +206,7 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
             className="btn"
             disabled={!rows.length}
             onClick={() =>
-              downloadCsv('bbt-component-level.csv', rows, COLUMNS.map(({ key, label }) => ({ key, label })))
+              downloadCsv('bbt-component-level.csv', rows, columns.map(({ key, label }) => ({ key, label })))
             }
           >
             <IconDownload size={12} />
@@ -206,7 +220,7 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
           </div>
         ) : (
           <DataTable
-            columns={COLUMNS}
+            columns={columns}
             rows={rows}
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search component or group…"

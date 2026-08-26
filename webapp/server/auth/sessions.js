@@ -40,7 +40,7 @@ export async function resolveSession(raw) {
   if (!raw) return null
 
   const row = await pg.get(
-    `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status
+    `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status, u.department
        FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.id = ?
@@ -55,7 +55,17 @@ export async function resolveSession(raw) {
 
   await pg.run(`UPDATE sessions SET last_seen_at = to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?`, [row.sid])
 
-  return { id: row.id, email: row.email, name: row.name, role: row.role, status: row.status }
+  // The department travels with the session: it decides which production types
+  // this account may see, and that has to be enforced on every request rather
+  // than looked up again in each route.
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    status: row.status,
+    department: row.department ?? null,
+  }
 }
 
 export async function revokeSession(raw) {
