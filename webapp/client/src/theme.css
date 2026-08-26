@@ -3982,10 +3982,15 @@ table.dt thead th:hover .th__sort--idle {
 
 .unitcol > .panel > .panel__head { flex: 0 0 auto; }
 
+/* The list scrolls inside the card, so the heading and its totals stay put
+   while the ranking moves. `min-height: 0` is what allows a flex child to be
+   shorter than its content — without it the body grows to fit every row and the
+   third card is pushed off the bottom instead of scrolling. */
 .unitcol > .panel > .panel__body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .unitcol__more {
@@ -3995,15 +4000,28 @@ table.dt thead th:hover .th__sort--idle {
   color: var(--text-faint);
 }
 
-/* One line, ellipsised, with the full name on hover and in the table beside it.
-   The two-line treatment used elsewhere makes row height depend on the name,
-   and a card that must not scroll cannot have a variable row height. */
-.units__item--tight {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-line-clamp: none;
+/* Names wrap rather than truncate now that the card scrolls.
+   "Chicken Breast Uncalibrated ..." is not a component anybody can act on, and
+   cutting every name at the same width was what made four different rows look
+   like the same row four times. */
+
+/* The three columns line up down the card: the name takes what is left, the bar
+   is a fixed share so bars are comparable by eye, and the value column is fixed
+   and tabular so the digits stack in a straight edge rather than drifting with
+   the width of each number. */
+.unitcol .units__row {
+  grid-template-columns: minmax(0, 1fr) 88px 76px;
+  align-items: start;
+  padding-block: 2px;
+}
+
+.unitcol .units__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.unitcol .units__track {
+  margin-top: 3px;
 }
 
 /* The scrolling happens in the body, not the panel, so the heading stays put. */

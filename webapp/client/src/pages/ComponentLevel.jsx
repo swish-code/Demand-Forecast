@@ -32,7 +32,11 @@ const COLUMNS = [
     render: (v) => (v ? <Pill tone={TYPE_TONE[v] ?? 'slate'}>{v}</Pill> : '–'),
   },
   { key: 'BU', label: 'Unit', width: 92 },
-  { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, strong: true, render: fmtNum },
+  // Actual before forecast, the same order the other tables use: what happened,
+  // then what was expected. Both are totalled, because a component requirement
+  // across a window is a quantity to order and does add up.
+  { key: 'Component_Actual_Qty', label: 'Actual qty', width: W.qty, num: true, strong: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
 ]
 
 /** Mirrors the report's COMPONENT LEVEL page. */
@@ -86,21 +90,46 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
    * comparable within a unit, never across, which is the only honest reading.
    */
   const facets = useMemo(() => {
+    /*
+     * One line per component, not one per recipe it appears in.
+     *
+     * The table splits a component by recipe group, which is right there — you
+     * order against the recipe. Ranked, it read as a fault: "Saj Bread Mishmash"
+     * four times over, "Chicken Breast Uncalibrated" three times, each one a
+     * different recipe group but the names cut off at the same width, so the
+     * card looked like it was repeating itself. Worse, none of the four was the
+     * real figure for that bread — the requirement is their sum.
+     *
+     * Adding across recipe groups is the same reasoning the API already applies
+     * across brands: a component in two recipes is one thing to order. Adding
+     * across units would not be, so that stays split — a kilogram and an "each"
+     * share no axis.
+     */
     const byUnit = new Map()
     for (const r of rows) {
       const unit = r.BU || '—'
-      if (!byUnit.has(unit)) byUnit.set(unit, [])
-      byUnit.get(unit).push(r)
+      if (!byUnit.has(unit)) byUnit.set(unit, new Map())
+      const items = byUnit.get(unit)
+      const key = r.Item
+      const prev = items.get(key) ?? { Item: key, Component_Forecast_Qty: 0, Component_Actual_Qty: 0 }
+      prev.Component_Forecast_Qty += Number(r.Component_Forecast_Qty) || 0
+      prev.Component_Actual_Qty += Number(r.Component_Actual_Qty) || 0
+      items.set(key, prev)
     }
+
     return [...byUnit.entries()]
-      .map(([unit, list]) => {
-        const ranked = [...list].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)
+      .map(([unit, items]) => {
+        const ranked = [...items.values()].sort(
+          (a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty
+        )
         return {
           unit,
-          rows: ranked.slice(0, 6),
+          // The card scrolls, so the list is not cut to whatever happened to
+          // fit. Twenty is where a ranking stops being a ranking.
+          rows: ranked.slice(0, 20),
           leader: Number(ranked[0]?.Component_Forecast_Qty) || 0,
-          count: list.length,
-          total: list.reduce((a, r) => a + (Number(r.Component_Forecast_Qty) || 0), 0),
+          count: ranked.length,
+          total: ranked.reduce((a, r) => a + r.Component_Forecast_Qty, 0),
         }
       })
       .sort((a, b) => b.count - a.count)
@@ -223,9 +252,9 @@ export function ComponentLevel({ filters, ready, refreshNonce, onLoaded }) {
                 } · bars compare within this unit`}
               >
                 <ol className="units__list">
-                  {facet.rows.slice(0, 4).map((r) => (
+                  {facet.rows.map((r) => (
                     <li className="units__row" key={r.Item}>
-                      <span className="units__item units__item--tight" title={r.Item}>
+                      <span className="units__item" title={r.Item}>
                         {r.Item}
                       </span>
                       <span className="units__track" aria-hidden="true">

@@ -124,10 +124,32 @@ export async function completeSignIn({ code, state }) {
   if (!c.nonce || !sameString(c.nonce, held.nonce)) throw new Error('Sign-in could not be verified. Please try again.')
   if (Number(c.exp) * 1000 < Date.now()) throw new Error('Sign-in token had already expired.')
 
-  const email = String(c.preferred_username || c.email || c.upn || '').trim()
-  if (!email.includes('@')) throw new Error('Microsoft did not return an email address for this account.')
+  /*
+   * Every address this person could have been written down as.
+   *
+   * An administrator granting access ahead of time types the address they know
+   * — usually the mailbox on a business card. Entra's preferred_username is the
+   * user principal name, which is often the same string and sometimes is not:
+   * an onmicrosoft.com UPN against a vanity mail domain, or a UPN that kept
+   * somebody's maiden name after their mailbox was renamed.
+   *
+   * Matching on preferred_username alone meant those people were treated as
+   * strangers. The grant sat in the users table, unused, while they were told
+   * to wait for approval they had already been given.
+   *
+   * The first is still who they are — it is what a new account gets created as
+   * — but all of them are worth looking up before deciding nobody knows them.
+   */
+  const candidates = [c.preferred_username, c.email, c.upn]
+    .map((v) => String(v ?? '').trim())
+    .filter((v) => v.includes('@'))
 
-  return { email, name: String(c.name || '').trim() }
+  const emails = [...new Set(candidates.map((v) => v.toLowerCase()))]
+    .map((lower) => candidates.find((v) => v.toLowerCase() === lower))
+
+  if (!emails.length) throw new Error('Microsoft did not return an email address for this account.')
+
+  return { email: emails[0], emails, name: String(c.name || '').trim() }
 }
 
 /**
@@ -160,14 +182,21 @@ const bootstrapAdmins = () =>
       .filter(Boolean)
   )
 
-const isBootstrapAdmin = (email) => bootstrapAdmins().has(String(email).trim().toLowerCase())
+const isBootstrapAdmin = (...addresses) => {
+  const named = bootstrapAdmins()
+  return addresses.flat().some((e) => e && named.has(String(e).trim().toLowerCase()))
+}
 
-export async function accountFor({ email, name }) {
+export async function accountFor({ email, emails, name }) {
   // Matched without regard to case: Entra returns whatever casing the directory
-  // holds, which is not necessarily how the account was first written down.
+  // holds, which is not necessarily how the account was first written down. And
+  // against every address the token carries, so a grant written under somebody's
+  // mailbox still finds them when they sign in under a different UPN.
+  const lookup = (emails?.length ? emails : [email]).map((e) => String(e).toLowerCase())
+  const marks = lookup.map(() => '?').join(', ')
   const existing = await pg.get(
-    'SELECT id, email, name, role, status FROM users WHERE lower(email) = lower(?)',
-    [email]
+    `SELECT id, email, name, role, status FROM users WHERE lower(email) IN (${marks}) ORDER BY id LIMIT 1`,
+    lookup
   )
 
   if (existing) {
@@ -179,7 +208,7 @@ export async function accountFor({ email, name }) {
 
     // A named administrator who was created pending by an earlier sign-in is
     // let in now rather than waiting for somebody who cannot exist yet.
-    if (isBootstrapAdmin(email) && (existing.status !== 'active' || existing.role !== 'admin')) {
+    if (isBootstrapAdmin(lookup) && (existing.status !== 'active' || existing.role !== 'admin')) {
       await pg.run("UPDATE users SET status = 'active', role = 'admin' WHERE id = ?", [existing.id])
       console.log(`  [auth] ${email} activated as an administrator (named in ADMIN_EMAILS)`)
       return {
@@ -194,7 +223,7 @@ export async function accountFor({ email, name }) {
   // No password is ever used for these accounts; the column is NOT NULL, so it
   // gets an unusable random value rather than anything guessable.
   const unusable = await hashPassword(b64url(randomBytes(32)))
-  const bootstrap = isBootstrapAdmin(email)
+  const bootstrap = isBootstrapAdmin(lookup)
   if (bootstrap) console.log(`  [auth] ${email} created as an administrator (named in ADMIN_EMAILS)`)
   // RETURNING gives the whole row, so there is no second query and no reliance
   // on a last-insert id that PostgreSQL does not report the same way.

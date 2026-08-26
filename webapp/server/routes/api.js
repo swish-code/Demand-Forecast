@@ -438,7 +438,7 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     rows: mergeRows(results, {
       key: (r) => `${r['Recipe Group']}|${r.Item}|${r.BU}`,
-      sum: ['Component_Forecast_Qty'],
+      sum: ['Component_Forecast_Qty', 'Component_Actual_Qty'],
       sort: (a, b) => Number(b.Component_Forecast_Qty) - Number(a.Component_Forecast_Qty),
     }),
   })

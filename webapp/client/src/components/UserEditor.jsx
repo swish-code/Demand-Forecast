@@ -22,7 +22,7 @@ const ROLE_HELP = {
 }
 
 const STATUS_HELP = {
-  active: 'Can sign in now.',
+  active: 'Can sign in now, whether or not they have ever opened the app.',
   pending: 'Cannot sign in until you make them active.',
   suspended: 'Blocked, and any open session ends immediately.',
   disabled: 'Blocked. Use for people who have left.',
@@ -220,6 +220,17 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
           ) : (
             <>
               {error && <InfoBanner tone="warn">{error}</InfoBanner>}
+
+              {/* Access is granted here, not requested from here.
+                  Nobody has to sign in first and wait to be approved — the row
+                  is the grant, and it sits waiting for them. */}
+              {creating && (
+                <InfoBanner>
+                  <strong>They do not need to sign in first.</strong> Save this with the status set
+                  to <em>active</em> and they can sign in with Microsoft whenever they like — no
+                  request, no approval step. Use the address their work account signs in with.
+                </InfoBanner>
+              )}
 
               <div className="form2">
                 <label className="field">

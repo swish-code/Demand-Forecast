@@ -119,6 +119,7 @@ export const M = {
   demandChange: ['Demand_Change_Pct', '[Demand Change %]'],
   prepStatus: ['Prep_Status', '[Product Prep Status]'],
   componentForecast: ['Component_Forecast_Qty', '[Component_Forecast_Qty]'],
+  componentActual: ['Component_Actual_Qty', '[Component_Actual_Qty]'],
 }
 
 // --- slicer value queries ---------------------------------------------------
@@ -338,7 +339,11 @@ FILTER(
       "'RECIPE TABLE'[Node Type]",
     ],
     filters: filterArgs(f, { skip: ['products'] }),
-    measures: [M.componentForecast],
+    // What the recipes implied, and what the sales that actually happened
+    // implied. The row is kept on the forecast alone: a component with a
+    // requirement and no sales yet is exactly what a future window looks like,
+    // and dropping it would empty the page.
+    measures: [M.componentForecast, M.componentActual],
   })},
   NOT ISBLANK([Component_Forecast_Qty]) && [Component_Forecast_Qty] <> 0
 )
