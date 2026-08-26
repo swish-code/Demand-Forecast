@@ -69,7 +69,30 @@ async function sessionPayload(user) {
   }
 }
 
+/*
+ * Sign-in is Microsoft, and only Microsoft.
+ *
+ * Nobody here should be keeping a second password for a second copy of the
+ * staff directory: the accounts already exist in Entra, they already have a
+ * password policy and whatever second factor the tenant enforces, and an
+ * account disabled there should not still open this. A local password was a
+ * way in that survived all of that.
+ *
+ * PASSWORD_LOGIN=1 puts the form back. It is off unless it is set, so a
+ * deployment that does not name it has no password sign-in at all. It exists
+ * for two situations and no others: local development against a machine with
+ * no Entra app registration, and getting back in if the tenant configuration
+ * is broken badly enough that nobody can sign in to fix it.
+ */
+const PASSWORD_LOGIN = process.env.PASSWORD_LOGIN === '1'
+
 auth.post('/login', async (req, res) => {
+  if (!PASSWORD_LOGIN) {
+    return res.status(404).json({
+      error: 'This app signs in with Microsoft. There is no password to enter.',
+    })
+  }
+
   const email = String(req.body?.email ?? '').trim()
   const password = String(req.body?.password ?? '')
   const ip = clientIp(req)
@@ -179,7 +202,7 @@ auth.get('/methods', (req, res) => {
    * them to wait again.
    */
   const contact = process.env.ADMIN_CONTACT || process.env.ADMIN_EMAIL || null
-  res.json({ microsoft: isConfigured(), password: true, contact })
+  res.json({ microsoft: isConfigured(), password: PASSWORD_LOGIN, contact })
 })
 
 auth.get('/microsoft/start', (req, res) => {

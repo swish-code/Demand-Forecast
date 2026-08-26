@@ -49,8 +49,6 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [issued, setIssued] = useState(null)
-  const [pwOpen, setPwOpen] = useState(false)
-  const [pwValue, setPwValue] = useState('')
   const dialog = useRef(null)
 
   // Admins are all-access by definition, so a scope picker would be a lie.
@@ -156,7 +154,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
       if (creating) {
         const res = await api.admin.createUser({ email, name, role, status, department: department || null, scopes })
         // Shown once and never recoverable — the admin has to pass it on now.
-        setIssued({ email: res.user.email, password: res.password, verb: 'created' })
+        setIssued({ email: res.user.email, verb: 'created' })
       } else {
         await api.admin.updateUser(user.id, { name, role, status, department: department || null, scopes })
         onSaved(`Saved changes to ${user.email}.`)
@@ -168,26 +166,6 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
     }
   }
 
-  async function resetPassword(chosen) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await api.admin.resetPassword(user.id, chosen || undefined)
-      if (res.password) {
-        setIssued({ email: user.email, password: res.password, verb: 'reset' })
-      } else {
-        // They typed it, so there is nothing to reveal back to them.
-        onSaved(
-          isSelf
-            ? 'Your password has been changed. Other devices signed in as you were signed out.'
-            : `Password changed for ${user.email}.`
-        )
-      }
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
-  }
 
   async function remove() {
     if (!window.confirm(`Delete ${user.email}? Their sign-in history is removed too.`)) return
@@ -230,21 +208,14 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
         <div className="modal__body">
           {issued ? (
             <>
-              <InfoBanner tone="warn">
-                <strong>Copy this password now.</strong> It is shown once and cannot be retrieved
-                afterwards — if it is lost, reset it and issue a new one.
+              {/* Nothing to hand over any more. The account is an entry in the
+                  access list; the person signs in with the work account they
+                  already have. */}
+              <InfoBanner>
+                <strong>{issued.email} can sign in now.</strong> They press{' '}
+                <em>Sign in with Microsoft</em> on the sign-in page and use their work account —
+                there is no password to send them.
               </InfoBanner>
-              <div className="issued">
-                <span className="issued__label">{issued.email}</span>
-                <code className="issued__value">{issued.password}</code>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => navigator.clipboard?.writeText(issued.password)}
-                >
-                  Copy
-                </button>
-              </div>
             </>
           ) : (
             <>
@@ -371,40 +342,6 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
                 )}
               </div>
 
-              {pwOpen && !creating && (
-                <div className="field">
-                  <span className="field__label">
-                    {isSelf ? 'New password' : `New password for ${user.email}`}
-                  </span>
-                  <div className="pwrow">
-                    <input
-                      className="field__input"
-                      type="text"
-                      value={pwValue}
-                      autoComplete="new-password"
-                      placeholder="At least 12 characters"
-                      onChange={(e) => setPwValue(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      disabled={busy || pwValue.length < 12}
-                      onClick={() => resetPassword(pwValue)}
-                    >
-                      Set
-                    </button>
-                    <button type="button" className="btn" disabled={busy} onClick={() => resetPassword(null)}>
-                      Generate one
-                    </button>
-                  </div>
-                  <span className="field__help">
-                    {isSelf
-                      ? 'Your current tab stays signed in; any other device signed in as you is signed out.'
-                      : 'Signs this person out everywhere. Generating gives you a password to hand over once.'}
-                  </span>
-                </div>
-              )}
-
               {scoped && brandCodes.size > 0 && (
                 <div className="field">
                   <span className="field__label">
@@ -480,9 +417,9 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], bran
             <>
               {!creating && (
                 <div className="modal__foot-left">
-                  <button type="button" className="btn" disabled={busy} onClick={() => setPwOpen((v) => !v)}>
-                    {isSelf ? 'Change my password' : 'Reset password'}
-                  </button>
+                  {/* No "reset password": there is none to reset. Somebody who
+                      cannot sign in is a question for the tenant, not for this
+                      dialog. */}
                   {!isSelf && (
                     <button type="button" className="btn btn--danger" disabled={busy} onClick={remove}>
                       Delete

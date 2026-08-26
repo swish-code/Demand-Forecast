@@ -135,21 +135,32 @@ admin.post(
       return res.status(409).json({ error: 'That email already has an account' })
     }
 
-    // Generated rather than chosen by the admin, so it is never a guessable
-    // pattern and is shown exactly once.
-    const password = req.body?.password || generatePassword()
+    /*
+     * Created with no password, because there is nothing to sign in with one.
+     *
+     * The account is an entry in the access list: it says this address may sign
+     * in with Microsoft, as this role, over these brands and branches. Handing
+     * the admin a password to pass on was a credential to lose in a chat window
+     * for a door that is no longer there.
+     *
+     * The column is NOT NULL, so it takes an unusable random value — not an
+     * empty string, which would be a hash somebody could work back from, and
+     * not a fixed placeholder, which would be the same unusable value on every
+     * account everywhere.
+     */
+    const unusable = await hashPassword(generatePassword())
     const { rows } = await pg.run(
-      `INSERT INTO users (email, name, password_hash, role, status, department)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO users (email, name, password_hash, role, status, department, auth_provider)
+       VALUES (?, ?, ?, ?, ?, ?, 'microsoft')
        RETURNING *`,
-      [email, name, await hashPassword(password), role, status, department]
+      [email, name, unusable, role, status, department]
     )
     const row = rows[0]
 
     await writeScopes(row.id, scopes)
     audit(req.user.id, 'user.create', email, { role, status, department, scopes })
 
-    res.status(201).json({ user: userRow(row, await scopesOf(row.id)), password })
+    res.status(201).json({ user: userRow(row, await scopesOf(row.id)) })
   })
 )
 
@@ -198,37 +209,13 @@ admin.patch(
   })
 )
 
-const MIN_PASSWORD = 12
+/*
+ * Resetting a password was removed with password sign-in itself — asked for on
+ * 26 Aug 2026. An account that cannot get in is a question for the tenant, not
+ * for this app: check the person exists in Entra, then check their row here is
+ * active and has the brands and branches they need.
+ */
 
-admin.post(
-  '/users/:id/password',
-  handle(async (req, res) => {
-    const id = Number(req.params.id)
-    const user = await pg.get('SELECT email FROM users WHERE id = ?', [id])
-    if (!user) return res.status(404).json({ error: 'No such user' })
-
-    // A chosen password is allowed — it is the only way to retire the seeded
-    // one — but never a short one.
-    const chosen = req.body?.password ? String(req.body.password) : null
-    if (chosen && chosen.length < MIN_PASSWORD) {
-      return res.status(400).json({ error: `Use at least ${MIN_PASSWORD} characters` })
-    }
-    const password = chosen ?? generatePassword()
-
-    await pg.run(
-      'UPDATE users SET password_hash = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?',
-      [await hashPassword(password), id]
-    )
-
-    // Every other session for this account dies. Changing your own password
-    // keeps the session you are sitting in, so an admin is not thrown out
-    // halfway through their own change.
-    revokeAllForUser(id, id === req.user.id ? req.sessionToken : null)
-
-    audit(req.user.id, 'user.reset_password', user.email, { chosen: Boolean(chosen) })
-    res.json({ password: chosen ? null : password })
-  })
-)
 
 admin.delete(
   '/users/:id',

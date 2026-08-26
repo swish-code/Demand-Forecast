@@ -128,7 +128,6 @@ export const api = {
     audit: () => get('/admin/audit'),
     createUser: (body) => post('/admin/users', body),
     updateUser: (id, body) => send('PATCH', `/admin/users/${id}`, body),
-    resetPassword: (id, password) => post(`/admin/users/${id}/password`, password ? { password } : {}),
     deleteUser: (id) => send('DELETE', `/admin/users/${id}`),
     insights: () => get('/admin/insights'),
     runInsights: () => post('/admin/insights/run'),

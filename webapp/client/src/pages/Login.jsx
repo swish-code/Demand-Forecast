@@ -8,13 +8,14 @@ import { BRANDS } from '../brands.js'
 /**
  * Sign-in — Microsoft work accounts only.
  *
- * Staff already have a work account, so there is no second password to issue,
- * forget or leak, and revoking someone in Entra revokes them here.
+ * Staff already have a work account, so this app issues no password of its
+ * own: there is nothing here to forget or leak, and revoking someone in Entra
+ * revokes them here.
  *
- * The password form is behind "Administrator sign-in" rather than removed. It
- * is not a second way in for staff — it is the way back in if the Entra app
- * registration or its redirect URI is ever broken, which would otherwise lock
- * every administrator out of their own tool.
+ * A password form still exists in this file but is unreachable unless the
+ * server is started with PASSWORD_LOGIN=1, which no deployment sets. It is the
+ * way back in if the Entra app registration or its redirect URI is ever broken
+ * badly enough to lock every administrator out of their own tool.
  *
  * The server returns the same message for every credential failure, so this
  * screen never reveals whether an email exists.
@@ -89,7 +90,7 @@ export function Login({ onSignedIn }) {
   const [notice, setNotice] = useState(null)
   const [pendingEmail, setPendingEmail] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [methods, setMethods] = useState({ microsoft: true, password: true, contact: null })
+  const [methods, setMethods] = useState({ microsoft: true, password: false, contact: null })
 
   useEffect(() => {
     fetch('/api/auth/methods')
@@ -174,11 +175,12 @@ export function Login({ onSignedIn }) {
           </a>
         )}
 
-        {/* No password option is offered while Microsoft sign-in is working.
-            The form below still exists, but only appears when the server says
-            Microsoft is unavailable — it is the way back in if the Entra app
-            registration or its redirect URI breaks, not a second door. */}
-        {!methods.microsoft && (
+        {/* There is no password to enter. The form below appears only when the
+            server says it will actually accept one — PASSWORD_LOGIN=1, which is
+            off unless somebody set it — and Microsoft is unavailable. That pair
+            is the way back in if the Entra app registration or its redirect URI
+            breaks, and it is not a second door in normal use. */}
+        {!methods.microsoft && methods.password && (
           <form onSubmit={submit} className="signin__form">
             <label className="signin__field">
               <span className="signin__label">Email</span>

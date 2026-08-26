@@ -148,10 +148,9 @@ process.on('uncaughtException', (err) => {
 const server = app.listen(config.port, async () => {
   const seeded = await seedFirstAdmin()
   if (seeded) {
-    console.log('\n  Created the first admin account:')
-    console.log(`    email:    ${seeded.email}`)
-    console.log(`    password: ${seeded.password}`)
-    if (seeded.generated) console.log('    (generated once — copy it now, it is not recoverable)')
+    console.log('\n  Empty database - created administrators from ADMIN_EMAILS:')
+    for (const email of seeded.admins) console.log(`    ${email}`)
+    console.log('    They sign in with Microsoft; there is no password to hand out.')
   }
 
   console.log(`\n  BBT Product Forecast API  ->  http://localhost:${config.port}`)
