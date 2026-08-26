@@ -84,6 +84,18 @@ const REQUIRED = {
   MS_CLIENT_SECRET: () => config.ms.clientSecret,
   PBI_WORKSPACE_ID: () => config.pbi.workspaceId,
   PBI_DATASETS: () => config.brands.length,
+  /*
+   * Without this, a deployment is a locked room.
+   *
+   * Sign-in is Microsoft only. The first person to arrive is created pending,
+   * waiting for an administrator to approve them, and there is no administrator
+   * and no password form to make one with. Somebody has to be let in by
+   * configuration, and this names them.
+   *
+   * Reported by /api/health alongside the Power BI settings, so a deployment
+   * missing it says so before anybody discovers it by being shut out.
+   */
+  ADMIN_EMAILS: () => process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL,
 }
 
 /** Env var names still missing for a live Power BI connection. */
