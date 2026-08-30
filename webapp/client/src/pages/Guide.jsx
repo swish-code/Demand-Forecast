@@ -1,4 +1,4 @@
-import { Panel } from '../components/ui.jsx'
+import { useEffect, useState } from 'react'
 import {
   IconSummary,
   IconProduct,
@@ -164,46 +164,110 @@ const SECTIONS = [
   { id: 'admin', label: 'Admin' },
 ]
 
+/**
+ * A numbered section.
+ *
+ * The number is looked up rather than passed in, so the heading and the
+ * contents list cannot drift apart when a section is added or moved — there is
+ * one ordering, and it is the SECTIONS array.
+ */
 function Section({ id, title, children }) {
+  const n = SECTIONS.findIndex((s) => s.id === id) + 1
   return (
     <section className="guide__section" id={id}>
-      <h3 className="guide__h">{title}</h3>
-      {children}
+      <header className="guide__sectionHead">
+        <span className="guide__n" aria-hidden="true">
+          {String(n).padStart(2, '0')}
+        </span>
+        <h2 className="guide__h">{title}</h2>
+      </header>
+      <div className="guide__prose">{children}</div>
     </section>
   )
 }
 
 export function Guide({ onDrill }) {
+  const [active, setActive] = useState(SECTIONS[0].id)
+
   const go = (id) => (e) => {
     e.preventDefault()
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  /*
+   * Which section is being read, so the contents can say so.
+   *
+   * The page scrolls inside the shell rather than the window, so the observer
+   * is given that element as its root — against the viewport it would never
+   * fire. The band is the top third: a heading counts as "here" once it has
+   * reached the upper part of the screen, not when it is halfway down it.
+   */
+  useEffect(() => {
+    const root = document.querySelector('.scroll')
+    const seen = new Map()
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) seen.set(e.target.id, e.isIntersecting)
+        const first = SECTIONS.find((sec) => seen.get(sec.id))
+        if (first) setActive(first.id)
+      },
+      { root, rootMargin: '0px 0px -66% 0px', threshold: 0 }
+    )
+    for (const sec of SECTIONS) {
+      const el = document.getElementById(sec.id)
+      if (el) io.observe(el)
+    }
+    return () => io.disconnect()
+  }, [])
+
   return (
-    <Panel
-      title="Contents"
-      sub="Jump to a section, or read it through — it is not long"
-      tools={
-        onDrill ? (
-          <button type="button" className="btn" onClick={() => onDrill('summary', {})}>
+    <article className="doc">
+      <header className="doc__masthead">
+        <p className="doc__eyebrow">Documentation</p>
+        <h1 className="doc__title">How to use this app</h1>
+        <p className="doc__lead">
+          One question, answered several ways: what did we expect to sell, and what did we actually
+          sell? Every figure comes from the same Power BI models the reports use, so the app and the
+          report agree for the same brand, branch and day.
+        </p>
+        {onDrill && (
+          <button type="button" className="btn doc__back" onClick={() => onDrill('summary', {})}>
             Back to Overview
           </button>
-        ) : null
-      }
-    >
-      <div className="guide">
-        <nav className="guide__toc" aria-label="Contents">
-          {SECTIONS.map((s) => (
-            <a key={s.id} className="guide__tocLink" href={`#${s.id}`} onClick={go(s.id)}>
-              {s.label}
-            </a>
-          ))}
+        )}
+      </header>
+
+      <div className="doc__split">
+        <nav className="doc__nav" aria-label="Contents">
+          <p className="doc__navTitle">Contents</p>
+          <ol className="doc__navList">
+            {SECTIONS.map((sec, i) => (
+              <li key={sec.id}>
+                <a
+                  className={`doc__navLink${active === sec.id ? ' doc__navLink--on' : ''}`}
+                  href={`#${sec.id}`}
+                  onClick={go(sec.id)}
+                  aria-current={active === sec.id ? 'true' : undefined}
+                >
+                  <span className="doc__navN">{String(i + 1).padStart(2, '0')}</span>
+                  {sec.label}
+                </a>
+              </li>
+            ))}
+          </ol>
         </nav>
 
         <div className="guide__body">
           {/* The picture first. Everything below it is the same thing in words,
               for whoever needs more than the picture. */}
-          <section className="qv" id="quick">
+          <section className="guide__section qv" id="quick">
+            <header className="guide__sectionHead">
+              <span className="guide__n" aria-hidden="true">
+                01
+              </span>
+              <h2 className="guide__h">Quick view</h2>
+            </header>
+
             <ol className="qv__steps">
               {STEPS.map((s) => (
                 <li className="qv__step" key={s.n}>
@@ -261,12 +325,6 @@ export function Guide({ onDrill }) {
           </section>
 
           <Section id="start" title="Where to start">
-            <p>
-              This app answers one question in several ways: <strong>what did we expect to sell, and
-              what did we actually sell?</strong> Every figure comes from the same Power BI models the
-              reports use, so the app and the report should always agree for the same brand, branch and
-              day.
-            </p>
             <p>
               Pick your <strong>brand</strong> at the top left, then a <strong>date range</strong> on
               the right. Everything on the page follows those two choices. Your account decides which
@@ -454,6 +512,6 @@ export function Guide({ onDrill }) {
 
         </div>
       </div>
-    </Panel>
+    </article>
   )
 }

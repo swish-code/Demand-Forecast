@@ -1572,8 +1572,261 @@ table.dt tbody tr.clickable {
 }
 
 /* The guide. Set as a reference sheet: jump links, then two columns of prose. */
-.guide {
-  padding: var(--s3) var(--s4) var(--s5);
+/* ============================================================== the guide === */
+
+/*
+ * A document, not a dashboard panel.
+ *
+ * It used to be prose inside a .panel, which is why it read as a widget with a
+ * lot of text in it: the same card, the same 12px uppercase headings, the same
+ * chrome as a chart. Documentation earns a different treatment — a masthead, a
+ * measure you can actually read at, section numbers that say how far through
+ * you are, and a contents rail that keeps up with you.
+ *
+ * Leaving .panel behind is also what makes the rail possible: a panel hides its
+ * overflow to keep its corners rounded, and that disables position:sticky for
+ * everything inside it.
+ */
+.doc {
+  display: block;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-bottom: var(--s6);
+}
+
+/* ---- masthead ---- */
+
+.doc__masthead {
+  position: relative;
+  padding: var(--s6) 0 var(--s5);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s6);
+}
+
+.doc__eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: 11px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.doc__title {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-weight: var(--w-bold);
+  color: var(--text);
+  text-wrap: balance;
+}
+
+.doc__lead {
+  margin: var(--s4) 0 0;
+  max-width: 62ch;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.doc__back {
+  position: absolute;
+  top: var(--s6);
+  right: 0;
+}
+
+/* ---- the two columns ---- */
+
+.doc__split {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+/*
+ * The rail follows the reader.
+ *
+ * Sticky against the shell's scroll container, and the current section is
+ * marked with a filled rule rather than a colour change alone — a link that
+ * differs from its neighbours only in weight is easy to miss at a glance.
+ */
+.doc__nav {
+  position: sticky;
+  top: var(--s4);
+  align-self: start;
+}
+
+.doc__navTitle {
+  margin: 0 0 var(--s3);
+  font-size: 10.5px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.doc__navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 1px solid var(--line);
+}
+
+.doc__navLink {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: baseline;
+  padding: 7px var(--s3);
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--t-fast, 120ms) ease, border-color var(--t-fast, 120ms) ease;
+}
+
+.doc__navLink:hover {
+  color: var(--text);
+}
+
+.doc__navLink--on {
+  border-left-color: var(--brand);
+  color: var(--text);
+  font-weight: var(--w-bold);
+}
+
+.doc__navN {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.doc__navLink--on .doc__navN {
+  color: var(--brand);
+}
+
+/* ---- sections ---- */
+
+.guide__body {
+  min-width: 0;
+}
+
+.guide__section + .guide__section {
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--line-soft, var(--line));
+}
+
+.guide__section {
+  scroll-margin-top: var(--s4);
+}
+
+/* The number sits in the margin beside the heading, so the headings themselves
+   line up down the page and the numbers read as an index rather than as part of
+   the title. */
+.guide__sectionHead {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+}
+
+.guide__n {
+  font-size: 12px;
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--brand);
+}
+
+.guide__h {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+  font-weight: var(--w-bold);
+  color: var(--text);
+  text-transform: none;
+  scroll-margin-top: var(--s4);
+}
+
+/* The prose is indented to the same column as the headings. */
+.guide__prose {
+  padding-left: calc(44px + var(--s2));
+}
+
+.guide__body p {
+  margin: 0 0 var(--s4);
+  max-width: 68ch;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+
+.guide__body strong {
+  font-weight: var(--w-bold);
+}
+
+/* ---- definitions ---- */
+
+/*
+ * Term and meaning as a pair of columns, on a hairline.
+ *
+ * A <dl> of plain paragraphs read as an undifferentiated wall; the term is the
+ * thing being looked up, so it gets its own column and stops being a sentence
+ * opener.
+ */
+.guide__list {
+  margin: 0 0 var(--s4);
+  max-width: 74ch;
+  display: grid;
+  grid-template-columns: minmax(120px, 190px) minmax(0, 1fr);
+  column-gap: var(--s4);
+}
+
+.guide__list dt {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line-soft, var(--line));
+  font-size: 13px;
+  font-weight: var(--w-bold);
+  color: var(--text);
+}
+
+.guide__list dd {
+  margin: 0;
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line-soft, var(--line));
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.guide__list dt:first-of-type,
+.guide__list dt:first-of-type + dd {
+  border-top: 0;
+}
+
+@media (max-width: 1080px) {
+  .doc__split { grid-template-columns: 1fr; gap: var(--s5); }
+  .doc__nav { position: static; }
+  .doc__navList { display: flex; flex-wrap: wrap; border-left: 0; }
+  .doc__navLink { border-left: 0; border-bottom: 2px solid transparent; }
+  .doc__navLink--on { border-left-color: transparent; border-bottom-color: var(--brand); }
+  .guide__prose { padding-left: 0; }
+  .doc__back { position: static; margin-top: var(--s4); }
+}
+
+@media (max-width: 720px) {
+  .guide__list { grid-template-columns: 1fr; }
+  .guide__list dd { padding-top: 0; border-top: 0; }
+  .guide__list dt { padding-bottom: 4px; }
+  .guide__sectionHead { grid-template-columns: 34px minmax(0, 1fr); }
 }
 
 /* ------------------------------------------------ the guide's quick view --- */
@@ -1618,7 +1871,14 @@ table.dt tbody tr.clickable {
   display: flex;
   flex-direction: column;
   gap: var(--s4);
-  margin-bottom: var(--s6);
+}
+
+/* The opener spans the full measure rather than sitting in the prose column:
+   it is a picture of the app, and pictures are not paragraphs. */
+.qv .qv__steps,
+.qv .qv__pages,
+.qv .qv__legend {
+  margin-left: 0;
 }
 
 .qv__steps {
@@ -1847,126 +2107,11 @@ table.dt tbody tr.clickable {
   .qv__card:hover:not(:disabled) { transform: none; }
 }
 
-/*
- * The contents sit across the top rather than down the side. A sticky column
- * would be nicer, but .panel clips its content to keep its rounded corners and
- * that disables position:sticky for everything inside it. A row needs no such
- * favour and is fully visible on arrival, which is when it is used.
- */
-.guide__toc {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: var(--s3);
-  margin-bottom: var(--s5);
-  border-bottom: 1px solid var(--line);
-}
-
-.guide__tocLink {
-  padding: 5px 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill, 999px);
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-faint);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: border-color var(--t-fast, 120ms) var(--ease), color var(--t-fast, 120ms) var(--ease);
-}
-
-.guide__tocLink:hover {
-  border-color: var(--blue);
-  color: var(--text);
-}
-
-.guide__body {
-  max-width: none;
-}
-
-/*
- * Each section is a band with a rule above it, so the eye can find the seam
- * between two of them while scrolling. The first has no rule — there is nothing
- * above it to separate from.
- */
-.guide__section + .guide__section {
-  margin-top: var(--s5);
-  padding-top: var(--s4);
-  border-top: 1px solid var(--line-soft, var(--line));
-}
-
-.guide__h {
-  margin: 0 0 var(--s3);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  scroll-margin-top: var(--s3);
-}
-
-.guide__body p {
-  margin: 0 0 var(--s3);
-  max-width: 82ch;
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--text);
-}
 
 .guide__body p:last-child {
   margin-bottom: 0;
 }
 
-/*
- * Term and description read as a reference table rather than a run of
- * paragraphs: the term sits in its own narrow column on wide screens, so the
- * eye can scan down the names without reading the prose beside them.
- */
-.guide__list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--s3) var(--s5);
-  margin: 0;
-}
-
-.guide__list dt {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.guide__list dd {
-  margin: 3px 0 0;
-  max-width: 76ch;
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--text-soft, var(--text-faint));
-}
-
-@media (min-width: 1000px) {
-  .guide__list {
-    grid-template-columns: 176px minmax(0, 1fr);
-    align-items: baseline;
-    gap: var(--s3) var(--s4);
-  }
-
-  .guide__list dt {
-    grid-column: 1;
-    text-align: right;
-    color: var(--text-faint);
-  }
-
-  .guide__list dd {
-    grid-column: 2;
-    margin-top: 0;
-    color: var(--text);
-  }
-}
-
-.guide__body strong {
-  font-weight: 600;
-  color: var(--text);
-}
 
 .guide__body em {
   font-style: normal;
@@ -2690,23 +2835,6 @@ table.dt thead th:hover .th__sort--idle {
 }
 
 /* ------------------------------------------------------------------- login */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 /* signed-in user chip in the nav */
@@ -3472,7 +3600,6 @@ table.dt thead th:hover .th__sort--idle {
 }
 
 
-
 .trust__basis { font-size: 11px; color: var(--text-faint); }
 
 .trust__question {
@@ -3703,23 +3830,10 @@ table.dt thead th:hover .th__sort--idle {
 /* The "what this means" half of the trust panel. */
 
 
-
-
-
-
-
-
-
-
-
-
 /* ------------------------------------------------- Microsoft sign-in ------ */
 
 
-
-
 /* A rule with the word sitting in it, separating the two ways in. */
-
 
 
 /* ------------------------------------------------------- model review ----- */
