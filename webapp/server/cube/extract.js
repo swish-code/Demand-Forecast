@@ -355,32 +355,72 @@ async function locationsOf(brand) {
   return rows.map((r) => r.LocationID).filter((v) => v !== null && v !== undefined)
 }
 
-async function noteCoverage(brand, from, to, detail = null, model = null) {
-  const { n } =
-    (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily WHERE brand = ?', [brand.code])) ?? { n: 0 }
-  const { c } =
-    (await pg.get('SELECT COUNT(*)::int AS c FROM cube_component_daily WHERE brand = ?', [brand.code])) ?? { c: 0 }
-  // LEAST and GREATEST, not MIN and MAX: those are aggregates in PostgreSQL and
-  // will not compare two scalars.
-  //
-  // The wide window only ever grows, so a refresh that touched a few recent days
-  // cannot shrink it. The detail window is written whole when a backfill sets
-  // it, and left alone when one is not passed — a refresh does not extend how
-  // far back the branch-by-product table reaches.
+/**
+ * Record what the copy holds, measured from the copy.
+ *
+ * This used to record the window an extract had asked for, and widened it with
+ * LEAST and GREATEST so it could only ever grow. Both were wrong in the same
+ * direction: a brand whose full backfill never finished, or whose rows were
+ * replaced by a four-day refresh, went on claiming months it did not have. The
+ * pages believed the claim, asked for thirty days, and drew the four that
+ * existed — a chart that is not wrong about any point on it and is wrong about
+ * the period it says it covers, which is worse.
+ *
+ * So every range here is a MIN and MAX over the table that serves it. If a
+ * table is empty its range is null, canAnswer refuses, and the request goes to
+ * Power BI — slower, and right.
+ *
+ * The wide range is the overlap of the two tables the wide pages read, not
+ * their union: a date the branch rollup has and the article table does not is
+ * not a date this copy can answer questions about.
+ */
+async function noteCoverage(brand, _from, _to, detail = null, model = null) {
+  const spanOf = async (table) =>
+    (await pg.get(
+      `SELECT MIN(date) AS lo, MAX(date) AS hi, COUNT(*)::int AS n FROM ${table} WHERE brand = ?`,
+      [brand.code]
+    )) ?? { lo: null, hi: null, n: 0 }
+
+  const daily = await spanOf('cube_daily')
+  const branches = await spanOf('cube_location_daily')
+  const articles = await spanOf('cube_article_daily')
+  const components = await spanOf('cube_component_daily')
+
+  // The overlap, and null the moment either side has nothing.
+  const wideFrom =
+    branches.lo && articles.lo ? (branches.lo > articles.lo ? branches.lo : articles.lo) : null
+  const wideTo = branches.hi && articles.hi ? (branches.hi < articles.hi ? branches.hi : articles.hi) : null
+
   await pg.run(
-    `INSERT INTO cube_coverage (brand, from_date, to_date, rows, refreshed_at, detail_from, detail_to, components, model_from, model_to)
-     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?)
+    `INSERT INTO cube_coverage
+       (brand, from_date, to_date, rows, refreshed_at, detail_from, detail_to,
+        components, model_from, model_to, comp_from, comp_to)
+     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (brand) DO UPDATE SET
-       from_date = LEAST(excluded.from_date, cube_coverage.from_date),
-       to_date = GREATEST(excluded.to_date, cube_coverage.to_date),
+       from_date = excluded.from_date,
+       to_date = excluded.to_date,
        rows = excluded.rows,
        refreshed_at = excluded.refreshed_at,
-       detail_from = COALESCE(excluded.detail_from, cube_coverage.detail_from),
-       detail_to = COALESCE(excluded.detail_to, cube_coverage.detail_to),
+       detail_from = excluded.detail_from,
+       detail_to = excluded.detail_to,
        components = excluded.components,
+       comp_from = excluded.comp_from,
+       comp_to = excluded.comp_to,
        model_from = COALESCE(excluded.model_from, cube_coverage.model_from),
        model_to = COALESCE(excluded.model_to, cube_coverage.model_to)`,
-    [brand.code, from, to, n, detail?.from ?? null, detail?.to ?? null, c, model?.from ?? null, model?.to ?? null]
+    [
+      brand.code,
+      wideFrom,
+      wideTo,
+      daily.n,
+      daily.lo,
+      daily.hi,
+      components.n,
+      model?.from ?? null,
+      model?.to ?? null,
+      components.lo,
+      components.hi,
+    ]
   )
   await loadCoverage()
 }
@@ -442,6 +482,9 @@ async function windowFor(brand) {
 }
 
 /** The full window for one brand, one branch per query. */
+/** Recompute one brand's coverage from the tables. Exposed so it can be tested. */
+export const noteCoverageForTest = (brand) => noteCoverage(brand, null, null)
+
 export async function backfillBrand(brand, onStep) {
   const window = await windowFor(brand)
   if (!window) return { brand: brand.code, rows: 0, skipped: 'no calendar' }

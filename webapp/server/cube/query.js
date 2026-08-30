@@ -63,7 +63,12 @@ export async function loadCoverage() {
  * branch filter is what decides which.
  */
 function windowFor(cover, filters) {
-  if (!filters.locations?.length) return { from: cover.from_date, to: cover.to_date }
+  if (!filters.locations?.length) {
+    // Null means the tables behind the wide pages hold nothing for this brand.
+    // That is a refusal, not an open range.
+    if (!cover.from_date || !cover.to_date) return null
+    return { from: cover.from_date, to: cover.to_date }
+  }
   if (!cover.detail_from || !cover.detail_to) return null
   return { from: cover.detail_from, to: cover.detail_to }
 }
@@ -561,7 +566,10 @@ export function canAnswerComponents(brand, filters = {}) {
   const cover = coverageCache.get(brand)
   if (!cover) return false
   if (!filters.dateFrom || !filters.dateTo) return false
-  if (!within(cover, { from: cover.from_date, to: cover.to_date }, filters)) return false
+  // The recipe copy's own dates. It is fetched separately and can be behind the
+  // rest, so borrowing the wide range would claim days it does not hold.
+  if (!cover.comp_from || !cover.comp_to) return false
+  if (!within(cover, { from: cover.comp_from, to: cover.comp_to }, filters)) return false
   return Number(cover.components ?? 0) > 0
 }
 

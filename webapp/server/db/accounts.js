@@ -325,6 +325,21 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS components INTEGER NOT NULL D
 -- for days that do not exist anywhere, so the copy can still answer it.
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
+-- The recipe copy keeps its own dates: one of the three wide fetches can fail
+-- on its own, and the Ingredients page must not inherit a range from a table it
+-- does not read.
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_to TEXT;
+/*
+ * Nullable, because "nothing" is an answer.
+ *
+ * These were NOT NULL when they held the window an extract had asked for.
+ * They now hold the range the rows actually span, and a table with no rows in
+ * it spans nothing — which has to be recordable, or a brand with an empty copy
+ * goes on claiming the dates it once had.
+ */
+ALTER TABLE cube_coverage ALTER COLUMN from_date DROP NOT NULL;
+ALTER TABLE cube_coverage ALTER COLUMN to_date DROP NOT NULL;
 `
 
 /* ---------------------------------------------------------------- moving --- */
