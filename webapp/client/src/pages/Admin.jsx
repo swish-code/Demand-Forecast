@@ -236,11 +236,13 @@ export function Admin({ session }) {
               </strong>{' '}
               — signed in with Microsoft and cannot see anything yet.
               <div className="grantrow__hint">
-                {/* Adding the same person again under a different address is
-                    what left people asking for access they already had. */}
-                Grant it here rather than adding the person again. The address shown is the one
-                their Microsoft account actually signs in with, and an account added separately
-                under a different address does not replace this one.
+                {/* Both buttons now leave the account able to sign in. Setting
+                    brands without setting the status was what left people
+                    asking for access somebody thought they had given. */}
+                <strong>Grant access</strong> gives every brand in one press.{' '}
+                <strong>Choose scope</strong> opens the same account to pick brands and branches
+                first — it saves as active too, so either way they can sign in afterwards. The
+                address shown is the one their Microsoft account signs in with.
               </div>
             </div>
             <div className="grantrow__list">

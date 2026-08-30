@@ -34,7 +34,21 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
   const [email, setEmail] = useState(user?.email ?? '')
   const [name, setName] = useState(user?.name ?? '')
   const [role, setRole] = useState(user?.role ?? 'store')
-  const [status, setStatus] = useState(user?.status ?? 'active')
+  /*
+   * A pending account opens on Active, because that is why it is being opened.
+   *
+   * The status buttons carried whatever the row already held, so editing a
+   * pending account to give it brands and branches saved it as pending again.
+   * The administrator had done the granting they were asked to do and the
+   * person was still refused at the door, told to request access they had just
+   * been given — with no sign anywhere that the two were the same thing.
+   *
+   * Everything else keeps its own status: suspending somebody and then editing
+   * their brands must not quietly let them back in.
+   */
+  const [status, setStatus] = useState(
+    user?.status === 'pending' ? 'active' : (user?.status ?? 'active')
+  )
   const [department, setDepartment] = useState(user?.department ?? '')
   const [brandCodes, setBrandCodes] = useState(
     () => new Set((user?.scopes ?? []).map((s) => s.brand).filter(Boolean))
@@ -307,6 +321,13 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                     ))}
                   </div>
                   <span className="field__help">{STATUS_HELP[status]}</span>
+                  {status !== 'active' && (
+                    <InfoBanner tone="warn">
+                      <strong>This account cannot sign in while it is {status}.</strong> Brands and
+                      branches below decide what they see once they are in — they do not let them
+                      in. Choose <em>Active</em> for that.
+                    </InfoBanner>
+                  )}
                 </div>
               </div>
 
