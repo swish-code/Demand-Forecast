@@ -102,7 +102,14 @@ export function evaluateBrand(input) {
         'critical',
         'stale-data',
         `${brand.label}: actuals are ${staleDays} days behind`,
-        `The most recent actual is ${dateRange.lastActual}, but today is ${dateRange.today}. Accuracy and variance below are computed on incomplete data.`,
+        // Says where the gap is, because the first instinct is to suspect the
+        // dashboard. This date is read live from the brand's own model, not
+        // from the local copy, so a gap here is the dataset's own refresh and
+        // no amount of rebuilding the copy will fill it.
+        `The most recent actual is ${dateRange.lastActual}, but today is ${dateRange.today}. ` +
+          `That date comes from this brand's semantic model, so the missing days are missing in ` +
+          `Power BI — check that dataset's refresh. Accuracy and variance below are computed on ` +
+          `incomplete data until it catches up.`,
         { value: staleDays }
       )
     )
