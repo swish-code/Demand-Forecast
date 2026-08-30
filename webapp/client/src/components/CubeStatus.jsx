@@ -24,6 +24,8 @@ function ago(iso) {
 export function CubeStatus() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  const [starting, setStarting] = useState(false)
+  const [note, setNote] = useState(null)
 
   useEffect(() => {
     let live = true
@@ -40,12 +42,49 @@ export function CubeStatus() {
     }
   }, [])
 
+  /*
+   * Rebuilding after the semantic model changes.
+   *
+   * The copy refreshes its recent days every hour and rebuilds itself
+   * overnight, which is right for sales landing day by day and wrong for the
+   * model being edited: a changed measure or a renamed product affects the
+   * whole calendar, and waiting until two in the morning to see your own change
+   * is not a reasonable answer.
+   *
+   * It walks every brand one branch at a time and takes a good while, so it is
+   * started rather than awaited. The panel polls, and says so while it runs.
+   */
+  const rebuild = async () => {
+    setStarting(true)
+    setNote(null)
+    try {
+      await api.admin.rebuildCube()
+      setNote('Rebuilding. It reads every brand from Power BI and takes a while — this panel follows it.')
+      setData((d) => (d ? { ...d, running: true } : d))
+    } catch (err) {
+      setNote(err.message)
+    } finally {
+      setStarting(false)
+    }
+  }
+
   const brands = data?.brands ?? []
 
   return (
     <Panel
       title="Local copy of the forecast"
       count={data ? `${fmtInt(data.rows)} rows` : undefined}
+      tools={
+        <button
+          type="button"
+          className="btn"
+          disabled={starting || data?.running}
+          onClick={rebuild}
+          title="Read every brand from Power BI again. Use this after changing the semantic model."
+        >
+          {data?.running ? 'Rebuilding…' : starting ? 'Starting…' : 'Rebuild from Power BI'}
+        </button>
+      }
       sub={
         error
           ? undefined
@@ -56,6 +95,7 @@ export function CubeStatus() {
               : 'Waiting for the first extract'
       }
     >
+      {note && <p className="cube__note">{note}</p>}
       {error ? (
         <p className="digest__error">{error}</p>
       ) : brands.length === 0 ? (

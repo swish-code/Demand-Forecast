@@ -1606,6 +1606,14 @@ table.dt tbody tr.clickable {
   max-width: 68ch;
 }
 
+/* What the rebuild button just did. */
+.cube__note {
+  margin: 0 0 var(--s3);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 .qv {
   display: flex;
   flex-direction: column;

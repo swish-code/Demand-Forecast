@@ -135,6 +135,8 @@ export const api = {
     alerts: () => get('/admin/alerts'),
     modelReview: (refresh) => get(`/admin/model-review${refresh ? '?refresh=1' : ''}`),
     cube: () => get('/cube'),
+    // Deliberately the admin route, not the read-only one: this starts work.
+    rebuildCube: () => post('/admin/cube/backfill'),
     emailTransport: () => get('/admin/email/transport'),
     connectMailbox: () => get('/admin/email/mailbox/connect'),
     disconnectMailbox: () => post('/admin/email/mailbox/disconnect'),
