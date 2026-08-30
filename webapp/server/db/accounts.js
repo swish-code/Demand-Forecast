@@ -206,6 +206,107 @@ CREATE TABLE IF NOT EXISTS cube_article_daily (
   forecast DOUBLE PRECISION NOT NULL DEFAULT 0,
   PRIMARY KEY (brand, date, article, product)
 );
+CREATE INDEX IF NOT EXISTS idx_cube_articledaily_cover
+  ON cube_article_daily(brand, date) INCLUDE (article, product, actual, forecast);
+
+/*
+ * Branch totals by day, without the product.
+ *
+ * The expensive dimension is product crossed with branch: a year of that for
+ * one brand is two thirds of a million rows. Split apart, the two questions
+ * that actually get asked are cheap — a year of branch totals is about six
+ * thousand rows a brand, and a year of product totals about a hundred and
+ * thirty thousand. So these carry the whole calendar while cube_daily, which
+ * holds the cross product, carries only the recent window.
+ */
+CREATE TABLE IF NOT EXISTS cube_location_daily (
+  brand    TEXT NOT NULL,
+  date     TEXT NOT NULL,
+  location TEXT NOT NULL,
+  actual   DOUBLE PRECISION NOT NULL DEFAULT 0,
+  forecast DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, date, location)
+);
+CREATE INDEX IF NOT EXISTS idx_cube_locdaily
+  ON cube_location_daily(brand, date) INCLUDE (location, actual, forecast);
+
+/*
+ * The Ingredients page, which until now went to Power BI on every single
+ * request because recipes were never copied at all.
+ *
+ * Component grain is far smaller than it looks: a year for one brand is about
+ * fifty-six thousand rows, because a recipe has a few hundred components rather
+ * than a few thousand products.
+ */
+CREATE TABLE IF NOT EXISTS cube_component_daily (
+  brand     TEXT NOT NULL,
+  date      TEXT NOT NULL,
+  recipe    TEXT NOT NULL,
+  item      TEXT NOT NULL,
+  bu        TEXT NOT NULL,
+  node_type TEXT NOT NULL,
+  actual    DOUBLE PRECISION NOT NULL DEFAULT 0,
+  forecast  DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, date, recipe, item, bu, node_type)
+);
+CREATE INDEX IF NOT EXISTS idx_cube_compdaily ON cube_component_daily(brand, date);
+/*
+ * Covering indexes, for the widest window rather than the common one.
+ *
+ * A month reads a few thousand rows and any plan is fast enough. The whole
+ * calendar reads every row this brand has, and then the measures have to be
+ * fetched from the heap one row at a time. Carrying the two numbers in the
+ * index itself makes that an index-only scan, which is the difference between
+ * "All dates" feeling instant and feeling broken.
+ */
+CREATE INDEX IF NOT EXISTS idx_cube_compdaily_cover
+  ON cube_component_daily(brand, date) INCLUDE (recipe, item, bu, node_type, actual, forecast);
+
+/*
+ * Two windows, not one.
+ *
+ * from_date/to_date is the wide window — the whole model calendar — covered by
+ * the tables that do not carry a branch. detail_from/detail_to is the narrower
+ * window covered by cube_daily, which does. A question that filters by branch
+ * has to be checked against the second; everything else against the first.
+ *
+ * The detail columns are nullable so a database written by the previous version
+ * reads as "no detail coverage" rather than as coverage it does not have.
+ */
+/*
+ * The same two tables again, by month.
+ *
+ * A year of articles is a hundred and ninety thousand rows a brand and a year
+ * of components fifty-six thousand, and summing either of those took seconds —
+ * enough that "All dates" felt broken while every other preset felt instant.
+ * By month they are a thirtieth of the size, and a window is answered as
+ * whichever whole months it contains plus the odd days at each end.
+ *
+ * Derived from the daily tables in the same transaction that writes them, by a
+ * single GROUP BY, so they cannot drift: there is no second fetch to go wrong
+ * and nothing to reconcile.
+ */
+CREATE TABLE IF NOT EXISTS cube_article_monthly (
+  brand    TEXT NOT NULL,
+  month    TEXT NOT NULL,
+  article  TEXT NOT NULL,
+  product  TEXT NOT NULL,
+  actual   DOUBLE PRECISION NOT NULL DEFAULT 0,
+  forecast DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, month, article, product)
+);
+
+CREATE TABLE IF NOT EXISTS cube_component_monthly (
+  brand     TEXT NOT NULL,
+  month     TEXT NOT NULL,
+  recipe    TEXT NOT NULL,
+  item      TEXT NOT NULL,
+  bu        TEXT NOT NULL,
+  node_type TEXT NOT NULL,
+  actual    DOUBLE PRECISION NOT NULL DEFAULT 0,
+  forecast  DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, month, recipe, item, bu, node_type)
+);
 
 CREATE TABLE IF NOT EXISTS cube_coverage (
   brand        TEXT PRIMARY KEY,
@@ -214,6 +315,16 @@ CREATE TABLE IF NOT EXISTS cube_coverage (
   rows         INTEGER NOT NULL DEFAULT 0,
   refreshed_at TEXT NOT NULL DEFAULT ${NOW}
 );
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS detail_from TEXT;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS detail_to TEXT;
+-- Whether the recipe copy actually has anything for this brand. One of the
+-- three wide fetches can fail on its own, and the page that reads it has to
+-- know that rather than answering with an empty table.
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS components INTEGER NOT NULL DEFAULT 0;
+-- What the model's own calendar spans. A request reaching outside it is asking
+-- for days that do not exist anywhere, so the copy can still answer it.
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_from TEXT;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
 `
 
 /* ---------------------------------------------------------------- moving --- */

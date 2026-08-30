@@ -157,6 +157,162 @@ ${dax.summarize({
   return executeQuery(query, brand.datasetId, { bulk: true })
 }
 
+/*
+ * The whole calendar, asked for a stretch at a time.
+ *
+ * Power BI does not refuse a query that returns too much — it answers 200 with
+ * roughly half the rows and says nothing. A month of articles split by branch
+ * and day came back reading 1,133,418 units against a true 1,228,977, and that
+ * is the failure this guards against: a copy that is quietly missing half its
+ * rows is worse than no copy at all, because every page reads it confidently.
+ *
+ * A year of articles for one brand is around a hundred and ninety thousand
+ * rows, well past where truncation was seen, so these windows are cut up and
+ * the pieces concatenated. The spans cover disjoint dates, so nothing can be
+ * counted twice.
+ */
+const addDays = (isoDate, n) => {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+async function inSpans(window, days, run) {
+  const out = []
+  for (let start = window.from; start <= window.to; start = addDays(start, days)) {
+    const end = addDays(start, days - 1)
+    out.push(...(await run({ from: start, to: end > window.to ? window.to : end })))
+    await sleep(GAP_MS)
+  }
+  return out
+}
+
+/**
+ * Branch totals for the whole calendar, in one query per brand.
+ *
+ * No product column, so a year is a few thousand rows rather than two thirds of
+ * a million. This is what the Overview's branch panel and its daily trend read.
+ */
+async function fetchLocationDaily(brand, window) {
+  const filters = brandFilters(brand, { dateFrom: window.from, dateTo: window.to })
+  return executeQuery(
+    `EVALUATE
+${dax.summarize({
+      groupBy: ['Forecast_Product_Table[Date]', 'Forecast_Product_Table[LocationID]'],
+      filters: dax.filterArgs(filters),
+      measures: [dax.M.actualQty, dax.M.forecastQty],
+    })}`,
+    brand.datasetId,
+    { bulk: true }
+  )
+}
+
+/** Component requirement by day, for the Ingredients page. */
+async function fetchComponents(brand, window) {
+  const filters = brandFilters(brand, { dateFrom: window.from, dateTo: window.to })
+  return executeQuery(
+    `EVALUATE
+FILTER(
+  ${dax.summarize({
+    groupBy: [
+      'Forecast_Product_Table[Date]',
+      "'RECIPE TABLE'[Recipe Group]",
+      "'RECIPE TABLE'[Item]",
+      "'RECIPE TABLE'[BU]",
+      "'RECIPE TABLE'[Node Type]",
+    ],
+    filters: dax.filterArgs(filters, { skip: ['products'] }),
+    measures: [dax.M.componentForecast, dax.M.componentActual],
+  })},
+  NOT ISBLANK([Component_Forecast_Qty]) && [Component_Forecast_Qty] <> 0
+)`,
+    brand.datasetId,
+    { bulk: true }
+  )
+}
+
+async function writeLocationDaily(brand, rows, scope) {
+  if (!rows.length && !scope) return
+  await pg.tx(async () => {
+    if (scope) {
+      await pg.run('DELETE FROM cube_location_daily WHERE brand = ? AND date >= ? AND date <= ?', [
+        brand,
+        scope.from,
+        scope.to,
+      ])
+    }
+    await insertBatched(
+      'cube_location_daily',
+      ['brand', 'date', 'location', 'actual', 'forecast'],
+      ['brand', 'date', 'location'],
+      rows,
+      (r) => [
+        brand,
+        String(r.Date ?? '').slice(0, 10),
+        String(r.LocationID ?? ''),
+        Number(r.Actual_Qty) || 0,
+        Number(r.Forecast_Qty) || 0,
+      ]
+    )
+  })
+}
+
+async function writeComponents(brand, rows, scope) {
+  if (!rows.length && !scope) return
+  await pg.tx(async () => {
+    if (scope) {
+      await pg.run('DELETE FROM cube_component_daily WHERE brand = ? AND date >= ? AND date <= ?', [
+        brand,
+        scope.from,
+        scope.to,
+      ])
+    }
+    await insertBatched(
+      'cube_component_daily',
+      ['brand', 'date', 'recipe', 'item', 'bu', 'node_type', 'actual', 'forecast'],
+      ['brand', 'date', 'recipe', 'item', 'bu', 'node_type'],
+      rows,
+      (r) => [
+        brand,
+        String(r.Date ?? '').slice(0, 10),
+        String(r['Recipe Group'] ?? ''),
+        String(r.Item ?? ''),
+        String(r.BU ?? ''),
+        String(r['Node Type'] ?? ''),
+        Number(r.Component_Actual_Qty) || 0,
+        Number(r.Component_Forecast_Qty) || 0,
+      ]
+    )
+  })
+}
+
+/**
+ * Rebuild a brand's monthly rollups from its daily rows.
+ *
+ * One statement each, computed from the table it summarises, so the two can
+ * never disagree about a total. Whole brand rather than the touched window: a
+ * month straddling the edge of a refresh would otherwise keep half its days.
+ */
+async function rebuildMonthly(brand) {
+  await pg.run('DELETE FROM cube_article_monthly WHERE brand = ?', [brand])
+  await pg.run(
+    `INSERT INTO cube_article_monthly (brand, month, article, product, actual, forecast)
+     SELECT brand, substr(date, 1, 7), article, product, SUM(actual), SUM(forecast)
+       FROM cube_article_daily WHERE brand = ?
+      GROUP BY brand, substr(date, 1, 7), article, product`,
+    [brand]
+  )
+
+  await pg.run('DELETE FROM cube_component_monthly WHERE brand = ?', [brand])
+  await pg.run(
+    `INSERT INTO cube_component_monthly (brand, month, recipe, item, bu, node_type, actual, forecast)
+     SELECT brand, substr(date, 1, 7), recipe, item, bu, node_type, SUM(actual), SUM(forecast)
+       FROM cube_component_daily WHERE brand = ?
+      GROUP BY brand, substr(date, 1, 7), recipe, item, bu, node_type`,
+    [brand]
+  )
+}
+
 async function writeArticles(brand, rows, scope) {
   if (!rows.length && !scope) return
   await pg.tx(async () => {
@@ -199,20 +355,32 @@ async function locationsOf(brand) {
   return rows.map((r) => r.LocationID).filter((v) => v !== null && v !== undefined)
 }
 
-async function noteCoverage(brand, from, to) {
+async function noteCoverage(brand, from, to, detail = null, model = null) {
   const { n } =
     (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily WHERE brand = ?', [brand.code])) ?? { n: 0 }
+  const { c } =
+    (await pg.get('SELECT COUNT(*)::int AS c FROM cube_component_daily WHERE brand = ?', [brand.code])) ?? { c: 0 }
   // LEAST and GREATEST, not MIN and MAX: those are aggregates in PostgreSQL and
   // will not compare two scalars.
+  //
+  // The wide window only ever grows, so a refresh that touched a few recent days
+  // cannot shrink it. The detail window is written whole when a backfill sets
+  // it, and left alone when one is not passed — a refresh does not extend how
+  // far back the branch-by-product table reaches.
   await pg.run(
-    `INSERT INTO cube_coverage (brand, from_date, to_date, rows, refreshed_at)
-     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+    `INSERT INTO cube_coverage (brand, from_date, to_date, rows, refreshed_at, detail_from, detail_to, components, model_from, model_to)
+     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?)
      ON CONFLICT (brand) DO UPDATE SET
        from_date = LEAST(excluded.from_date, cube_coverage.from_date),
        to_date = GREATEST(excluded.to_date, cube_coverage.to_date),
        rows = excluded.rows,
-       refreshed_at = excluded.refreshed_at`,
-    [brand.code, from, to, n]
+       refreshed_at = excluded.refreshed_at,
+       detail_from = COALESCE(excluded.detail_from, cube_coverage.detail_from),
+       detail_to = COALESCE(excluded.detail_to, cube_coverage.detail_to),
+       components = excluded.components,
+       model_from = COALESCE(excluded.model_from, cube_coverage.model_from),
+       model_to = COALESCE(excluded.model_to, cube_coverage.model_to)`,
+    [brand.code, from, to, n, detail?.from ?? null, detail?.to ?? null, c, model?.from ?? null, model?.to ?? null]
   )
   await loadCoverage()
 }
@@ -248,11 +416,29 @@ async function windowFor(brand) {
   const anchor = today || max
   if (!anchor) return null
 
-  const to = iso(Math.min(Date.parse(anchor) + AHEAD_DAYS * DAY, Date.parse(max) || Infinity))
-  const from = iso(Math.max(Date.parse(anchor) - (WINDOW_DAYS - 1) * DAY, Date.parse(min) || 0))
+  /*
+   * Two windows.
+   *
+   * `detail` is the branch-by-product window: the cross product of those two is
+   * what makes the copy big, so it stays a few months either side of today.
+   *
+   * `wide` is the whole model calendar, and it is what the tables without a
+   * branch column carry. Those are small enough to hold the lot, and holding
+   * the lot is the difference between "All dates" answering from disk and it
+   * fanning out fifty queries to Power BI — which is the one date range in the
+   * picker that was still slow.
+   */
+  const detailTo = iso(Math.min(Date.parse(anchor) + AHEAD_DAYS * DAY, Date.parse(max) || Infinity))
+  const detailFrom = iso(Math.max(Date.parse(anchor) - (WINDOW_DAYS - 1) * DAY, Date.parse(min) || 0))
+
   // `anchor` travels with the window because the hourly refresh needs to know
   // where "now" is, not just where the window ends.
-  return { from, to, anchor }
+  return {
+    from: detailFrom,
+    to: detailTo,
+    anchor,
+    wide: { from: min || detailFrom, to: max || detailTo },
+  }
 }
 
 /** The full window for one brand, one branch per query. */
@@ -276,15 +462,42 @@ export async function backfillBrand(brand, onStep) {
     await sleep(GAP_MS)
   }
 
-  try {
-    await writeArticles(brand.code, await fetchArticles(brand, window), { from: window.from, to: window.to })
-  } catch {
-    // The Products page falls back to Power BI without this; the Overview does
-    // not depend on it, so one failure here should not lose the whole brand.
+  /*
+   * The wide tables: the whole calendar, one query each.
+   *
+   * Each is tried on its own and a failure is swallowed, because these are
+   * independent answers. Losing the recipe copy should not also cost the
+   * Products page its year of articles — whichever one failed falls back to
+   * Power BI and the others keep working.
+   */
+  /*
+   * The span sizes are set by how many rows each grain produces, measured
+   * against this model: articles run about five hundred a day per brand, so a
+   * month is roughly sixteen thousand rows; components a few hundred a day, so
+   * a quarter is about fourteen thousand; branch totals sixteen a day, which is
+   * six thousand for the entire year and needs no splitting at all.
+   */
+  const wide = window.wide
+  for (const [what, run] of [
+    ['articles', async () =>
+      writeArticles(brand.code, await inSpans(wide, 30, (w) => fetchArticles(brand, w)), wide)],
+    ['branches', async () =>
+      writeLocationDaily(brand.code, await fetchLocationDaily(brand, wide), wide)],
+    ['components', async () =>
+      writeComponents(brand.code, await inSpans(wide, 90, (w) => fetchComponents(brand, w)), wide)],
+  ]) {
+    try {
+      await run()
+      await sleep(GAP_MS)
+    } catch (err) {
+      console.log(`  [cube] ${brand.code} ${what} failed: ${err.message.slice(0, 80)}`)
+    }
   }
 
-  await noteCoverage(brand, window.from, window.to)
-  return { brand: brand.code, rows, from: window.from, to: window.to, branches: locations.length }
+  await rebuildMonthly(brand.code)
+
+  await noteCoverage(brand, window.wide.from, window.wide.to, { from: window.from, to: window.to }, window.wide)
+  return { brand: brand.code, rows, from: window.wide.from, to: window.wide.to, branches: locations.length }
 }
 
 /** The last few days for one brand, every branch in a single query. */
@@ -309,12 +522,25 @@ export async function refreshRecent(brand) {
   const slice = await fetchSlice(brand, brandFilters(brand, { dateFrom: from, dateTo: to }))
   await writeRows(brand.code, slice, { from, to })
 
-  try {
-    await writeArticles(brand.code, await fetchArticles(brand, { from, to }), { from, to })
-  } catch {
-    /* as above - the Products page simply stays live for this brand */
+  // The recent days in every table that holds them, so a page reading from the
+  // copy sees the same freshness whichever one it happens to read.
+  const recent = { from, to }
+  for (const [what, run] of [
+    ['articles', async () => writeArticles(brand.code, await fetchArticles(brand, recent), recent)],
+    ['branches', async () => writeLocationDaily(brand.code, await fetchLocationDaily(brand, recent), recent)],
+    ['components', async () => writeComponents(brand.code, await fetchComponents(brand, recent), recent)],
+  ]) {
+    try {
+      await run()
+    } catch {
+      /* that one page stays live for this brand until the next run */
+    }
   }
 
+  await rebuildMonthly(brand.code)
+
+  // No detail window passed: a refresh does not change how far back the
+  // branch-by-product table reaches, only how fresh its recent end is.
   await noteCoverage(brand, from, to)
   return { brand: brand.code, rows: slice.length, from, to }
 }

@@ -2,6 +2,7 @@ import { config } from '../config.js'
 import { cached } from '../cache.js'
 import * as cube from '../cube/query.js'
 import { deriveKpis } from './merge.js'
+import { raise } from '../insights/alerts.js'
 import { demoProvider } from './demo.js'
 import { liveProvider } from './live.js'
 
@@ -69,6 +70,40 @@ async function inChunks(f, run) {
   return rows
 }
 
+/**
+ * Read from the copy, and fall back to Power BI if that goes wrong.
+ *
+ * The copy is an optimisation. Power BI is still there, still correct, and
+ * still the thing the copy is a copy of — so a fault on the fast path has an
+ * obvious right answer: take the slow one. What must never happen is the page
+ * showing a database error to somebody who asked for last month's sales.
+ *
+ * This is not theoretical. Three list functions mapped over a promise without
+ * awaiting it, which threw on every call; it stayed invisible for as long as
+ * the copy was empty, because nothing reached that code. The first deployment
+ * where the copy actually filled put "rowsOf(...).map is not a function" on the
+ * Overview instead of the figures.
+ *
+ * The fault is logged and raised as an alert so it gets fixed rather than
+ * quietly absorbed for ever — degrading silently is how a copy ends up broken
+ * for a month and nobody knowing.
+ */
+async function fromCopyOrLive(what, fromCopy, fromLive) {
+  try {
+    return await fromCopy()
+  } catch (err) {
+    console.error(`  [cube] ${what} failed, falling back to Power BI:`, err.message)
+    raise({
+      source: 'app',
+      key: `cube:${what}`,
+      severity: 'warning',
+      title: `The local copy could not answer ${what}`,
+      detail: `${err.message}\n\nThe page was served from Power BI instead, so the figures are right but slower.`,
+    })
+    return fromLive()
+  }
+}
+
 /** Every result is cached per dataset, so brands never share a cache entry. */
 const call = (name, f, ds, run, extra) => cached(`${ds || 'demo'}:${keyOf(name, f, extra)}`, run)
 
@@ -93,7 +128,12 @@ export const data = {
       f,
       ds,
       async () => {
-        const local = need ? await cube.listsFor(f.brand, f, need) : {}
+        // An empty object is the honest fallback here: whatever the copy could
+        // not supply is fetched from the model below, which is what happens for
+        // a brand it has never covered.
+        const local = need
+          ? await fromCopyOrLive('slicerLists', () => cube.listsFor(f.brand, f, need), () => ({}))
+          : {}
         const keys = Object.keys(local)
         const rest = need ? need.filter((k) => !keys.includes(k)) : need
         const live = await provider.slicers(f, ds, rest)
@@ -116,9 +156,15 @@ export const data = {
   kpis: (f, ds, { live = false } = {}) =>
     call('kpis', f, ds, async () => {
       if (live || !cube.canAnswer(f.brand, f)) return provider.kpis(f, ds)
-      const rows = await cube.trend(f.brand, f)
-      const total = (k) => rows.reduce((n, r) => n + (Number(r[k]) || 0), 0)
-      return deriveKpis(total('Actual_Qty'), total('Forecast_Qty'))
+      return fromCopyOrLive(
+        'kpis',
+        async () => {
+          const rows = await cube.trend(f.brand, f)
+          const total = (k) => rows.reduce((n, r) => n + (Number(r[k]) || 0), 0)
+          return deriveKpis(total('Actual_Qty'), total('Forecast_Qty'))
+        },
+        () => provider.kpis(f, ds)
+      )
     }, live ? 'live' : undefined),
 
   /*
@@ -141,7 +187,10 @@ export const data = {
       'trend',
       f,
       ds,
-      () => (!live && cube.canAnswer(f.brand, f) ? cube.trend(f.brand, f) : provider.trend(f, ds)),
+      () =>
+        !live && cube.canAnswer(f.brand, f)
+          ? fromCopyOrLive('trend', () => cube.trend(f.brand, f), () => provider.trend(f, ds))
+          : provider.trend(f, ds),
       live ? 'live' : undefined
     ),
 
@@ -152,14 +201,20 @@ export const data = {
       ds,
       () =>
         cube.canAnswer(f.brand, f)
-          ? cube.topProducts(f.brand, f, top)
+          ? fromCopyOrLive(
+              'topProducts',
+              () => cube.topProducts(f.brand, f, top),
+              () => provider.topProducts(f, top, ds)
+            )
           : provider.topProducts(f, top, ds),
       top
     ),
 
   byLocation: (f, ds) =>
     call('byLocation', f, ds, () =>
-      cube.canAnswer(f.brand, f) ? cube.byLocation(f.brand, f) : provider.byLocation(f, ds)
+      cube.canAnswer(f.brand, f)
+        ? fromCopyOrLive('byLocation', () => cube.byLocation(f.brand, f), () => provider.byLocation(f, ds))
+        : provider.byLocation(f, ds)
     ),
   /*
    * The Products page reads the article-grain copy when it can.
@@ -184,7 +239,11 @@ export const data = {
       ds,
       () =>
         !grain.date && !grain.location && cube.canAnswerArticles(f.brand, f)
-          ? cube.productLevel(f.brand, f)
+          ? fromCopyOrLive(
+              'productLevel',
+              () => cube.productLevel(f.brand, f),
+              () => provider.productLevel(f, ds, grain)
+            )
           : grain.date && grain.location
             ? inChunks(f, (win) => provider.productLevel(win, ds, grain))
             : provider.productLevel(f, ds, grain),
@@ -196,9 +255,17 @@ export const data = {
       f,
       ds,
       () =>
-        grain.date && grain.location
-          ? inChunks(f, (win) => provider.componentLevel(win, ds, grain))
-          : provider.componentLevel(f, ds, grain),
+        // Splitting by branch is the one thing the recipe copy cannot do — it
+        // has no branch column — so that still goes live.
+        !grain.location && cube.canAnswerComponents(f.brand, f)
+          ? fromCopyOrLive(
+              'componentLevel',
+              () => cube.componentLevel(f.brand, f, grain),
+              () => provider.componentLevel(f, ds, grain)
+            )
+          : grain.date && grain.location
+            ? inChunks(f, (win) => provider.componentLevel(win, ds, grain))
+            : provider.componentLevel(f, ds, grain),
       grainKey(grain)
     ),
   productionPlan: (f, ds) => call('productionPlan', f, ds, () => provider.productionPlan(f, ds)),
