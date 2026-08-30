@@ -1589,7 +1589,7 @@ table.dt tbody tr.clickable {
  */
 .doc {
   display: block;
-  max-width: 1180px;
+  max-width: 1120px;
   margin: 0 auto;
   padding-bottom: var(--s6);
 }
@@ -1728,6 +1728,36 @@ table.dt tbody tr.clickable {
 /* The number sits in the margin beside the heading, so the headings themselves
    line up down the page and the numbers read as an index rather than as part of
    the title. */
+/*
+ * A section is a grid, so a figure can sit beside the prose it describes.
+ *
+ * The measure is capped for reading, which on a wide screen left the right
+ * third of every section empty. Filling it with more words would have made the
+ * lines too long to read; filling it with the drawing puts the picture next to
+ * the paragraph it belongs to, which is where a reader wants it anyway.
+ *
+ * Sections with no figure stay one column, so nothing is stretched to occupy
+ * space it has no use for.
+ */
+.guide__section--aside {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  column-gap: var(--s5);
+  align-items: start;
+}
+
+.guide__section--aside .guide__sectionHead {
+  grid-column: 1 / -1;
+}
+
+/* Aligned to the top of the prose, not stretched: the drawing belongs beside
+   the opening of the section, not floated down the middle of it. Sticky would
+   do nothing here — the grid sizes this to its own content, so there is no room
+   inside it to stick to. */
+.guide__aside {
+  align-self: start;
+}
+
 .guide__sectionHead {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -1784,7 +1814,6 @@ table.dt tbody tr.clickable {
  */
 .guide__list {
   margin: 0 0 var(--s4);
-  max-width: 74ch;
   display: grid;
   grid-template-columns: minmax(120px, 190px) minmax(0, 1fr);
   column-gap: var(--s4);
@@ -1814,6 +1843,10 @@ table.dt tbody tr.clickable {
 
 @media (max-width: 1080px) {
   .doc__split { grid-template-columns: 1fr; gap: var(--s5); }
+  /* Below this the figure goes back under the prose rather than beside it. */
+  .guide__section--aside { display: block; }
+  .guide__aside { margin-top: var(--s4); }
+  .guide__aside .fig__wrap { max-width: 520px; }
   .doc__nav { position: static; }
   .doc__navList { display: flex; flex-wrap: wrap; border-left: 0; }
   .doc__navLink { border-left: 0; border-bottom: 2px solid transparent; }

@@ -191,6 +191,71 @@ export function FigBuildView() {
   )
 }
 
+/** The filter bar, with the date list open under it. */
+export function FigFilters() {
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="fig" role="img" aria-label="The filter bar: brand, location, product and date, with the date list open">
+      <Shell rail={false}>
+        <Filters y="8" active={3} />
+        {/* The date list, hanging from the pill it belongs to. */}
+        <rect x="188" y="30" width="96" height="92" rx="6" className="fig__pop" />
+        {Array.from({ length: 6 }, (_, i) => (
+          <rect
+            key={i}
+            x="198"
+            y={40 + i * 13}
+            width={i === 2 ? 62 : 74 - (i % 3) * 10}
+            height="5"
+            rx="2.5"
+            className={i === 2 ? 'fig__bar' : 'fig__row'}
+          />
+        ))}
+        <rect x="8" y="132" width="304" height="54" rx="5" className="fig__panel" />
+        <Rows x="18" y="146" w="284" n={3} gap={13} />
+      </Shell>
+    </svg>
+  )
+}
+
+/** The users table: who may sign in, and over what. */
+export function FigAdmin() {
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="fig" role="img" aria-label="The Admin page: a list of accounts, each with a role, a status and the brands granted to it">
+      <Shell rail={false}>
+        <rect x="8" y="36" width="304" height="150" rx="5" className="fig__panel" />
+        <rect x="18" y="48" width="60" height="5" rx="2.5" className="fig__row fig__row--head" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <g key={i}>
+            <rect x="18" y={68 + i * 22} width="86" height="5" rx="2.5" className="fig__row" />
+            {/* Role, then status: the two things that decide what an account can do. */}
+            <rect x="118" y={64 + i * 22} width="44" height="12" rx="6" className="fig__pill" />
+            <rect
+              x="170"
+              y={64 + i * 22}
+              width="40"
+              height="12"
+              rx="6"
+              className={i === 1 ? 'fig__note' : 'fig__pill'}
+            />
+            {/* The brands granted to them. */}
+            {[0, 1, 2].map((b) => (
+              <rect
+                key={b}
+                x={220 + b * 28}
+                y={66 + i * 22}
+                width="24"
+                height="8"
+                rx="4"
+                className={b <= i % 3 ? 'fig__bar' : 'fig__box'}
+              />
+            ))}
+          </g>
+        ))}
+      </Shell>
+    </svg>
+  )
+}
+
 /** Where the app puts things: the rail, the bar, the page. */
 export function FigShell() {
   return (

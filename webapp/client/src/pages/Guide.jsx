@@ -17,6 +17,8 @@ import {
   FigIngredients,
   FigPlan,
   FigBuildView,
+  FigFilters,
+  FigAdmin,
 } from '../components/GuideFigures.jsx'
 
 /**
@@ -180,10 +182,10 @@ const SECTIONS = [
  * contents list cannot drift apart when a section is added or moved — there is
  * one ordering, and it is the SECTIONS array.
  */
-function Section({ id, title, children }) {
+function Section({ id, title, figure, children }) {
   const n = SECTIONS.findIndex((s) => s.id === id) + 1
   return (
-    <section className="guide__section" id={id}>
+    <section className={`guide__section${figure ? ' guide__section--aside' : ''}`} id={id}>
       <header className="guide__sectionHead">
         <span className="guide__n" aria-hidden="true">
           {String(n).padStart(2, '0')}
@@ -191,6 +193,7 @@ function Section({ id, title, children }) {
         <h2 className="guide__h">{title}</h2>
       </header>
       <div className="guide__prose">{children}</div>
+      {figure && <aside className="guide__aside">{figure}</aside>}
     </section>
   )
 }
@@ -333,11 +336,15 @@ export function Guide({ onDrill }) {
             </ul>
           </section>
 
-          <Section id="start" title="Where to start">
-            <Figure caption="The reports run down the left. Brand and date sit across the top and apply to whichever one you open.">
-              <FigShell />
-            </Figure>
-
+          <Section
+            id="start"
+            title="Where to start"
+            figure={
+              <Figure caption="The reports run down the left. Brand and date sit across the top and apply to whichever one you open.">
+                <FigShell />
+              </Figure>
+            }
+          >
             <p>
               Pick your <strong>brand</strong> at the top left, then a <strong>date range</strong> on
               the right. Everything on the page follows those two choices. Your account decides which
@@ -392,7 +399,15 @@ export function Guide({ onDrill }) {
             </div>
           </Section>
 
-          <Section id="filters" title="Choosing what you see">
+          <Section
+            id="filters"
+            title="Choosing what you see"
+            figure={
+              <Figure tone="blue" caption="The same bar on every page. The date list carries the usual ranges plus Tomorrow.">
+                <FigFilters />
+              </Figure>
+            }
+          >
             <p>
               The bar along the top is the same on every page, minus whatever does not apply. Brands
               can be multi-selected; the figures then add up across them. Location and Product narrow
@@ -406,16 +421,20 @@ export function Guide({ onDrill }) {
             </p>
           </Section>
 
-          <Section id="buildview" title="Build view">
+          <Section
+            id="buildview"
+            title="Build view"
+            figure={
+              <Figure caption="Build view opens over the table. Two options are marked as splitting rows — those re-ask the question at a finer grain rather than hiding a column.">
+                <FigBuildView />
+              </Figure>
+            }
+          >
             <p>
               Above the Products, Ingredients and Production plan tables there is a{' '}
               <strong>Build view</strong> button. It chooses which columns the table shows, and your
               choice is remembered on that device.
             </p>
-            <Figure caption="Build view opens over the table. Two of the options are marked as splitting rows — those re-ask the question at a finer grain rather than hiding a column.">
-              <FigBuildView />
-            </Figure>
-
             <p>
               Two of the options are marked <em>splits rows</em>: <strong>Date</strong> and{' '}
               <strong>Branch</strong>. These are not display toggles. Turning one on re-asks the
@@ -529,7 +548,15 @@ export function Guide({ onDrill }) {
             </p>
           </Section>
 
-          <Section id="admin" title="Admin">
+          <Section
+            id="admin"
+            title="Admin"
+            figure={
+              <Figure tone="violet" caption="Each account carries a role, a status, and the brands it may see. Status decides whether they get in at all.">
+                <FigAdmin />
+              </Figure>
+            }
+          >
             <p>
               Accounts, roles and access live here, along with the morning digest, the alert list and
               the model review. A user's <strong>role</strong> decides what kind of thing they see and
