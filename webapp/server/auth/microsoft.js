@@ -192,14 +192,60 @@ export async function accountFor({ email, emails, name }) {
   // holds, which is not necessarily how the account was first written down. And
   // against every address the token carries, so a grant written under somebody's
   // mailbox still finds them when they sign in under a different UPN.
-  const lookup = (emails?.length ? emails : [email]).map((e) => String(e).toLowerCase())
+  const lookup = (emails?.length ? emails : [email]).map((e) => String(e).trim().toLowerCase())
   const marks = lookup.map(() => '?').join(', ')
-  const existing = await pg.get(
-    `SELECT id, email, name, role, status FROM users WHERE lower(email) IN (${marks}) ORDER BY id LIMIT 1`,
+
+  /*
+   * Every row this person could be, best one first.
+   *
+   * One person can end up with two rows. Somebody signs in before anybody has
+   * heard of them and a pending shell is created under their user principal
+   * name; an administrator then adds them properly under the mailbox address on
+   * their card. Both are them, and Entra hands us both addresses.
+   *
+   * Ordered by id, the shell won — it was created first — so the account was
+   * refused at the door however many times access had been granted, and a fresh
+   * request went to the administrator every time. That is the fault this
+   * ordering fixes: an active row is the answer whenever one exists, and among
+   * equals the most recently used, because that is the row somebody has been
+   * maintaining.
+   *
+   * TRIM as well as lower(): an address pasted with a trailing space is the
+   * same person, and the grant on it should still find them.
+   */
+  const matches = await pg.all(
+    `SELECT id, email, name, role, status, auth_provider, last_login_at
+       FROM users
+      WHERE lower(trim(email)) IN (${marks})
+      ORDER BY (status = 'active') DESC,
+               (role = 'admin') DESC,
+               last_login_at DESC NULLS LAST,
+               id ASC`,
     lookup
   )
 
+  const existing = matches[0]
+
   if (existing) {
+    /*
+     * Fold away the shells the first attempt left behind.
+     *
+     * Only ever a row that nobody has touched: created by a sign-in rather than
+     * by a person, still pending, never signed in, and carrying no grants. That
+     * is provably an artefact of this same bug and not somebody's work, and
+     * leaving it means the administrator's list keeps showing an account
+     * waiting for access that has already been given it.
+     */
+    const shells = matches.filter(
+      (m) => m.id !== existing.id && m.status === 'pending' && m.auth_provider === 'microsoft' && !m.last_login_at
+    )
+    for (const shell of shells) {
+      const { n } = (await pg.get('SELECT COUNT(*)::int AS n FROM user_scopes WHERE user_id = ?', [shell.id])) ?? { n: 0 }
+      if (n > 0) continue
+      await pg.run('DELETE FROM users WHERE id = ?', [shell.id])
+      console.log(`  [auth] removed a duplicate pending account for ${shell.email} (${existing.email} is active)`)
+    }
+
     // Fill in a name we did not have, but never overwrite one an admin set.
     if (name && !existing.name) {
       await pg.run('UPDATE users SET name = ? WHERE id = ?', [name, existing.id])

@@ -235,11 +235,21 @@ export function Admin({ session }) {
                 {pending.length} account{pending.length === 1 ? '' : 's'} waiting for access
               </strong>{' '}
               — signed in with Microsoft and cannot see anything yet.
+              <div className="grantrow__hint">
+                {/* Adding the same person again under a different address is
+                    what left people asking for access they already had. */}
+                Grant it here rather than adding the person again. The address shown is the one
+                their Microsoft account actually signs in with, and an account added separately
+                under a different address does not replace this one.
+              </div>
             </div>
             <div className="grantrow__list">
               {pending.map((u) => (
                 <span className="grantrow__one" key={u.id}>
-                  <span className="grantrow__who">{u.name || u.email}</span>
+                  <span className="grantrow__who">
+                    {u.name ? `${u.name} · ` : ''}
+                    {u.email}
+                  </span>
                   <button
                     type="button"
                     className="btn btn--primary btn--sm"
