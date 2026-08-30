@@ -9,6 +9,15 @@ import {
   IconColumns,
   IconArrowRight,
 } from '../components/Icons.jsx'
+import {
+  Figure,
+  FigShell,
+  FigOverview,
+  FigProducts,
+  FigIngredients,
+  FigPlan,
+  FigBuildView,
+} from '../components/GuideFigures.jsx'
 
 /**
  * How to use the app, written for the people who actually open it.
@@ -325,6 +334,10 @@ export function Guide({ onDrill }) {
           </section>
 
           <Section id="start" title="Where to start">
+            <Figure caption="The reports run down the left. Brand and date sit across the top and apply to whichever one you open.">
+              <FigShell />
+            </Figure>
+
             <p>
               Pick your <strong>brand</strong> at the top left, then a <strong>date range</strong> on
               the right. Everything on the page follows those two choices. Your account decides which
@@ -362,6 +375,21 @@ export function Guide({ onDrill }) {
                 average for that weekday; <em>Reduced</em> means more than 20% below.
               </dd>
             </dl>
+
+            <div className="figgrid">
+              <Figure tone="green" caption="Overview — figures across the top, actual against forecast below.">
+                <FigOverview />
+              </Figure>
+              <Figure tone="blue" caption="Products — one line per product, with variance beside it.">
+                <FigProducts />
+              </Figure>
+              <Figure tone="amber" caption="Ingredients — the component table, and a card per unit of measure.">
+                <FigIngredients />
+              </Figure>
+              <Figure tone="violet" caption="Tomorrow's Prep — the day it covers, then what each branch makes, with a prep status on every line.">
+                <FigPlan />
+              </Figure>
+            </div>
           </Section>
 
           <Section id="filters" title="Choosing what you see">
@@ -384,6 +412,10 @@ export function Guide({ onDrill }) {
               <strong>Build view</strong> button. It chooses which columns the table shows, and your
               choice is remembered on that device.
             </p>
+            <Figure caption="Build view opens over the table. Two of the options are marked as splitting rows — those re-ask the question at a finer grain rather than hiding a column.">
+              <FigBuildView />
+            </Figure>
+
             <p>
               Two of the options are marked <em>splits rows</em>: <strong>Date</strong> and{' '}
               <strong>Branch</strong>. These are not display toggles. Turning one on re-asks the

@@ -1829,6 +1829,149 @@ table.dt tbody tr.clickable {
   .guide__sectionHead { grid-template-columns: 34px minmax(0, 1fr); }
 }
 
+/* ----------------------------------------------- the guide's page figures --- */
+
+/*
+ * Line drawings of each page.
+ *
+ * Two custom properties do all the work: an ink for the structure and an accent
+ * for whatever the page is actually about. Everything inside the drawing reads
+ * from those, so a figure follows the theme and takes its page's colour without
+ * a second copy of the artwork.
+ *
+ * The ink is the text colour at low strength rather than a fixed grey, which is
+ * what keeps the drawings legible on both grounds without being drawn twice.
+ */
+.fig__wrap {
+  --fig-ink: currentColor;
+  --fig-accent: var(--brand);
+  margin: 0 0 var(--s4);
+  max-width: 520px;
+  color: var(--text);
+}
+
+.fig__wrap--green  { --fig-accent: #0e7c5a; }
+.fig__wrap--blue   { --fig-accent: #4c56c0; }
+.fig__wrap--amber  { --fig-accent: #a1650a; }
+.fig__wrap--violet { --fig-accent: #7c3aed; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .fig__wrap--green  { --fig-accent: #34d399; }
+  :root:not([data-theme='light']) .fig__wrap--blue   { --fig-accent: #a5b4fc; }
+  :root:not([data-theme='light']) .fig__wrap--amber  { --fig-accent: #fbbf24; }
+  :root:not([data-theme='light']) .fig__wrap--violet { --fig-accent: #c4a6fd; }
+}
+
+:root[data-theme='dark'] .fig__wrap--green  { --fig-accent: #34d399; }
+:root[data-theme='dark'] .fig__wrap--blue   { --fig-accent: #a5b4fc; }
+:root[data-theme='dark'] .fig__wrap--amber  { --fig-accent: #fbbf24; }
+:root[data-theme='dark'] .fig__wrap--violet { --fig-accent: #c4a6fd; }
+
+.fig {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-card);
+  background: var(--sunken);
+}
+
+.fig__frame {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* The navigation rail, which is the one part of the app that is always dark. */
+.fig__rail { fill: var(--rail); }
+
+.fig__line { stroke: var(--line); stroke-width: 1; }
+.fig__line--faint { stroke: var(--line-soft, var(--line)); }
+
+.fig__panel {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.fig__pill {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* The one filter this page is about. */
+.fig__pill--on {
+  fill: color-mix(in srgb, var(--fig-accent) 12%, transparent);
+  stroke: var(--fig-accent);
+}
+
+.fig__card {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.fig__card--on {
+  fill: color-mix(in srgb, var(--fig-accent) 10%, transparent);
+  stroke: var(--fig-accent);
+}
+
+.fig__row { fill: var(--fig-ink); opacity: 0.16; }
+.fig__row--head { fill: var(--fig-ink); opacity: 0.34; }
+.fig__bar { fill: var(--fig-accent); opacity: 0.7; }
+
+.fig__series {
+  fill: none;
+  stroke: var(--fig-accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.fig__series--dashed {
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+  stroke-width: 1.8;
+}
+
+.fig__note {
+  fill: color-mix(in srgb, var(--fig-accent) 10%, transparent);
+  stroke: color-mix(in srgb, var(--fig-accent) 35%, transparent);
+  stroke-width: 1;
+}
+
+.fig__pop {
+  fill: var(--surface);
+  stroke: var(--fig-accent);
+  stroke-width: 1;
+  filter: drop-shadow(0 3px 8px rgb(17 24 39 / 14%));
+}
+
+.fig__box { fill: none; stroke: var(--line); stroke-width: 1; }
+.fig__check { fill: var(--fig-accent); }
+
+.fig__caption {
+  margin-top: var(--s2);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+}
+
+/* Beside the prose on a wide screen, above it on a narrow one. */
+.guide__prose .fig__wrap--wide { max-width: none; }
+
+/* Two drawings across when there is room, one when there is not. */
+.figgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s4);
+  margin-top: var(--s4);
+}
+
+.figgrid .fig__wrap {
+  max-width: none;
+  margin-bottom: 0;
+}
+
 /* ------------------------------------------------ the guide's quick view --- */
 
 /*
