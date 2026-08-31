@@ -15,6 +15,7 @@ import { clearCache } from '../cache.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
+import * as cube from '../cube/query.js'
 import { consumptionByArticle } from '../powerbi/warehouse.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import {
@@ -521,10 +522,24 @@ async function withConsumption(rows, brand, filters, grain = {}) {
   if (grain.location) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
 
   const byDate = Boolean(grain.date)
-  const consumed = await consumptionByArticle(brand.code, filters, { byDate }).catch((err) => {
-    console.warn(`  [warehouse] consumption unavailable for ${brand.code}: ${err.message}`)
-    return null
-  })
+
+  /*
+   * The copy first, Power BI only if it cannot answer.
+   *
+   * Nine brands used to mean nine warehouse queries at once, which is the burst
+   * the capacity refuses with a sixty-second back-off: 62 seconds measured for
+   * one page. From the copy it is a local aggregate per brand.
+   */
+  const fromCopy = byDate
+    ? await cube.outboundByArticleDay(brand.code, filters)
+    : await cube.outboundByArticle(brand.code, filters)
+
+  const consumed =
+    fromCopy ??
+    (await consumptionByArticle(brand.code, filters, { byDate }).catch((err) => {
+      console.warn(`  [warehouse] consumption unavailable for ${brand.code}: ${err.message}`)
+      return null
+    }))
   if (!consumed) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
 
   const keyOf = (r) => {

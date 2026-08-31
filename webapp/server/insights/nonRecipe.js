@@ -2,6 +2,7 @@ import { config } from '../config.js'
 import { executeQuery } from '../powerbi/client.js'
 import { consumptionByArticle, articleNames } from '../powerbi/warehouse.js'
 import * as dax from '../powerbi/dax.js'
+import { constantsFromCopy } from '../cube/query.js'
 
 /**
  * Forecasting the things no recipe knows about.
@@ -145,6 +146,17 @@ export async function constantsFor(brand, { today = new Date() } = {}) {
   if (held) return held
 
   const work = (async () => {
+    /*
+     * The copy first.
+     *
+     * Working these out live costs a month of sales and a month of outbound per
+     * brand — nearly seven seconds for nine of them, paid by whoever loaded the
+     * page first after a restart. The extract computes them once a month and
+     * leaves them here, so the usual answer is a single local read.
+     */
+    const stored = await constantsFromCopy(brand.code).catch(() => new Map())
+    if (stored.size) return stored
+
     const [lastSales, recipeRows, names, consumed] = await Promise.all([
       salesFor(brand, windows.last, 'actual'),
       executeQuery(`EVALUATE SUMMARIZECOLUMNS('RECIPE TABLE'[Item No.])`, brand.datasetId, { bulk: true }),

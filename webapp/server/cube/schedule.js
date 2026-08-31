@@ -1,6 +1,7 @@
 import { config } from '../config.js'
 import { pg } from '../db/accounts.js'
 import { backfillAll, backfillBrand, refreshAllRecent, coverage, rebuildRollup } from './extract.js'
+import { refreshAllOutbound } from './outbound.js'
 import { clearCache } from '../cache.js'
 
 /**
@@ -86,6 +87,33 @@ export const refreshRecentAll = () => guarded('recent', refreshAllRecent)
 export const runBackfill = () => guarded('backfill', () => backfillAll())
 
 /**
+ * Outbound, the article master and the constants.
+ *
+ * Runs after the forecast side rather than beside it: the constants are worked
+ * out from rows the other tables hold, so they need those in place first.
+ */
+async function refreshOutboundAll() {
+  const today = new Date()
+  const y = today.getUTCFullYear()
+  const m = today.getUTCMonth()
+  const day = (yy, mm, d) => new Date(Date.UTC(yy, mm, d)).toISOString().slice(0, 10)
+
+  // A year back covers every window the pages offer; last whole month is what
+  // the constants are measured over.
+  const window = { from: day(y - 1, m, 1), to: day(y, m + 2, 0) }
+  const last = { from: day(y, m - 1, 1), to: day(y, m, 0) }
+
+  return refreshAllOutbound({
+    ...window,
+    month: last.from.slice(0, 7),
+    lastFrom: last.from,
+    lastTo: last.to,
+  })
+}
+
+export const runOutbound = () => guarded('outbound', refreshOutboundAll)
+
+/**
  * Brands with nothing stored yet, filled one at a time on startup.
  *
  * Without this a fresh install answers everything live until the first
@@ -138,13 +166,21 @@ export function startCubeSchedule() {
   }
 
   setTimeout(() => {
-    detached('initial backfill', () => backfillMissing().then(() => refreshRecentAll()))
+    detached('initial backfill', () =>
+      backfillMissing()
+        .then(() => refreshRecentAll())
+        // Outbound last: the constants are derived from what the others hold.
+        .then(() => runOutbound())
+    )
     setInterval(() => detached('recent refresh', refreshRecentAll), REFRESH_MINUTES * 60_000).unref?.()
   }, FIRST_RUN_MS).unref?.()
 
   setTimeout(() => {
-    detached('nightly backfill', runBackfill)
-    setInterval(() => detached('nightly backfill', runBackfill), 24 * HOUR).unref?.()
+    detached('nightly backfill', () => runBackfill().then(() => runOutbound()))
+    setInterval(
+      () => detached('nightly backfill', () => runBackfill().then(() => runOutbound())),
+      24 * HOUR
+    ).unref?.()
   }, untilHour(BACKFILL_HOUR)).unref?.()
 
   return true

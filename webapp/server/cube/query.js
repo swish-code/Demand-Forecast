@@ -236,7 +236,21 @@ async function distinctOverWindow({ brand, daily, monthly, columns, where: extra
   )
 }
 
-async function sumOverWindow({ brand, daily, monthly, group, select, filters, from, to, order, limit = '' }) {
+async function sumOverWindow({
+  brand,
+  daily,
+  monthly,
+  group,
+  select,
+  filters,
+  from,
+  to,
+  order,
+  limit = '',
+  // The measure columns the union carries through. Every forecast table holds
+  // an actual and a forecast; the outbound copy holds one quantity.
+  values = ['actual', 'forecast'],
+}) {
   const span = splitWindow(from, to)
   const extra = filters?.sql?.length ? ` AND ${filters.sql.join(' AND ')}` : ''
   const pieces = []
@@ -244,7 +258,7 @@ async function sumOverWindow({ brand, daily, monthly, group, select, filters, fr
 
   const piece = (table, dateCol, lo, hi) => {
     pieces.push(
-      `SELECT ${group.join(', ')}, actual, forecast
+      `SELECT ${group.join(', ')}, ${values.join(', ')}
          FROM ${table}
         WHERE brand = ? AND ${dateCol} >= ? AND ${dateCol} <= ?${extra}`
     )
@@ -631,6 +645,76 @@ export async function componentLevel(brand, f, grain = {}) {
     to: f.dateTo,
     order: 'SUM(forecast) DESC',
   })
+}
+
+/**
+ * Outbound from the copy, by article, for a window.
+ *
+ * Returns null when the copy does not hold the window, so the caller can ask
+ * Warehouse Analytics instead rather than reporting that nothing moved.
+ */
+export async function outboundByArticle(brand, f) {
+  const cover = coverageCache.get(brand)
+  if (!cover?.out_from || !cover?.out_to) return null
+  if (!f?.dateFrom || !f?.dateTo) return null
+  if (f.dateFrom < cover.out_from || f.dateTo > cover.out_to) return null
+
+  const rows = await sumOverWindow({
+    brand,
+    daily: 'cube_outbound_daily',
+    monthly: 'cube_outbound_monthly',
+    group: ['article'],
+    select: 'article, SUM(qty) AS qty',
+    filters: { sql: [], args: [] },
+    values: ['qty'],
+    from: f.dateFrom,
+    to: f.dateTo,
+    order: 'SUM(qty) DESC',
+  })
+
+  const out = new Map()
+  for (const r of rows) out.set(String(r.article), Number(r.qty) || 0)
+  return out
+}
+
+/** The same, split by day, for a table that is. */
+export async function outboundByArticleDay(brand, f) {
+  const cover = coverageCache.get(brand)
+  if (!cover?.out_from || !cover?.out_to) return null
+  if (!f?.dateFrom || !f?.dateTo) return null
+  if (f.dateFrom < cover.out_from || f.dateTo > cover.out_to) return null
+
+  const rows = await rowsOf(
+    `SELECT date, article, SUM(qty) AS qty
+       FROM cube_outbound_daily
+      WHERE brand = ? AND date >= ? AND date <= ?
+      GROUP BY date, article`,
+    [brand, f.dateFrom, f.dateTo]
+  )
+  const out = new Map()
+  for (const r of rows) out.set(`${r.article}|${String(r.date).slice(0, 10)}`, Number(r.qty) || 0)
+  return out
+}
+
+/** The constants for items no recipe covers, and the article master. */
+export async function constantsFromCopy(brand) {
+  const rows = await rowsOf(
+    `SELECT c.article, c.constant, c.outbound, a.name, a.unit
+       FROM cube_constant c
+       LEFT JOIN cube_article a ON a.article = c.article
+      WHERE c.brand = ?`,
+    [brand]
+  )
+  const out = new Map()
+  for (const r of rows) {
+    out.set(String(r.article), {
+      constant: Number(r.constant),
+      outbound: Number(r.outbound) || 0,
+      name: r.name ?? '',
+      unit: r.unit ?? '',
+    })
+  }
+  return out
 }
 
 export function canAnswerArticles(brand, filters = {}) {

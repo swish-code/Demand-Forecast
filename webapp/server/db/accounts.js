@@ -308,6 +308,59 @@ CREATE TABLE IF NOT EXISTS cube_component_monthly (
   PRIMARY KEY (brand, month, recipe, item, bu, node_type)
 );
 
+/*
+ * What actually left the warehouse, copied.
+ *
+ * The Ingredients page asked Warehouse Analytics directly, one query per brand.
+ * With nine selected that is nine at once, which is exactly the burst the
+ * capacity answers with 429 and a sixty-second Retry-After: measured at 62
+ * seconds for a page that should take half of one.
+ *
+ * By article and day, without a destination, so it is small — a year is roughly
+ * a hundred and twenty thousand rows a brand. The branch is dropped because
+ * nothing can use it yet: outbound names its destinations and the forecast uses
+ * codes, and that mapping is still unsettled.
+ */
+CREATE TABLE IF NOT EXISTS cube_outbound_daily (
+  brand    TEXT NOT NULL,
+  date     TEXT NOT NULL,
+  article  TEXT NOT NULL,
+  qty      DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, date, article)
+);
+CREATE INDEX IF NOT EXISTS idx_cube_outbound
+  ON cube_outbound_daily(brand, date) INCLUDE (article, qty);
+
+CREATE TABLE IF NOT EXISTS cube_outbound_monthly (
+  brand   TEXT NOT NULL,
+  month   TEXT NOT NULL,
+  article TEXT NOT NULL,
+  qty     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, month, article)
+);
+
+/*
+ * The article master, and the constants that go with it.
+ *
+ * Both are per month and cost a round trip each to work out, which the first
+ * request after a restart was paying — nearly seven seconds. Held here instead,
+ * refreshed by the extract.
+ */
+CREATE TABLE IF NOT EXISTS cube_article (
+  article TEXT PRIMARY KEY,
+  name    TEXT NOT NULL DEFAULT '',
+  unit    TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS cube_constant (
+  brand    TEXT NOT NULL,
+  article  TEXT NOT NULL,
+  month    TEXT NOT NULL,
+  constant DOUBLE PRECISION NOT NULL,
+  outbound DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, article)
+);
+
 CREATE TABLE IF NOT EXISTS cube_coverage (
   brand        TEXT PRIMARY KEY,
   from_date    TEXT NOT NULL,
@@ -339,6 +392,10 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
  */
 ALTER TABLE cube_component_daily ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
 ALTER TABLE cube_component_monthly ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
+
+-- What the outbound copy spans, so a window it does not hold goes live.
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS out_from TEXT;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS out_to TEXT;
 
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_to TEXT;
