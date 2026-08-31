@@ -4319,36 +4319,39 @@ table.dt thead th:hover .th__sort--idle {
    space three cards get at the container's smallest height, so nothing is
    actually clipped — the rule is there to guarantee no scrollbar can appear at
    an unusual zoom or font size. */
-.unitcol {
-  display: flex;
-  flex-direction: column;
+/*
+ * The per-unit rankings, in a row under the table.
+ *
+ * They were a column beside it, which cost the table a third of its width for
+ * cards that are read after it rather than with it — and the table is the one
+ * with fifteen columns. Across the bottom, both get the full width.
+ */
+.unitrow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--s3);
-  min-height: 0;
-  min-width: 0;
+  margin-top: var(--s3);
+  align-items: start;
 }
 
-.unitcol > .panel {
-  flex: 1 1 0;
-  min-height: 0;
+.unitrow > .panel {
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.unitcol > .panel > .panel__head { flex: 0 0 auto; }
+.unitrow > .panel > .panel__head { flex: 0 0 auto; }
 
-/* The list scrolls inside the card, so the heading and its totals stay put
-   while the ranking moves. `min-height: 0` is what allows a flex child to be
-   shorter than its content — without it the body grows to fit every row and the
-   third card is pushed off the bottom instead of scrolling. */
-.unitcol > .panel > .panel__body {
-  flex: 1;
-  min-height: 0;
+/* Each card scrolls its own ranking rather than growing to the longest, so
+   three side by side stay the same height. */
+.unitrow > .panel > .panel__body {
+  max-height: 320px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .unitcol__more {
-  flex: 0 0 auto;
+  grid-column: 1 / -1;
   margin: 0;
   font-size: 11px;
   color: var(--text-faint);
@@ -4371,14 +4374,14 @@ table.dt thead th:hover .th__sort--idle {
  * half a line below its neighbours, and the row would read as misaligned even
  * though the grid was not.
  */
-.unitcol .units__row {
+.unitrow .units__row {
   grid-template-columns: minmax(0, 1fr) 84px 92px;
   align-items: baseline;
   column-gap: var(--s3);
   padding-block: 3px;
 }
 
-.unitcol .units__value {
+.unitrow .units__value {
   text-align: right;
   font-variant-numeric: tabular-nums;
   min-width: 0;
@@ -4386,14 +4389,14 @@ table.dt thead th:hover .th__sort--idle {
 }
 
 /* A bar has no baseline of its own, so it is placed against the text's. */
-.unitcol .units__track {
+.unitrow .units__track {
   align-self: start;
   margin-top: 5px;
 }
 
 /* Room to scroll past the last row rather than ending flush against the edge,
    which reads as a row cut in half. */
-.unitcol .units__list {
+.unitrow .units__list {
   margin-top: 0;
   padding-bottom: var(--s2);
 }
@@ -4401,7 +4404,7 @@ table.dt thead th:hover .th__sort--idle {
 /* A narrow card cannot afford 84px of bar and 92px of number beside a wrapping
    name; the bar is what gives way, because the number is the answer. */
 @media (max-width: 1320px) {
-  .unitcol .units__row { grid-template-columns: minmax(0, 1fr) 56px 88px; }
+  .unitrow .units__row { grid-template-columns: minmax(0, 1fr) 56px 88px; }
 }
 
 /* The scrolling happens in the body, not the panel, so the heading stays put. */

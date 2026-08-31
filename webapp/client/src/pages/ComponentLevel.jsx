@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtNum, fmtInt, fmtPct, fmtDate, downloadCsv } from '../api.js'
+import { api, fmtInt, fmtPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
@@ -70,7 +70,7 @@ const COLUMNS = [
      * is what a total under a filtered table means everywhere else.
      */
     total: 'sum',
-    renderTotal: fmtNum,
+    renderTotal: fmtInt,
     // A dash is not zero, and the difference matters here. Rather than leave
     // somebody guessing which it is, the blank says why it is blank.
     render: (v) =>
@@ -82,10 +82,10 @@ const COLUMNS = [
           –
         </span>
       ) : (
-        fmtNum(v)
+        fmtInt(v)
       ),
   },
-  { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },
   /*
    * The article's whole requirement, not this recipe group's share of it.
    *
@@ -103,7 +103,7 @@ const COLUMNS = [
     label: 'Total for article',
     width: W.qty,
     num: true,
-    render: fmtNum,
+    render: fmtInt,
   },
   /*
    * Accuracy of the article's requirement against what actually moved.
@@ -137,7 +137,7 @@ const COLUMNS = [
   },
   // Kept, and no longer called an actual: it is what the recipes imply the
   // sales used, which is the thing consumption is worth comparing against.
-  { key: 'Component_Actual_Qty', label: 'Implied by sales', width: W.qty, num: true, hiddenByDefault: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  { key: 'Component_Actual_Qty', label: 'Implied by sales', width: W.qty, num: true, hiddenByDefault: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },
 ]
 
 /** Mirrors the report's COMPONENT LEVEL page. */
@@ -352,7 +352,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           accent="blue"
           progress={1}
           loading={busy}
-          value={fmtNum(summary.forecast)}
+          value={fmtInt(summary.forecast)}
           foot={
             units.length > 1
               ? `Across ${units.length} units — ${units.join(', ')}`
@@ -364,7 +364,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           accent="green"
           progress={summary.forecast ? Math.min(1, summary.consumed / summary.forecast) : 0}
           loading={busy}
-          value={summary.measured ? fmtNum(summary.consumed) : '–'}
+          value={summary.measured ? fmtInt(summary.consumed) : '–'}
           foot={
             summary.measured
               ? `Actually issued, ${fmtInt(summary.measured)} components measured`
@@ -398,11 +398,13 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           loading={busy}
           textValue
           value={top?.Item ?? '–'}
-          foot={top ? `${fmtNum(top.Component_Forecast_Qty)} ${top.BU}` : undefined}
+          foot={top ? `${fmtInt(top.Component_Forecast_Qty)} ${top.BU}` : undefined}
         />
       </div>
 
-      <div className="split--wide split split--pair">
+      {/* The table first, at full width, and the per-unit rankings beneath it.
+          Side by side, the table lost a third of its columns to a column of
+          cards that is read after it, not with it. */}
       <Panel
         title="Component detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
@@ -454,7 +456,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         * in the table on the left, and the note under the stack says so rather
         * than letting it disappear.
         */}
-      <div className="unitcol">
+      <div className="unitrow">
         {busy ? (
           <>
             <ChartSkeleton height={150} />
@@ -471,7 +473,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
               <Panel
                 key={facet.unit}
                 title={`Top by ${facet.unit.toLowerCase()}`}
-                sub={`${fmtNum(facet.total)} across ${fmtInt(facet.count)} component${
+                sub={`${fmtInt(facet.total)} across ${fmtInt(facet.count)} component${
                   facet.count === 1 ? '' : 's'
                 } · bars compare within this unit`}
               >
@@ -493,7 +495,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
                           }}
                         />
                       </span>
-                      <span className="units__value">{fmtNum(r.Component_Forecast_Qty)}</span>
+                      <span className="units__value">{fmtInt(r.Component_Forecast_Qty)}</span>
                     </li>
                   ))}
                 </ol>
@@ -502,13 +504,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             {facets.length > 3 && (
               <p className="unitcol__more">
                 {facets.length - 3} further unit{facets.length - 3 === 1 ? '' : 's'} (
-                {facets.slice(3).map((f) => f.unit).join(', ')}) — in the table on the left.
+                {facets.slice(3).map((f) => f.unit).join(', ')}) — in the table above.
               </p>
             )}
           </>
         )}
-      </div>
-
       </div>
     </>
   )
