@@ -2035,6 +2035,43 @@ table.dt tbody tr.clickable {
   max-width: 68ch;
 }
 
+/* ---------------------------------------- items with no recipe ----------- */
+
+.nrp__brands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: var(--s3) 0;
+}
+
+.nrp__count {
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.nrp__basis {
+  margin: 0 0 var(--s3);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* The constant column is the one to read across, so the digits line up. */
+.nrp__table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A long tail of articles scrolls inside the panel rather than stretching it. */
+.nrp__scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
 /* What the rebuild button just did. */
 .cube__note {
   margin: 0 0 var(--s3);

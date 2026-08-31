@@ -19,6 +19,7 @@ import { EmailPanel } from '../components/EmailPanel.jsx'
 import { WhyPanel } from '../components/WhyPanel.jsx'
 import { ModelReview } from '../components/ModelReview.jsx'
 import { CubeStatus } from '../components/CubeStatus.jsx'
+import { NonRecipePanel } from '../components/NonRecipePanel.jsx'
 import { useData } from '../useData.js'
 
 /**
@@ -418,6 +419,8 @@ export function Admin({ session }) {
       />
 
       <CubeStatus />
+
+      <NonRecipePanel />
 
       <ModelReview />
 

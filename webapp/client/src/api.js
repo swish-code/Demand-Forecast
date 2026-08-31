@@ -134,6 +134,7 @@ export const api = {
     ackInsights: (day) => post('/admin/insights/ack', { day }),
     alerts: () => get('/admin/alerts'),
     modelReview: (refresh) => get(`/admin/model-review${refresh ? '?refresh=1' : ''}`),
+    nonRecipeForecast: (refresh) => get(`/admin/non-recipe-forecast${refresh ? '?refresh=1' : ''}`),
     cube: () => get('/cube'),
     // Deliberately the admin route, not the read-only one: this starts work.
     rebuildCube: () => post('/admin/cube/backfill'),

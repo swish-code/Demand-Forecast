@@ -4,6 +4,7 @@ import { generatePassword, hashPassword } from '../auth/passwords.js'
 import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
 import { DEPARTMENTS, DEPARTMENT_NODE_TYPES, isDepartment } from '../departments.js'
+import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
 import { buildDigest, latestDigest, digestFor, recentDigests, today } from '../insights/digest.js'
@@ -688,6 +689,29 @@ admin.post(
  * model's design, which does not change between page loads.
  */
 let reviewCache = null
+
+/*
+ * The non-recipe forecast, cached.
+ *
+ * It reads two months of sales from every brand's model and a month of
+ * outbound from the warehouse, so it costs a couple of dozen queries and takes
+ * a while. The answer only changes when a month closes, so an hour is a
+ * generous refresh and ?refresh=1 forces one.
+ */
+let nonRecipeCache = null
+
+admin.get(
+  '/non-recipe-forecast',
+  handle(async (req, res) => {
+    const fresh = req.query.refresh === '1'
+    if (!fresh && nonRecipeCache && nonRecipeCache.expires > Date.now()) {
+      return res.json(nonRecipeCache.payload)
+    }
+    const payload = await nonRecipeForecast()
+    nonRecipeCache = { payload, expires: Date.now() + 60 * 60_000 }
+    res.json(payload)
+  })
+)
 
 admin.get(
   '/model-review',
