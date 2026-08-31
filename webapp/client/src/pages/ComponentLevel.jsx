@@ -86,6 +86,55 @@ const COLUMNS = [
       ),
   },
   { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  /*
+   * The article's whole requirement, not this recipe group's share of it.
+   *
+   * Consumption is an article-level fact — the warehouse issues flour, not
+   * flour-for-the-burger-recipe — so comparing it against one recipe group's
+   * line is comparing two different things. This column adds the article back
+   * up across every group in view, which is the figure that is actually
+   * comparable with Consumed, and the figure somebody orders against.
+   *
+   * It repeats on every row of the same article, so it is deliberately not
+   * summed: a footer would count each article once per recipe it appears in.
+   */
+  {
+    key: 'Article_Forecast_Qty',
+    label: 'Total for article',
+    width: W.qty,
+    num: true,
+    render: fmtNum,
+  },
+  /*
+   * Accuracy of the article's requirement against what actually moved.
+   *
+   * A property of the article rather than of the row, so it reads the same on
+   * every line of that article. Blank where nothing moved: a component with a
+   * requirement and no transfer is unmeasured, not badly forecast, and scoring
+   * it zero would say the opposite.
+   *
+   * The footer averages the per-article figures rather than deriving one from
+   * the totals — each article's accuracy is already unit-free, and totalling
+   * first would let the large "Each" lines decide the number for kilograms too.
+   */
+  {
+    key: 'Accuracy',
+    label: 'Accuracy',
+    width: W.pct,
+    num: true,
+    render: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+    total: (list) => {
+      const seen = new Map()
+      for (const r of list) {
+        const a = String(r['Item No.'] ?? '').trim()
+        if (!a || r.Accuracy === null || r.Accuracy === undefined) continue
+        if (!seen.has(a)) seen.set(a, r.Accuracy)
+      }
+      if (!seen.size) return null
+      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
+    },
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
   // Kept, and no longer called an actual: it is what the recipes imply the
   // sales used, which is the thing consumption is worth comparing against.
   { key: 'Component_Actual_Qty', label: 'Implied by sales', width: W.qty, num: true, hiddenByDefault: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
@@ -128,6 +177,40 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
   const busy = loading || !ready
 
+  /**
+   * Roll each article back up, and score it.
+   *
+   * Consumption arrives on one row per article and the requirement is split
+   * across every recipe group that uses it, so neither can be read against the
+   * other line by line. Adding the requirement back up per article puts both on
+   * the same footing, and that is what accuracy is computed from.
+   */
+  const priced = useMemo(() => {
+    const perArticle = new Map()
+    for (const r of rows) {
+      const a = String(r['Item No.'] ?? '').trim()
+      if (!a) continue
+      const held = perArticle.get(a) ?? { forecast: 0, consumed: 0, measured: false }
+      held.forecast += Number(r.Component_Forecast_Qty) || 0
+      if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) {
+        held.consumed += Number(r.Consumed_Qty) || 0
+        held.measured = true
+      }
+      perArticle.set(a, held)
+    }
+
+    return rows.map((r) => {
+      const a = String(r['Item No.'] ?? '').trim()
+      const held = a ? perArticle.get(a) : null
+      const forecast = held ? held.forecast : Number(r.Component_Forecast_Qty) || 0
+      const accuracy =
+        held && held.measured && forecast
+          ? Math.max(0, 1 - Math.abs(held.consumed - forecast) / forecast)
+          : null
+      return { ...r, Article_Forecast_Qty: forecast, Accuracy: accuracy }
+    })
+  }, [rows])
+
   const top = useMemo(
     () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
     [rows]
@@ -158,14 +241,22 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     let scored = 0
     let accuracySum = 0
 
-    for (const r of rows) {
+    /*
+     * Scored per article, from the rolled-up figures, so the card and the
+     * column agree. Doing it per row compared an article's whole consumption
+     * against one recipe group's share of the requirement, which understated
+     * accuracy for every component used by more than one recipe.
+     */
+    const seen = new Set()
+    for (const r of priced) {
       forecast += Number(r.Component_Forecast_Qty) || 0
       const c = r.Consumed_Qty
-      if (c === null || c === undefined) continue
-      consumed += Number(c) || 0
-      const f = Number(r.Component_Forecast_Qty) || 0
-      if (!f) continue
-      accuracySum += Math.max(0, 1 - Math.abs((Number(c) || 0) - f) / f)
+      if (c !== null && c !== undefined) consumed += Number(c) || 0
+
+      const a = String(r['Item No.'] ?? '').trim()
+      if (!a || seen.has(a) || r.Accuracy === null) continue
+      seen.add(a)
+      accuracySum += r.Accuracy
       scored += 1
     }
 
@@ -175,7 +266,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       measured: scored,
       accuracy: scored ? accuracySum / scored : null,
     }
-  }, [rows])
+  }, [priced])
 
   /**
    * Top components for every unit of measure.
@@ -324,7 +415,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             className="btn"
             disabled={!rows.length}
             onClick={() =>
-              downloadCsv('bbt-component-level.csv', rows, columns.map(({ key, label }) => ({ key, label })))
+              downloadCsv('bbt-component-level.csv', priced, columns.map(({ key, label }) => ({ key, label })))
             }
           >
             <IconDownload size={12} />
@@ -339,7 +430,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         ) : (
           <DataTable
             columns={columns}
-            rows={rows}
+            rows={priced}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search component or group…"
