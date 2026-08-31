@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtNum, fmtInt, fmtDate, downloadCsv } from '../api.js'
+import { api, fmtNum, fmtInt, fmtPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
@@ -58,6 +58,19 @@ const COLUMNS = [
     width: W.qty,
     num: true,
     strong: true,
+    /*
+     * It does total, and correctly: the figure sits on exactly one row per
+     * article and every other row is blank, so adding the column counts each
+     * article once. The blanks are the reason — they are not zeros, they mean
+     * "counted on another line".
+     *
+     * Filtering is the case to know about: an article whose carrying row falls
+     * outside a search or a recipe-group filter takes its consumption with it
+     * while its other rows stay. The total is then of what is on screen, which
+     * is what a total under a filtered table means everywhere else.
+     */
+    total: 'sum',
+    renderTotal: fmtNum,
     // A dash is not zero, and the difference matters here. Rather than leave
     // somebody guessing which it is, the blank says why it is blank.
     render: (v) =>
@@ -119,6 +132,50 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
     [rows]
   )
+
+  /**
+   * The totals, and how close the requirement came to what actually moved.
+   *
+   * Two things need saying about the quantities. They add across units of
+   * measure — kilograms and pieces in one number — because the page is a list
+   * of everything a brand needs, and the cards on the right are where each unit
+   * is totalled on its own. The card says so rather than pretending otherwise.
+   *
+   * Accuracy does not have that problem, and is deliberately computed a
+   * different way: per component, then averaged. Each component's accuracy is a
+   * ratio of two figures in the same unit, so it is unit-free before anything
+   * is added, and a kilogram of flour weighs the same as a box of gloves in the
+   * average. Totalling first and dividing after would let the largest "Each"
+   * lines decide the number for every unit.
+   *
+   * Only components with both a requirement and a movement count. One with no
+   * transfer is not 0% accurate, it is unmeasured — and scoring it zero would
+   * read as a terrible forecast rather than an absent one.
+   */
+  const summary = useMemo(() => {
+    let forecast = 0
+    let consumed = 0
+    let scored = 0
+    let accuracySum = 0
+
+    for (const r of rows) {
+      forecast += Number(r.Component_Forecast_Qty) || 0
+      const c = r.Consumed_Qty
+      if (c === null || c === undefined) continue
+      consumed += Number(c) || 0
+      const f = Number(r.Component_Forecast_Qty) || 0
+      if (!f) continue
+      accuracySum += Math.max(0, 1 - Math.abs((Number(c) || 0) - f) / f)
+      scored += 1
+    }
+
+    return {
+      forecast,
+      consumed,
+      measured: scored,
+      accuracy: scored ? accuracySum / scored : null,
+    }
+  }, [rows])
 
   /**
    * Top components for every unit of measure.
@@ -200,28 +257,48 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     <>
       <div className="metrics">
         <MetricCard
-          label="Components"
+          label="Forecast requirement"
+          accent="blue"
+          progress={1}
+          loading={busy}
+          value={fmtNum(summary.forecast)}
+          foot={
+            units.length > 1
+              ? `Across ${units.length} units — ${units.join(', ')}`
+              : units[0] || 'Total requirement'
+          }
+        />
+        <MetricCard
+          label="Consumed"
           accent="green"
+          progress={summary.forecast ? Math.min(1, summary.consumed / summary.forecast) : 0}
+          loading={busy}
+          value={summary.measured ? fmtNum(summary.consumed) : '–'}
+          foot={
+            summary.measured
+              ? `Actually issued, ${fmtInt(summary.measured)} components measured`
+              : 'No transfers matched this view'
+          }
+        />
+        <MetricCard
+          label="Accuracy"
+          accent={summary.accuracy === null ? 'slate' : summary.accuracy >= 0.9 ? 'green' : 'amber'}
+          progress={summary.accuracy ?? 0}
+          loading={busy}
+          value={summary.accuracy === null ? '–' : fmtPct(summary.accuracy, 1)}
+          foot={
+            summary.accuracy === null
+              ? 'Needs consumption to compare against'
+              : 'Requirement against what moved, per component'
+          }
+        />
+        <MetricCard
+          label="Components"
+          accent="slate"
           progress={0.72}
           loading={busy}
           value={fmtInt(rows.length)}
-          foot="Distinct component rows"
-        />
-        <MetricCard
-          label="Recipe groups"
-          accent="blue"
-          progress={0.62}
-          loading={busy}
-          value={fmtInt(groups)}
-          foot="Groups represented"
-        />
-        <MetricCard
-          label="Units of measure"
-          accent="slate"
-          progress={0.45}
-          loading={busy}
-          value={fmtInt(units.length)}
-          foot={units.join(' · ') || '—'}
+          foot={`${fmtInt(groups)} recipe groups`}
         />
         <MetricCard
           label="Largest requirement"
@@ -263,6 +340,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           <DataTable
             columns={columns}
             rows={rows}
+            totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search component or group…"
             tableId="component-detail"

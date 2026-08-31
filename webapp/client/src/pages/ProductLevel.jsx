@@ -211,6 +211,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
           <DataTable
             columns={columns}
             rows={rows}
+            totals
             initialSort={{ key: 'Actual_Qty', dir: 'desc' }}
             searchPlaceholder="Search product or PLU…"
             tableId="products-detail"
