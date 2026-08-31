@@ -33,11 +33,37 @@ const COLUMNS = [
     render: (v) => (v ? <Pill tone={TYPE_TONE[v] ?? 'slate'}>{v}</Pill> : '–'),
   },
   { key: 'BU', label: 'Unit', width: 92 },
-  // Actual before forecast, the same order the other tables use: what happened,
-  // then what was expected. Both are totalled, because a component requirement
-  // across a window is a quantity to order and does add up.
-  { key: 'Component_Actual_Qty', label: 'Actual qty', width: W.qty, num: true, strong: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  // The ERP article number: the key the warehouse knows this component by, and
+  // the reason a consumption figure can be put beside a recipe figure at all.
+  { key: 'Item No.', label: 'Article', width: 104, hiddenByDefault: true },
+  /*
+   * Consumed, not "actual".
+   *
+   * The old actual came from the same place as the forecast — recipe quantities
+   * multiplied by sales that happened — so it was a second theoretical figure
+   * wearing the word actual. It could not show waste, over-portioning or
+   * spillage, because none of those are in a recipe.
+   *
+   * This one is measured: what the warehouse and the kitchens actually issued to
+   * this brand's shops, in the article's own base unit.
+   *
+   * It is not totalled, and that is deliberate. Consumption belongs to an
+   * article, while these rows are split by recipe group, so the figure sits on
+   * one row per article and the others are blank. A column total would either
+   * count it once per recipe or need an allocation nobody has agreed.
+   */
+  {
+    key: 'Consumed_Qty',
+    label: 'Consumed',
+    width: W.qty,
+    num: true,
+    strong: true,
+    render: (v) => (v === null || v === undefined ? '–' : fmtNum(v)),
+  },
   { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
+  // Kept, and no longer called an actual: it is what the recipes imply the
+  // sales used, which is the thing consumption is worth comparing against.
+  { key: 'Component_Actual_Qty', label: 'Implied by sales', width: W.qty, num: true, hiddenByDefault: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
 ]
 
 /** Mirrors the report's COMPONENT LEVEL page. */
@@ -145,7 +171,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    */
   const future = isFutureWindow(filters, options?.dateRange)
   const columns = useMemo(
-    () => (future ? COLUMNS.filter((c) => c.key !== 'Component_Actual_Qty') : COLUMNS),
+    () =>
+      future
+        ? COLUMNS.filter((c) => c.key !== 'Component_Actual_Qty' && c.key !== 'Consumed_Qty')
+        : COLUMNS,
     [future]
   )
 

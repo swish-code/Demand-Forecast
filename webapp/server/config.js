@@ -43,6 +43,33 @@ export const config = {
     datasetId: process.env.PBI_DATASET_ID,
   },
 
+  /*
+   * Warehouse Analytics: one model for the whole company, in its own workspace.
+   *
+   * Everything else here is per-brand — a brand is chosen before a query runs.
+   * This one is not: it holds every brand's stock movements in a single
+   * semantic model, and the brand is a column on the fact rather than a choice
+   * of dataset. So it gets its own two ids rather than joining PBI_DATASETS.
+   *
+   * Absent means the Ingredients page shows what the recipes imply and nothing
+   * about what actually moved, which is what it did before this existed.
+   */
+  warehouse: {
+    workspaceId: process.env.WH_WORKSPACE_ID || null,
+    datasetId: process.env.WH_DATASET_ID || null,
+    /*
+     * What counts as having left the building.
+     *
+     * The model's own Outbound Fulfilled Qty also includes DECLINED, which by
+     * name did not go anywhere; it is about 1% of BOOKED. Overridable because
+     * it is a business definition rather than a technical one.
+     */
+    statuses: (process.env.WH_STATUSES || 'BOOKED,DELIVERED')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
+
   /**
    * Each brand is its OWN semantic model, so a brand is chosen before a query
    * runs rather than filtered inside one. PBI_DATASETS is a comma-separated

@@ -15,6 +15,7 @@ import { clearCache } from '../cache.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
+import { consumptionByArticle } from '../powerbi/warehouse.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -493,10 +494,54 @@ api.all('/product-level', handle(async (req, res) => {
   })
 }))
 
+/**
+ * What actually left the warehouse, attached to what the recipes asked for.
+ *
+ * Consumption is a fact about an article, not about a recipe: the warehouse
+ * issues "Flour All Purpose", not "flour for the burger recipe". The same
+ * article appears on several rows here, once per recipe group it belongs to, so
+ * writing the figure onto every one of them would count it as many times as the
+ * article is used the moment anybody totals the column.
+ *
+ * So it goes on one row per article — the largest, by what the forecast implies
+ * — and the others carry null. Null means "counted on another line", which is
+ * why the column has no total in the table: a measured quantity cannot be split
+ * across recipes without inventing an allocation nobody asked for.
+ */
+async function withConsumption(rows, brand, filters) {
+  const consumed = await consumptionByArticle(brand.code, filters).catch((err) => {
+    console.warn(`  [warehouse] consumption unavailable for ${brand.code}: ${err.message}`)
+    return null
+  })
+  if (!consumed) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
+
+  // The row that will carry each article's figure.
+  const owner = new Map()
+  for (const r of rows) {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article) continue
+    const size = Number(r.Component_Forecast_Qty) || 0
+    const held = owner.get(article)
+    if (!held || size > held.size) owner.set(article, { row: r, size })
+  }
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    const isOwner = article && owner.get(article)?.row === r
+    return { ...r, Consumed_Qty: isOwner ? (consumed.get(article) ?? 0) : null }
+  })
+}
+
 api.all('/component-level', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
-  const results = await g.fanOut(({ ds, f }) => data.componentLevel(f, ds, grainOf(req)))
+  const grain = grainOf(req)
+  const results = await g.fanOut(async ({ ds, f, brand }) => {
+    const rows = await data.componentLevel(f, ds, grain)
+    // Split by day, an article's month of transfers cannot be spread across
+    // days without inventing a shape it does not have.
+    return grain.date ? rows.map((r) => ({ ...r, Consumed_Qty: null })) : withConsumption(rows, brand, f)
+  })
   if (g.single) return res.json({ rows: results[0] })
 
   // Components are shared recipes, so the same item in two brands is genuinely
@@ -504,7 +549,7 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     rows: mergeRows(results, {
       key: (r) => `${r['Recipe Group']}|${r.Item}|${r.BU}`,
-      sum: ['Component_Forecast_Qty', 'Component_Actual_Qty'],
+      sum: ['Component_Forecast_Qty', 'Component_Actual_Qty', 'Consumed_Qty'],
       sort: (a, b) => Number(b.Component_Forecast_Qty) - Number(a.Component_Forecast_Qty),
     }),
   })

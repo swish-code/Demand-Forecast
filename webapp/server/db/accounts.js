@@ -328,6 +328,18 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
 -- The recipe copy keeps its own dates: one of the three wide fetches can fail
 -- on its own, and the Ingredients page must not inherit a range from a table it
 -- does not read.
+/*
+ * The ERP article number on the component rows.
+ *
+ * Added rather than built into the table so an existing copy gains it without
+ * being thrown away; it fills on the next extract. It is not part of the key —
+ * an article is a property of the item, not a separate line — so a copy written
+ * before this existed keeps working with the column empty, and the Ingredients
+ * page simply shows no consumption until the copy is rebuilt.
+ */
+ALTER TABLE cube_component_daily ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
+ALTER TABLE cube_component_monthly ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
+
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_to TEXT;
 /*

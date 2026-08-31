@@ -335,6 +335,10 @@ FILTER(
       ...(grain.location ? ['Forecast_Product_Table[LocationID]'] : []),
       "'RECIPE TABLE'[Recipe Group]",
       "'RECIPE TABLE'[Item]",
+      // The ERP article number, which is what the warehouse knows this by.
+      // Without it there is nothing to join actual consumption on: names differ
+      // in case and spacing between the two systems, the number does not.
+      "'RECIPE TABLE'[Item No.]",
       "'RECIPE TABLE'[BU]",
       "'RECIPE TABLE'[Node Type]",
     ],

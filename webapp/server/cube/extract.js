@@ -218,6 +218,7 @@ FILTER(
       'Forecast_Product_Table[Date]',
       "'RECIPE TABLE'[Recipe Group]",
       "'RECIPE TABLE'[Item]",
+      "'RECIPE TABLE'[Item No.]",
       "'RECIPE TABLE'[BU]",
       "'RECIPE TABLE'[Node Type]",
     ],
@@ -269,7 +270,7 @@ async function writeComponents(brand, rows, scope) {
     }
     await insertBatched(
       'cube_component_daily',
-      ['brand', 'date', 'recipe', 'item', 'bu', 'node_type', 'actual', 'forecast'],
+      ['brand', 'date', 'recipe', 'item', 'bu', 'node_type', 'article', 'actual', 'forecast'],
       ['brand', 'date', 'recipe', 'item', 'bu', 'node_type'],
       rows,
       (r) => [
@@ -279,6 +280,7 @@ async function writeComponents(brand, rows, scope) {
         String(r.Item ?? ''),
         String(r.BU ?? ''),
         String(r['Node Type'] ?? ''),
+        String(r['Item No.'] ?? '').trim(),
         Number(r.Component_Actual_Qty) || 0,
         Number(r.Component_Forecast_Qty) || 0,
       ]
@@ -305,8 +307,8 @@ async function rebuildMonthly(brand) {
 
   await pg.run('DELETE FROM cube_component_monthly WHERE brand = ?', [brand])
   await pg.run(
-    `INSERT INTO cube_component_monthly (brand, month, recipe, item, bu, node_type, actual, forecast)
-     SELECT brand, substr(date, 1, 7), recipe, item, bu, node_type, SUM(actual), SUM(forecast)
+    `INSERT INTO cube_component_monthly (brand, month, recipe, item, bu, node_type, article, actual, forecast)
+     SELECT brand, substr(date, 1, 7), recipe, item, bu, node_type, MAX(article), SUM(actual), SUM(forecast)
        FROM cube_component_daily WHERE brand = ?
       GROUP BY brand, substr(date, 1, 7), recipe, item, bu, node_type`,
     [brand]

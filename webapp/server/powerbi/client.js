@@ -201,7 +201,7 @@ export const concurrency = () => ({ limit, inFlight, waiting: waiting.length })
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function executeQuery(dax, datasetId, { bulk = false } = {}) {
+export async function executeQuery(dax, datasetId, { bulk = false, workspace = null } = {}) {
   await acquire()
   try {
     let lastError
@@ -213,7 +213,7 @@ export async function executeQuery(dax, datasetId, { bulk = false } = {}) {
     // ends up showing "Power BI throttled the request".
     for (let attempt = 0; ; attempt++) {
       try {
-        const rows = await runQuery(dax, datasetId, bulk)
+        const rows = await runQuery(dax, datasetId, bulk, workspace)
         succeeded()
         return rows
       } catch (err) {
@@ -255,9 +255,11 @@ export async function executeQuery(dax, datasetId, { bulk = false } = {}) {
   }
 }
 
-async function runQuery(dax, datasetId, bulk = false) {
+async function runQuery(dax, datasetId, bulk = false, workspace = null) {
   const token = await getAccessToken()
-  const { workspaceId } = config.pbi
+  // Warehouse Analytics lives in its own workspace, so callers may name one.
+  // Everything else is in the forecast workspace and passes nothing.
+  const workspaceId = workspace || config.pbi.workspaceId
   const url = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/datasets/${datasetId}/executeQueries`
 
   const res = await fetch(url, {

@@ -601,13 +601,14 @@ export async function componentLevel(brand, f, grain = {}) {
       `SELECT date AS "Date",
               recipe    AS "Recipe Group",
               item      AS "Item",
+              article   AS "Item No.",
               bu        AS "BU",
               node_type AS "Node Type",
               SUM(actual)   AS "Component_Actual_Qty",
               SUM(forecast) AS "Component_Forecast_Qty"
          FROM cube_component_daily
         WHERE ${sql.join(' AND ')}
-        GROUP BY date, recipe, item, bu, node_type
+        GROUP BY date, recipe, item, article, bu, node_type
         ORDER BY SUM(forecast) DESC`,
       args
     )
@@ -617,9 +618,10 @@ export async function componentLevel(brand, f, grain = {}) {
     brand,
     daily: 'cube_component_daily',
     monthly: 'cube_component_monthly',
-    group: ['recipe', 'item', 'bu', 'node_type'],
+    group: ['recipe', 'item', 'article', 'bu', 'node_type'],
     select: `recipe    AS "Recipe Group",
              item      AS "Item",
+             article   AS "Item No.",
              bu        AS "BU",
              node_type AS "Node Type",
              SUM(actual)   AS "Component_Actual_Qty",
