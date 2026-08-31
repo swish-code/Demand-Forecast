@@ -1,6 +1,6 @@
 import { config } from '../config.js'
 import { executeQuery } from '../powerbi/client.js'
-import { consumptionByArticle } from '../powerbi/warehouse.js'
+import { consumptionByArticle, articleNames } from '../powerbi/warehouse.js'
 import * as dax from '../powerbi/dax.js'
 
 /**
@@ -80,7 +80,7 @@ const salesFor = async (brand, window, which) => {
  * ones this exists for; anything a recipe knows about is forecast properly and
  * must not be forecast twice.
  */
-async function forBrand(brand, windows, recipeArticles) {
+async function forBrand(brand, windows, recipeArticles, names) {
   const [lastSales, nextSales] = await Promise.all([
     salesFor(brand, windows.last, 'actual'),
     salesFor(brand, windows.next, 'forecast'),
@@ -106,8 +106,11 @@ async function forBrand(brand, windows, recipeArticles) {
     const constant = lastSales ? lastSales / outbound : null
     const forecast = constant ? nextSales / constant : null
 
+    const known = names.get(article)
     items.push({
       article,
+      name: known?.name ?? '',
+      unit: known?.unit ?? '',
       outbound,
       constant,
       forecast,
@@ -135,10 +138,13 @@ export async function nonRecipeForecast({ today = new Date() } = {}) {
     recipeRows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
   )
 
+  // One lookup for every brand: the article master does not vary by brand.
+  const names = await articleNames().catch(() => new Map())
+
   const brands = []
   for (const brand of config.brands) {
     try {
-      brands.push(await forBrand(brand, windows, recipeArticles))
+      brands.push(await forBrand(brand, windows, recipeArticles, names))
     } catch (err) {
       brands.push({ brand: brand.code, label: brand.label, items: [], reason: err.message.slice(0, 120) })
     }

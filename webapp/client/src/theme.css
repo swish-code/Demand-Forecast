@@ -2064,6 +2064,16 @@ table.dt tbody tr.clickable {
   font-variant-numeric: tabular-nums;
 }
 
+/* The name takes the room the numbers do not need, and truncates rather than
+   wrapping so every row stays one line deep and the figures stay comparable
+   down the column. The full name is on hover. */
+.nrp__name {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A long tail of articles scrolls inside the panel rather than stretching it. */
 .nrp__scroll {
   max-height: 420px;

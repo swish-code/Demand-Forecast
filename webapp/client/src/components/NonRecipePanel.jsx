@@ -108,6 +108,8 @@ export function NonRecipePanel() {
                   <thead>
                     <tr>
                       <th scope="col">Article</th>
+                      <th scope="col">Item</th>
+                      <th scope="col">Unit</th>
                       <th scope="col" style={{ textAlign: 'right' }}>Went out last month</th>
                       <th scope="col" style={{ textAlign: 'right' }}>Constant</th>
                       <th scope="col" style={{ textAlign: 'right' }}>Forecast next month</th>
@@ -117,6 +119,10 @@ export function NonRecipePanel() {
                     {shown.items.slice(0, 200).map((i) => (
                       <tr key={i.article}>
                         <td className="id">{i.article}</td>
+                        {/* The name the warehouse knows it by: a nine-digit code
+                            identifies a thing without describing it. */}
+                        <td className="nrp__name" title={i.name}>{i.name || '–'}</td>
+                        <td className="dim">{i.unit || '–'}</td>
                         <td className="num">{fmtNum(i.outbound)}</td>
                         <td className="num dim" title="Units of sale per unit of this item">
                           {i.constant === null ? '–' : fmtNum(i.constant)}

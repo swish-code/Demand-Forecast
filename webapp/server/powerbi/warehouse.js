@@ -99,5 +99,28 @@ SUMMARIZECOLUMNS(
   return out
 }
 
+/**
+ * Article number to the name the warehouse knows it by.
+ *
+ * A nine-digit code identifies a thing without describing it, and nobody
+ * ordering gloves recognises 104900015. One query for the lot, because the list
+ * is a few thousand rows and does not change between requests.
+ */
+export async function articleNames() {
+  if (!isConfigured()) return new Map()
+  const rows = await executeQuery(
+    `EVALUATE SUMMARIZECOLUMNS(fact_outbound_line[Article No.], fact_outbound_line[Article], fact_outbound_line[Base Unit])`,
+    config.warehouse.datasetId,
+    { bulk: true, workspace: config.warehouse.workspaceId }
+  )
+  const out = new Map()
+  for (const r of rows) {
+    const no = String(r['Article No.'] ?? '').trim()
+    if (!no || out.has(no)) continue
+    out.set(no, { name: String(r.Article ?? '').trim(), unit: String(r['Base Unit'] ?? '').trim() })
+  }
+  return out
+}
+
 /** Whether the page should offer consumption at all. */
 export const warehouseReady = isConfigured
