@@ -508,27 +508,51 @@ api.all('/product-level', handle(async (req, res) => {
  * why the column has no total in the table: a measured quantity cannot be split
  * across recipes without inventing an allocation nobody asked for.
  */
-async function withConsumption(rows, brand, filters) {
-  const consumed = await consumptionByArticle(brand.code, filters).catch((err) => {
+async function withConsumption(rows, brand, filters, grain = {}) {
+  /*
+   * Split by branch, there is nothing truthful to show.
+   *
+   * Consumption is known per brand, not per shop: outbound names its
+   * destinations and the forecast uses codes, and the two lists do not yet
+   * correspond. Attributing a brand's whole consumption to one branch's row
+   * would be a plainly wrong number rather than a missing one.
+   */
+  if (grain.location) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
+
+  const byDate = Boolean(grain.date)
+  const consumed = await consumptionByArticle(brand.code, filters, { byDate }).catch((err) => {
     console.warn(`  [warehouse] consumption unavailable for ${brand.code}: ${err.message}`)
     return null
   })
   if (!consumed) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
 
-  // The row that will carry each article's figure.
+  const keyOf = (r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article) return null
+    return byDate ? `${article}|${String(r.Date ?? '').slice(0, 10)}` : article
+  }
+
+  /*
+   * One row carries each figure, and the rest are blank.
+   *
+   * Consumption belongs to an article; these rows are split by recipe group as
+   * well, so the same article appears several times. Writing it onto every one
+   * would count it once per recipe the moment anybody totals the column, so it
+   * goes on the largest by forecast and the others read as a dash.
+   */
   const owner = new Map()
   for (const r of rows) {
-    const article = String(r['Item No.'] ?? '').trim()
-    if (!article) continue
+    const k = keyOf(r)
+    if (!k) continue
     const size = Number(r.Component_Forecast_Qty) || 0
-    const held = owner.get(article)
-    if (!held || size > held.size) owner.set(article, { row: r, size })
+    const held = owner.get(k)
+    if (!held || size > held.size) owner.set(k, { row: r, size })
   }
 
   return rows.map((r) => {
-    const article = String(r['Item No.'] ?? '').trim()
-    const isOwner = article && owner.get(article)?.row === r
-    return { ...r, Consumed_Qty: isOwner ? (consumed.get(article) ?? 0) : null }
+    const k = keyOf(r)
+    const isOwner = k && owner.get(k)?.row === r
+    return { ...r, Consumed_Qty: isOwner ? (consumed.get(k) ?? 0) : null }
   })
 }
 
@@ -538,9 +562,7 @@ api.all('/component-level', handle(async (req, res) => {
   const grain = grainOf(req)
   const results = await g.fanOut(async ({ ds, f, brand }) => {
     const rows = await data.componentLevel(f, ds, grain)
-    // Split by day, an article's month of transfers cannot be spread across
-    // days without inventing a shape it does not have.
-    return grain.date ? rows.map((r) => ({ ...r, Consumed_Qty: null })) : withConsumption(rows, brand, f)
+    return withConsumption(rows, brand, f, grain)
   })
   if (g.single) return res.json({ rows: results[0] })
 

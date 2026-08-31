@@ -48,7 +48,7 @@ const asDate = (iso) => {
  * truthfully. Null is not zero: the caller shows nothing rather than claiming
  * that nothing moved.
  */
-export async function consumptionByArticle(brandCode, { dateFrom, dateTo, locations } = {}) {
+export async function consumptionByArticle(brandCode, { dateFrom, dateTo, locations } = {}, { byDate = false } = {}) {
   if (!isConfigured() || !brandCode || !dateFrom || !dateTo) return null
 
   /*
@@ -61,9 +61,17 @@ export async function consumptionByArticle(brandCode, { dateFrom, dateTo, locati
    */
   if (locations?.length) return null
 
+  /*
+   * By day when the table is split by day.
+   *
+   * Transfers are lumpy — a shop is delivered every few days, not continuously —
+   * so a daily column will be spiky against a smooth daily forecast. That is
+   * what actually happened, though, and showing the day it arrived is more use
+   * than showing nothing at all.
+   */
   const dax = `EVALUATE
 SUMMARIZECOLUMNS(
-  fact_outbound_line[Article No.],
+  fact_outbound_line[Article No.],${byDate ? '\n  dim_date[Date],' : ''}
   TREATAS({${literal([brandCode])}}, fact_outbound_line[Mapped Transfer To]),
   DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
   FILTER(
@@ -83,7 +91,10 @@ SUMMARIZECOLUMNS(
     const article = String(r['Article No.'] ?? '').trim()
     const qty = Number(r.Consumed_Qty)
     if (!article || !Number.isFinite(qty)) continue
-    out.set(article, (out.get(article) ?? 0) + qty)
+    // Keyed by day as well when the caller asked for it, so a dated row can
+    // find its own day rather than the whole window's total.
+    const key = byDate ? `${article}|${String(r.Date ?? '').slice(0, 10)}` : article
+    out.set(key, (out.get(key) ?? 0) + qty)
   }
   return out
 }

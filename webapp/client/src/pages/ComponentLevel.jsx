@@ -58,7 +58,19 @@ const COLUMNS = [
     width: W.qty,
     num: true,
     strong: true,
-    render: (v) => (v === null || v === undefined ? '–' : fmtNum(v)),
+    // A dash is not zero, and the difference matters here. Rather than leave
+    // somebody guessing which it is, the blank says why it is blank.
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Counted on this article's largest line. Consumption belongs to an article, so it is shown once rather than repeated on every recipe that uses it — and it is not available at all when the table is split by branch."
+        >
+          –
+        </span>
+      ) : (
+        fmtNum(v)
+      ),
   },
   { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtNum, renderTotal: fmtNum },
   // Kept, and no longer called an actual: it is what the recipes imply the
@@ -226,7 +238,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       <Panel
         title="Component detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
-        sub="Ingredient and packaging requirement implied by the product forecast"
+        sub="What the forecast implies you need, beside what actually left the warehouse"
         flush
         fill
         tools={
