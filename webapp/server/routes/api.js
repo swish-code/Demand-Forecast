@@ -16,6 +16,7 @@ import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
 import { consumptionByArticle } from '../powerbi/warehouse.js'
+import { nonRecipeRows } from '../insights/nonRecipe.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -562,7 +563,28 @@ api.all('/component-level', handle(async (req, res) => {
   const grain = grainOf(req)
   const results = await g.fanOut(async ({ ds, f, brand }) => {
     const rows = await data.componentLevel(f, ds, grain)
-    return withConsumption(rows, brand, f, grain)
+
+    /*
+     * The items no recipe covers, appended.
+     *
+     * Gloves and packaging are as much a warehouse requirement as flour, and
+     * leaving them off this page meant the one list somebody orders from was
+     * missing a third of what they order. They arrive already forecast, from
+     * the constant measured against last month's outbound.
+     *
+     * Not when the table is split by day or branch: the constant is a monthly
+     * figure per brand, and cutting it finer would be inventing a shape it
+     * does not have.
+     */
+    const extra =
+      grain.date || grain.location || f.items?.length || f.recipeGroups?.length
+        ? []
+        : await nonRecipeRows(brand, f).catch((err) => {
+            console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
+            return []
+          })
+
+    return withConsumption([...rows, ...extra], brand, f, grain)
   })
   if (g.single) return res.json({ rows: results[0] })
 

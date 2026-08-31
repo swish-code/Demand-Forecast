@@ -123,6 +123,92 @@ async function forBrand(brand, windows, recipeArticles, names) {
   return { brand: brand.code, label: brand.label, lastSales, nextSales, items }
 }
 
+/*
+ * The constants, kept for the month they were measured over.
+ *
+ * Working one out costs a month of sales and a month of outbound per brand, and
+ * the answer does not move until a month closes. The Ingredients page asks for
+ * them on every request, so they are held here rather than recomputed.
+ */
+const constantCache = new Map()
+
+/**
+ * One brand's constants: article to sales-per-unit, with what it is called.
+ *
+ * Excludes anything a recipe covers. Those are forecast from the recipes and
+ * must not appear twice.
+ */
+export async function constantsFor(brand, { today = new Date() } = {}) {
+  const windows = monthWindows(today)
+  const key = `${brand.code}|${windows.last.from}`
+  const held = constantCache.get(key)
+  if (held) return held
+
+  const work = (async () => {
+    const [lastSales, recipeRows, names, consumed] = await Promise.all([
+      salesFor(brand, windows.last, 'actual'),
+      executeQuery(`EVALUATE SUMMARIZECOLUMNS('RECIPE TABLE'[Item No.])`, brand.datasetId, { bulk: true }),
+      articleNames().catch(() => new Map()),
+      consumptionByArticle(brand.code, { dateFrom: windows.last.from, dateTo: windows.last.to }),
+    ])
+
+    const inRecipe = new Set(recipeRows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean))
+    const out = new Map()
+    if (!consumed || !lastSales) return out
+
+    for (const [article, outbound] of consumed) {
+      if (!outbound || inRecipe.has(article)) continue
+      const known = names.get(article)
+      out.set(article, {
+        constant: lastSales / outbound,
+        outbound,
+        name: known?.name ?? '',
+        unit: known?.unit ?? '',
+      })
+    }
+    return out
+  })()
+
+  constantCache.set(key, work)
+  return work
+}
+
+/**
+ * Non-recipe items as Ingredients rows, for whatever window is on screen.
+ *
+ * The constant is fixed — measured over last whole month — and the window's own
+ * forecast sales are divided by it, so a week asks for a week's worth and a
+ * quarter for a quarter's. They are marked RAW because that is what they are:
+ * bought in, held by the warehouse, never made. The recipe group says where
+ * they came from, so nobody mistakes them for something a recipe called for.
+ */
+export async function nonRecipeRows(brand, filters, { today = new Date() } = {}) {
+  if (!filters?.dateFrom || !filters?.dateTo) return []
+  const constants = await constantsFor(brand, { today })
+  if (!constants.size) return []
+
+  const windowSales = await salesFor(brand, { from: filters.dateFrom, to: filters.dateTo }, 'forecast')
+  if (!windowSales) return []
+
+  const rows = []
+  for (const [article, c] of constants) {
+    const forecast = windowSales / c.constant
+    if (!Number.isFinite(forecast) || forecast <= 0) continue
+    rows.push({
+      'Recipe Group': 'No recipe — from outbound',
+      Item: c.name || article,
+      'Item No.': article,
+      BU: c.unit || '',
+      'Node Type': 'RAW',
+      Component_Forecast_Qty: forecast,
+      // Nothing is implied by sales for these: no recipe says how many go with
+      // a burger, which is the whole reason they are here.
+      Component_Actual_Qty: null,
+    })
+  }
+  return rows
+}
+
 /** Every brand, with the articles no recipe covers. */
 export async function nonRecipeForecast({ today = new Date() } = {}) {
   const windows = monthWindows(today)
