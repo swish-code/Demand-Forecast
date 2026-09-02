@@ -139,6 +139,24 @@ const REQUIRED = {
 }
 
 /** Env var names still missing for a live Power BI connection. */
+/**
+ * The warehouse settings, reported apart from the required ones.
+ *
+ * Deliberately not in REQUIRED: that list gates the Power BI token, so a
+ * deployment missing these would stop signing in rather than lose one column.
+ * Without them the app works and every warehouse-derived figure is blank —
+ * Outbound, Outbound MTD, Accuracy and WH forecast all at once — which looks
+ * like broken arithmetic and is actually an unset variable.
+ */
+export function missingWarehouse() {
+  return [
+    ['WH_WORKSPACE_ID', config.warehouse.workspaceId],
+    ['WH_DATASET_ID', config.warehouse.datasetId],
+  ]
+    .filter(([, v]) => !v)
+    .map(([name]) => name)
+}
+
 export function missingSettings() {
   return Object.entries(REQUIRED)
     .filter(([, get]) => !get())

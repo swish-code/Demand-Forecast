@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Suspense, lazy, useMemo } from 'react'
 import { api, fmtInt, fmtPct, fmtSignedPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
@@ -19,10 +19,42 @@ import {
   FmNotice,
 } from '../components/ui.jsx'
 import { IconDownload, IconInfo, IconCalendar } from '../components/Icons.jsx'
-import { TrendChart } from '../components/charts/TrendChart.jsx'
-import { CategoryBarChart } from '../components/charts/CategoryBarChart.jsx'
-import { WeekdayBiasChart, RollingAccuracyChart } from '../components/charts/insights.jsx'
 import { useChartTheme } from '../components/charts/useChartTheme.js'
+
+/*
+ * The charts are fetched after the page is on screen, not before it.
+ *
+ * Recharts is 385 kB — twice the whole rest of the application — and importing
+ * it here put it on the critical path: nobody saw a KPI card until the browser
+ * had downloaded and parsed a charting library it did not need to draw one.
+ *
+ * Wrapped rather than lazily referenced at each call site, so every existing
+ * `<TrendChart …/>` in this file is unchanged and each chart carries its own
+ * skeleton — the same one the page already shows while its data loads, so the
+ * arrival reads as the chart filling in rather than the layout jumping.
+ */
+const lazyChart = (load, name, height = 220) => {
+  const Inner = lazy(() => load().then((m) => ({ default: m[name] })))
+  const Wrapped = (props) => (
+    <Suspense fallback={<ChartSkeleton height={props.height ?? height} />}>
+      <Inner {...props} />
+    </Suspense>
+  )
+  Wrapped.displayName = name
+  return Wrapped
+}
+
+const TrendChart = lazyChart(() => import('../components/charts/TrendChart.jsx'), 'TrendChart', 300)
+const CategoryBarChart = lazyChart(
+  () => import('../components/charts/CategoryBarChart.jsx'),
+  'CategoryBarChart',
+  260
+)
+const WeekdayBiasChart = lazyChart(() => import('../components/charts/insights.jsx'), 'WeekdayBiasChart')
+const RollingAccuracyChart = lazyChart(
+  () => import('../components/charts/insights.jsx'),
+  'RollingAccuracyChart'
+)
 
 /**
  * Thresholds. Colour appears only when one is actually crossed — anything in

@@ -153,7 +153,21 @@ export default function App({ session, onSignedOut }) {
   const [, forceTick] = useState(0)
   const pageRef = useRef(null)
 
-  const [filters, setFilters] = useState({
+  /*
+   * The slicer selections, kept.
+   *
+   * They already lived above the pages, so switching tab never cleared them —
+   * but a reload did, and every page rebuilt its own idea of the window. A
+   * selection is a question somebody has asked, and it should still be the
+   * question after they have gone to look at something else and come back.
+   *
+   * The defaults are deliberately not stored. They are what Reset goes back to
+   * and what the date slicer names its preset from, and both are derived from
+   * the model's calendar each time it loads — a stored copy would go stale the
+   * day the calendar moved.
+   */
+  const FILTER_STORE = 'df-filters'
+  const EMPTY_FILTERS = {
     brands: [],
     locations: [],
     products: [],
@@ -166,7 +180,35 @@ export default function App({ session, onSignedOut }) {
     dateTo: undefined,
     defaultFrom: undefined,
     defaultTo: undefined,
+  }
+
+  const [filters, setFilters] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FILTER_STORE) || 'null')
+      if (saved && typeof saved === 'object') {
+        // Only the keys this version knows about, so an older stored shape
+        // cannot introduce a filter the server would refuse.
+        const kept = {}
+        for (const k of Object.keys(EMPTY_FILTERS)) {
+          if (k === 'defaultFrom' || k === 'defaultTo') continue
+          if (saved[k] !== undefined) kept[k] = saved[k]
+        }
+        return { ...EMPTY_FILTERS, ...kept }
+      }
+    } catch {
+      /* a corrupt entry is not worth failing a page load over */
+    }
+    return EMPTY_FILTERS
   })
+
+  useEffect(() => {
+    try {
+      const { defaultFrom, defaultTo, ...keep } = filters
+      localStorage.setItem(FILTER_STORE, JSON.stringify(keep))
+    } catch {
+      /* a browser refusing storage should not break the page */
+    }
+  }, [filters])
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null))
@@ -178,7 +220,10 @@ export default function App({ session, onSignedOut }) {
     setBrands(list)
     setBrandCodes((codes) => {
       const kept = codes.filter((c) => list.some((b) => b.code === c))
-      return kept.length ? kept : list[0] ? [list[0].code] : []
+      // Everything this account may see, not just the first brand — asked for
+      // on 2 Sep 2026. Somebody who wants one brand picks one; somebody who
+      // wants the whole business should not have to tick nine boxes to get it.
+      return kept.length ? kept : list.map((b) => b.code)
     })
   }, [session])
 
@@ -290,9 +335,26 @@ export default function App({ session, onSignedOut }) {
     const range = slicers.data?.dateRange
     if (!range?.max || filters.defaultTo) return
     const today = range.today && range.today <= range.max ? range.today : range.max
+    // A window restored from a previous visit is the reader's choice; the
+    // default only fills in the defaults it is compared against.
+    const restored = Boolean(filters.dateFrom && filters.dateTo)
     const end = iso(Math.max(new Date(today).getTime() - DAY, new Date(range.min).getTime()))
-    const from = iso(Math.max(new Date(end).getTime() - 29 * DAY, new Date(range.min).getTime()))
-    setFilters((f) => ({ ...f, dateFrom: from, dateTo: end, defaultFrom: from, defaultTo: end }))
+    /*
+     * Month to date, not the last thirty days — asked for on 2 Sep 2026.
+     *
+     * Built exactly as the "Month to date" preset builds it, so the slicer opens
+     * showing that name rather than a raw pair of dates. The month is the one
+     * yesterday falls in, which on the first of a month is the month just gone —
+     * the same day the rest of the page is measuring.
+     */
+    const from = iso(Math.max(new Date(`${end.slice(0, 7)}-01`).getTime(), new Date(range.min).getTime()))
+    setFilters((f) => ({
+      ...f,
+      dateFrom: restored ? f.dateFrom : from,
+      dateTo: restored ? f.dateTo : end,
+      defaultFrom: from,
+      defaultTo: end,
+    }))
   }, [slicers.data, filters.defaultTo])
 
   /**
@@ -428,6 +490,17 @@ export default function App({ session, onSignedOut }) {
             <Admin session={session} />
           ) : (
             <>
+          {/* Named on screen, because "the calculated columns are blank" is what
+              an unset warehouse variable looks like from the outside. */}
+          {health && health.mode !== 'demo' && health.missingWarehouse?.length > 0 && (
+            <InfoBanner tone="warn">
+              <strong>Outbound, Outbound MTD, Accuracy and WH forecast will be blank.</strong>{' '}
+              <code>{health.missingWarehouse.join(', ')}</code>{' '}
+              {health.missingWarehouse.length === 1 ? 'is' : 'are'} not set on this deployment, so
+              Warehouse Analytics cannot be read.
+            </InfoBanner>
+          )}
+
           {health && health.mode !== 'demo' && health.missingSettings?.length > 0 && (
             <InfoBanner tone="warn">
               Power BI mode is on but <code>{health.missingSettings.join(', ')}</code>{' '}

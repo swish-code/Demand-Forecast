@@ -676,11 +676,31 @@ export async function componentLevel(brand, f, grain = {}) {
  * Returns null when the copy does not hold the window, so the caller can ask
  * Warehouse Analytics instead rather than reporting that nothing moved.
  */
-export async function outboundByArticle(brand, f) {
-  const cover = coverageCache.get(brand)
+/**
+ * The part of the window outbound can actually answer for.
+ *
+ * A window running to the end of the month reaches past the last day the
+ * warehouse has reported, and refusing it outright blanked the entire Outbound
+ * column — and Accuracy with it — for anybody looking at the month they are
+ * ordering for. What has already gone out this month is exactly what they need
+ * to see beside the requirement.
+ *
+ * So the end is clamped to the last day held and the start is not: reaching
+ * back before the copy begins is a real hole and would understate the figure,
+ * while reaching forward is only asking about days that have not happened yet.
+ */
+function outboundWindow(cover, f) {
   if (!cover?.out_from || !cover?.out_to) return null
   if (!f?.dateFrom || !f?.dateTo) return null
-  if (f.dateFrom < cover.out_from || f.dateTo > cover.out_to) return null
+  if (f.dateFrom < cover.out_from) return null
+  // Entirely in the future: nothing has gone out, and nothing is the answer.
+  if (f.dateFrom > cover.out_to) return null
+  return { from: f.dateFrom, to: f.dateTo > cover.out_to ? cover.out_to : f.dateTo }
+}
+
+export async function outboundByArticle(brand, f) {
+  const win = outboundWindow(coverageCache.get(brand), f)
+  if (!win) return null
 
   const rows = await sumOverWindow({
     brand,
@@ -690,8 +710,8 @@ export async function outboundByArticle(brand, f) {
     select: 'article, SUM(qty) AS qty',
     filters: { sql: [], args: [] },
     values: ['qty'],
-    from: f.dateFrom,
-    to: f.dateTo,
+    from: win.from,
+    to: win.to,
     order: 'SUM(qty) DESC',
   })
 
@@ -702,17 +722,15 @@ export async function outboundByArticle(brand, f) {
 
 /** The same, split by day, for a table that is. */
 export async function outboundByArticleDay(brand, f) {
-  const cover = coverageCache.get(brand)
-  if (!cover?.out_from || !cover?.out_to) return null
-  if (!f?.dateFrom || !f?.dateTo) return null
-  if (f.dateFrom < cover.out_from || f.dateTo > cover.out_to) return null
+  const win = outboundWindow(coverageCache.get(brand), f)
+  if (!win) return null
 
   const rows = await rowsOf(
     `SELECT date, article, SUM(qty) AS qty
        FROM cube_outbound_daily
       WHERE brand = ? AND date >= ? AND date <= ?
       GROUP BY date, article`,
-    [brand, f.dateFrom, f.dateTo]
+    [brand, win.from, win.to]
   )
   const out = new Map()
   for (const r of rows) out.set(`${r.article}|${String(r.date).slice(0, 10)}`, Number(r.qty) || 0)

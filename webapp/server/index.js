@@ -4,6 +4,7 @@ import path from 'node:path'
 import { gzip } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import { config, missingSettings } from './config.js'
+import { DATA_DIR } from './db/driver.js'
 import { seedFirstAdmin } from './db/seed.js'
 import { initDatabase } from './db/accounts.js'
 import { attachUser } from './auth/middleware.js'
@@ -184,11 +185,52 @@ app.get(/^\/(?!api\/).*/, (req, res, next) => {
   })
 })
 
+/**
+ * Faults, on disk as well as on the console.
+ *
+ * The console is fine while somebody is watching it. Nobody is watching the
+ * deployment's, and by the time a fault is reported the scrollback that held it
+ * has usually gone — which is how "the calculated columns are blank" arrives
+ * with no way to find out why.
+ *
+ * One file, capped and rotated, holding the last stack traces and the request
+ * that produced them. Read it at <DATA_DIR>/error.log, or through the admin
+ * alerts, which record the same faults but only their messages.
+ */
+const ERROR_LOG = path.join(DATA_DIR, 'error.log')
+const ERROR_LOG_MAX = 1024 * 1024
+
+export function logError(where, err, extra = null) {
+  const line = [
+    `[${new Date().toISOString()}] ${where}`,
+    extra ? `  ${JSON.stringify(extra)}` : null,
+    `  ${err?.stack || err?.message || String(err)}`,
+    '',
+  ]
+    .filter((v) => v !== null)
+    .join('\n')
+
+  try {
+    if (fs.existsSync(ERROR_LOG) && fs.statSync(ERROR_LOG).size > ERROR_LOG_MAX) {
+      fs.renameSync(ERROR_LOG, `${ERROR_LOG}.1`)
+    }
+    fs.appendFileSync(ERROR_LOG, line)
+  } catch {
+    /* a log that cannot be written must never be the thing that breaks */
+  }
+}
+
 // eslint-disable-next-line no-unused-vars -- Express identifies error middleware by arity
 app.use((err, req, res, next) => {
   const status = err.status || 500
   if (status >= 500) {
     console.error('[api]', err)
+    logError(`${req.method} ${routePath(req)}`, err, {
+      brands: req.body?.brands,
+      dateFrom: req.body?.dateFrom,
+      dateTo: req.body?.dateTo,
+      user: req.user?.email ?? null,
+    })
     // Server faults are recorded so the admin sees them, rather than only the
     // one user who happened to hit the failing page.
     raise({
@@ -237,10 +279,12 @@ function recordCrash(kind, err) {
 }
 
 process.on('unhandledRejection', (reason) => {
+  logError('unhandledRejection', reason)
   recordCrash('rejection', reason)
 })
 
 process.on('uncaughtException', (err) => {
+  logError('uncaughtException', err)
   recordCrash('exception', err).finally(() => {
     setTimeout(() => process.exit(1), 250).unref?.()
   })

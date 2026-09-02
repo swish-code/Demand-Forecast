@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { Suspense, lazy, useState, useMemo } from 'react'
 import { api, fmtInt, fmtPct, fmtDate, fmtLongDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
@@ -17,9 +17,41 @@ import {
 } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
-import { CategoryBarChart } from '../components/charts/CategoryBarChart.jsx'
-import { PrepPressureChart } from '../components/charts/pageInsights.jsx'
-import { WeekdayLeanChart, BranchLeanChart } from '../components/charts/contextViz.jsx'
+
+/*
+ * The charts are fetched after the page is on screen, not before it.
+ *
+ * Recharts is 385 kB — twice the whole rest of the application — and importing
+ * it here put it on the critical path: nobody saw a KPI card until the browser
+ * had downloaded and parsed a charting library it did not need to draw one.
+ *
+ * Wrapped rather than lazily referenced at each call site, so every existing
+ * `<TrendChart …/>` in this file is unchanged and each chart carries its own
+ * skeleton — the same one the page already shows while its data loads, so the
+ * arrival reads as the chart filling in rather than the layout jumping.
+ */
+const lazyChart = (load, name, height = 220) => {
+  const Inner = lazy(() => load().then((m) => ({ default: m[name] })))
+  const Wrapped = (props) => (
+    <Suspense fallback={<ChartSkeleton height={props.height ?? height} />}>
+      <Inner {...props} />
+    </Suspense>
+  )
+  Wrapped.displayName = name
+  return Wrapped
+}
+
+const CategoryBarChart = lazyChart(
+  () => import('../components/charts/CategoryBarChart.jsx'),
+  'CategoryBarChart',
+  260
+)
+const PrepPressureChart = lazyChart(
+  () => import('../components/charts/pageInsights.jsx'),
+  'PrepPressureChart'
+)
+const WeekdayLeanChart = lazyChart(() => import('../components/charts/contextViz.jsx'), 'WeekdayLeanChart')
+const BranchLeanChart = lazyChart(() => import('../components/charts/contextViz.jsx'), 'BranchLeanChart')
 import { fmtSignedPct } from '../api.js'
 import { useChartTheme } from '../components/charts/useChartTheme.js'
 import { IconDownload, IconCalendar } from '../components/Icons.jsx'

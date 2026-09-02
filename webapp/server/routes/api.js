@@ -14,7 +14,7 @@ import {
 import { cached, clearCache } from '../cache.js'
 import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
-import { config, missingSettings } from '../config.js'
+import { config, missingSettings, missingWarehouse } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
 import * as cube from '../cube/query.js'
 import { consumptionByArticle, consumptionByBrands } from '../powerbi/warehouse.js'
@@ -184,6 +184,7 @@ api.get('/health', handle(async (req, res) => {
     workspaceId: config.pbi.workspaceId,
     signedIn: Boolean(req.user),
     missingSettings: config.demoMode ? [] : missingSettings(),
+    missingWarehouse: config.demoMode ? [] : missingWarehouse(),
   })
 }))
 

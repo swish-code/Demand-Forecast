@@ -29,7 +29,10 @@ const COLUMNS = [
   // Build view for anyone who wants them.
   { key: 'Recipe Group', label: 'Recipe group', width: W.group, hiddenByDefault: true },
   // Always shown: the component name is what the row is.
-  { key: 'Item', label: 'Component', strong: true, required: true },
+  // "Article", not "Component" — asked for on 2 Sep 2026. It is the thing the
+  // warehouse stocks and the thing you order, and the page already carries its
+  // number in Article No.
+  { key: 'Item', label: 'Article', strong: true, required: true },
   {
     key: 'Node Type',
     label: 'Type',
@@ -122,8 +125,8 @@ const COLUMNS = [
     // described the method; beside a column simply called "Forecast qty" what a
     // reader needs is the difference between them, which is where each figure
     // came from — the recipes, or the warehouse's own history.
-    label: 'Warehouse forecast',
-    width: 162,
+    label: 'WH forecast',
+    width: 138,
     num: true,
     total: 'sum',
     renderTotal: fmtInt,
@@ -154,8 +157,8 @@ const COLUMNS = [
    */
   {
     key: 'Live_Outbound_MTD',
-    label: 'Live outbound MTD',
-    width: 162,
+    label: 'Outbound MTD',
+    width: 138,
     num: true,
     total: 'sum',
     renderTotal: fmtInt,
@@ -217,7 +220,49 @@ const COLUMNS = [
       return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
     },
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
-  },
+  },,
+  /*
+   * The same measurement, against the warehouse's own forecast.
+   *
+   * Accuracy beside it scores the recipe explosion: forecast sales multiplied
+   * by what the recipes say each sale needs. This one scores the requirement
+   * derived from six months of what the warehouse actually shipped. Both are
+   * compared against the same Outbound, so the pair says which of the two
+   * methods is closer to reality for this article — and where they disagree,
+   * which one to believe.
+   *
+   * Blank when there is no warehouse history to forecast from, which is the
+   * same reason WH forecast beside it is blank.
+   */
+  {
+    key: 'WH_Accuracy',
+    label: 'WH forecast accuracy',
+    width: 170,
+    num: true,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No warehouse forecast for this article, or nothing measured to compare it against."
+        >
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    total: (list) => {
+      // Once per article: the score repeats on every row of it.
+      const seen = new Map()
+      for (const r of list) {
+        const a = String(r['Item No.'] ?? '').trim()
+        if (!a || r.WH_Accuracy === null || r.WH_Accuracy === undefined) continue
+        if (!seen.has(a)) seen.set(a, r.WH_Accuracy)
+      }
+      if (!seen.size) return null
+      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
+    },
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  }
 ]
 
 /** Mirrors the report's COMPONENT LEVEL page. */
@@ -270,11 +315,17 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     for (const r of rows) {
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
-      const held = perArticle.get(a) ?? { forecast: 0, consumed: 0, measured: false }
+      const held = perArticle.get(a) ?? { forecast: 0, consumed: 0, wh: null, measured: false }
       held.forecast += Number(r.Component_Forecast_Qty) || 0
       if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) {
         held.consumed += Number(r.Consumed_Qty) || 0
         held.measured = true
+      }
+      // The warehouse figure is already a whole-article number and sits on one
+      // row, so it is taken rather than added — summing it across the article's
+      // recipe rows would multiply it by however many recipes use the article.
+      if (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined) {
+        held.wh = Number(r.WH_Constant_Forecast_Qty) || 0
       }
       perArticle.set(a, held)
     }
@@ -297,13 +348,95 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        * zero and one, so nothing has to be clamped: equal quantities score 100%,
        * one side twice the other scores 50%, and nothing issued scores 0%.
        */
-      const measurable = held && held.measured && (held.consumed > 0 || forecast > 0)
-      const accuracy = measurable
-        ? 1 - Math.abs(held.consumed - forecast) / Math.max(held.consumed, forecast)
-        : null
-      return { ...r, Article_Forecast_Qty: forecast, Accuracy: accuracy }
+      const score = (target) =>
+        held && held.measured && target !== null && (held.consumed > 0 || target > 0)
+          ? 1 - Math.abs(held.consumed - target) / Math.max(held.consumed, target)
+          : null
+
+      return {
+        ...r,
+        Article_Forecast_Qty: forecast,
+        Accuracy: score(forecast),
+        // The same measurement against the other forecast, so the two methods
+        // can be judged on the same evidence rather than on each other.
+        WH_Accuracy: score(held?.wh ?? null),
+      }
     })
   }, [rows])
+
+  /**
+   * One row per combination the reader can actually see.
+   *
+   * The rows arrive split by recipe group, by production type, by article
+   * number — every dimension the query grouped on. Switch a dimension off in
+   * Build view and its rows do not merge; they sit there looking identical.
+   * "Chili Flakes" appeared nine times in one search, each line a different
+   * article number or recipe group, none of them the figure anybody wanted:
+   * the requirement for chili flakes is their sum.
+   *
+   * So the rows are folded together on exactly the columns that are on screen.
+   * Turn Recipe group back on and they split again, because then the split is
+   * something you can see and act on.
+   *
+   * Accuracy is not summed — it is a ratio, and adding ratios is meaningless.
+   * A group covering one article keeps that article's score, which is already
+   * measured across every recipe group it appears in. A group that has merged
+   * several articles is re-scored on its own totals, which is the only figure
+   * that matches what the row now shows.
+   */
+  const DIMENSIONS = ['Date', 'LocationID', 'Recipe Group', 'Item', 'Node Type', 'BU', 'Item No.']
+
+  const visibleDims = useMemo(
+    () => DIMENSIONS.filter((k) => !hiddenCols.includes(k)),
+    [hiddenCols]
+  )
+
+  const grouped = useMemo(() => {
+    // Nothing to fold if every dimension is on screen.
+    if (visibleDims.length === DIMENSIONS.length) return priced
+
+    const add = (a, b) => {
+      if ((a === null || a === undefined) && (b === null || b === undefined)) return null
+      return (Number(a) || 0) + (Number(b) || 0)
+    }
+
+    const out = new Map()
+    for (const r of priced) {
+      const key = visibleDims.map((k) => String(r[k] ?? '')).join('')
+      const held = out.get(key)
+      if (!held) {
+        out.set(key, { ...r, __articles: new Set([String(r['Item No.'] ?? '').trim()]) })
+        continue
+      }
+      held.Component_Forecast_Qty = add(held.Component_Forecast_Qty, r.Component_Forecast_Qty)
+      held.Component_Actual_Qty = add(held.Component_Actual_Qty, r.Component_Actual_Qty)
+      held.Consumed_Qty = add(held.Consumed_Qty, r.Consumed_Qty)
+      held.Live_Outbound_MTD = add(held.Live_Outbound_MTD, r.Live_Outbound_MTD)
+      held.WH_Constant_Forecast_Qty = add(held.WH_Constant_Forecast_Qty, r.WH_Constant_Forecast_Qty)
+      held.__articles.add(String(r['Item No.'] ?? '').trim())
+      // Measured anywhere in the group means measured, so one unmatched article
+      // does not blank a row that has a real figure in it.
+      if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) delete held.Consumed_Unknown
+    }
+
+    return [...out.values()].map((r) => {
+      const articles = [...r.__articles].filter(Boolean)
+      delete r.__articles
+      if (articles.length <= 1) return r
+
+      const c = r.Consumed_Qty
+      const known = c !== null && c !== undefined
+      const rescore = (target) =>
+        known && target !== null && target !== undefined && (Number(c) > 0 || Number(target) > 0)
+          ? 1 - Math.abs(Number(c) - Number(target)) / Math.max(Number(c), Number(target))
+          : null
+      return {
+        ...r,
+        Accuracy: rescore(Number(r.Component_Forecast_Qty) || 0),
+        WH_Accuracy: rescore(r.WH_Constant_Forecast_Qty),
+      }
+    })
+  }, [priced, visibleDims])
 
   const top = useMemo(
     () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
@@ -470,7 +603,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     () =>
       future
         ? COLUMNS.filter(
-            (c) => c.key !== 'Consumed_Qty' && c.key !== 'Accuracy' && c.key !== 'Live_Outbound_MTD'
+            (c) =>
+              c.key !== 'Consumed_Qty' &&
+              c.key !== 'Accuracy' &&
+              c.key !== 'WH_Accuracy' &&
+              c.key !== 'Live_Outbound_MTD'
           )
         : COLUMNS,
     [future]
@@ -546,7 +683,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           }
         />
         <MetricCard
-          label="Components"
+          label="Articles"
           accent="slate"
           progress={0.72}
           loading={busy}
@@ -568,7 +705,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           Side by side, the table lost a third of its columns to a column of
           cards that is read after it, not with it. */}
       <Panel
-        title="Component detail"
+        title="Article detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub="What the forecast implies you need, beside what actually left the warehouse"
         flush
@@ -598,10 +735,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         ) : (
           <DataTable
             columns={columns}
-            rows={priced}
+            rows={grouped}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
-            searchPlaceholder="Search component or group…"
+            searchPlaceholder="Search article or group…"
             tableId="component-detail-v2"
             onColumnsChange={setHiddenCols}
             onViewChange={setView}

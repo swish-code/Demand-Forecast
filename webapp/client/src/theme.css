@@ -4317,7 +4317,10 @@ table.dt thead th:hover .th__sort--idle {
   display: flex;
   align-items: stretch;
   gap: 0;
-  margin: 0 0 var(--s4);
+  /* No margin of its own: the page container is a flex column with a gap, so a
+     bottom margin here was added to that gap and left twice the space under the
+     notice as between anything else. */
+  margin: 0;
   border: 1px solid var(--ticker-line);
   background: var(--ticker-bg);
   border-radius: var(--r-card);
