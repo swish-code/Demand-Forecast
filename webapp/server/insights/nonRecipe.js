@@ -228,48 +228,39 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
   if (!filters?.dateFrom || !filters?.dateTo) return []
 
   /*
-   * The articles: everything the warehouse ships that no recipe names.
+   * The list, and the figure, from the same six months.
    *
-   * 753 of the 1,655 articles issued in the last six months — 45% of them, and
-   * 32% of all the volume that leaves the building. Gloves, packaging, sauces
-   * bought in ready-made: as much a warehouse requirement as flour, and none of
-   * it in a recipe, so none of it forecast by the recipe explosion.
+   * This used to take its membership from cube_constant, which holds only the
+   * articles that moved in the single month the old constant was measured over.
+   * So an article delivered in May and not again since was simply not on the
+   * list, however good its six-month history: "T-Shirt Polo H/S Purple" has 49
+   * units to MM in March-August and was missing from the page entirely, while
+   * the value beside it was already being computed from all six months.
    *
-   * The membership comes from the copy, which already excludes anything a
-   * recipe covers — forecasting those a second time here would double them.
+   * One source now decides both. Anything the warehouse shipped in the last six
+   * whole months is a candidate; anything a recipe already names is dropped,
+   * because the explosion forecasts those and doing it twice would double them.
    */
-  const known = await constantsFor(brand, { today })
-  if (!known.size) return []
-
-  /*
-   * The figure: the six-month average rate, not last month's.
-   *
-   * One month is one delivery pattern, and an article bought in bulk every
-   * eight weeks looks enormous in the month it arrives and absent in the month
-   * it does not. The same six-month average the WH forecast column uses is
-   * applied here, so a warehouse-only article and a recipe article are forecast
-   * by the same method and can be read against each other.
-   *
-   * Last month's constant stays as the fallback, for an article whose six
-   * months of history are too thin to average.
-   */
-  const sixMonth = await forecastFromConstants(brand.code ?? brand, filters, { today }).catch(
-    () => new Map()
-  )
-
-  const windowSales = await salesFor(brand, { from: filters.dateFrom, to: filters.dateTo }, 'forecast')
+  const code = brand.code ?? brand
+  const [forecasts, covered, names] = await Promise.all([
+    forecastFromConstants(code, filters, { today }),
+    cube.recipeArticles().catch(() => new Set()),
+    cube.articleMaster().catch(() => new Map()),
+  ])
+  if (!forecasts.size) return []
 
   const rows = []
-  for (const [article, c] of known) {
-    const forecast = sixMonth.get(article) ?? (windowSales ? windowSales / c.constant : null)
-    if (!Number.isFinite(forecast) || forecast <= 0) continue
+  for (const [article, qty] of forecasts) {
+    if (covered.has(article)) continue
+    if (!Number.isFinite(qty) || qty <= 0) continue
+    const known = names.get(article)
     rows.push({
       'Recipe Group': 'No recipe — from outbound',
-      Item: c.name || article,
+      Item: known?.name || article,
       'Item No.': article,
-      BU: c.unit || '',
+      BU: known?.unit || '',
       'Node Type': 'RAW',
-      Component_Forecast_Qty: forecast,
+      Component_Forecast_Qty: qty,
       // Nothing is implied by sales for these: no recipe says how many go with
       // a burger, which is the whole reason they are here.
       Component_Actual_Qty: null,
@@ -277,6 +268,7 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
   }
   return rows
 }
+
 
 /** Every brand, with the articles no recipe covers. */
 export async function nonRecipeForecast({ today = new Date() } = {}) {

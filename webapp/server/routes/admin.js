@@ -3,7 +3,12 @@ import { pg } from '../db/accounts.js'
 import { generatePassword, hashPassword } from '../auth/passwords.js'
 import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
-import { DEPARTMENTS, DEPARTMENT_NODE_TYPES, isDepartment } from '../departments.js'
+import {
+  DEPARTMENTS,
+  DEPARTMENT_NODE_TYPES,
+  DEPARTMENT_PAGES,
+  isDepartment,
+} from '../departments.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
@@ -116,6 +121,9 @@ admin.get(
       // while it is being filled in rather than after the account is made. One
       // source of truth: the same map the requests are narrowed by.
       departmentScopes: DEPARTMENT_NODE_TYPES,
+      // Which pages a department is confined to, where that is not implied by
+      // its production types — the form has to be able to say so either way.
+      departmentPages: DEPARTMENT_PAGES,
     })
   })
 )

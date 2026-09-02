@@ -22,6 +22,7 @@ export const DEPARTMENTS = [
   'Operations',
   'Analytics',
   'Supply Chain',
+  'Procurement',
   'Finance',
   'Marketing',
   'IT',
@@ -60,6 +61,24 @@ export const DEPARTMENT_NODE_TYPES = {
 export const nodeTypesFor = (department) => DEPARTMENT_NODE_TYPES[department] ?? null
 
 /**
+ * Departments that belong on the Ingredients page and nowhere else.
+ *
+ * Separate from the production-type restriction above, and it has to be: these
+ * two buy and move the stock, so they need every production type — raw
+ * materials, prep steps and the items the kitchens produce — but they have no
+ * use for product-level sales figures. "All three types, one page" could not be
+ * expressed while the page list was derived from the type list, because having
+ * no type restriction meant having no page restriction either.
+ *
+ * A department named here is confined to these pages whatever its production
+ * types are. Anything not named falls through to the rule below it.
+ */
+export const DEPARTMENT_PAGES = {
+  Procurement: ['component', 'guide'],
+  'Supply Chain': ['component', 'guide'],
+}
+
+/**
  * A department restricted to part of the recipe is not shown the pages that are
  * about products rather than components.
  *
@@ -69,4 +88,4 @@ export const nodeTypesFor = (department) => DEPARTMENT_NODE_TYPES[department] ??
  * because they would be one. Ingredients is the page these accounts are for.
  */
 export const pagesFor = (department) =>
-  nodeTypesFor(department) ? ['component', 'guide'] : null
+  DEPARTMENT_PAGES[department] ?? (nodeTypesFor(department) ? ['component', 'guide'] : null)

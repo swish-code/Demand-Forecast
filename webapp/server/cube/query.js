@@ -912,6 +912,32 @@ export function forgetMaster() {
   masterCache = null
 }
 
+/**
+ * Every article some recipe names, so it is not forecast twice.
+ *
+ * The recipe explosion already produces a requirement for these; adding a
+ * second one from the warehouse ratio would double them.
+ */
+let recipeCache = null
+
+export async function recipeArticles() {
+  if (recipeCache) return recipeCache
+  const work = (async () => {
+    const rows = await rowsOf(
+      "SELECT DISTINCT article FROM cube_component_daily WHERE article <> ''",
+      []
+    )
+    return new Set(rows.map((r) => String(r.article)))
+  })()
+  recipeCache = work
+  return work
+}
+
+/** Dropped when the extract rewrites the recipe copy. */
+export function forgetRecipeArticles() {
+  recipeCache = null
+}
+
 /** The constants for items no recipe covers, and the article master. */
 export async function constantsFromCopy(brand) {
   const rows = await rowsOf(

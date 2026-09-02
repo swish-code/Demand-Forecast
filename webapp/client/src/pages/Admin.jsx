@@ -503,6 +503,7 @@ export function Admin({ session }) {
           statuses={data?.statuses ?? []}
           departments={data?.departments ?? []}
           departmentScopes={data?.departmentScopes ?? {}}
+          departmentPages={data?.departmentPages ?? {}}
           brands={session?.brands ?? []}
           currentUserId={session?.user?.id}
           onClose={() => setEditing(null)}

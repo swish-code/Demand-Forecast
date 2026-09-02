@@ -1,6 +1,6 @@
 import { config } from '../config.js'
 import { pg } from '../db/accounts.js'
-import { loadCoverage } from './query.js'
+import { loadCoverage, forgetRecipeArticles } from './query.js'
 import { executeQuery } from '../powerbi/client.js'
 import * as dax from '../powerbi/dax.js'
 
@@ -562,6 +562,7 @@ async function fillWide(brand, wide) {
   }
 
   await rebuildMonthly(brand.code)
+  forgetRecipeArticles()
 }
 
 /**

@@ -28,7 +28,7 @@ const STATUS_HELP = {
   disabled: 'Blocked. Use for people who have left.',
 }
 
-export function UserEditor({ mode, user, roles, statuses, departments = [], departmentScopes = {}, brands, currentUserId, onClose, onSaved }) {
+export function UserEditor({ mode, user, roles, statuses, departments = [], departmentScopes = {}, departmentPages = {}, brands, currentUserId, onClose, onSaved }) {
   const creating = mode === 'create'
 
   const [email, setEmail] = useState(user?.email ?? '')
@@ -91,6 +91,17 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
   const departmentTypes = departmentScopes[department] ?? null
 
   /*
+   * The pages it is confined to, which is a separate restriction.
+   *
+   * Procurement and Supply Chain buy and move the stock, so they need every
+   * production type — but they have no use for product-level sales figures.
+   * "All three types, one page" cannot be read off the type list, because
+   * having no type restriction used to mean having no page restriction either,
+   * so the form said nothing at all when either was picked.
+   */
+  const departmentPagesFor = departmentPages?.[department] ?? null
+
+  /*
    * Choosing a department that works across the business grants every brand.
    *
    * Management already did this. Production, Bakery and Warehouse are the same
@@ -106,7 +117,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
   const pickDepartment = (d) => {
     const next = department === d ? '' : d
     setDepartment(next)
-    if (next === 'Management' || departmentScopes[next]) {
+    if (next === 'Management' || departmentScopes[next] || departmentPages?.[next]) {
       setBrandCodes(new Set(brands.map((b) => b.code)))
     }
   }
@@ -350,7 +361,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                     Which part of the business they sit in. Separate from role — role decides what
                     they may see; this is who they are, and the usage figures group on it.
                   </span>
-                  {departmentTypes && (
+                  {departmentTypes ? (
                     <InfoBanner>
                       <strong>
                         {department} sees the Ingredients page, production {'type'}
@@ -361,7 +372,18 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                       against a product total, so those pages could not honour the restriction.
                       Every brand has been ticked below; untick any they should not see.
                     </InfoBanner>
-                  )}
+                  ) : departmentPagesFor ? (
+                    <InfoBanner>
+                      <strong>
+                        {department} sees the Ingredients page only, with every production type.
+                      </strong>{' '}
+                      Raw materials, prep steps and the items the kitchens produce are all shown —
+                      this department buys and moves the stock, so it needs the whole list. The
+                      Overview, Products and Tomorrow&rsquo;s Prep pages are not shown, because
+                      product-level sales figures are not what this account is for. Every brand has
+                      been ticked below; untick any they should not see.
+                    </InfoBanner>
+                  ) : null}
                 </div>
               )}
 
