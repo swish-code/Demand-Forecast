@@ -1,0 +1,629 @@
+table '_Measures Inbound'
+	lineageTag: 503a105a-a47f-4a04-9680-886b19280fa7
+
+	measure 'Inbound Requested Qty' =
+			
+			SUM('fact_po_period_lifecycle'[PO Base Qty])
+		formatString: #,0
+		lineageTag: 5cf2604e-1d44-4684-a7b2-18143c2ba94c
+
+	measure Measure
+		lineageTag: a0bf316d-4bac-44d7-9feb-bbcd7dea80fb
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'Inbound GRN Qty' =
+			
+			SUM('fact_po_period_lifecycle'[Allocated GRN Base Qty])
+		formatString: #,0.0
+		lineageTag: e23f6ca4-baf4-4cc2-aab8-8974e7b3f886
+
+	measure 'Inbound Same Day GRN Qty' =
+			
+			SUM('fact_po_period_lifecycle'[Same Day GRN Base Qty])
+		formatString: #,0.0
+		lineageTag: 444dac9c-2d78-4bc6-a290-61109cb57a64
+
+	measure 'Inbound Late GRN Qty' =
+			
+			SUM('fact_po_period_lifecycle'[Late GRN Base Qty])
+		formatString: #,0.0
+		lineageTag: 11a90a27-34e0-4d3b-9dfe-34905853509c
+
+	measure 'Inbound Pending Qty' =
+			
+			SUM('fact_po_period_lifecycle'[Pending Qty])
+		formatString: #,0.0
+		lineageTag: b0f6bff4-e676-4faf-b2b5-13c707c25726
+
+	measure 'Inbound Over Delivered Qty' =
+			
+			SUM('fact_po_period_lifecycle'[Over Delivered Qty])
+		formatString: #,0.0
+		lineageTag: e6bdfd5e-4336-47b6-9656-c4d2856c5e94
+
+	measure 'Inbound Qty Variance' =
+			
+			[Inbound GRN Qty] - [Inbound Requested Qty]
+		formatString: #,0.0
+		lineageTag: b97bb9a4-3a4d-437a-9882-ebf45c7db268
+
+	measure 'Inbound Fill Rate %' =
+			
+			DIVIDE(
+			    [Inbound GRN Qty],
+			    [Inbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 94e440cc-8497-44d9-809a-28db84095df7
+
+	measure 'Inbound Capped Fill Rate %' =
+			
+			DIVIDE(
+			    SUMX(
+			        'fact_po_period_lifecycle',
+			        MIN(
+			            'fact_po_period_lifecycle'[PO Base Qty],
+			            'fact_po_period_lifecycle'[Allocated GRN Base Qty]
+			        )
+			    ),
+			    [Inbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 80fe43ce-2fb8-4470-b99c-8e4cb937a560
+
+	measure 'Inbound Pending %' =
+			
+			DIVIDE(
+			    [Inbound Pending Qty],
+			    [Inbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 4ed24bc2-7105-4fc1-86ec-caa13caf80c8
+
+	measure 'Inbound Over Delivery %' =
+			
+			DIVIDE(
+			    [Inbound Over Delivered Qty],
+			    [Inbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 86dc3299-7394-43c6-a3f3-77abaa799a82
+
+	measure 'Inbound PO Period Count' =
+			
+			COUNTROWS('fact_po_period_lifecycle')
+		formatString: #,0
+		lineageTag: 6a02a80a-a20b-4bf5-af58-4816205a76ff
+
+	measure 'Inbound In Full Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[In Full Flag] = 1
+			    )
+			)
+		formatString: 0
+		lineageTag: 96bb45d7-5faf-4e8a-972a-54b89ce18397
+
+	measure 'Inbound In Full %' =
+			
+			DIVIDE(
+			    COALESCE([Inbound In Full Count], 0),
+			    COALESCE([Inbound PO Period Count], 0),
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 7c026bab-72a7-4e71-933c-6f1f279b94a7
+
+	measure 'Inbound On Time Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[On Time Flag] = 1
+			    )
+			)
+		formatString: 0
+		lineageTag: b7220f05-be4a-49c9-ad2c-80958bd8741a
+
+	measure 'Inbound On Time %' =
+			
+			DIVIDE(
+			    [Inbound On Time Count],
+			    [Inbound PO Period Count],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 8b991fd5-0f07-49c2-90cb-7ff67a3e9ddb
+
+	measure 'Inbound OTIF Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[On Time Flag] = 1 &&
+			        'fact_po_period_lifecycle'[In Full Flag] = 1
+			    )
+			)
+		formatString: 0
+		lineageTag: 41e7959c-9b08-4cb6-9425-ab6a71b30aba
+
+	measure 'Inbound OTIF %' =
+			
+			VAR OTIF =
+			    [Inbound OTIF Count]
+			VAR Total =
+			    [Inbound PO Period Count]
+			RETURN
+			IF(
+			    ISBLANK(OTIF) || ISBLANK(Total),
+			    0,
+			    DIVIDE(OTIF, Total, 0)
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: c5f14db6-203b-4376-a1ce-8ece1db2cdf5
+
+	measure 'Inbound PO Value' =
+			
+			SUM('fact_po_period_lifecycle'[PO Value])
+		formatString: #,0.0
+		lineageTag: 29a5c812-c4b4-4a32-9c2b-839ab9bbb625
+
+	measure 'Inbound GRN Value' =
+			
+			SUM('fact_po_period_lifecycle'[GRN Value])
+		formatString: #,0.0
+		lineageTag: a914231a-2907-480c-a33c-43177a83d14a
+
+	measure 'Inbound Value Variance' =
+			
+			[Inbound GRN Value] - [Inbound PO Value]
+		formatString: #,0.0
+		lineageTag: 3a5c066d-f4aa-46fb-aeec-fe3466a53c82
+
+	measure 'Inbound Value Fill Rate %' =
+			
+			DIVIDE(
+			    [Inbound GRN Value],
+			    [Inbound PO Value],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 4132604d-cdc8-4c70-97c6-9fc7d3f88807
+
+	measure 'Inbound PO Count' =
+			
+			SUM('fact_po_period_lifecycle'[PO Count])
+		formatString: #,0
+		lineageTag: 122d3459-8728-488f-85fc-3090cca3bc8c
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'Inbound PO Line Count' =
+			
+			SUM('fact_po_period_lifecycle'[PO Line Count])
+		formatString: 0
+		lineageTag: 4549d16c-e2fd-4cc0-ba13-43a9cb0d0c5c
+
+	measure 'Inbound Delivery Note Count' =
+			
+			SUM('fact_po_period_lifecycle'[Delivery Note Count])
+		lineageTag: 92d51f94-3695-46a4-b710-70f2a8edcfc8
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound GRN Line Count' =
+			
+			SUM('fact_po_period_lifecycle'[GRN Line Count])
+		formatString: #,0
+		lineageTag: 2dbb8b0a-cdd0-4495-9e1a-9ec04e2e60aa
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'Inbound Avg First Receipt Delay Days' =
+			
+			AVERAGEX(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        NOT ISBLANK('fact_po_period_lifecycle'[First Receipt Delay Days])
+			    ),
+			    'fact_po_period_lifecycle'[First Receipt Delay Days]
+			)
+		formatString: 0.0
+		lineageTag: 0a86f1ac-491b-4647-ada0-e0b56e143e50
+
+	measure 'Inbound Avg Receipt Spread Days' =
+			
+			AVERAGEX(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        NOT ISBLANK('fact_po_period_lifecycle'[Receipt Spread Days])
+			    ),
+			    'fact_po_period_lifecycle'[Receipt Spread Days]
+			)
+		formatString: 0
+		lineageTag: 175ce09e-2456-4875-83b0-3c80c4ed5ffe
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'Inbound Avg Booking Delay Days' =
+			
+			AVERAGEX(
+			    FILTER(
+			        'fact_grn_allocated_detail',
+			        NOT ISBLANK('fact_grn_allocated_detail'[Booking Delay Days])
+			    ),
+			    'fact_grn_allocated_detail'[Booking Delay Days]
+			)
+		formatString: 0.0
+		lineageTag: c9716c33-a94c-4023-90a2-a2363cb54a45
+
+	measure 'Inbound Not Received Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Fulfillment Status] = "Not Received"
+			    )
+			)
+		formatString: 0
+		lineageTag: 7cd1b47f-ce75-48b2-9c23-6559dc8832cf
+
+	measure 'Inbound Partially Delivered Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Fulfillment Status] = "Partially Delivered"
+			    )
+			)
+		formatString: 0
+		lineageTag: ebced319-7f08-40d1-9cc7-5a151ec3cc34
+
+	measure 'Inbound Fully Delivered Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Fulfillment Status] = "Fully Delivered"
+			    )
+			)
+		formatString: 0
+		lineageTag: e07f4d53-a158-4ac8-8885-df9c73e1415e
+
+	measure 'Inbound Over Delivered Count' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Fulfillment Status] = "Over Delivered"
+			    )
+			)
+		formatString: 0
+		lineageTag: a7c23b9e-f746-419b-9cab-7714c5491fde
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'KPI Target %' =
+			
+			0.90
+		lineageTag: 71976933-de78-4197-a9e3-34d34c5f4ef5
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound Fill Rate Target %' =
+			
+			0.90
+		lineageTag: 659b692e-a4c3-4cf3-abc4-0f3932cb7157
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound OTIF Target %' =
+			
+			0.80
+		lineageTag: 8101b056-2bb4-45c7-81af-2519e3a63a7a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound Fill Rate vs Target pp' =
+			
+			[Inbound Fill Rate %] - [Inbound Fill Rate Target %]
+		lineageTag: ece69f0e-c154-4fd1-af9b-92002f875f15
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound OTIF vs Target pp' =
+			
+			[Inbound OTIF %] - [Inbound OTIF Target %]
+		lineageTag: ebc8fcf2-bbb8-4e8f-a6eb-5b4a02ebe69a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound First Receipt Delay vs Target' =
+			
+			[Inbound Avg First Receipt Delay Days] - [Inbound First Receipt Delay Target Days]
+		lineageTag: e396cca1-a90a-40bc-ba05-1c14050e477d
+
+	measure 'Inbound First Receipt Delay Target Days' =
+			
+			1.7
+		lineageTag: e7a34b13-acf8-411b-9d99-44a4ce1a5b91
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound Actual Supplier GRN Qty' =
+			
+			SUM('fact_grn_allocated_detail'[GRN Base Qty])
+		lineageTag: 5c074e89-2fcf-411b-8624-a2115e47efe3
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound Actual Supplier GRN Value' =
+			
+			SUM('fact_grn_allocated_detail'[GRN Value])
+		lineageTag: f8853920-715e-4e5f-adee-3f6d18656f5e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Inbound Fill Rate % (Text)' =
+			
+			"(" & FORMAT([Inbound Fill Rate %], "0.0%") & ")"
+		lineageTag: 384f2df1-5494-4ede-8a85-944d7738aaad
+
+	measure 'Inbound Pending % (Text)' =
+			
+			"(" & FORMAT([Inbound Pending %], "0.0%") & ")"
+		lineageTag: 1b9be0d3-d339-41a4-a51c-54dac9c9621e
+
+	measure 'Inbound OTIF Count (Text)' =
+			
+			VAR OTIFCount =
+			    COUNTROWS(
+			        FILTER(
+			            'fact_po_period_lifecycle',
+			            'fact_po_period_lifecycle'[On Time Flag] = 1 &&
+			            'fact_po_period_lifecycle'[In Full Flag] = 1
+			        )
+			    )
+			RETURN
+			IF(
+			    OTIFCount = 0,
+			    "No on-time in-full",
+			    "(" & OTIFCount & " on-time in-full)"
+			)
+		lineageTag: 5917d266-3e86-4bde-a025-5b0a56a2e550
+
+	measure 'Inbound Avg First Receipt Delay Days (Text)' =
+			
+			VAR AvgDelay =
+			    AVERAGEX(
+			        FILTER(
+			            'fact_po_period_lifecycle',
+			            NOT ISBLANK('fact_po_period_lifecycle'[First Receipt Delay Days])
+			        ),
+			        'fact_po_period_lifecycle'[First Receipt Delay Days]
+			    )
+			RETURN
+			FORMAT(AvgDelay, "0.0") & " Days"
+		lineageTag: 42833777-2b3a-415d-9796-333c2e630f60
+
+	measure 'PO Periods Fully Received' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Allocated GRN Base Qty]
+			            >= 'fact_po_period_lifecycle'[PO Base Qty]
+			    )
+			)
+		formatString: 0
+		lineageTag: eb266141-97b5-4298-875c-1e93d3dd350e
+
+	measure 'Full Received PO Periods' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Allocated GRN Base Qty]
+			            >= 'fact_po_period_lifecycle'[PO Base Qty]
+			    )
+			)
+		formatString: 0
+		lineageTag: f179ff60-5c2d-415b-a71c-a1d414f9b80d
+
+	measure 'Total PO Periods' =
+			
+			COUNTROWS('fact_po_period_lifecycle')
+		formatString: 0
+		lineageTag: 4fd2029a-d0de-4ed6-b473-4f7516216ef8
+
+	measure 'Full Received PO Periods %' =
+			
+			DIVIDE(
+			    [Full Received PO Periods],
+			    [Total PO Periods],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 8fcc2429-7181-4469-8de9-a5125d62698f
+
+	measure 'Full Received PO Periods Label' =
+			
+			FORMAT([Full Received PO Periods], "#,##0")
+			    & " / "
+			    & FORMAT([Total PO Periods], "#,##0")
+		lineageTag: 613cb48d-6451-44e1-b523-e273f202ffe3
+
+	measure 'Full Received PO Periods % (Text)' =
+			
+			"(" & FORMAT([Full Received PO Periods %], "0.0%") & ")"
+		lineageTag: 74ee7ec5-eead-49d2-8a58-12b1deda369d
+
+	measure 'Mixed Actual Supplier PO Periods' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[Actual GRN Supplier] = "MULTIPLE"
+			    )
+			)
+		formatString: 0
+		lineageTag: 5f24c224-c216-49d9-8848-2e5dbdd004ff
+
+	measure 'Measure 2'
+		lineageTag: aef81a24-64e2-4283-bdce-d69a25954178
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'Mixed PO Supplier PO Periods' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        'fact_po_period_lifecycle'[PO Supplier] = "MULTIPLE"
+			    )
+			)
+		formatString: 0
+		lineageTag: 980d359b-166c-4d4d-9969-d57b3b5c7fbc
+
+	measure 'Supplier Mismatch PO Periods' =
+			
+			COUNTROWS(
+			    FILTER(
+			        'fact_po_period_lifecycle',
+			        NOT ISBLANK('fact_po_period_lifecycle'[PO Supplier])
+			            && NOT ISBLANK('fact_po_period_lifecycle'[Actual GRN Supplier])
+			            && 'fact_po_period_lifecycle'[PO Supplier] <> "MULTIPLE"
+			            && 'fact_po_period_lifecycle'[Actual GRN Supplier] <> "MULTIPLE"
+			            && 'fact_po_period_lifecycle'[PO Supplier]
+			                <> 'fact_po_period_lifecycle'[Actual GRN Supplier]
+			    )
+			)
+		formatString: 0
+		lineageTag: 6ac4b196-ddbc-45a0-a920-444a66344522
+
+	measure 'Supplier Mismatch %' =
+			
+			DIVIDE(
+			    [Supplier Mismatch PO Periods],
+			    [Total PO Periods],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: cd84db74-1a56-4cd7-9020-78b1d9900d74
+
+	measure 'Supplier Mismatch text' =
+			
+			VAR _Count = [Supplier Mismatch PO Periods]
+			VAR _Pct =
+			    DIVIDE(
+			        _Count,
+			        [Total PO Periods],
+			        0
+			    )
+			RETURN
+			FORMAT(_Count, "#,##0")
+			    & " ("
+			    & FORMAT(_Pct, "0.0%")
+			    & ")"
+		lineageTag: c29266ab-125a-43d1-8cd7-2052882247cc
+
+	measure 'Mixed Supplier Summary text' =
+			
+			VAR _MixedPO = [Mixed PO Supplier PO Periods]
+			VAR _MixedActual = [Mixed Actual Supplier PO Periods]
+			RETURN
+			"Mixed PO Supplier: " & FORMAT(_MixedPO, "#,##0")
+			    & UNICHAR(10) &
+			"Mixed Actual Supplier: " & FORMAT(_MixedActual, "#,##0")
+		lineageTag: 14dffccc-385b-4d65-9a41-29c2c8f8a888
+
+	measure 'Next Scheduled Refresh' =
+			
+			VAR CurrentDateTime =
+			    UTCNOW() + TIME(3, 0, 0)
+			
+			VAR CurrentDate =
+			    DATE(
+			        YEAR(CurrentDateTime),
+			        MONTH(CurrentDateTime),
+			        DAY(CurrentDateTime)
+			    )
+			
+			VAR CurrentTimeOnly =
+			    TIME(
+			        HOUR(CurrentDateTime),
+			        MINUTE(CurrentDateTime),
+			        SECOND(CurrentDateTime)
+			    )
+			
+			VAR RefreshTimes =
+			    {
+			        TIME(1, 0, 0),
+			        TIME(4, 0, 0),
+			        TIME(9, 0, 0),
+			        TIME(10, 0, 0),
+			        TIME(11, 0, 0),
+			        TIME(13, 30, 0),
+			        TIME(15, 0, 0),
+			        TIME(18, 0, 0)
+			    }
+			
+			VAR NextTimeToday =
+			    MINX(
+			        FILTER(
+			            RefreshTimes,
+			            [Value] > CurrentTimeOnly
+			        ),
+			        [Value]
+			    )
+			
+			VAR FirstTimeTomorrow =
+			    MINX(
+			        RefreshTimes,
+			        [Value]
+			    )
+			
+			VAR NextRefresh =
+			    IF(
+			        NOT ISBLANK(NextTimeToday),
+			        CurrentDate + NextTimeToday,
+			        CurrentDate + 1 + FirstTimeTomorrow
+			    )
+			
+			RETURN
+			    "Next Refresh : "
+			        & FORMAT(
+			            NextRefresh,
+			            "M/d/yyyy h:mm AM/PM"
+			        )
+		lineageTag: 5d7d998e-902d-4a24-9aa3-a47027beb9c6
+
+	column Dummy
+		formatString: 0
+		lineageTag: 9e3370cc-193e-4a4d-b652-5977f4e536fd
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Dummy]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition '_Measures Inbound' = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Dummy", INTEGER,
+				    {
+				        {1}
+				    }
+				)
+
+	annotation PBI_Id = a9d13ad101b94db5b348234929c891c2
+

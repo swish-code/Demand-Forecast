@@ -43,7 +43,10 @@ const PAGES = [
     Icon: IconComponent,
     Component: ComponentLevel,
     // 'article' is out with the rest of the PLU slicers — see Products above.
-    slicers: ['location', 'product', 'date', 'item', 'recipeGroup', 'nodeType'],
+    // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
+    // the table; only the slicer is gone. Put 'recipeGroup' back in this list
+    // and its row back in FilterBar's SLICERS to restore it.
+    slicers: ['location', 'product', 'date', 'item', 'nodeType'],
   },
   {
     id: 'production',

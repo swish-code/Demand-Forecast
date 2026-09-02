@@ -1,0 +1,70 @@
+table dim_unit_conversion
+	lineageTag: e7691e3d-f599-4715-96a3-9649a4cede42
+
+	column 'Unit String'
+		dataType: string
+		lineageTag: cffa1b6e-4329-4446-8dff-be4caeae5771
+		summarizeBy: none
+		sourceColumn: Unit String
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Unit Multiplier'
+		dataType: double
+		lineageTag: be75c80d-9950-4aca-8249-9409dfce7d71
+		summarizeBy: sum
+		sourceColumn: Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: 27cc4140-5c16-4e2d-ad04-90055fbbcfed
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Used Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 17ddbb1b-4f64-4e8e-b27c-c80cf78ac91c
+		summarizeBy: sum
+		sourceColumn: Used Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column Unitkey
+		dataType: string
+		lineageTag: 9424c9b8-ea35-41ad-a755-4a2634bbf659
+		summarizeBy: none
+		sourceColumn: Unitkey
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit Key'
+		dataType: string
+		lineageTag: c3d9db32-64f9-4223-9022-ecb4612a0a6a
+		summarizeBy: none
+		sourceColumn: Base Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_unit_conversion = m
+		mode: import
+		source =
+				let
+				    Source = #"Unit Conversion",
+				    #"Added Custom" = Table.AddColumn(Source, "Unitkey", each fnCleanText([Unit String])),
+				    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Base Unit Key", each fnCleanBaseUnit([Base Unit])),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom1",{{"Unitkey", type text}, {"Base Unit Key", type text}}),
+				    #"Removed Duplicates" = Table.Distinct(#"Changed Type", {"Unitkey"})
+				in
+				    #"Removed Duplicates"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

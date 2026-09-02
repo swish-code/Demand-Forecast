@@ -1,0 +1,139 @@
+table bridge_supplier_po_period
+	lineageTag: e1f72757-a2c0-4297-9560-ebfd4e29e746
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: df415b9d-3854-465f-b0f9-63c97cf0c5dc
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 7087bff7-f9ba-4601-993b-fa31525bd754
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Supplier Role'
+		dataType: string
+		lineageTag: b6f328c0-ed74-473d-a6de-103b03f060eb
+		summarizeBy: none
+		sourceColumn: Supplier Role
+
+		annotation SummarizationSetBy = Automatic
+
+	partition bridge_supplier_po_period = m
+		mode: import
+		source =
+				let
+				    // Expected PO supplier side
+				    PO_Source =
+				        Table.SelectColumns(
+				            fact_po_line,
+				            {"Article", "Warehouse", "PO Delivery Date", "Supplier"},
+				            MissingField.Ignore
+				        ),
+				
+				    PO_Filtered =
+				        Table.SelectRows(
+				            PO_Source,
+				            each
+				                [Article] <> null
+				                and [Warehouse] <> null
+				                and [PO Delivery Date] <> null
+				                and [Supplier] <> null
+				        ),
+				
+				    PO_MergedPeriod =
+				        Table.NestedJoin(
+				            PO_Filtered,
+				            {"Article", "Warehouse", "PO Delivery Date"},
+				            fact_po_period_lifecycle,
+				            {"Article", "Warehouse", "PO Start Date"},
+				            "PO Period",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    PO_ExpandedPeriod =
+				        Table.ExpandTableColumn(
+				            PO_MergedPeriod,
+				            "PO Period",
+				            {"PO Period ID"},
+				            {"PO Period ID"}
+				        ),
+				
+				    PO_Keep =
+				        Table.SelectColumns(
+				            PO_ExpandedPeriod,
+				            {"PO Period ID", "Supplier"},
+				            MissingField.Ignore
+				        ),
+				
+				    PO_AddRole =
+				        Table.AddColumn(
+				            PO_Keep,
+				            "Supplier Role",
+				            each "Expected PO Supplier",
+				            type text
+				        ),
+				
+				    // Actual GRN supplier side
+				    GRN_Source =
+				        Table.SelectColumns(
+				            fact_grn_allocated_detail,
+				            {"PO Period ID", "Supplier"},
+				            MissingField.Ignore
+				        ),
+				
+				    GRN_Filtered =
+				        Table.SelectRows(
+				            GRN_Source,
+				            each
+				                [PO Period ID] <> null
+				                and [Supplier] <> null
+				        ),
+				
+				    GRN_AddRole =
+				        Table.AddColumn(
+				            GRN_Filtered,
+				            "Supplier Role",
+				            each "Actual GRN Supplier",
+				            type text
+				        ),
+				
+				    Combined =
+				        Table.Combine({PO_AddRole, GRN_AddRole}),
+				
+				    Cleaned =
+				        Table.TransformColumns(
+				            Combined,
+				            {
+				                {"PO Period ID", each Text.From(_), type text},
+				                {"Supplier", each fnCleanText(_), type nullable text},
+				                {"Supplier Role", each Text.From(_), type text}
+				            }
+				        ),
+				
+				    Filtered =
+				        Table.SelectRows(
+				            Cleaned,
+				            each
+				                [PO Period ID] <> null
+				                and [Supplier] <> null
+				        ),
+				
+				    RemovedDuplicates =
+				        Table.Distinct(
+				            Filtered,
+				            {"PO Period ID", "Supplier", "Supplier Role"}
+				        )
+				in
+				    RemovedDuplicates
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

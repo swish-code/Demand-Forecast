@@ -39,7 +39,7 @@ export const liveProvider = {
    * nine — that was most of the wait on a cold load. The date range is always
    * fetched because every page needs it to resolve its window.
    */
-  async slicers(filters, datasetId, need = null) {
+  async slicers(filters, datasetId, need = null, { dateRange = null } = {}) {
     const wanted = need ? new Set(need) : null
     const want = (key) => !wanted || wanted.has(key)
     const maybe = (key, run) => (want(key) ? run() : Promise.resolve(null))
@@ -68,10 +68,15 @@ export const liveProvider = {
       maybe('recipeGroups', () => once(datasetId, dax.slicerQuery.recipeGroups(filters))),
       maybe('nodeTypes', () => once(datasetId, dax.slicerQuery.nodeTypes(filters))),
       maybe('prepStatus', () => once(datasetId, dax.slicerQuery.prepStatus())),
-      once(datasetId, dax.slicerQuery.dateRange()),
+      // Supplied by the caller when the copy already holds it. This was the one
+      // query no `need` list could turn off, so every cold page load paid for
+      // it once per brand.
+      dateRange ? Promise.resolve(null) : once(datasetId, dax.slicerQuery.dateRange()),
     ])
 
-    const r = single(range)
+    // `range` is null when the caller supplied the calendar, and single()
+    // indexes what it is given.
+    const r = single(range ?? [])
     return {
       brands: brands ? brands.map((x) => x.CHAINID) : [],
       locations: locations ? locations.map((x) => x.LocationID) : [],
@@ -96,7 +101,7 @@ export const liveProvider = {
       recipeGroups: recipeGroups ? recipeGroups.map((x) => x['Recipe Group']) : [],
       nodeTypes: nodeTypes ? nodeTypes.map((x) => x['Node Type']) : [],
       prepStatus: prep ? prep.map((x) => x['Prep Status']) : [],
-      dateRange: {
+      dateRange: dateRange ?? {
         min: day(r.MinDate),
         max: day(r.MaxDate),
         today: day(r.Today),

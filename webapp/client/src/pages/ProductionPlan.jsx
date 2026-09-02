@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { api, fmtInt, fmtPct, fmtDate, fmtLongDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
@@ -13,6 +13,7 @@ import {
   InfoBanner,
   Legend,
   Pill,
+  FmNotice,
 } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
@@ -62,6 +63,16 @@ const pos = (v) => Math.max(0, Math.min(100, ((v - TRUST_MIN) / (TRUST_MAX - TRU
 /** Mirrors the report's PRODUCTION PLAN page. */
 export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDrill }) {
   const colors = useChartTheme()
+
+  /*
+   * What the CSV holds.
+   *
+   * The table tells us the columns it is showing and the rows left after its
+   * search box; the download is that, not the full set behind it. Someone who
+   * ticks six columns out of twelve and downloads twelve has not exported the
+   * view they built.
+   */
+  const [view, setView] = useState(null)
   const { data, error, loading, reload } = useData(api.productionPlan, filters, {
     nonce: refreshNonce,
     onLoaded,
@@ -127,6 +138,8 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
 
   return (
     <>
+      <FmNotice />
+
       <InfoBanner icon={<IconCalendar size={15} />}>
         Planning for <strong>tomorrow · {tomorrow ? fmtLongDate(tomorrow) : '—'}</strong>
       </InfoBanner>
@@ -237,9 +250,13 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           <button
             type="button"
             className="btn"
-            disabled={!rows.length}
+            disabled={!(view?.rows ?? rows).length}
             onClick={() =>
-              downloadCsv('bbt-production-plan.csv', rows, COLUMNS.map(({ key, label }) => ({ key, label })))
+              downloadCsv(
+                'bbt-production-plan.csv',
+                view?.rows ?? rows,
+                view?.columns ?? COLUMNS.map(({ key, label }) => ({ key, label }))
+              )
             }
           >
             <IconDownload size={12} />
@@ -258,6 +275,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             initialSort={{ key: 'Tomorrow_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search product, PLU or location…"
             tableId="production-plan"
+            onViewChange={setView}
             totals
           />
         )}

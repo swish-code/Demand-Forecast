@@ -1,0 +1,482 @@
+table '_Measures Outbound'
+	lineageTag: dec2cedc-5710-44a8-8d24-5f7f1c98bc36
+
+	measure 'Outbound Requested Qty' =
+			
+			SUM('fact_outbound_line'[Requested Base Qty])
+		formatString: #,0.0
+		lineageTag: ac1f8cce-345b-45a0-9d8f-7fa6e39d36f7
+
+	measure 'Outbound Fulfilled Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] IN {
+			        "BOOKED",
+			        "DELIVERED",
+			        "DECLINED"
+			    }
+			)
+		formatString: #,0.0
+		lineageTag: 462fa1e1-cf8b-4597-ac63-e66490557daf
+
+	measure 'Outbound Physical Delivered Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] = "DELIVERED"
+			)
+		formatString: #,0.0
+		lineageTag: d6409149-1b55-4cb6-9cf4-91abcb9b9794
+
+	measure 'Outbound Booked Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] = "BOOKED"
+			)
+		formatString: #,0.00
+		lineageTag: b86cac3c-4969-48c2-8a97-e4deec39ef5c
+
+	measure 'Outbound Declined Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] = "DECLINED"
+			)
+		formatString: #,0.0
+		lineageTag: 45df0803-71dc-478e-8493-4a0308b6d915
+
+	measure 'Outbound Suspended Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] = "SUSPENDED TRANSFER TO"
+			)
+		formatString: #,0.0
+		lineageTag: f5ad4f3f-a008-419b-92c7-de016983047e
+
+	measure 'Outbound Open Requested Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Requested Base Qty]),
+			    'fact_outbound_line'[Status Group] = "REQUESTED"
+			)
+		formatString: #,0.0
+		lineageTag: 29970c0d-b06f-4727-b203-0abee260fc45
+
+	measure 'Outbound Undelivered Qty' =
+			
+			MAX(
+			    [Outbound Requested Qty] - [Outbound Fulfilled Qty],
+			    0
+			)
+		formatString: #,0.00
+		lineageTag: 25a1923d-3341-4d84-a407-8bbc6b326e61
+
+	measure 'Outbound Fill Rate %' =
+			
+			DIVIDE(
+			    [Outbound Fulfilled Qty],
+			    [Outbound Requested Qty],
+			    0
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: c3684f2b-0ca2-405c-9b8e-6ed9df75a841
+
+	measure 'Outbound Physical Fill Rate %' =
+			
+			DIVIDE(
+			    [Outbound Physical Delivered Qty],
+			    [Outbound Requested Qty],
+			    0
+			)
+		lineageTag: 322846ff-7596-4df3-b954-0b68176a6810
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Outbound Undelivered %' =
+			
+			DIVIDE(
+			    [Outbound Undelivered Qty],
+			    [Outbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 062d5cf4-7134-4431-aa22-d76abae7441e
+
+	measure 'Outbound Unique Vouchers' =
+			
+			DISTINCTCOUNT('fact_outbound_line'[Document])
+		formatString: #,0
+		lineageTag: 5394255c-64de-4d0b-9a24-06a11a1bff32
+
+	measure 'Outbound Voucher Lines' =
+			
+			COUNTROWS('fact_outbound_line')
+		formatString: #,0
+		lineageTag: b745d86c-fafa-4a4e-b5e8-2a0256d45ce0
+
+	measure 'Outbound Avg Lines per Voucher' =
+			
+			DIVIDE(
+			    [Outbound Voucher Lines],
+			    [Outbound Unique Vouchers],
+			    0
+			)
+		formatString: 0
+		lineageTag: 94c5d73a-0a06-4cd8-8795-bef3b0cf6f03
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'Outbound OOS Line Count' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Outbound Group ID]),
+			    'fact_outbound_line'[OOS Flag] = 1
+			)
+		formatString: 0
+		lineageTag: e86836a1-059e-417f-9aa4-02dafca618d7
+
+	measure 'Outbound OOS Unique Documents' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Document]),
+			    'fact_outbound_line'[OOS Flag] = 1
+			)
+		formatString: #,0
+		lineageTag: dcf744b2-94fc-41c3-8650-c0b34fadc94b
+
+	measure 'Outbound OOS Unique Articles' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Article]),
+			    'fact_outbound_line'[OOS Flag] = 1
+			)
+		formatString: #,0
+		lineageTag: 0574bd89-77f7-465b-9069-4cabcb5c8930
+
+	measure 'Outbound OOS Rate %' =
+			
+			DIVIDE(
+			    [Outbound OOS Line Count],
+			    DISTINCTCOUNT('fact_outbound_line'[Outbound Group ID]),
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 71610df1-9534-4cf9-9266-a3bd387273ec
+
+	measure 'Outbound Vouchers < equal 3PM' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Document]),
+			    'fact_outbound_line'[Request Cutoff Bucket] = "<=3PM"
+			)
+		formatString: #,0
+		lineageTag: c0494b47-c041-41ed-87a4-8b886c9bb253
+
+	measure 'Outbound Vouchers >3PM' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Document]),
+			    'fact_outbound_line'[Request Cutoff Bucket] = ">3PM"
+			)
+		formatString: #,0
+		lineageTag: 132fff58-e436-4df6-bc87-b065227606d0
+
+	measure 'Outbound % Vouchers < equal 3PM' =
+			
+			DIVIDE(
+			    [Outbound Vouchers < equal 3PM],
+			    [Outbound Unique Vouchers],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 026f5d0b-dbfd-4e25-ad16-eca2cf966335
+
+	measure 'Outbound % Vouchers >3PM' =
+			
+			DIVIDE(
+			    [Outbound Vouchers >3PM],
+			    [Outbound Unique Vouchers],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 5f48b833-eb5e-434d-ad1d-a76da11b279a
+
+	measure 'Outbound Fill Rate < equal 3PM' =
+			
+			CALCULATE(
+			    [Outbound Fill Rate %],
+			    'fact_outbound_line'[Request Cutoff Bucket] = "<=3PM"
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: b8f36130-59b9-49f5-93c9-b2865fef1f8c
+
+	measure 'Outbound Fill Rate >3PM' =
+			
+			CALCULATE(
+			    [Outbound Fill Rate %],
+			    'fact_outbound_line'[Request Cutoff Bucket] = ">3PM"
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: ce1e814f-f98b-4989-99e1-01e4d7a41549
+
+	measure 'Outbound Requested Value' =
+			
+			SUMX(
+			    'fact_outbound_line',
+			    VAR RequestedQty = 'fact_outbound_line'[Requested Base Qty]
+			    VAR ActionQty = 'fact_outbound_line'[Action Base Qty]
+			    VAR LineValue = 'fact_outbound_line'[Line Value]
+			    VAR UnitValue = DIVIDE(LineValue, ActionQty, 0)
+			    RETURN
+			        RequestedQty * UnitValue
+			)
+		formatString: #,0.0
+		lineageTag: 43530e17-d25f-4964-b4a5-6a0dbba8dd91
+
+	measure 'Outbound Delivered Value' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Line Value]),
+			    'fact_outbound_line'[Status Group] IN {
+			        "BOOKED",
+			        "DELIVERED",
+			        "DECLINED"
+			    }
+			)
+		formatString: #,0.00
+		lineageTag: 7cf8fc18-001b-4d23-8554-6114513b816b
+
+	measure 'Outbound Undelivered Value' =
+			
+			MAX(
+			    [Outbound Requested Value] - [Outbound Delivered Value],
+			    0
+			)
+		formatString: #,0.00
+		lineageTag: 7caadf18-cf88-499a-ab47-b277af8cef9a
+
+	measure 'Outbound Fulfilled Qty Capped' =
+			
+			SUMX(
+			    'fact_outbound_line',
+			    VAR ReqQty =
+			        COALESCE('fact_outbound_line'[Requested Base Qty], 0)
+			    VAR FulfilledQty =
+			        IF(
+			            'fact_outbound_line'[Status Group] IN {
+			                "BOOKED",
+			                "DELIVERED",
+			                "DECLINED"
+			            },
+			            COALESCE('fact_outbound_line'[Action Base Qty], 0),
+			            0
+			        )
+			    RETURN
+			        MIN(ReqQty, FulfilledQty)
+			)
+		formatString: #,0.0
+		lineageTag: 67a066c5-cfcd-472e-ac18-2c99733589d2
+
+	measure 'Outbound Capped Fill Rate %' =
+			
+			DIVIDE(
+			    [Outbound Fulfilled Qty Capped],
+			    [Outbound Requested Qty],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: d92b79f1-42eb-4de7-b5ed-d8c41fe9b8a6
+
+	measure 'Outbound Suspened transfer to Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] = "ss"
+			)
+		formatString: #,0.0
+		lineageTag: e2e2887d-7095-446d-ae3c-a69e7c8d6bea
+
+	measure 'Outbound % Vouchers < eq 3PM (Text)' =
+			
+			"(" & FORMAT([Outbound % Vouchers < equal 3PM], "0.0%") & ")"
+		lineageTag: 7b644f5d-74bb-4235-accf-366078e05e54
+
+	measure 'Outbound Fulfilled Qty - Excluding Suspended' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    'fact_outbound_line'[Status Group] IN {
+			        "BOOKED",
+			        "DELIVERED",
+			        "DECLINED"
+			    }
+			)
+		lineageTag: 19f7c948-6b83-4f17-b6fa-740e0e83fd55
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Outbound Declined Display' =
+			
+			"(" &
+			FORMAT(
+			    DIVIDE(
+			        [Outbound Declined Qty],
+			        [Outbound Fulfilled Qty],
+			        0
+			    ),
+			    "0.00%"
+			) &
+			")"
+		lineageTag: 345b6d65-5333-4645-b991-8e7828cbb0d8
+
+	measure 'Outbound Suspended %' =
+			
+			DIVIDE(
+			    [Outbound Suspended Qty],
+			    [Outbound Fulfilled Qty],
+			    0
+			)
+		lineageTag: 875dc438-1b48-4207-80a3-05d79550a1d1
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Outbound Suspended Display' =
+			
+			"(" &
+			FORMAT(
+			    DIVIDE(
+			        [Outbound Suspended Qty],
+			        [Outbound Fulfilled Qty],
+			        0
+			    ),
+			    "0.00%"
+			) &
+			")"
+		lineageTag: 6e40b7e3-df5b-4d04-a268-9ac00b07e63f
+
+	measure 'Outbound Declined %' =
+			
+			DIVIDE(
+			    [Outbound Declined Qty],
+			    [Outbound Fulfilled Qty],
+			    0
+			)
+		lineageTag: caefefb2-9068-44f6-af25-fce76eab1e42
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Outbound % Vouchers > 3PM (Text)' =
+			
+			"(" & FORMAT([Outbound % Vouchers >3PM], "0.0%") & ")"
+		lineageTag: 10338aca-3b20-423b-82c5-e76b8c2ac840
+
+	measure 'Measure 4'
+		lineageTag: 33fade10-4508-484b-994f-ed065ab3c02f
+
+	measure 'Outbound Unique Vouchers (Text)' =
+			
+			"(" & FORMAT(DISTINCTCOUNT('fact_outbound_line'[Document]), "#,0") & ")"
+		lineageTag: 31a1a3e0-0faf-4f3b-8e9c-1fb9bd137001
+
+	measure 'Negative Transfer Lines' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Outbound Group ID]),
+			    KEEPFILTERS('fact_outbound_line'[Negative Transfer Flag] = 1),
+			    KEEPFILTERS('fact_outbound_line'[Status Group] = "DELIVERED"),
+			    KEEPFILTERS('fact_outbound_line'[Action Base Qty] > 0)
+			)
+		formatString: 0
+		lineageTag: cab02ee5-0a7e-465e-afc2-9d2d8fc6dd78
+
+	measure 'Negative Transfer Unique Documents' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Document]),
+			    KEEPFILTERS('fact_outbound_line'[Negative Transfer Flag] = 1),
+			    KEEPFILTERS('fact_outbound_line'[Status Group] = "DELIVERED"),
+			    KEEPFILTERS('fact_outbound_line'[Action Base Qty] > 0)
+			)
+		formatString: 0
+		lineageTag: 7f327c19-56c6-4f2c-aa3f-659e27235456
+
+	measure 'Negative Transfer Unique Articles' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT('fact_outbound_line'[Article]),
+			    KEEPFILTERS('fact_outbound_line'[Negative Transfer Flag] = 1),
+			    KEEPFILTERS('fact_outbound_line'[Status Group] = "DELIVERED"),
+			    KEEPFILTERS('fact_outbound_line'[Action Base Qty] > 0),
+			    NOT ISBLANK('fact_outbound_line'[Article])
+			)
+		formatString: 0
+		lineageTag: f079fc62-90ad-444f-ad32-54e92869caa8
+
+	measure 'Negative Transfer Qty' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Action Base Qty]),
+			    KEEPFILTERS('fact_outbound_line'[Negative Transfer Flag] = 1),
+			    KEEPFILTERS('fact_outbound_line'[Status Group] = "DELIVERED"),
+			    KEEPFILTERS('fact_outbound_line'[Action Base Qty] > 0)
+			)
+		lineageTag: 82c8adaa-2d36-4815-b7c1-76eccfa6c589
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Negative Transfer Value' =
+			
+			CALCULATE(
+			    SUM('fact_outbound_line'[Line Value]),
+			    KEEPFILTERS('fact_outbound_line'[Negative Transfer Flag] = 1),
+			    KEEPFILTERS('fact_outbound_line'[Status Group] = "DELIVERED"),
+			    KEEPFILTERS('fact_outbound_line'[Action Base Qty] > 0)
+			)
+		lineageTag: 2c4d826b-f019-4547-8668-551c92dd4ce6
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Negative Transfer Visual Filter' =
+			
+			VAR NegFlag =
+			    MAX('fact_outbound_line'[Negative Transfer Flag])
+			VAR StatusValue =
+			    SELECTEDVALUE('fact_outbound_line'[Status Group])
+			VAR ActionQty =
+			    SUM('fact_outbound_line'[Action Base Qty])
+			RETURN
+			    IF(
+			        NegFlag = 1
+			            && StatusValue = "DELIVERED"
+			            && ActionQty > 0,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: f65dbbb0-680c-4b6b-94f1-ffc3725d645e
+
+	column Dummy
+		formatString: 0
+		lineageTag: 00852319-342d-42b8-a842-d3955818d1a5
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Dummy]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition '_Measures Outbound' = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Dummy", INTEGER,
+				    {
+				        {1}
+				    }
+				)
+
+	annotation PBI_Id = 5084a1651b2e4c5bae8d872329d62f91
+

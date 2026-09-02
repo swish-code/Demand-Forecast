@@ -1,3 +1,4 @@
+import { timed } from '../perf.js'
 import { config } from '../config.js'
 import { getAccessToken } from './auth.js'
 import { HttpError } from './errors.js'
@@ -256,6 +257,10 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
 }
 
 async function runQuery(dax, datasetId, bulk = false, workspace = null) {
+  return timed('pbi', () => sendQuery(dax, datasetId, bulk, workspace))
+}
+
+async function sendQuery(dax, datasetId, bulk, workspace) {
   const token = await getAccessToken()
   // Warehouse Analytics lives in its own workspace, so callers may name one.
   // Everything else is in the forecast workspace and passes nothing.

@@ -1,0 +1,26 @@
+table p_FromDate
+	lineageTag: a7b10de8-b467-43c4-8a20-23f477aab22d
+
+	column p_FromDate
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 8752e59c-cb14-4cab-8591-34f17ed15525
+		summarizeBy: none
+		sourceColumn: p_FromDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	partition p_FromDate = m
+		mode: import
+		source =
+				let
+				    Value = #date(2025, 1, 1)
+				in
+				    Value
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Date
+

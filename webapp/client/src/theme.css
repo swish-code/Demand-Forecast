@@ -4308,6 +4308,140 @@ table.dt thead th:hover .th__sort--idle {
 
 .split--pair > .panel > .panel__head { flex: 0 0 auto; }
 
+/* ------------------------------------------------ the standing notice ---- */
+
+/* A single line under the page header, moving, because it is the sort of thing
+   that stops being read the second day it is there. Sits in the page flow above
+   the cards rather than floating, so it never covers anything. */
+.ticker {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 var(--s4);
+  border: 1px solid var(--ticker-line);
+  background: var(--ticker-bg);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  flex: none;
+}
+
+/* Red, not amber. Amber reads as "keep an eye on this"; a figure that is 5% of
+   the truth for anyone ordering eggs is not that. A deep rose rather than a
+   pure red — it has to sit above a table all day without shouting. */
+.ticker--red {
+  --ticker-line: #f6cdd4;
+  --ticker-bg: var(--red-tint);
+  --ticker-ink: #b3243f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ticker--red {
+    --ticker-line: #4a2027;
+    --ticker-ink: #fb7185;
+  }
+}
+
+:root[data-theme='dark'] .ticker--red {
+  --ticker-line: #4a2027;
+  --ticker-ink: #fb7185;
+}
+
+.ticker--amber {
+  --ticker-line: #f4e0bd;
+  --ticker-bg: var(--amber-tint);
+  --ticker-ink: #a1650a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ticker--amber {
+    --ticker-line: #453619;
+    --ticker-ink: #fbbf24;
+  }
+}
+
+:root[data-theme='dark'] .ticker--amber {
+  --ticker-line: #453619;
+  --ticker-ink: #fbbf24;
+}
+
+/* The label holds still while the sentence moves past it, so there is always
+   something to anchor the eye on. */
+.ticker__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 7px var(--s3);
+  font-size: 10.5px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ticker-ink);
+  border-right: 1px solid var(--ticker-line);
+  background: color-mix(in srgb, var(--ticker-bg) 60%, var(--surface));
+}
+
+.ticker__window {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  /* Fades at both ends so the sentence arrives and leaves rather than being
+     chopped off against the border. */
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.ticker__track {
+  display: flex;
+  width: max-content;
+  /* Fast enough to be read without waiting for it, slow enough to read while
+     it moves. Hover still stops it dead. */
+  animation: ticker var(--ticker-speed, 20s) linear infinite;
+}
+
+/* The short line has half the distance to cover, so it takes half the time —
+   otherwise it crawls next to the long one. */
+.ticker--short .ticker__track { --ticker-speed: 12s; }
+
+.ticker__item {
+  padding: 7px var(--s5, 24px) 7px var(--s4);
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.ticker__item b {
+  font-weight: var(--w-bold);
+  color: var(--ticker-ink);
+}
+
+/* Half the width, because the sentence is written twice: at -50% the second
+   copy sits exactly where the first started, so the restart is invisible. */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Hold still to be read. */
+.ticker:hover .ticker__track,
+.ticker:focus-within .ticker__track {
+  animation-play-state: paused;
+}
+
+/* Nobody should have to chase a moving line to read it. With motion off the
+   second copy goes and the window scrolls by hand instead. */
+@media (prefers-reduced-motion: reduce) {
+  .ticker__track { animation: none; }
+  .ticker__item + .ticker__item { display: none; }
+  .ticker__window {
+    overflow-x: auto;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+}
+
 /* ---------------------------------------- the three unit cards ----------- */
 
 /* Three cards sharing the column, each sized by the column rather than by its
@@ -4326,12 +4460,27 @@ table.dt thead th:hover .th__sort--idle {
  * cards that are read after it rather than with it — and the table is the one
  * with fifteen columns. Across the bottom, both get the full width.
  */
+/* One track per card, so the row always ends where the table above it ends.
+ *
+ * This was `auto-fit, minmax(280px, 1fr)`, which collapses the tracks it has no
+ * card for — except that the "1 further unit" note underneath spanned 1 / -1,
+ * which counts as occupying every track. Nothing collapsed, and on a wide
+ * screen three cards sat in a five-track grid with two tracks of white space
+ * on the right. The note is now outside the grid and the count is explicit. */
 .unitrow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(var(--cards, 3), minmax(0, 1fr));
   gap: var(--s3);
   margin-top: var(--s3);
   align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .unitrow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .unitrow { grid-template-columns: minmax(0, 1fr); }
 }
 
 .unitrow > .panel {
@@ -4350,9 +4499,9 @@ table.dt thead th:hover .th__sort--idle {
   overscroll-behavior: contain;
 }
 
+/* Under the row, not in it. */
 .unitcol__more {
-  grid-column: 1 / -1;
-  margin: 0;
+  margin: var(--s2) 0 0;
   font-size: 11px;
   color: var(--text-faint);
 }

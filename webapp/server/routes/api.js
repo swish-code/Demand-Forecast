@@ -11,13 +11,15 @@ import {
   mergeRows,
   mergeTrend,
 } from '../data/merge.js'
-import { clearCache } from '../cache.js'
+import { cached, clearCache } from '../cache.js'
+import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
 import * as cube from '../cube/query.js'
 import { consumptionByArticle } from '../powerbi/warehouse.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
+import { forecastFromConstants } from '../insights/whConstant.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -263,6 +265,8 @@ function guardMany(req, res) {
     res.status(403).json({ error: refusal ?? 'You do not have access to the requested locations.' })
     return null
   }
+
+  tag('brands', parts.length)
 
   return {
     parts,
@@ -540,7 +544,51 @@ async function withConsumption(rows, brand, filters, grain = {}) {
       console.warn(`  [warehouse] consumption unavailable for ${brand.code}: ${err.message}`)
       return null
     }))
-  if (!consumed) return rows.map((r) => ({ ...r, Consumed_Qty: null }))
+  if (!consumed) return rows.map((r) => ({ ...r, Consumed_Qty: null, Consumed_Unknown: true }))
+
+  /*
+   * Absent from the window is not the same as absent from the warehouse.
+   *
+   * An article this warehouse ships to this brand every month and did not ship
+   * in the window really did move nothing, and a requirement for it really is a
+   * miss. An article it has never once shipped to this brand cannot be measured
+   * at all — it reaches the shops another way, or the code does not match — and
+   * writing zero against it turned "we have no evidence" into "the forecast was
+   * completely wrong". Measured on 1 Sep 2026: 363 of 1,132 components showed no
+   * movement in the window and 265 of those had never appeared in outbound at
+   * all, each scored zero, which is most of what the accuracy card was reporting.
+   */
+  const shipped = await cube.articlesShippedTo(brand.code).catch(() => null)
+
+  /*
+   * What has actually gone out so far, asked of the warehouse rather than the
+   * copy.
+   *
+   * The Outbound column covers the whole selected window; this one stops at
+   * today. Choose September and it answers for the first to the tenth, so the
+   * month's requirement can be read against the part of it already drawn.
+   *
+   * Live, and cached for five minutes. Both halves matter: a figure labelled
+   * live cannot come from an hourly copy, and it cannot be fetched afresh on
+   * every request either — nine brands doing that is the burst the capacity
+   * answers with a sixty-second refusal, which is exactly the fault this page
+   * was suffering from a few hours ago.
+   */
+  const mtd = byDate ? null : await liveOutboundToDate(brand, filters)
+
+  /*
+   * The same articles, forecast a completely different way.
+   *
+   * Not from the recipes at all: from the ratio between what the warehouse
+   * shipped and what the brand sold, averaged over the last six whole months,
+   * applied to the sales forecast for the window on screen. Where it disagrees
+   * with the recipe forecast beside it, one of the two is wrong — and that is
+   * worth being able to see.
+   */
+  const byConstant = await forecastFromConstants(brand.code, filters).catch((err) => {
+    console.warn(`  [wh-constant] ${brand.code}: ${err.message}`)
+    return new Map()
+  })
 
   const keyOf = (r) => {
     const article = String(r['Item No.'] ?? '').trim()
@@ -568,8 +616,91 @@ async function withConsumption(rows, brand, filters, grain = {}) {
   return rows.map((r) => {
     const k = keyOf(r)
     const isOwner = k && owner.get(k)?.row === r
-    return { ...r, Consumed_Qty: isOwner ? (consumed.get(k) ?? 0) : null }
+    // All three of these belong to the article, so all three sit on the same
+    // single row and are blank on the rest. Splitting them differently would
+    // put an article's figures on two different lines.
+    if (!isOwner) {
+      return { ...r, Consumed_Qty: null, Live_Outbound_MTD: null, WH_Constant_Forecast_Qty: null }
+    }
+
+    // The article number, without the day, is what the warehouse knows.
+    const article = String(r['Item No.'] ?? '').trim()
+    const extra = {
+      Live_Outbound_MTD: mtd ? (mtd.get(article) ?? 0) : null,
+      WH_Constant_Forecast_Qty: byConstant.get(article) ?? null,
+    }
+
+    if (consumed.has(k)) return { ...r, ...extra, Consumed_Qty: consumed.get(k) }
+    // No shipping history at all, so there is nothing to compare against.
+    if (shipped && !shipped.has(article)) {
+      return { ...r, ...extra, Consumed_Qty: null, Consumed_Unknown: true }
+    }
+    return { ...r, ...extra, Consumed_Qty: 0 }
   })
+}
+
+/**
+ * Outbound from the start of the window up to today, straight from the model.
+ *
+ * The window's end is clamped to today and nothing else is. That sounds obvious
+ * and the first version was not: it refused any window that had already ended,
+ * on the reasoning that there is no "so far" about a finished month. But the
+ * page opens on the last thirty days, which ends yesterday — so the column was
+ * blank the moment anybody looked at it, which reads as broken rather than as
+ * deliberate.
+ *
+ * On a window that has ended this equals the Outbound column, with one real
+ * difference: that one comes from the hourly copy and this one is asked of the
+ * warehouse now. Held for five minutes, because live cannot mean a fresh query
+ * per brand per request.
+ *
+ * Null only when the window has not started yet. Nothing has gone out for
+ * October, and a zero would claim otherwise.
+ */
+async function liveOutboundToDate(brand, filters) {
+  if (!filters?.dateFrom || !filters?.dateTo) return null
+  const today = cube.todayFor(brand.code) ?? new Date().toISOString().slice(0, 10)
+  if (filters.dateFrom > today) return null
+
+  const to = filters.dateTo < today ? filters.dateTo : today
+
+  return cached(
+    `${brand.code}:mtd:${filters.dateFrom}:${to}`,
+    () =>
+      consumptionByArticle(brand.code, { ...filters, dateTo: to }, {}).catch((err) => {
+        console.warn(`  [warehouse] live outbound unavailable for ${brand.code}: ${err.message}`)
+        return null
+      }),
+    { seconds: 300 }
+  )
+}
+
+/**
+ * Brands added together, with consumption's blank kept blank.
+ *
+ * Consumption sits on one row per article and the rest of that article's rows
+ * are blank; adding two brands that both carry the blank side of the same
+ * component turned two "not known"s into a measured zero. `keepNull` stops that.
+ * The unknown flag is then reconciled: if any brand did measure the article, the
+ * merged row is measured whatever the others said.
+ */
+function merged(results) {
+  const rows = mergeRows(results, {
+    key: (r) => `${r['Recipe Group']}|${r.Item}|${r.BU}`,
+    sum: [
+      'Component_Forecast_Qty',
+      'Component_Actual_Qty',
+      'Consumed_Qty',
+      'Live_Outbound_MTD',
+      'WH_Constant_Forecast_Qty',
+    ],
+    keepNull: ['Consumed_Qty', 'Live_Outbound_MTD', 'WH_Constant_Forecast_Qty'],
+    sort: (a, b) => Number(b.Component_Forecast_Qty) - Number(a.Component_Forecast_Qty),
+  })
+  for (const r of rows) {
+    if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) delete r.Consumed_Unknown
+  }
+  return rows
 }
 
 api.all('/component-level', handle(async (req, res) => {
@@ -591,10 +722,21 @@ api.all('/component-level', handle(async (req, res) => {
      * figure per brand, and cutting it finer would be inventing a shape it
      * does not have.
      */
+    /*
+     * Cached like everything else on this page.
+     *
+     * This was the one call on the route that went straight to its source on
+     * every request, so the Ingredients page could never be fully warm however
+     * often it was loaded. Keyed on the brand and the window, which is all it
+     * depends on.
+     */
     const extra =
       grain.date || grain.location || f.items?.length || f.recipeGroups?.length
         ? []
-        : await nonRecipeRows(brand, f).catch((err) => {
+        : await cached(
+            `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}`,
+            () => nonRecipeRows(brand, f)
+          ).catch((err) => {
             console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
             return []
           })
@@ -606,11 +748,7 @@ api.all('/component-level', handle(async (req, res) => {
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
-    rows: mergeRows(results, {
-      key: (r) => `${r['Recipe Group']}|${r.Item}|${r.BU}`,
-      sum: ['Component_Forecast_Qty', 'Component_Actual_Qty', 'Consumed_Qty'],
-      sort: (a, b) => Number(b.Component_Forecast_Qty) - Number(a.Component_Forecast_Qty),
-    }),
+    rows: merged(results),
   })
 }))
 

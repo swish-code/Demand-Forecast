@@ -2,6 +2,7 @@ import { config } from '../config.js'
 import { executeQuery } from '../powerbi/client.js'
 import { consumptionByArticle, articleNames } from '../powerbi/warehouse.js'
 import * as dax from '../powerbi/dax.js'
+import * as cube from '../cube/query.js'
 import { constantsFromCopy } from '../cube/query.js'
 
 /**
@@ -61,6 +62,34 @@ const salesFor = async (brand, window, which) => {
     dateFrom: window.from,
     dateTo: window.to,
   })
+  /*
+   * The copy answers this, and it has to.
+   *
+   * This is a brand's total over a window — the same figure the Overview's
+   * trend adds up — but it was being asked of Power BI on every request, once
+   * per brand, from inside the Ingredients page's fan-out. Nine live queries a
+   * page load, uncached, and two page loads in quick succession is eighteen:
+   * exactly the burst the capacity answers with 429 and a sixty-second
+   * Retry-After.
+   *
+   * Measured over HTTP on 1 Sep 2026: /component-level took 2.3s cold and then
+   * 63.3s warm — the warm one being slower than the cold one because by then
+   * the capacity was refusing. Thirteen live queries on a request whose own
+   * rows were entirely cached.
+   */
+  const window_ = { dateFrom: window.from, dateTo: window.to }
+  if (cube.canAnswer(brand.code, window_)) {
+    try {
+      const rows = await cube.trend(brand.code, window_)
+      const column = which === 'actual' ? 'Actual_Qty' : 'Forecast_Qty'
+      return rows.reduce((n, r) => n + (Number(r[column]) || 0), 0)
+    } catch (err) {
+      // The copy is an optimisation; being wrong about it must not cost the
+      // page its figures, so the model still gets asked.
+      console.warn(`  [non-recipe] copy could not total ${brand.code}: ${err.message}`)
+    }
+  }
+
   const measure = which === 'actual' ? dax.M.actualQty[1] : dax.M.forecastQty[1]
   // Assembled from an array rather than one long template, so the newlines
   // in the query are data rather than something to escape past.

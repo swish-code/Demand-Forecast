@@ -1,0 +1,492 @@
+table fact_grn_allocated_detail
+	lineageTag: 859a50a6-08be-46ac-8266-a1343bb110b4
+
+	column 'Article No.'
+		dataType: int64
+		formatString: 0
+		lineageTag: 246c3e9e-473c-49ac-934d-11ea3b961aad
+		summarizeBy: sum
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: e82abc22-15b1-4889-81e8-bcec547a18c0
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 27abae46-be6c-4636-82eb-88476763017b
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 54c698d8-6962-4361-bb0a-d50d09393f45
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 795a2a82-f9a0-43f3-adf1-29a5c5341261
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: 0441bdbd-3dd0-4e0c-85f6-8f79289def58
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier'
+		dataType: string
+		lineageTag: 1fefcac3-3f41-4977-afd3-3fcde6b0075b
+		summarizeBy: none
+		sourceColumn: PO Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier List'
+		dataType: string
+		lineageTag: 0d09c6a4-3987-4d37-a01d-4b4c242d39e6
+		summarizeBy: none
+		sourceColumn: PO Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit List'
+		dataType: string
+		lineageTag: 20bf1b59-c11f-421d-af20-ac206e4e6d17
+		summarizeBy: none
+		sourceColumn: PO Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Price Per Unit'
+		dataType: double
+		lineageTag: 7f8c520f-9179-4761-b787-ae33161df244
+		summarizeBy: sum
+		sourceColumn: GRN Price Per Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Price Per Base Unit'
+		dataType: double
+		lineageTag: c30fc182-f753-475a-91b2-c573e554d917
+		summarizeBy: sum
+		sourceColumn: GRN Price Per Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Start Date'
+		dataType: string
+		lineageTag: 7bde0898-ddc0-4ffb-b2ae-6b273b159e7c
+		summarizeBy: none
+		sourceColumn: PO Start Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column Discount
+		dataType: double
+		lineageTag: ebb51cb9-dc3d-4b91-a010-7834098172a8
+		summarizeBy: sum
+		sourceColumn: Discount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO End Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: c0f1479c-c2c6-4aa2-b78c-6dddd1a3a47f
+		summarizeBy: none
+		sourceColumn: PO End Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'Next PO Date'
+		dataType: string
+		lineageTag: cb24796e-978e-4052-96b4-fb8bd08bab3d
+		summarizeBy: none
+		sourceColumn: Next PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Status'
+		dataType: string
+		lineageTag: 1a37ee3f-3b73-4f64-9c7f-ff84e9adf59f
+		summarizeBy: none
+		sourceColumn: DN Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order No.'
+		dataType: string
+		lineageTag: 3d5f5af9-7a97-472f-9ad1-c851f72e678a
+		summarizeBy: none
+		sourceColumn: Order No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Order Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: 06cdbe4f-e695-4127-8902-92a0feae58f2
+		summarizeBy: none
+		sourceColumn: DN Order Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'Requested Qty'
+		dataType: double
+		lineageTag: 05fd3ccb-5875-4abf-bbe9-89fe3786f857
+		summarizeBy: sum
+		sourceColumn: Requested Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d275916a-3dc1-4809-b24e-51ebf1f222fb
+		summarizeBy: none
+		sourceColumn: Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Delivery Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: 795d04c9-d5f8-4a11-97ad-45bf8fcab38a
+		summarizeBy: none
+		sourceColumn: GRN Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'GRN Booking Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: 0cdf6a2a-a04d-498b-a672-c34c4bf5f343
+		summarizeBy: none
+		sourceColumn: GRN Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'Delivery Note No'
+		dataType: string
+		lineageTag: 526a46bc-29df-4e5f-83bc-9621ef28e382
+		summarizeBy: none
+		sourceColumn: Delivery Note No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit'
+		dataType: string
+		lineageTag: 874fd43d-6693-44d6-85ba-5548f1cf1539
+		summarizeBy: none
+		sourceColumn: GRN Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Base Unit'
+		dataType: string
+		lineageTag: 5c9f8fcf-2c21-46ea-8ca2-47c2c7cdd3bc
+		summarizeBy: none
+		sourceColumn: GRN Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Qty'
+		dataType: double
+		lineageTag: 3b155e1d-53b4-4e0d-bdab-8710413db803
+		summarizeBy: sum
+		sourceColumn: GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Base Qty'
+		dataType: double
+		lineageTag: ac760a56-6da9-428d-a0c2-9b6feb3f5bf8
+		summarizeBy: sum
+		sourceColumn: GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Same Day GRN Base Qty'
+		dataType: double
+		lineageTag: fddfa290-e1a0-44dd-a64a-70708c37ebfd
+		summarizeBy: sum
+		sourceColumn: Same Day GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Period Base Qty'
+		dataType: string
+		lineageTag: dc09ee17-9705-4778-b13f-ac261c1ff299
+		summarizeBy: none
+		sourceColumn: PO Period Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period Value'
+		dataType: string
+		lineageTag: 99ca7089-7ccd-4398-8348-90705a334a08
+		summarizeBy: none
+		sourceColumn: PO Period Value
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Late GRN Base Qty'
+		dataType: double
+		lineageTag: 2b049044-5922-4ebc-91f6-e50f7d6303ae
+		summarizeBy: sum
+		sourceColumn: Late GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: ab416a8e-31db-4b90-8f1a-2c48d4780dbc
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Days After PO'
+		dataType: int64
+		formatString: 0
+		lineageTag: 7f8010fd-c72e-49f2-ba51-a283c2656af9
+		summarizeBy: sum
+		sourceColumn: Days After PO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Timing Status'
+		dataType: string
+		lineageTag: 37d4ee4a-86cf-4d46-ba76-e1a8bb2bbbd2
+		summarizeBy: none
+		sourceColumn: GRN Timing Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Booking Delay Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: cb315e90-2cef-449e-87ea-5f934032f7fd
+		summarizeBy: sum
+		sourceColumn: Booking Delay Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: c964c065-d8cc-4b03-b703-9dc01d7006ef
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 79da3d92-1ae9-414a-b70a-84b0ff86def4
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 7a0b388a-8ac5-47ec-913a-ba3f6ea6a294
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_grn_allocated_detail = m
+		mode: import
+		source =
+				let
+				    GRN = fact_grn_line,
+				    PO = fact_po_period_base,
+				
+				    Merged =
+				        Table.NestedJoin(
+				            GRN,
+				            {"Article", "Warehouse"},
+				            PO,
+				            {"Article", "Warehouse"},
+				            "PO Period",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    Expanded =
+				        Table.ExpandTableColumn(
+				            Merged,
+				            "PO Period",
+				            {
+				                "PO Period ID",
+				                "PO Start Date",
+				                "PO End Date",
+				                "Next PO Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List"
+				            },
+				            {
+				                "PO Period ID",
+				                "PO Start Date",
+				                "PO End Date",
+				                "Next PO Date",
+				                "PO Period Base Qty",
+				                "PO Period Value",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List"
+				            }
+				        ),
+				
+				    FilteredToPeriod =
+				        Table.SelectRows(
+				            Expanded,
+				            each
+				                [GRN Delivery Date] <> null
+				                and [PO Start Date] <> null
+				                and [PO End Date] <> null
+				                and [GRN Delivery Date] >= [PO Start Date]
+				                and [GRN Delivery Date] <= [PO End Date]
+				        ),
+				
+				    AddedDaysAfterPO =
+				        Table.AddColumn(
+				            FilteredToPeriod,
+				            "Days After PO",
+				            each Duration.Days([GRN Delivery Date] - [PO Start Date]),
+				            Int64.Type
+				        ),
+				
+				    AddedGRNTimingStatus =
+				        Table.AddColumn(
+				            AddedDaysAfterPO,
+				            "GRN Timing Status",
+				            each
+				                if [GRN Delivery Date] = [PO Start Date] then "Same Day"
+				                else if [GRN Delivery Date] > [PO Start Date] then "Late"
+				                else "Early",
+				            type text
+				        ),
+				
+				    AddedSameDayGRNQty =
+				        Table.AddColumn(
+				            AddedGRNTimingStatus,
+				            "Same Day GRN Base Qty",
+				            each if [GRN Timing Status] = "Same Day" then [GRN Base Qty] else 0,
+				            type number
+				        ),
+				
+				    AddedLateGRNQty =
+				        Table.AddColumn(
+				            AddedSameDayGRNQty,
+				            "Late GRN Base Qty",
+				            each if [GRN Timing Status] = "Late" then [GRN Base Qty] else 0,
+				            type number
+				        ),
+				
+				    AddedBookingDelay =
+				        Table.AddColumn(
+				            AddedLateGRNQty,
+				            "Booking Delay Days",
+				            each
+				                if [GRN Booking Date] = null or [GRN Delivery Date] = null
+				                then null
+				                else Duration.Days([GRN Booking Date] - [GRN Delivery Date]),
+				            Int64.Type
+				        ),
+				
+				    ReorderedColumns =
+				        Table.ReorderColumns(
+				            AddedBookingDelay,
+				            {
+				                "PO Period ID",
+				                "Article",
+				                "Supplier",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Start Date",
+				                "PO End Date",
+				                "Next PO Date",
+				                "GRN Delivery Date",
+				                "GRN Booking Date",
+				                "Delivery Note No",
+				                "GRN Unit",
+				                "GRN Base Unit",
+				                "GRN Qty",
+				                "GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Days After PO",
+				                "GRN Timing Status",
+				                "Booking Delay Days",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderedColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,204 @@
+table '_Measures Color'
+	lineageTag: 947b9be9-ba27-4e53-81ce-609d24c63fb4
+
+	measure 'Inbound Fill Rate Color' =
+			
+			VAR Rate = [Inbound Fill Rate %]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Good)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Poor)
+			)
+		lineageTag: fba3cd04-3f50-4409-9839-9a6d5ff7b56c
+
+	measure 'Inbound Pending Color' =
+			
+			VAR Rate = [Inbound Pending %]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate <= 0.10, "#2E7D32",         -- Green (Excellent)
+			    Rate <= 0.25, "#F9A825",         -- Yellow (Acceptable)
+			    Rate <= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Critical)
+			)
+		lineageTag: 26b768da-ced3-4f9c-b62b-51a0ddbcee5a
+
+	measure 'Supplier Mismatch Color' =
+			
+			VAR _Pct =
+			    DIVIDE(
+			        [Supplier Mismatch PO Periods],
+			        [Total PO Periods],
+			        0
+			    )
+			RETURN
+			IF(
+			    _Pct > 0.01,
+			    "#C00000",    -- Dark Red
+			    "#70AD47"     -- Dark Green
+			)
+		lineageTag: fab3b2f2-b416-412c-b2cc-1575133a9396
+
+	measure 'Fulfillment Status Color' =
+			
+			SWITCH(
+			    SELECTEDVALUE('fact_po_period_lifecycle'[Fulfillment Status]),
+			    "Fully Delivered", "#22C55E",     -- Modern Green
+			    "Over Delivered", "#3B82F6",      -- Modern Blue
+			    "Partially Delivered", "#F59E0B", -- Amber
+			    "Not Received", "#EF4444",        -- Modern Red
+			    "#9CA3AF"                         -- Grey
+			)
+		lineageTag: 35cf3e2b-0d08-409a-a78b-ed9024f9d692
+
+	measure 'Outbound % Vouchers <eq 3PM Color' =
+			
+			VAR Rate = [Outbound % Vouchers < equal 3PM]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Acceptable)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Critical)
+			)
+		lineageTag: e3ac2821-953f-4fae-a6ab-1da9cad3778e
+
+	measure 'Measure 3'
+		lineageTag: d3311935-d648-4cb2-9be8-0bb70aed59ff
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'Outbound Suspended Color' =
+			
+			SWITCH(
+			    TRUE(),
+			    [Outbound Suspended %] >= 0.05, "#D32F2F",   -- Red
+			    [Outbound Suspended %] >= 0.02, "#F9A825",   -- Amber
+			    "#388E3C"                                    -- Green
+			)
+		lineageTag: ca7e5d5a-6e2e-484e-990b-dd6e467d736f
+
+	measure 'Outbound Declined Color' =
+			
+			SWITCH(
+			    TRUE(),
+			    [Outbound Declined %] >= 0.05, "#D32F2F",   -- Red
+			    [Outbound Declined %] >= 0.02, "#F9A825",   -- Amber
+			    "#388E3C"                                   -- Green
+			)
+		lineageTag: 7f626578-2f44-4f1d-9b7b-b9c2c72a6084
+
+	measure 'Outbound % Vouchers >3PM Color' =
+			
+			VAR Rate = [Outbound % Vouchers >3PM]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate <= 0.10, "#2E7D32",         -- Green (Excellent)
+			    Rate <= 0.25, "#F9A825",         -- Yellow (Acceptable)
+			    Rate <= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Critical)
+			)
+		lineageTag: 6aa43f97-e540-40f2-a0a6-2e094821eff7
+
+	measure 'Outbound Undelivered % Color' =
+			
+			VAR Rate = [Outbound Undelivered %]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate <= 0.02, "#2E7D32",         -- Green (Excellent)
+			    Rate <= 0.05, "#F9A825",         -- Yellow (Acceptable)
+			    Rate <= 0.10, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Critical)
+			)
+		lineageTag: af07c8e2-4ddc-41a7-a0d9-63c411350701
+
+	measure 'Outbound Fill Rate Color' =
+			
+			VAR Rate = [Outbound Fill Rate %]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Good)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Poor)
+			)
+		lineageTag: 8dcf3388-ea06-45a6-adfa-0b8badcdeb75
+
+	measure 'Outbound Fill Rate < eq 3PM Color' =
+			
+			VAR Rate = [Outbound Fill Rate < equal 3PM]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Good)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Poor)
+			)
+		lineageTag: ae8d3c7c-4eb2-4465-96f8-504c005f83c5
+
+	measure 'Outbound Fill Rate >3PM Color' =
+			
+			VAR Rate = [Outbound Fill Rate >3PM]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Good)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Poor)
+			)
+		lineageTag: 91139651-dc7e-4df7-baa1-74aba36be3bf
+
+	measure 'Inbound Capped Fill Rate Color' =
+			
+			VAR Rate = [Inbound Capped Fill Rate %]
+			RETURN
+			SWITCH(
+			    TRUE(),
+			    ISBLANK(Rate), "#B0B0B0",        -- Grey (No Data)
+			    Rate >= 0.90, "#2E7D32",         -- Green (Excellent)
+			    Rate >= 0.75, "#F9A825",         -- Yellow (Good)
+			    Rate >= 0.50, "#FB8C00",         -- Orange (Warning)
+			    "#D32F2F"                        -- Red (Poor)
+			)
+		lineageTag: f8a1cce4-08e4-4187-908f-038afcbd87cf
+
+	column Dummy
+		formatString: 0
+		lineageTag: 9b41f89f-d46a-459e-867f-17317c3aa302
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Dummy]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition '_Measures Color' = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Dummy", INTEGER,
+				    {
+				        {1}
+				    }
+				)
+
+	annotation PBI_Id = 4a0b4d2f52a6421e9718157fefc70dd0
+

@@ -1,0 +1,23 @@
+table 'Refresh Info'
+	lineageTag: 5d83ad52-e0e1-47e5-90d6-ac96b4271c15
+
+	column LastRefresh
+		formatString: General Date
+		lineageTag: 99954d7e-dfc2-4bc2-8292-bddd267e721b
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [LastRefresh]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Refresh Info' = calculated
+		mode: import
+		source =
+				
+				ROW(
+				    "LastRefresh",
+				    UTCNOW() + TIME(3, 0, 0)
+				)
+
+	annotation PBI_Id = 50e9f873e684419a8a482c555cfc3931
+

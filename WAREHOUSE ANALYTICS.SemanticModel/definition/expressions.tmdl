@@ -1,0 +1,2170 @@
+expression fnCleanText =
+		(x as any) as nullable text =>
+		let
+		    SourceText = if x = null then null else Text.From(x),
+		    Cleaned = if SourceText = null then null else Text.Clean(Text.Trim(SourceText)),
+		    NoNBSP = if Cleaned = null then null else Text.Replace(Cleaned, Character.FromNumber(160), " "),
+		    SplitWords = if NoNBSP = null then null else List.Select(Text.Split(NoNBSP, " "), each _ <> ""),
+		    SingleSpaced = if SplitWords = null then null else Text.Combine(SplitWords, " "),
+		    UpperText = if SingleSpaced = null or SingleSpaced = "" then null else Text.Upper(SingleSpaced)
+		in
+		    UpperText
+	lineageTag: e02adaad-a4a1-4055-93f7-c583f6851b9a
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Function
+
+expression fnCleanBaseUnit =
+		(x as any) as nullable text =>
+		let
+		    U = fnCleanText(x),
+		    Result =
+		        if U = null then null
+		        else if List.Contains({"KG", "KGS", "KILOGRAM", "KILOGRAMS"}, U) then "KG"
+		        else if List.Contains({"LITER", "LITRE", "LTR", "LITERS", "LITRES"}, U) then "LITER"
+		        else if List.Contains({"EACH", "EA", "PCS", "PC", "PIECE", "PIECES"}, U) then "EACH"
+		        else U
+		in
+		    Result
+	lineageTag: 502597da-70cd-4de9-9838-ff71d76980d5
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Function
+
+expression fnDateOnly =
+		(x as any) as nullable date =>
+		let
+		    Result =
+		        if x = null then null
+		        else if Value.Is(x, type date) then x
+		        else if Value.Is(x, type datetime) then Date.From(x)
+		        else if Value.Is(x, type datetimezone) then Date.From(x)
+		        else
+		            let
+		                T = Text.Trim(Text.From(x))
+		            in
+		                try Date.FromText(T, [Culture = "en-GB"])
+		                otherwise try Date.FromText(T, [Culture = "en-US"])
+		                otherwise try Date.From(DateTime.FromText(T, [Culture = "en-GB"]))
+		                otherwise try Date.From(DateTime.FromText(T, [Culture = "en-US"]))
+		                otherwise null
+		in
+		    Result
+	lineageTag: 40b114a5-2bb5-46db-9a9a-dbca5556102b
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Function
+
+expression CategoryLookup =
+		let
+		    Source = Excel.Workbook(
+		        Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/RECIPIES%20TEST.xlsm"),
+		        null,
+		        true
+		    ),
+		
+		    ReplenPlanning_Sheet = Source{[Item="Replen Planning", Kind="Sheet"]}[Data],
+		
+		    PromotedHeaders1 = Table.PromoteHeaders(ReplenPlanning_Sheet, [PromoteAllScalars=true]),
+		
+		    RemovedTopRows = Table.Skip(PromotedHeaders1, 7),
+		
+		    PromotedHeaders = Table.PromoteHeaders(RemovedTopRows, [PromoteAllScalars=true]),
+		
+		    ChangedType = Table.TransformColumnTypes(PromotedHeaders,{{"Article No.", type text}, {"CODE", type text}, {"ITEM DESCRIPTION", type text}, {"BASE UNIT", type text}, {"IS ACTIVE", type text}, {"Designation", type any}, {"SubCAT", type text}, {"Current WHS ID", type any}, {"ITEM GROUP", type text}, {"STORAGE TYPE", type text}}),
+		
+		    RemovedColumns = Table.RemoveColumns(ChangedType,{"CODE", "Designation", "Current WHS ID", "PURCH UNIT", "CURRENT STOCK WAC", "TOTAL WAC MTD", "LEAD TIME", "open delivery note", "TRF OUT Delivered & Declined", "CURRENT STOCK", "Actual SOH", "Last PP", "Last PD", "Last TR", "12/25/2025", "1/26/2026", "2/26/2026", "3/26/2026", "MIN", "MAX", "AVG TRANSFER OUT", "WEIGHT MIN", "WEIGHT MAX", "DAYS TO LAST (DTL)", "ReqDate", "ReceinvgDate", "OOS DATE", "CURRENT MONTH - MTD TRANSFER", "MTD XTRAPOL % vs. AVG TRANSFER", "MTD #(lf)DAYS TO LAST", "MTD OOS", "Target Cover", "% Increase", "QTY", "QTY MTD", "Delivery#(lf)Freq", "Delivery Date 1", "Delivery Date 2", "Delivery Date 3", "Delivery Date 4", "Delivery Date 5", "Delivery Date 6", "PIPELINE PENDNG PO", "last Supplier Name", "Status", "WEEK2 PROJ STOCK AVG", "WEEK2 PROJ DTL AVG", "WEEK4 QTY REPLEN", "WEEK4 PROJ STOCK", "WEEK4 PROJ DTL", "WEEK6 QTY REPLEN", "W6 PIPELINE PENDNG PO", "WEEK6 PROJ STOCK", "WEEK6 PROJ DTL", "WEEK8 QTY REPLEN", "WEEK8 PROJ STOCK", "WEEK8 PROJ DTL", "WEEK10 QTY REPLEN", "W10 PIPELINE PENDNG PO", "WEEK10 PROJ STOCK", "WEEK10 PROJ DTL", "WEEK12 QTY REPLEN", "WEEK12 PROJ STOCK", "WEEK12 PROJ DTL", "OOS, <3DTL, <7DTL,<15DTL", "Current Common", "Column74", "Column75"}),
+		
+		    TrimmedText = Table.TransformColumns(RemovedColumns,{
+		        {"ITEM DESCRIPTION", Text.Trim, type text},
+		        {"BASE UNIT", Text.Trim, type text},
+		        {"SubCAT", Text.Trim, type text},
+		        {"ITEM GROUP", Text.Trim, type text},
+		        {"STORAGE TYPE", Text.Trim, type text}
+		    }),
+		
+		    CleanedText = Table.TransformColumns(TrimmedText,{
+		        {"ITEM DESCRIPTION", Text.Clean, type text},
+		        {"BASE UNIT", Text.Clean, type text},
+		        {"SubCAT", Text.Clean, type text},
+		        {"ITEM GROUP", Text.Clean, type text},
+		        {"STORAGE TYPE", Text.Clean, type text}
+		    }),
+		
+		    RemovedDuplicates = Table.Distinct(CleanedText, {"ITEM DESCRIPTION"}),
+		
+		    RenamedColumns = Table.RenameColumns(RemovedDuplicates,{
+		        {"Article No.", "Article_No"},
+		        {"ITEM DESCRIPTION", "Article"},
+		        {"BASE UNIT", "Base_Unit"},
+		        {"IS ACTIVE", "Is_Active"},
+		        {"SubCAT", "Sub_Category"},
+		        {"ITEM GROUP", "Item_Group"},
+		        {"STORAGE TYPE", "Storage_Type"}
+		    }),
+		    #"Changed Type" = Table.TransformColumnTypes(RenamedColumns,{{"Article_No", type text}, {"Article", type text}, {"Base_Unit", type text}, {"Is_Active", type text}, {"Sub_Category", type text}, {"Item_Group", type text}, {"Storage_Type", type text}})
+		in
+		    #"Changed Type"
+	lineageTag: 1a810c50-f91d-4b03-9363-c8e899d6f8ff
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression fact_po_period_base =
+		let
+		    Source = fact_po_line,
+		
+		    FilteredRows =
+		        Table.SelectRows(
+		            Source,
+		            each
+		                [PO Unit Mapping Status] = "Mapped"
+		                and [Article] <> null
+		                and [Warehouse] <> null
+		                and [PO Delivery Date] <> null
+		                and [PO Base Qty] <> null
+		        ),
+		
+		    GroupedPO =
+		        Table.Group(
+		            FilteredRows,
+		            {"Article", "Warehouse", "PO Delivery Date"},
+		            {
+		                {"Final Cost Center", each try List.First(List.RemoveNulls([Final Cost Center])) otherwise null, type nullable text},
+		                {"PO No", each try Text.Combine(List.Sort(List.Distinct(List.RemoveNulls([PO No]))), ", ") otherwise null, type nullable text},
+		                {"PO Supplier", each try if List.Count(List.Distinct(List.RemoveNulls([Supplier]))) = 1 then List.First(List.Distinct(List.RemoveNulls([Supplier]))) else "MULTIPLE" otherwise null, type nullable text},
+		                {"PO Supplier List", each try Text.Combine(List.Distinct(List.RemoveNulls([Supplier])), ", ") otherwise null, type nullable text},
+		                {"PO Unit List", each try Text.Combine(List.Distinct(List.RemoveNulls([PO Unit])), ", ") otherwise null, type nullable text},
+		                {"PO Base Unit List", each try Text.Combine(List.Distinct(List.RemoveNulls([PO Base Unit])), ", ") otherwise null, type nullable text},
+		                {"PO Date", each try Date.From(List.Min(List.RemoveNulls([PO Date]))) otherwise null, type nullable date},
+		                {"PO Base Qty", each List.Sum(List.RemoveNulls([PO Base Qty])), type nullable number},
+		                {"PO Value", each List.Sum(List.RemoveNulls([PO Value])), type nullable number},
+		                {"PO Count", each List.Count(List.Distinct(List.RemoveNulls([PO No]))), Int64.Type},
+		                {"PO Line Count", each Table.RowCount(_), Int64.Type},
+		                {"Sub_Category", each try List.First(List.RemoveNulls([Sub_Category])) otherwise null, type nullable text},
+		                {"Item_Group", each try List.First(List.RemoveNulls([Item_Group])) otherwise null, type nullable text},
+		                {"Storage_Type", each try List.First(List.RemoveNulls([Storage_Type])) otherwise null, type nullable text}
+		            }
+		        ),
+		
+		    RenamedDate =
+		        Table.RenameColumns(
+		            GroupedPO,
+		            {{"PO Delivery Date", "PO Start Date"}}
+		        ),
+		
+		    GRNFiltered =
+		        Table.SelectRows(
+		            fact_grn_line,
+		            each
+		                [Article] <> null
+		                and [Warehouse] <> null
+		                and [GRN Delivery Date] <> null
+		        ),
+		
+		    GRNMaxByArticleWarehouse =
+		        Table.Group(
+		            GRNFiltered,
+		            {"Article", "Warehouse"},
+		            {
+		                {"Last Relevant GRN Date", each List.Max(List.RemoveNulls([GRN Delivery Date])), type nullable date}
+		            }
+		        ),
+		
+		    MergeLastGRN =
+		        Table.NestedJoin(
+		            RenamedDate,
+		            {"Article", "Warehouse"},
+		            GRNMaxByArticleWarehouse,
+		            {"Article", "Warehouse"},
+		            "GRN Max",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandLastGRN =
+		        Table.ExpandTableColumn(
+		            MergeLastGRN,
+		            "GRN Max",
+		            {"Last Relevant GRN Date"},
+		            {"Last Relevant GRN Date"}
+		        ),
+		
+		    SortedRows =
+		        Table.Sort(
+		            ExpandLastGRN,
+		            {
+		                {"Article", Order.Ascending},
+		                {"Warehouse", Order.Ascending},
+		                {"PO Start Date", Order.Ascending}
+		            }
+		        ),
+		
+		    GroupedForNextDate =
+		        Table.Group(
+		            SortedRows,
+		            {"Article", "Warehouse"},
+		            {
+		                {
+		                    "Data",
+		                    each
+		                        let
+		                            T = Table.Sort(_, {{"PO Start Date", Order.Ascending}}),
+		                            AddIndex = Table.AddIndexColumn(T, "__Index", 0, 1, Int64.Type),
+		                            AddNextDate =
+		                                Table.AddColumn(
+		                                    AddIndex,
+		                                    "Next PO Date",
+		                                    each try AddIndex[PO Start Date]{[__Index] + 1} otherwise null,
+		                                    type nullable date
+		                                ),
+		                            RemoveIndex = Table.RemoveColumns(AddNextDate, {"__Index"})
+		                        in
+		                            RemoveIndex
+		                }
+		            }
+		        ),
+		
+		    Expanded =
+		        Table.ExpandTableColumn(
+		            GroupedForNextDate,
+		            "Data",
+		            List.RemoveItems(Table.ColumnNames(SortedRows), {"Article", "Warehouse"}) & {"Next PO Date"}
+		        ),
+		
+		    AddedPOEndDate =
+		        Table.AddColumn(
+		            Expanded,
+		            "PO End Date",
+		            each
+		                if [Next PO Date] <> null then Date.AddDays([Next PO Date], -1)
+		                else if [Last Relevant GRN Date] <> null and [Last Relevant GRN Date] >= [PO Start Date] then [Last Relevant GRN Date]
+		                else [PO Start Date],
+		            type date
+		        ),
+		
+		    AddedPOPeriodID =
+		        Table.AddColumn(
+		            AddedPOEndDate,
+		            "PO Period ID",
+		            each [Article] & "|" & [Warehouse] & "|" & Date.ToText([PO Start Date], "yyyyMMdd"),
+		            type text
+		        ),
+		
+		    RemovedHelperColumns =
+		        Table.RemoveColumns(
+		            AddedPOPeriodID,
+		            {"Last Relevant GRN Date"},
+		            MissingField.Ignore
+		        ),
+		
+		    ReorderedColumns =
+		        Table.ReorderColumns(
+		            RemovedHelperColumns,
+		            {
+		                "PO Period ID",
+		                "Article",
+		                "Warehouse",
+		                "Final Cost Center",
+		                "PO No",
+		                "PO Supplier",
+		                "PO Supplier List",
+		                "PO Unit List",
+		                "PO Base Unit List",
+		                "PO Date",
+		                "PO Start Date",
+		                "Next PO Date",
+		                "PO End Date",
+		                "PO Base Qty",
+		                "PO Value",
+		                "PO Count",
+		                "PO Line Count",
+		                "Sub_Category",
+		                "Item_Group",
+		                "Storage_Type"
+		            },
+		            MissingField.Ignore
+		        )
+		in
+		    ReorderedColumns
+	lineageTag: de6d218d-2273-4a85-a574-7c2ff2f80ad0
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression agg_grn_by_po_period =
+		let
+		    Source = fact_grn_allocated_detail,
+		
+		    GroupedRows =
+		        Table.Group(
+		            Source,
+		            {"PO Period ID"},
+		            {
+		                {"Allocated GRN Base Qty", each List.Sum(List.RemoveNulls([GRN Base Qty])), type nullable number},
+		                {"Same Day GRN Base Qty", each List.Sum(List.RemoveNulls([Same Day GRN Base Qty])), type nullable number},
+		                {"Late GRN Base Qty", each List.Sum(List.RemoveNulls([Late GRN Base Qty])), type nullable number},
+		                {"GRN Value", each List.Sum(List.RemoveNulls([GRN Value])), type nullable number},
+		                {"Delivery Note Count", each List.Count(List.Distinct(List.RemoveNulls([Delivery Note No]))), Int64.Type},
+		                {"GRN Line Count", each Table.RowCount(_), Int64.Type},
+		                {"First GRN Date", each try List.Min(List.RemoveNulls([GRN Delivery Date])) otherwise null, type nullable date},
+		                {"Last GRN Date", each try List.Max(List.RemoveNulls([GRN Delivery Date])) otherwise null, type nullable date},
+		                {"First Booking Date", each try List.Min(List.RemoveNulls([GRN Booking Date])) otherwise null, type nullable date},
+		                {"Last Booking Date", each try List.Max(List.RemoveNulls([GRN Booking Date])) otherwise null, type nullable date},
+		                {"Actual GRN Supplier", each try if List.Count(List.Distinct(List.RemoveNulls([Supplier]))) = 1 then List.First(List.Distinct(List.RemoveNulls([Supplier]))) else "MULTIPLE" otherwise null, type nullable text},
+		                {"Actual GRN Supplier List", each try Text.Combine(List.Distinct(List.RemoveNulls([Supplier])), ", ") otherwise null, type nullable text},
+		                {"Actual GRN Unit List", each try Text.Combine(List.Distinct(List.RemoveNulls([GRN Unit])), ", ") otherwise null, type nullable text}
+		            }
+		        )
+		in
+		    GroupedRows
+	lineageTag: fcd598e4-2046-4899-9169-bc4735d6d24c
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Delivery Note' =
+		let
+		    Source = Oracle.Database(
+		        "192.168.1.99/mc",
+		        [
+		            HierarchicalNavigation = true,
+		            Query = Text.Combine(
+		                {
+		                    "SELECT",
+		                    "    p.lfp_pos                       AS ""Pos"",",
+		                    "    a.art_nummer                    AS ""Article No."",",
+		                    "    a.art_name                      AS ""Article"",",
+		                    "    p.lfp_menge                     AS ""QTY"",",
+		                    "    w.vpk_name                      AS ""Unit"",",
+		                    "    p.lfp_ekpstk                    AS ""Price/Unit"",",
+		                    "    p.lfp_mengege                   AS ""QTY/BU"",",
+		                    "    p.lfp_ekpstk / w.vpk_grmenge    AS ""Price/BU"",",
+		                    "    p.lfp_rabatt * 100 || '%'       AS ""Discount"",",
+		                    "    p.lfp_ekp                       AS ""Net"",",
+		                    "    k.kst_name                      AS ""Cost Center/Store"",",
+		                    "    l.lfs_name                      AS ""Delivery_Note"",",
+		                    "    l.lfs_datum                     AS ""Delivery_Date"",",
+		                    "    CASE",
+		                    "        WHEN l.lfs_status = 32 THEN",
+		                    "            CASE",
+		                    "                WHEN l.lfs_rts = 1 THEN 'Open Return to Supplier'",
+		                    "                ELSE 'Open Delivery Note'",
+		                    "            END",
+		                    "        WHEN l.lfs_status = 37 THEN 'Booked Delivery Note'",
+		                    "        WHEN l.lfs_status >= 41 THEN 'Closed Invoice'",
+		                    "        ELSE 'IDK'",
+		                    "    END                             AS ""DN Status"",",
+		                    "    NULL                            AS ""Last Price/BU"",",
+		                    "    v.vpk_name                      AS ""Base Unit"",",
+		                    "    nvl(p.sb_name, 'No PO defined') AS ""Order No."",",
+		                    "    p.sb_ze                         AS ""Order Date"",",
+		                    "    p.bp_mengeorg                   AS ""Requested QTY"",",
+		                    "    i.lf_name                       AS ""Supplier"",",
+		                    "    b.bst_name                      AS ""Created by"",",
+		                    "    p.new_zeit                      AS ""Created At""",
+		                    "FROM",
+		                    "    lieferschein l,",
+		                    "    lieferpos    p,",
+		                    "    artikel      a,",
+		                    "    vpckeinh     v,",
+		                    "    vpckeinh     w,",
+		                    "    liefer       i,",
+		                    "    kostst       k,",
+		                    "    fcurrency    f,",
+		                    "    besteller    b",
+		                    "WHERE",
+		                    "        p.lfs_id = l.lfs_id",
+		                    "    AND v.vpk_id = p.vpk_id2",
+		                    "    AND w.vpk_id = p.vpk_id1",
+		                    "    AND a.art_id = p.art_nr",
+		                    "    AND i.lf_id = l.lf_id",
+		                    "    AND k.kst_id = p.kst_id",
+		                    "    AND p.new_user = b.bst_id",
+		                    "    AND i.cur_nr = f.cur_id (+)",
+		                    "",
+		                    "UNION ALL",
+		                    "",
+		                    "SELECT",
+		                    "    p.lfp_pos                       AS ""Pos"",",
+		                    "    a.art_nummer                    AS ""Article No."",",
+		                    "    a.art_name                      AS ""Article"",",
+		                    "    p.lfp_menge                     AS ""QTY"",",
+		                    "    w.vpk_name                      AS ""Unit"",",
+		                    "    p.lfp_ekpstk                    AS ""Price/Unit"",",
+		                    "    p.lfp_mengege                   AS ""QTY/BU"",",
+		                    "    p.lfp_ekpstk / w.vpk_grmenge    AS ""Price/BU"",",
+		                    "    p.lfp_rabatt * 100 || '%'       AS ""Discount"",",
+		                    "    p.lfp_ekp                       AS ""Net"",",
+		                    "    k.kst_name                      AS ""Cost Center/Store"",",
+		                    "    l.rng_name                      AS ""Delivery_Note"",",
+		                    "    l.rng_datum                     AS ""Delivery_Date"",",
+		                    "    CASE",
+		                    "        WHEN l.rng_status = 10 THEN 'Booked Invoice'",
+		                    "        ELSE 'IDK'",
+		                    "    END                             AS ""DN Status"",",
+		                    "    NULL                            AS ""Last Price/BU"",",
+		                    "    v.vpk_name                      AS ""Base Unit"",",
+		                    "    nvl(p.sb_name, 'No PO defined') AS ""Order No."",",
+		                    "    p.sb_ze                         AS ""Order Date"",",
+		                    "    p.bp_mengeorg                   AS ""Requested QTY"",",
+		                    "    i.lf_name                       AS ""Supplier"",",
+		                    "    b.bst_name                      AS ""Created by"",",
+		                    "    p.new_zeit                      AS ""Created At""",
+		                    "FROM",
+		                    "    rechnung  l,",
+		                    "    rechpos   p,",
+		                    "    artikel   a,",
+		                    "    vpckeinh  v,",
+		                    "    vpckeinh  w,",
+		                    "    liefer    i,",
+		                    "    kostst    k,",
+		                    "    fcurrency f,",
+		                    "    besteller b",
+		                    "WHERE",
+		                    "        p.rng_id = l.rng_id",
+		                    "    AND v.vpk_id = p.vpk_id2",
+		                    "    AND w.vpk_id = p.vpk_id1",
+		                    "    AND a.art_id = p.art_nr",
+		                    "    AND i.lf_id = l.lf_id",
+		                    "    AND k.kst_id = p.kst_id",
+		                    "    AND p.new_user = b.bst_id",
+		                    "    AND i.cur_nr = f.cur_id (+)",
+		                    "    AND p.lfp_mengege <> 0",
+		                    "    AND p.lfp_status <> 64",
+		                    "ORDER BY",
+		                    "    19,",
+		                    "    17,",
+		                    "    11,",
+		                    "    1"
+		                },
+		                "#(lf)"
+		            )
+		        ]
+		    ),
+		
+		    #"Changed Type" = Table.TransformColumnTypes(
+		        Source,
+		        {
+		            {"Pos", Int64.Type},
+		            {"Article No.", Int64.Type},
+		            {"Article", type text},
+		            {"QTY", type number},
+		            {"Unit", type text},
+		            {"Price/Unit", type number},
+		            {"QTY/BU", type number},
+		            {"Price/BU", type number},
+		            {"Discount", type text},
+		            {"Net", type number},
+		            {"Cost Center/Store", type text},
+		            {"Delivery_Note", type text},
+		            {"Delivery_Date", type datetime},
+		            {"DN Status", type text},
+		            {"Last Price/BU", type any},
+		            {"Base Unit", type text},
+		            {"Order No.", type text},
+		            {"Order Date", type date},
+		            {"Requested QTY", Int64.Type},
+		            {"Supplier", type text},
+		            {"Created by", type text},
+		            {"Created At", type datetime}
+		        }
+		    ),
+		
+		    #"Filtered Date Range" = Table.SelectRows(
+		        #"Changed Type",
+		        each Date.From([Delivery_Date]) >= p_FromDate
+		    ),
+		
+		    #"Converted Discount" = Table.TransformColumns(
+		        #"Filtered Date Range",
+		        {
+		            {
+		                "Discount",
+		                each
+		                    if _ = null then
+		                        null
+		                    else
+		                        let
+		                            DiscountText = Text.From(_),
+		                            CleanDiscount = Text.Replace(DiscountText, "%", "")
+		                        in
+		                            Number.FromText(CleanDiscount) / 100,
+		                Percentage.Type
+		            }
+		        }
+		    ),
+		
+		    #"Reordered Columns" = Table.ReorderColumns(
+		        #"Converted Discount",
+		        {
+		            "Pos",
+		            "Article No.",
+		            "Article",
+		            "Supplier",
+		            "Cost Center/Store",
+		            "QTY",
+		            "Unit",
+		            "Base Unit",
+		            "Price/Unit",
+		            "QTY/BU",
+		            "Price/BU",
+		            "Discount",
+		            "Net",
+		            "Delivery_Note",
+		            "Delivery_Date",
+		            "DN Status",
+		            "Last Price/BU",
+		            "Order No.",
+		            "Order Date",
+		            "Requested QTY",
+		            "Created by",
+		            "Created At"
+		        }
+		    ),
+		
+		    #"Renamed Columns" = Table.RenameColumns(
+		        #"Reordered Columns",
+		        {
+		            {"Cost Center/Store", "Warehouse"},
+		            {"Unit", "GRN Unit"},
+		            {"QTY", "GRN Qty"},
+		            {"QTY/BU", "GRN Base Qty"},
+		            {"Net", "GRN Value"},
+		            {"Delivery_Note", "Delivery Note No"},
+		            {"Delivery_Date", "Delivery Date"},
+		            {"Created At", "Booking DateTime"},
+		            {"Order Date", "DN Order Date"}
+		        }
+		    ),
+		
+		    #"Removed Columns" = Table.RemoveColumns(
+		        #"Renamed Columns",
+		        {
+		            "Created by",
+		            "Pos",
+		            "Last Price/BU"
+		        }
+		    ),
+		
+		    #"Reordered Columns1" = Table.ReorderColumns(
+		        #"Removed Columns",
+		        {
+		            "Article No.",
+		            "Article",
+		            "Supplier",
+		            "Warehouse",
+		            "GRN Unit",
+		            "GRN Qty",
+		            "GRN Base Qty",
+		            "Base Unit",
+		            "GRN Value",
+		            "Price/Unit",
+		            "Price/BU",
+		            "Discount",
+		            "Delivery Note No",
+		            "Delivery Date",
+		            "DN Status",
+		            "Order No.",
+		            "DN Order Date",
+		            "Requested QTY",
+		            "Booking DateTime"
+		        }
+		    ),
+		
+		    #"Filtered Rows" = Table.SelectRows(
+		        #"Reordered Columns1",
+		        each not Text.Contains([DN Status], "Open Return to Supplier")
+		    ),
+		
+		    #"Merged Queries" = Table.NestedJoin(
+		        #"Filtered Rows",
+		        {"Article"},
+		        CategoryLookup,
+		        {"Article"},
+		        "CategoryLookup",
+		        JoinKind.LeftOuter
+		    ),
+		
+		    #"Expanded CategoryLookup" = Table.ExpandTableColumn(
+		        #"Merged Queries",
+		        "CategoryLookup",
+		        {"Sub_Category", "Item_Group", "Storage_Type"},
+		        {"Sub_Category", "Item_Group", "Storage_Type"}
+		    )
+		in
+		    #"Expanded CategoryLookup"
+	lineageTag: 8d7461d0-207d-4c3b-aa39-e9c689b9458d
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Open PO' =
+		let
+		    Source = Oracle.Database(
+		        "192.168.1.99/mc",
+		        [
+		            HierarchicalNavigation = true,
+		            Query = Text.Combine(
+		                {
+		                    "SELECT",
+		                    "    B.ART_NAME AS ""Purchase Article"",",
+		                    "    CASE",
+		                    "        WHEN B.art_lager = 3 THEN B.ART_NAME",
+		                    "        ELSE (SELECT ART_NAME FROM ARTIKEL WHERE ART_ID = B.ART_NR)",
+		                    "    END AS ""Stock Article"",",
+		                    "    C.LF_NAME AS ""SUPPLIER"",",
+		                    "    E.KST_NAME AS ""Cost Center"",",
+		                    "    D.VPK_NAME AS ""UNIT"",",
+		                    "    A.SB_NAME AS ""PO No"",",
+		                    "    A.BP_MENGE AS ""PO_QTY"",",
+		                    "    A.BP_MENGE - A.SB_GELIEF AS ""OPEN_QTY"",",
+		                    "    A.SB_GELIEF AS ""RECEIVED QTY"",",
+		                    "    A.BP_EKP AS ""Unit Price"",",
+		                    "    A.BP_FREIG AS ""ORDER DATE"",",
+		                    "    A.BP_LTERM AS ""DELEVERY DATE"",",
+		                    "    U.BST_LONGNAME AS ""ORDERER""",
+		                    "FROM",
+		                    "    WARENGRUPPE F,",
+		                    "    SPARTE G,",
+		                    "    SPARTEGR H,",
+		                    "    SAMMELPOS A,",
+		                    "    ARTIKEL B,",
+		                    "    LIEFER C,",
+		                    "    KOSTST E,",
+		                    "    VPCKEINH D,",
+		                    "    BESTELLER U",
+		                    "WHERE",
+		                    "        A.ART_ID = B.ART_ID",
+		                    "    AND A.LF_ID = C.LF_ID",
+		                    "    AND A.VPK_ID = D.VPK_ID",
+		                    "    AND A.KST_ID = E.KST_ID",
+		                    "    AND F.WGR_ID = B.WGR_ID",
+		                    "    AND G.SPA_ID = F.SPA_ID",
+		                    "    AND H.SGR_ID = G.SGR_ID",
+		                    "    AND A.BP_STATUS = 21",
+		                    "    AND A.BST_ID = U.BST_ID",
+		                    "ORDER BY",
+		                    "    1"
+		                },
+		                "#(lf)"
+		            )
+		        ]
+		    ),
+		
+		    #"Changed Type" = Table.TransformColumnTypes(
+		        Source,
+		        {
+		            {"Purchase Article", type text},
+		            {"Stock Article", type text},
+		            {"SUPPLIER", type text},
+		            {"Cost Center", type text},
+		            {"UNIT", type text},
+		            {"PO No", type text},
+		            {"PO_QTY", Int64.Type},
+		            {"OPEN_QTY", type number},
+		            {"RECEIVED QTY", type number},
+		            {"Unit Price", type number},
+		            {"ORDER DATE", type datetime},
+		            {"DELEVERY DATE", type datetime},
+		            {"ORDERER", type text}
+		        }
+		    ),
+		
+		    #"Filtered Date Range" = Table.SelectRows(
+		        #"Changed Type",
+		        each [ORDER DATE] <> null and Date.From([ORDER DATE]) >= p_FromDate
+		    ),
+		
+		    #"Renamed Columns" = Table.RenameColumns(#"Filtered Date Range",{{"Stock Article", "Article2"}, {"SUPPLIER", "Supplier"}, {"Cost Center", "Warehouse"}, {"UNIT", "PO Unit"}, {"PO_QTY", "PO Qty"}, {"Unit Price", "PO Unit Price"}, {"ORDER DATE", "PO Date"}, {"DELEVERY DATE", "PO Delivery Date"}, {"Purchase Article", "Article"}}),
+		
+		    #"Removed Columns1" = Table.RemoveColumns(
+		        #"Renamed Columns",
+		        {
+		            "OPEN_QTY",
+		            "RECEIVED QTY",
+		            "ORDERER",
+		            "Article2"
+		        }
+		    ),
+		
+		    #"Merged Queries" = Table.NestedJoin(
+		        #"Removed Columns1",
+		        {"Article"},
+		        CategoryLookup,
+		        {"Article"},
+		        "CategoryLookup",
+		        JoinKind.LeftOuter
+		    ),
+		
+		    #"Expanded CategoryLookup" = Table.ExpandTableColumn(
+		        #"Merged Queries",
+		        "CategoryLookup",
+		        {"Sub_Category", "Item_Group", "Storage_Type"},
+		        {"Sub_Category", "Item_Group", "Storage_Type"}
+		    ),
+		
+		    #"qty clean" = Table.ReplaceValue(
+		        #"Expanded CategoryLookup",
+		        each [PO Qty],
+		        each
+		            if
+		                (
+		                    [Article] = "Cutlery Fork Beige FM"
+		                    or [Article] = "Cutlery Spoon Beige FM"
+		                )
+		                and [PO Qty] = 40000
+		            then
+		                40
+		            else
+		                [PO Qty],
+		        Replacer.ReplaceValue,
+		        {"PO Qty"}
+		    ),
+		
+		    #"Changed Type1" = Table.TransformColumnTypes(
+		        #"qty clean",
+		        {
+		            {"PO Delivery Date", type date}
+		        }
+		    ),
+		
+		    #"Replaced Value" = Table.ReplaceValue(
+		        #"Changed Type1",
+		        each [PO Delivery Date],
+		        each
+		            if [Article] = "Sticker BBT Medium 2.75*5.5 CM"
+		                and [PO Date] = #datetime(2026, 1, 27, 12, 40, 1)
+		            then
+		                #date(2026, 2, 9)
+		            else if [Article] = "Sticker BBT Regular 2.75*5.5 CM"
+		                and [PO Date] = #datetime(2026, 1, 27, 12, 40, 36)
+		            then
+		                #date(2026, 2, 9)
+		            else if [Article] = "Sticker BBT Single Double 5*1.3 CM"
+		                and [PO Date] = #datetime(2026, 1, 27, 12, 40, 58)
+		            then
+		                #date(2026, 2, 9)
+		            else
+		                [PO Delivery Date],
+		        Replacer.ReplaceValue,
+		        {"PO Delivery Date"}
+		    )
+		in
+		    #"Replaced Value"
+	lineageTag: e929a676-9b71-4461-aaf8-f651cc78aede
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Unit Conversion' =
+		let
+		    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_alfadi_swishhh_net/Documents/WH%20Analysis/WarhouseHelper.xlsx"), null, true),
+		    UnitLookup_Sheet = Source{[Item="UnitLookup",Kind="Sheet"]}[Data],
+		    #"Promoted Headers" = Table.PromoteHeaders(UnitLookup_Sheet, [PromoteAllScalars=true]),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Unit String", type text}, {"Multiplier (to base)", type number}, {"Base Unit", type text}, {"# Used in PO/GRN", Int64.Type}}),
+		    #"Renamed Columns" = Table.RenameColumns(#"Changed Type",{{"Multiplier (to base)", "Unit Multiplier"}, {"# Used in PO/GRN", "Used Count"}})
+		in
+		    #"Renamed Columns"
+	lineageTag: 91938575-156f-43dc-8f76-ddd620124112
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Warehouse Mapping' =
+		let
+		    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_alfadi_swishhh_net/Documents/WH%20Analysis/WarhouseHelper.xlsx"), null, true),
+		    WHMapping_Sheet = Source{[Item="WHMapping",Kind="Sheet"]}[Data],
+		    #"Changed Type1" = Table.TransformColumnTypes(WHMapping_Sheet,{{"Column1", type text}, {"Column2", type text}}),
+		    #"Promoted Headers" = Table.PromoteHeaders(#"Changed Type1", [PromoteAllScalars=true])
+		in
+		    #"Promoted Headers"
+	lineageTag: 888bd8cd-b2cb-468c-9981-3a9b1ebc6e5f
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Errors in fact_outbound_line' =
+		let
+		Source = fact_outbound_line,
+		  #"Detected Type Mismatches" = let
+		    tableWithOnlyPrimitiveTypes = Table.SelectColumns(Source, Table.ColumnsOfType(Source, {type nullable number, type nullable text, type nullable logical, type nullable date, type nullable datetime, type nullable datetimezone, type nullable time, type nullable duration})),
+		    recordTypeFields = Type.RecordFields(Type.TableRow(Value.Type(tableWithOnlyPrimitiveTypes))),
+		    fieldNames = Record.FieldNames(recordTypeFields),
+		    fieldTypes = List.Transform(Record.ToList(recordTypeFields), each [Type]),
+		    pairs = List.Transform(List.Positions(fieldNames), (i) => {fieldNames{i}, (v) => if v = null or Value.Is(v, fieldTypes{i}) then v else error [Message = "The type of the value does not match the type of the column.", Detail = v], fieldTypes{i}})
+		in
+		    Table.TransformColumns(Source, pairs),
+		  #"Added Index" = Table.AddIndexColumn(#"Detected Type Mismatches", "Row Number" ,1),
+		  #"Kept Errors" = Table.SelectRowsWithErrors(#"Added Index", {"Document Line ID", "Document Article Key", "Document", "Pos", "Article No.", "Article", "Sub_Category", "Item_Group", "Storage_Type", "From Location", "Final From Cost Center", "To Location", "Final To Cost Center", "Status", "Status Group", "SOH", "Unit", "Base Unit", "Unit Multiplier", "Unit Mapping Status", "Requested Qty", "Requested Base Qty", "Action Qty", "Action Base Qty", "OOS Flag", "Purchase Price", "Line Value", "Requested Delivery Date", "Request Created DateTime", "Request Created Date", "Request Created Time", "Request Cutoff Bucket", "Within Cutoff Flag", "Created By", "Info"}),
+		  #"Reordered Columns" = Table.ReorderColumns(#"Kept Errors", {"Row Number", "Document Line ID", "Document Article Key", "Document", "Pos", "Article No.", "Article", "Sub_Category", "Item_Group", "Storage_Type", "From Location", "Final From Cost Center", "To Location", "Final To Cost Center", "Status", "Status Group", "SOH", "Unit", "Base Unit", "Unit Multiplier", "Unit Mapping Status", "Requested Qty", "Requested Base Qty", "Action Qty", "Action Base Qty", "OOS Flag", "Purchase Price", "Line Value", "Requested Delivery Date", "Request Created DateTime", "Request Created Date", "Request Created Time", "Request Cutoff Bucket", "Within Cutoff Flag", "Created By", "Info"})
+		in
+		  #"Reordered Columns"
+	lineageTag: 91353468-b1b5-479d-8302-e5a493344c8f
+	queryGroup: 'Query Errors - 17/06/2026 1:30:18 AM'
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression OutboundWH =
+		let
+		    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_alfadi_swishhh_net/Documents/WH%20Analysis/WarhouseHelper.xlsx"), null, true),
+		    Outboundcc_Sheet = Source{[Item="Outboundcc",Kind="Sheet"]}[Data],
+		    #"Changed Type" = Table.TransformColumnTypes(Outboundcc_Sheet,{{"Column1", type text}, {"Column2", type text}}),
+		    #"Promoted Headers" = Table.PromoteHeaders(#"Changed Type", [PromoteAllScalars=true])
+		in
+		    #"Promoted Headers"
+	lineageTag: d79c2109-c0fc-470a-a0f0-1abe8c268e8c
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'fact_outbound_line (2)' =
+		let
+		    Source = #"Issue Requests & Transfer",
+		
+		    FxArticleNoText =
+		        (x as any) as nullable text =>
+		            let
+		                Result =
+		                    try
+		                        if x = null then null
+		                        else if Value.Is(x, type number) then Number.ToText(x, "0")
+		                        else Text.Trim(Text.Clean(Text.From(x)))
+		                    otherwise null
+		            in
+		                Result,
+		
+		    FxMultiplierFromUnit =
+		        (UnitText as any, BaseUnitText as any) as nullable number =>
+		            let
+		                U = fnCleanText(UnitText),
+		                B = fnCleanBaseUnit(BaseUnitText),
+		
+		                Tokens =
+		                    if U = null
+		                    then {}
+		                    else Text.SplitAny(U, " -_/()[]{}"),
+		
+		                Numbers =
+		                    List.RemoveNulls(
+		                        List.Transform(
+		                            Tokens,
+		                            each try Number.FromText(_, "en-US") otherwise null
+		                        )
+		                    ),
+		
+		                ProductNumber =
+		                    if List.Count(Numbers) > 0
+		                    then List.Product(Numbers)
+		                    else null,
+		
+		                Result =
+		                    if U = null then null
+		
+		                    else if B = "KG"
+		                        and (
+		                            Text.Contains(U, "GM")
+		                            or Text.Contains(U, "GMS")
+		                            or Text.Contains(U, "GRAM")
+		                        )
+		                        and ProductNumber <> null
+		                    then ProductNumber / 1000
+		
+		                    else if B = "LITER"
+		                        and (
+		                            Text.Contains(U, "ML")
+		                            or Text.Contains(U, "MILLI")
+		                        )
+		                        and ProductNumber <> null
+		                    then ProductNumber / 1000
+		
+		                    else if ProductNumber <> null then ProductNumber
+		
+		                    else if U <> null and B <> null and U = B then 1
+		
+		                    else if B = "KG" and Text.Contains(U, "KG") then 1
+		
+		                    else if B = "LITER"
+		                        and (
+		                            Text.Contains(U, "LITER")
+		                            or Text.Contains(U, "LITRE")
+		                            or Text.Contains(U, "LTR")
+		                        )
+		                    then 1
+		
+		                    else if B = "EACH"
+		                        and (
+		                            Text.Contains(U, "EACH")
+		                            or Text.Contains(U, "PCS")
+		                            or Text.Contains(U, "PC")
+		                        )
+		                    then 1
+		
+		                    else null
+		            in
+		                Result,
+		
+		    RenameColumns =
+		        Table.RenameColumns(
+		            Source,
+		            {
+		                {"Cost Center/Store", "From Location"},
+		                {"Transfer To", "To Location"},
+		                {"QTY", "Action Qty"},
+		                {"Req QTY", "Requested Qty"},
+		                {"QTY/BU", "Action Base Qty"},
+		                {"P.Price", "Purchase Price"},
+		                {"Total", "Line Value"},
+		                {"Date", "Requested Delivery Date"},
+		                {"Created At", "Request Created DateTime"},
+		                {"Created by", "Created By"}
+		            },
+		            MissingField.Ignore
+		        ),
+		
+		    KeepColumns =
+		        Table.SelectColumns(
+		            RenameColumns,
+		            {
+		                "Pos",
+		                "SOH",
+		                "Article No.",
+		                "Article",
+		                "Action Qty",
+		                "Requested Qty",
+		                "Unit",
+		                "Base Unit",
+		                "Action Base Qty",
+		                "Purchase Price",
+		                "Line Value",
+		                "From Location",
+		                "To Location",
+		                "Document",
+		                "Requested Delivery Date",
+		                "Created By",
+		                "Request Created DateTime",
+		                "Status",
+		                "Info"
+		            },
+		            MissingField.Ignore
+		        ),
+		
+		    CleanTextColumns =
+		        Table.TransformColumns(
+		            KeepColumns,
+		            {
+		                {"Article No.", each FxArticleNoText(_), type nullable text},
+		                {"Article", each fnCleanText(_), type nullable text},
+		                {"Unit", each fnCleanText(_), type nullable text},
+		                {"Base Unit", each fnCleanBaseUnit(_), type nullable text},
+		                {"From Location", each fnCleanText(_), type nullable text},
+		                {"To Location", each fnCleanText(_), type nullable text},
+		                {"Document", each if _ = null then null else Text.Trim(Text.Clean(Text.From(_))), type nullable text},
+		                {"Created By", each fnCleanText(_), type nullable text},
+		                {"Status", each fnCleanText(_), type nullable text},
+		                {"Info", each if _ = null then null else Text.From(_), type nullable text}
+		            },
+		            null,
+		            MissingField.Ignore
+		        ),
+		
+		    FilterStatus =
+		        Table.SelectRows(
+		            CleanTextColumns,
+		            each
+		                [Status] <> null
+		                and [Status] <> ""
+		                and [Status] <> "N/A"
+		                and [Status] <> "NA"
+		        ),
+		
+		    AddStatusGroup =
+		        Table.AddColumn(
+		            FilterStatus,
+		            "Status Group",
+		            each
+		                if [Status] = "REQUESTED" then "REQUESTED"
+		                else if [Status] = "BOOKED" then "BOOKED"
+		                else if [Status] = "DELIVERED" then "DELIVERED"
+		                else if [Status] = "DECLINED" then "DECLINED"
+		                else if [Status] = "SUSPENDED TRANSFER TO" then "SUSPENDED TRANSFER TO"
+		                else "OTHER",
+		            type text
+		        ),
+		
+		    CleanDates =
+		        Table.TransformColumns(
+		            AddStatusGroup,
+		            {
+		                {"Requested Delivery Date", each fnDateOnly(_), type nullable date}
+		            },
+		            null,
+		            MissingField.Ignore
+		        ),
+		
+		    AddRequestCreatedDate =
+		        Table.AddColumn(
+		            CleanDates,
+		            "Request Created Date",
+		            each fnDateOnly([Request Created DateTime]),
+		            type nullable date
+		        ),
+		
+		    AddRequestCreatedTime =
+		        Table.AddColumn(
+		            AddRequestCreatedDate,
+		            "Request Created Time",
+		            each if [Request Created DateTime] = null then null else Time.From([Request Created DateTime]),
+		            type nullable time
+		        ),
+		
+		    AddCutoffBucket =
+		        Table.AddColumn(
+		            AddRequestCreatedTime,
+		            "Request Cutoff Bucket",
+		            each
+		                if [Request Created Time] = null then "UNKNOWN"
+		                else if [Request Created Time] <= #time(15, 0, 0) then "<=3PM"
+		                else ">3PM",
+		            type text
+		        ),
+		
+		    AddWithinCutoffFlag =
+		        Table.AddColumn(
+		            AddCutoffBucket,
+		            "Within Cutoff Flag",
+		            each if [Request Cutoff Bucket] = "<=3PM" then 1 else 0,
+		            Int64.Type
+		        ),
+		
+		    ChangeTypes =
+		        Table.TransformColumnTypes(
+		            AddWithinCutoffFlag,
+		            {
+		                {"Pos", Int64.Type},
+		                {"SOH", type number},
+		                {"Article No.", type text},
+		                {"Action Qty", type number},
+		                {"Requested Qty", type number},
+		                {"Action Base Qty", type number},
+		                {"Purchase Price", type number},
+		                {"Line Value", type number},
+		                {"Requested Delivery Date", type date},
+		                {"Request Created Date", type date},
+		                {"Request Created Time", type time}
+		            },
+		            "en-US"
+		        ),
+		
+		    AddArticleKey =
+		        Table.AddColumn(
+		            ChangeTypes,
+		            "__Article Key",
+		            each fnCleanText([Article]),
+		            type nullable text
+		        ),
+		
+		    AddUnitKey =
+		        Table.AddColumn(
+		            AddArticleKey,
+		            "__Unit Key",
+		            each fnCleanText([Unit]),
+		            type nullable text
+		        ),
+		
+		    UnitDim =
+		        let
+		            U0 = dim_unit_conversion,
+		
+		            U1 =
+		                if List.Contains(Table.ColumnNames(U0), "Unitkey")
+		                then Table.RenameColumns(U0, {{"Unitkey", "Unit Key"}}, MissingField.Ignore)
+		                else U0,
+		
+		            U2 =
+		                if List.Contains(Table.ColumnNames(U1), "Unit Key")
+		                then U1
+		                else Table.AddColumn(U1, "Unit Key", each fnCleanText([Unit String]), type nullable text),
+		
+		            U3 =
+		                Table.TransformColumns(
+		                    U2,
+		                    {
+		                        {"Unit Key", each fnCleanText(_), type nullable text}
+		                    },
+		                    null,
+		                    MissingField.Ignore
+		                ),
+		
+		            U4 =
+		                Table.SelectRows(
+		                    U3,
+		                    each [Unit Key] <> null and [Unit Key] <> ""
+		                ),
+		
+		            U5 =
+		                Table.Distinct(
+		                    U4,
+		                    {"Unit Key"}
+		                )
+		        in
+		            U5,
+		
+		    MergeUnit =
+		        Table.NestedJoin(
+		            AddUnitKey,
+		            {"__Unit Key"},
+		            UnitDim,
+		            {"Unit Key"},
+		            "Unit Conversion",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandUnit =
+		        Table.ExpandTableColumn(
+		            MergeUnit,
+		            "Unit Conversion",
+		            {"Unit Multiplier"},
+		            {"Mapped Unit Multiplier"}
+		        ),
+		
+		    AddFallbackUnitMultiplier =
+		        Table.AddColumn(
+		            ExpandUnit,
+		            "Fallback Unit Multiplier",
+		            each
+		                if [Action Qty] <> null and [Action Qty] <> 0 and [Action Base Qty] <> null
+		                then [Action Base Qty] / [Action Qty]
+		                else FxMultiplierFromUnit([Unit], [Base Unit]),
+		            type nullable number
+		        ),
+		
+		    AddFinalUnitMultiplier =
+		        Table.AddColumn(
+		            AddFallbackUnitMultiplier,
+		            "Unit Multiplier",
+		            each
+		                if [Mapped Unit Multiplier] <> null then [Mapped Unit Multiplier]
+		                else [Fallback Unit Multiplier],
+		            type nullable number
+		        ),
+		
+		    AddRequestedBaseQty =
+		        Table.AddColumn(
+		            AddFinalUnitMultiplier,
+		            "Requested Base Qty",
+		            each
+		                if [Requested Qty] = null then null
+		                else if [Unit Multiplier] = null then null
+		                else [Requested Qty] * [Unit Multiplier],
+		            type nullable number
+		        ),
+		
+		    AddFinalActionBaseQty =
+		        Table.AddColumn(
+		            AddRequestedBaseQty,
+		            "Final Action Base Qty",
+		            each
+		                if [Action Base Qty] <> null then [Action Base Qty]
+		                else if [Action Qty] <> null and [Unit Multiplier] <> null then [Action Qty] * [Unit Multiplier]
+		                else null,
+		            type nullable number
+		        ),
+		
+		    RemoveOldActionBaseQty =
+		        Table.RemoveColumns(
+		            AddFinalActionBaseQty,
+		            {"Action Base Qty"},
+		            MissingField.Ignore
+		        ),
+		
+		    RenameFinalActionBaseQty =
+		        Table.RenameColumns(
+		            RemoveOldActionBaseQty,
+		            {{"Final Action Base Qty", "Action Base Qty"}},
+		            MissingField.Ignore
+		        ),
+		
+		    AddUnitMappingStatus =
+		        Table.AddColumn(
+		            RenameFinalActionBaseQty,
+		            "Unit Mapping Status",
+		            each if [Unit Multiplier] = null then "Missing Unit Mapping" else "Mapped",
+		            type text
+		        ),
+		
+		    AddOOSFlag =
+		        Table.AddColumn(
+		            AddUnitMappingStatus,
+		            "OOS Flag",
+		            each
+		                if List.Contains({"REQUESTED", "BOOKED"}, [Status Group])
+		                    and ([Action Qty] = null or [Action Qty] = 0)
+		                then 1
+		                else 0,
+		            Int64.Type
+		        ),
+		
+		    AddDocumentArticleKey =
+		        Table.AddColumn(
+		            AddOOSFlag,
+		            "Document Article Key",
+		            each
+		                let
+		                    Doc = if [Document] = null then "" else Text.From([Document]),
+		                    ArtNo = if [#"Article No."] = null then "" else Text.From([#"Article No."])
+		                in
+		                    Doc & "|" & ArtNo,
+		            type text
+		        ),
+		
+		    AddDocumentLineID =
+		        Table.AddColumn(
+		            AddDocumentArticleKey,
+		            "Document Line ID",
+		            each
+		                let
+		                    Doc = if [Document] = null then "" else Text.From([Document]),
+		                    ArtNo = if [#"Article No."] = null then "" else Text.From([#"Article No."]),
+		                    Position = if [Pos] = null then "" else Text.From([Pos])
+		                in
+		                    Doc & "|" & ArtNo & "|" & Position,
+		            type text
+		        ),
+		
+		    CategoryByArticleNo =
+		        let
+		            C0 =
+		                Table.SelectColumns(
+		                    CategoryLookup,
+		                    {"Article_No", "Sub_Category", "Item_Group", "Storage_Type"},
+		                    MissingField.Ignore
+		                ),
+		
+		            C1 =
+		                Table.TransformColumns(
+		                    C0,
+		                    {
+		                        {"Article_No", each FxArticleNoText(_), type nullable text}
+		                    },
+		                    null,
+		                    MissingField.Ignore
+		                ),
+		
+		            C2 =
+		                Table.SelectRows(
+		                    C1,
+		                    each [Article_No] <> null and [Article_No] <> ""
+		                ),
+		
+		            C3 =
+		                Table.Distinct(
+		                    C2,
+		                    {"Article_No"}
+		                )
+		        in
+		            C3,
+		
+		    MergeCategoryByArticleNo =
+		        Table.NestedJoin(
+		            AddDocumentLineID,
+		            {"Article No."},
+		            CategoryByArticleNo,
+		            {"Article_No"},
+		            "Category By Article No",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandCategoryByArticleNo =
+		        Table.ExpandTableColumn(
+		            MergeCategoryByArticleNo,
+		            "Category By Article No",
+		            {"Sub_Category", "Item_Group", "Storage_Type"},
+		            {"Sub_Category_ByNo", "Item_Group_ByNo", "Storage_Type_ByNo"}
+		        ),
+		
+		    CategoryByArticleName =
+		        let
+		            C0 =
+		                Table.SelectColumns(
+		                    CategoryLookup,
+		                    {"Article", "Sub_Category", "Item_Group", "Storage_Type"},
+		                    MissingField.Ignore
+		                ),
+		
+		            C1 =
+		                Table.TransformColumns(
+		                    C0,
+		                    {
+		                        {"Article", each fnCleanText(_), type nullable text}
+		                    },
+		                    null,
+		                    MissingField.Ignore
+		                ),
+		
+		            C2 =
+		                Table.RenameColumns(
+		                    C1,
+		                    {{"Article", "Article Key"}},
+		                    MissingField.Ignore
+		                ),
+		
+		            C3 =
+		                Table.SelectRows(
+		                    C2,
+		                    each [Article Key] <> null and [Article Key] <> ""
+		                ),
+		
+		            C4 =
+		                Table.Distinct(
+		                    C3,
+		                    {"Article Key"}
+		                )
+		        in
+		            C4,
+		
+		    MergeCategoryByArticleName =
+		        Table.NestedJoin(
+		            ExpandCategoryByArticleNo,
+		            {"__Article Key"},
+		            CategoryByArticleName,
+		            {"Article Key"},
+		            "Category By Article Name",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandCategoryByArticleName =
+		        Table.ExpandTableColumn(
+		            MergeCategoryByArticleName,
+		            "Category By Article Name",
+		            {"Sub_Category", "Item_Group", "Storage_Type"},
+		            {"Sub_Category_ByName", "Item_Group_ByName", "Storage_Type_ByName"}
+		        ),
+		
+		    AddSubCategory =
+		        Table.AddColumn(
+		            ExpandCategoryByArticleName,
+		            "Sub_Category",
+		            each if [Sub_Category_ByNo] <> null then [Sub_Category_ByNo] else [Sub_Category_ByName],
+		            type nullable text
+		        ),
+		
+		    AddItemGroup =
+		        Table.AddColumn(
+		            AddSubCategory,
+		            "Item_Group",
+		            each if [Item_Group_ByNo] <> null then [Item_Group_ByNo] else [Item_Group_ByName],
+		            type nullable text
+		        ),
+		
+		    AddStorageType =
+		        Table.AddColumn(
+		            AddItemGroup,
+		            "Storage_Type",
+		            each if [Storage_Type_ByNo] <> null then [Storage_Type_ByNo] else [Storage_Type_ByName],
+		            type nullable text
+		        ),
+		
+		    AddFromLocationKey =
+		        Table.AddColumn(
+		            AddStorageType,
+		            "__From Location Key",
+		            each fnCleanText([From Location]),
+		            type nullable text
+		        ),
+		
+		    AddToLocationKey =
+		        Table.AddColumn(
+		            AddFromLocationKey,
+		            "__To Location Key",
+		            each fnCleanText([To Location]),
+		            type nullable text
+		        ),
+		
+		    WarehouseDim =
+		        let
+		            W0 = dim_warehouse,
+		
+		            W1 =
+		                if List.Contains(Table.ColumnNames(W0), "Warehouse Key")
+		                then W0
+		                else Table.AddColumn(W0, "Warehouse Key", each fnCleanText([Warehouse]), type nullable text),
+		
+		            W2 =
+		                Table.TransformColumns(
+		                    W1,
+		                    {
+		                        {"Warehouse Key", each fnCleanText(_), type nullable text},
+		                        {"Cost Center", each fnCleanText(_), type nullable text}
+		                    },
+		                    null,
+		                    MissingField.Ignore
+		                ),
+		
+		            W3 =
+		                Table.SelectRows(
+		                    W2,
+		                    each [Warehouse Key] <> null and [Warehouse Key] <> ""
+		                ),
+		
+		            W4 =
+		                Table.Distinct(
+		                    W3,
+		                    {"Warehouse Key"}
+		                )
+		        in
+		            W4,
+		
+		    MergeFromLocation =
+		        Table.NestedJoin(
+		            AddToLocationKey,
+		            {"__From Location Key"},
+		            WarehouseDim,
+		            {"Warehouse Key"},
+		            "From Mapping",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandFromLocation =
+		        Table.ExpandTableColumn(
+		            MergeFromLocation,
+		            "From Mapping",
+		            {"Cost Center"},
+		            {"From Cost Center"}
+		        ),
+		
+		    MergeToLocation =
+		        Table.NestedJoin(
+		            ExpandFromLocation,
+		            {"__To Location Key"},
+		            WarehouseDim,
+		            {"Warehouse Key"},
+		            "To Mapping",
+		            JoinKind.LeftOuter
+		        ),
+		
+		    ExpandToLocation =
+		        Table.ExpandTableColumn(
+		            MergeToLocation,
+		            "To Mapping",
+		            {"Cost Center"},
+		            {"To Cost Center"}
+		        ),
+		
+		    AddFinalFromCostCenter =
+		        Table.AddColumn(
+		            ExpandToLocation,
+		            "Final From Cost Center",
+		            each if [From Cost Center] = null then [From Location] else [From Cost Center],
+		            type nullable text
+		        ),
+		
+		    AddFinalToCostCenter =
+		        Table.AddColumn(
+		            AddFinalFromCostCenter,
+		            "Final To Cost Center",
+		            each if [To Cost Center] = null then [To Location] else [To Cost Center],
+		            type nullable text
+		        ),
+		
+		    RemoveTempColumns =
+		        Table.RemoveColumns(
+		            AddFinalToCostCenter,
+		            {
+		                "__Article Key",
+		                "__Unit Key",
+		                "Mapped Unit Multiplier",
+		                "Fallback Unit Multiplier",
+		                "Sub_Category_ByNo",
+		                "Item_Group_ByNo",
+		                "Storage_Type_ByNo",
+		                "Sub_Category_ByName",
+		                "Item_Group_ByName",
+		                "Storage_Type_ByName",
+		                "__From Location Key",
+		                "__To Location Key",
+		                "From Cost Center",
+		                "To Cost Center"
+		            },
+		            MissingField.Ignore
+		        ),
+		
+		    ReorderColumns =
+		        Table.ReorderColumns(
+		            RemoveTempColumns,
+		            {
+		                "Document Line ID",
+		                "Document Article Key",
+		                "Document",
+		                "Pos",
+		                "Article No.",
+		                "Article",
+		                "Sub_Category",
+		                "Item_Group",
+		                "Storage_Type",
+		                "From Location",
+		                "Final From Cost Center",
+		                "To Location",
+		                "Final To Cost Center",
+		                "Status",
+		                "Status Group",
+		                "SOH",
+		                "Unit",
+		                "Base Unit",
+		                "Unit Multiplier",
+		                "Unit Mapping Status",
+		                "Requested Qty",
+		                "Requested Base Qty",
+		                "Action Qty",
+		                "Action Base Qty",
+		                "OOS Flag",
+		                "Purchase Price",
+		                "Line Value",
+		                "Requested Delivery Date",
+		                "Request Created DateTime",
+		                "Request Created Date",
+		                "Request Created Time",
+		                "Request Cutoff Bucket",
+		                "Within Cutoff Flag",
+		                "Created By",
+		                "Info"
+		            },
+		            MissingField.Ignore
+		        )
+		in
+		    ReorderColumns
+	lineageTag: 8fc48010-626d-4398-8098-7ab43d98cc97
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Errors in fact_outbound_line (2)' =
+		let
+		Source = fact_outbound_line,
+		  #"Detected Type Mismatches" = let
+		    tableWithOnlyPrimitiveTypes = Table.SelectColumns(Source, Table.ColumnsOfType(Source, {type nullable number, type nullable text, type nullable logical, type nullable date, type nullable datetime, type nullable datetimezone, type nullable time, type nullable duration})),
+		    recordTypeFields = Type.RecordFields(Type.TableRow(Value.Type(tableWithOnlyPrimitiveTypes))),
+		    fieldNames = Record.FieldNames(recordTypeFields),
+		    fieldTypes = List.Transform(Record.ToList(recordTypeFields), each [Type]),
+		    pairs = List.Transform(List.Positions(fieldNames), (i) => {fieldNames{i}, (v) => if v = null or Value.Is(v, fieldTypes{i}) then v else error [Message = "The type of the value does not match the type of the column.", Detail = v], fieldTypes{i}})
+		in
+		    Table.TransformColumns(Source, pairs),
+		  #"Added Index" = Table.AddIndexColumn(#"Detected Type Mismatches", "Row Number" ,1),
+		  #"Kept Errors" = Table.SelectRowsWithErrors(#"Added Index", {"Document Line ID", "Document Article Key", "Document", "Pos", "Article No.", "Article", "Sub_Category", "Item_Group", "Storage_Type", "Cost Center/Store", "Mapped Cost Center/Store", "Transfer To", "Mapped Transfer To", "Status", "Status Group", "SOH", "Unit", "Base Unit", "Unit Multiplier", "Unit Mapping Status", "Requested Qty", "Requested Base Qty", "Action Qty", "Action Base Qty", "OOS Flag", "Purchase Price", "Line Value", "Requested Delivery Date", "Request Created DateTime", "Request Created Date", "Request Created Time", "Request Cutoff Bucket", "Within Cutoff Flag", "Created By", "Info"}),
+		  #"Reordered Columns" = Table.ReorderColumns(#"Kept Errors", {"Row Number", "Document Line ID", "Document Article Key", "Document", "Pos", "Article No.", "Article", "Sub_Category", "Item_Group", "Storage_Type", "Cost Center/Store", "Mapped Cost Center/Store", "Transfer To", "Mapped Transfer To", "Status", "Status Group", "SOH", "Unit", "Base Unit", "Unit Multiplier", "Unit Mapping Status", "Requested Qty", "Requested Base Qty", "Action Qty", "Action Base Qty", "OOS Flag", "Purchase Price", "Line Value", "Requested Delivery Date", "Request Created DateTime", "Request Created Date", "Request Created Time", "Request Cutoff Bucket", "Within Cutoff Flag", "Created By", "Info"})
+		in
+		  #"Reordered Columns"
+	lineageTag: c754e0c4-1ef1-4c45-8499-592fc6eba691
+	queryGroup: 'Query Errors - 19/06/2026 8:04:27 PM'
+
+	annotation PBI_NavigationStepName = Navigation
+
+expression 'SOH Control' =
+		let
+		    Source = Oracle.Database("192.168.1.99/mc", [HierarchicalNavigation=true, Query="  SELECT   k.KST_NAME AS ""Cost Center/Store"",#(lf)           a.art_nummer AS ""Article No."",#(lf)           a.ART_NAME AS ""Article"",#(lf)           d.day_sohend AS ""ACT SOH"",#(lf)           v.VPK_NAME AS ""Base Unit"",#(lf)           d.day_pricelast AS ""P. Price"",#(lf)           d.day_price AS ""AVE"",#(lf)           d.day_sohend * d.day_price AS ""Total per AVE"",#(lf)           l.la_vkp AS ""S.Price"",#(lf)           d.day_sohend * l.la_vkp AS ""Total S.Price/BU"",#(lf)           l.la_mindestbestand AS ""MIN SOH"",#(lf)           l.la_sollbestand AS ""POT SOH"",#(lf)           z.lgp_name AS ""Storage Location"",#(lf)           v2.VPK_NAME AS ""Unit""#(lf)    FROM   lager l LEFT JOIN #(lf)    LAGERPLATZ z ON l.LGP_nr = z.LGP_ID,#(lf)           artikel a,#(lf)           vpckeinh v,#(lf)           vpckeinh v2,#(lf)           warengruppe w,#(lf)           sparte s,#(lf)           spartegr s1,#(lf)           kostst k,#(lf)           dailytotals d#(lf)   WHERE       a.art_id = l.art_nr#(lf)           AND v.vpk_id = a.vpk_nr#(lf)           AND a.wgr_id = w.wgr_id#(lf)           AND w.spa_id = s.spa_id#(lf)           AND a.vpk_nr2 = v2.vpk_id#(lf)           AND s.sgr_id = s1.sgr_id#(lf)           AND l.kst_id = k.kst_id#(lf)           AND k.kst_index LIKE 'AAAPAB%'#(lf)           AND a.art_notinv = 0#(lf)           AND l.aktiv = ' '#(lf)           AND d.kst_id = l.kst_id#(lf)           AND d.art_id = l.art_nr#(lf)           AND d.day_date = TRUNC (SYSDATE)#(lf)ORDER BY   k.kst_index, a.ART_NAMEID"])
+		in
+		    Source
+	lineageTag: 088c5ee6-03aa-42be-b5f6-68d07ff00f78
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Issue Requests & Transfer Grouped' =
+		let
+		    FromDateText = Date.ToText(Date.From(p_FromDate), "yyyy-MM-dd"),
+		
+		    Source =
+		        Oracle.Database(
+		            "192.168.1.99/mc",
+		            [
+		                HierarchicalNavigation = true,
+		                Query =
+		                    Text.Combine(
+		                        {
+		                            "SELECT",
+		                            "    MIN(q.""Pos"") AS ""Pos"",",
+		                            "    MAX(q.""SOH"") AS ""SOH"",",
+		                            "    MIN(q.""Article No."") AS ""Article No."",",
+		                            "    q.""Article"" AS ""Article"",",
+		                            "    SUM(q.""QTY"") AS ""QTY"",",
+		                            "    SUM(q.""Req QTY"") AS ""Req QTY"",",
+		                            "    MIN(q.""Unit"") AS ""Unit"",",
+		                            "    MIN(q.""Base Unit"") AS ""Base Unit"",",
+		                            "    SUM(q.""QTY/BU"") AS ""QTY/BU"",",
+		                            "    AVG(q.""AVE"") AS ""AVE"",",
+		                            "    AVG(q.""P.Price"") AS ""P.Price"",",
+		                            "    SUM(q.""Total"") AS ""Total"",",
+		                            "    q.""Cost Center/Store"" AS ""Cost Center/Store"",",
+		                            "    q.""Transfer To"" AS ""Transfer To"",",
+		                            "    q.""Document"" AS ""Document"",",
+		                            "    q.""Date"" AS ""Date"",",
+		                            "    MIN(q.""Created by"") AS ""Created by"",",
+		                            "    MIN(q.""Created At"") AS ""Created At"",",
+		                            "    CASE MIN(q.""Status Priority"")",
+		                            "        WHEN 1 THEN 'Delivered'",
+		                            "        WHEN 2 THEN 'Booked'",
+		                            "        WHEN 3 THEN 'Declined'",
+		                            "        WHEN 4 THEN 'Suspended Transfer To'",
+		                            "        WHEN 5 THEN 'Requested'",
+		                            "        ELSE 'N\A'",
+		                            "    END AS ""Status"",",
+		                            "    MIN(q.""Info"") AS ""Info"",",
+		                            "    COUNT(*) AS ""Source Row Count""",
+		                            "FROM",
+		                            "(",
+		
+		                            "SELECT",
+		                            "    z.lbp_sort                    AS ""Pos"",",
+		                            "    la.la_bestand / v.vpk_grmenge AS ""SOH"",",
+		                            "    a.art_nummer                  AS ""Article No."",",
+		                            "    a.art_name                    AS ""Article"",",
+		                            "    z.lbp_menge                   AS ""QTY"",",
+		                            "    z.lbp_req_menge               AS ""Req QTY"",",
+		                            "    v.vpk_name                    AS ""Unit"",",
+		                            "    vg.vpk_name                   AS ""Base Unit"",",
+		                            "    z.lbp_mengege                 AS ""QTY/BU"",",
+		                            "    z.lbp_ekp                     AS ""AVE"",",
+		                            "    z.lbp_esp                     AS ""P.Price"",",
+		                            "    z.lbp_mengege * z.lbp_ekp     AS ""Total"",",
+		                            "    k.kst_name                    AS ""Cost Center/Store"",",
+		                            "    k1.kst_name                   AS ""Transfer To"",",
+		                            "    l.lbw_name                    AS ""Document"",",
+		                            "    TRUNC(l.lbw_datum)            AS ""Date"",",
+		                            "    b2.bst_name                   AS ""Created by"",",
+		                            "    l.new_zeit                    AS ""Created At"",",
+		                            "    CASE l.lbw_status",
+		                            "        WHEN 40 THEN 'Delivered'",
+		                            "        WHEN 12 THEN 'Open Issue Request'",
+		                            "        WHEN 24 THEN 'Suspended Transfer To'",
+		                            "        WHEN 20 THEN 'Requested'",
+		                            "        WHEN 23 THEN 'Requested'",
+		                            "        WHEN 36 THEN 'Declined'",
+		                            "        WHEN 10 THEN 'Assortment'",
+		                            "        ELSE 'N\A'",
+		                            "    END                           AS ""Status"",",
+		                            "    CASE l.lbw_status",
+		                            "        WHEN 40 THEN 1",
+		                            "        WHEN 36 THEN 3",
+		                            "        WHEN 24 THEN 4",
+		                            "        WHEN 20 THEN 5",
+		                            "        WHEN 23 THEN 5",
+		                            "        ELSE 99",
+		                            "    END                           AS ""Status Priority"",",
+		                            "    l.lbw_info                    AS ""Info""",
+		                            "FROM",
+		                            "    lagbewpos z",
+		                            "    LEFT OUTER JOIN lager la ON z.kst_id = la.kst_id",
+		                            "                              AND z.la_typ = la.la_typ",
+		                            "                              AND z.art_nr = la.art_nr",
+		                            "                              AND la.aktiv = ' ',",
+		                            "    artikel a,",
+		                            "    warengruppe w,",
+		                            "    vpckeinh v,",
+		                            "    vpckeinh vg,",
+		                            "    lagerbew l",
+		                            "    LEFT OUTER JOIN besteller owner ON l.lbw_owner = owner.bst_id,",
+		                            "    kostst k,",
+		                            "    kostst k1,",
+		                            "    besteller b1,",
+		                            "    besteller b2",
+		                            "WHERE",
+		                            "        k1.kst_id = l.kst_id1",
+		                            "    AND k.kst_id = l.kst_id",
+		                            "    AND b1.bst_id = l.chg_user",
+		                            "    AND b2.bst_id = l.new_user",
+		                            "    AND z.la_typ = 0",
+		                            "    AND a.art_id = z.art_nr",
+		                            "    AND w.wgr_id = a.wgr_id",
+		                            "    AND v.vpk_id = z.vpk_id",
+		                            "    AND vg.vpk_id = v.vpk_grund",
+		                            "    AND k.kst_id = z.kst_id",
+		                            "    AND z.lbw_id = l.lbw_id",
+		                            "    AND l.lbw_status NOT IN (10, 51, 12)",
+		                            "    AND TRUNC(l.lbw_datum) >= TO_DATE('" & FromDateText & "', 'YYYY-MM-DD')",
+		
+		                            "UNION ALL",
+		
+		                            "SELECT",
+		                            "    z.lbp_sort                    AS ""Pos"",",
+		                            "    la.la_bestand / v.vpk_grmenge AS ""SOH"",",
+		                            "    a.art_nummer                  AS ""Article No."",",
+		                            "    a.art_name                    AS ""Article"",",
+		                            "    z.lbp_menge                   AS ""QTY"",",
+		                            "    z.lbp_req_menge               AS ""Req QTY"",",
+		                            "    v.vpk_name                    AS ""Unit"",",
+		                            "    vg.vpk_name                   AS ""Base Unit"",",
+		                            "    z.lbp_mengege                 AS ""QTY/BU"",",
+		                            "    z.lbp_ekp                     AS ""AVE"",",
+		                            "    z.lbp_esp                     AS ""P.Price"",",
+		                            "    z.lbp_mengege * z.lbp_ekp     AS ""Total"",",
+		                            "    k.kst_name                    AS ""Cost Center/Store"",",
+		                            "    k1.kst_name                   AS ""Transfer To"",",
+		                            "    l.lbw_name                    AS ""Document"",",
+		                            "    TRUNC(l.lbw_datum)            AS ""Date"",",
+		                            "    b2.bst_name                   AS ""Created by"",",
+		                            "    l.new_zeit                    AS ""Created At"",",
+		                            "    CASE l.lbw_status",
+		                            "        WHEN 51 THEN 'Booked'",
+		                            "        ELSE 'N\A'",
+		                            "    END                           AS ""Status"",",
+		                            "    CASE l.lbw_status",
+		                            "        WHEN 51 THEN 2",
+		                            "        ELSE 99",
+		                            "    END                           AS ""Status Priority"",",
+		                            "    l.lbw_info                    AS ""Info""",
+		                            "FROM",
+		                            "    his_lagbewpos z",
+		                            "    LEFT OUTER JOIN lager la ON z.kst_id = la.kst_id",
+		                            "                              AND z.la_typ = la.la_typ",
+		                            "                              AND z.art_nr = la.art_nr",
+		                            "                              AND la.aktiv = ' ',",
+		                            "    artikel a,",
+		                            "    warengruppe w,",
+		                            "    vpckeinh v,",
+		                            "    vpckeinh vg,",
+		                            "    his_lagerbew l",
+		                            "    LEFT OUTER JOIN besteller owner ON l.lbw_owner = owner.bst_id,",
+		                            "    kostst k,",
+		                            "    kostst k1,",
+		                            "    besteller b1,",
+		                            "    besteller b2",
+		                            "WHERE",
+		                            "        k1.kst_id = l.kst_id1",
+		                            "    AND k.kst_id = l.kst_id",
+		                            "    AND b1.bst_id = l.chg_user",
+		                            "    AND b2.bst_id = l.new_user",
+		                            "    AND z.la_typ = 0",
+		                            "    AND a.art_id = z.art_nr",
+		                            "    AND w.wgr_id = a.wgr_id",
+		                            "    AND v.vpk_id = z.vpk_id",
+		                            "    AND vg.vpk_id = v.vpk_grund",
+		                            "    AND k.kst_id = z.kst_id",
+		                            "    AND l.lbw_status = 51",
+		                            "    AND z.lbw_id = l.lbw_id",
+		                            "    AND l.lbw_status <> 10",
+		                            "    AND TRUNC(l.lbw_datum) >= TO_DATE('" & FromDateText & "', 'YYYY-MM-DD')",
+		
+		                            ") q",
+		                            "GROUP BY",
+		                            "    q.""Document"",",
+		                            "    q.""Cost Center/Store"",",
+		                            "    q.""Transfer To"",",
+		                            "    q.""Date"",",
+		                            "    q.""Article""",
+		                            "ORDER BY",
+		                            "    q.""Date"",",
+		                            "    q.""Document"",",
+		                            "    q.""Article"""
+		                        },
+		                        "#(lf)"
+		                    )
+		            ]
+		        ),
+		
+		    #"Changed Type" =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"Pos", Int64.Type},
+		                {"SOH", type number},
+		                {"Article No.", Int64.Type},
+		                {"Article", type text},
+		                {"QTY", type number},
+		                {"Req QTY", type number},
+		                {"Unit", type text},
+		                {"Base Unit", type text},
+		                {"QTY/BU", type number},
+		                {"AVE", type number},
+		                {"P.Price", type number},
+		                {"Total", type number},
+		                {"Cost Center/Store", type text},
+		                {"Transfer To", type text},
+		                {"Document", type text},
+		                {"Date", type date},
+		                {"Created by", type text},
+		                {"Created At", type datetime},
+		                {"Status", type text},
+		                {"Info", type text},
+		                {"Source Row Count", Int64.Type}
+		            }
+		        )
+		in
+		    #"Changed Type"
+	lineageTag: da63d5e2-412b-4b19-a745-46403a84d5d0
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Issue Requests & Transfer' =
+		let
+		    Source = Oracle.Database(
+		        "192.168.1.99/mc",
+		        [
+		            HierarchicalNavigation = true,
+		            Query = Text.Combine(
+		                {
+		                    "SELECT",
+		                    "    z.lbp_sort                    AS ""Pos"",",
+		                    "    la.la_bestand / v.vpk_grmenge AS ""SOH"",",
+		                    "    a.art_nummer                  AS ""Article No."",",
+		                    "    a.art_name                    AS ""Article"",",
+		                    "    z.lbp_menge                   AS ""QTY"",",
+		                    "    z.lbp_req_menge               AS ""Req QTY"",",
+		                    "    v.vpk_name                    AS ""Unit"",",
+		                    "    vg.vpk_name                   AS ""Base Unit"",",
+		                    "    z.lbp_mengege                 AS ""QTY/BU"",",
+		                    "    z.lbp_ekp                     AS ""AVE"",",
+		                    "    z.lbp_esp                     AS ""P.Price"",",
+		                    "    z.lbp_mengege * z.lbp_ekp     AS ""Total"",",
+		                    "    k.kst_name                    AS ""Cost Center/Store"",",
+		                    "    k1.kst_name                   AS ""Transfer To"",",
+		                    "    l.lbw_name                    AS ""Document"",",
+		                    "    l.lbw_datum                   AS ""Date"",",
+		                    "    b2.bst_name                   AS ""Created by"",",
+		                    "    l.new_zeit                    AS ""Created At"",",
+		                    "    CASE l.lbw_status",
+		                    "        WHEN 40 THEN 'Delivered'",
+		                    "        WHEN 12 THEN 'Open Issue Request'",
+		                    "        WHEN 24 THEN 'Suspended Transfer To'",
+		                    "        WHEN 20 THEN 'Requested'",
+		                    "        WHEN 23 THEN 'Requested'",
+		                    "        WHEN 36 THEN 'Declined'",
+		                    "        WHEN 10 THEN 'Assortment'",
+		                    "        ELSE 'N\A'",
+		                    "    END                           AS ""Status"",",
+		                    "    l.lbw_info                    AS ""Info""",
+		                    "FROM",
+		                    "    lagbewpos z",
+		                    "    LEFT OUTER JOIN lager la ON z.kst_id = la.kst_id",
+		                    "                              AND z.la_typ = la.la_typ",
+		                    "                              AND z.art_nr = la.art_nr",
+		                    "                              AND la.aktiv = ' ',",
+		                    "    artikel a,",
+		                    "    warengruppe w,",
+		                    "    vpckeinh v,",
+		                    "    vpckeinh vg,",
+		                    "    lagerbew l",
+		                    "    LEFT OUTER JOIN besteller owner ON l.lbw_owner = owner.bst_id,",
+		                    "    kostst k,",
+		                    "    kostst k1,",
+		                    "    besteller b1,",
+		                    "    besteller b2",
+		                    "WHERE",
+		                    "        k1.kst_id = l.kst_id1",
+		                    "    AND k.kst_id = l.kst_id",
+		                    "    AND b1.bst_id = l.chg_user",
+		                    "    AND b2.bst_id = l.new_user",
+		                    "    AND z.la_typ = 0",
+		                    "    AND a.art_id = z.art_nr",
+		                    "    AND w.wgr_id = a.wgr_id",
+		                    "    AND v.vpk_id = z.vpk_id",
+		                    "    AND vg.vpk_id = v.vpk_grund",
+		                    "    AND k.kst_id = z.kst_id",
+		                    "    AND z.lbw_id = l.lbw_id",
+		                    "    AND l.lbw_status NOT IN (10, 51, 12)",
+		                    "",
+		                    "UNION ALL",
+		                    "",
+		                    "SELECT",
+		                    "    z.lbp_sort                    AS ""Pos"",",
+		                    "    la.la_bestand / v.vpk_grmenge AS ""SOH"",",
+		                    "    a.art_nummer                  AS ""Article No."",",
+		                    "    a.art_name                    AS ""Article"",",
+		                    "    z.lbp_menge                   AS ""QTY"",",
+		                    "    z.lbp_req_menge               AS ""Req QTY"",",
+		                    "    v.vpk_name                    AS ""Unit"",",
+		                    "    vg.vpk_name                   AS ""Base Unit"",",
+		                    "    z.lbp_mengege                 AS ""QTY/BU"",",
+		                    "    z.lbp_ekp                     AS ""AVE"",",
+		                    "    z.lbp_esp                     AS ""P.Price"",",
+		                    "    z.lbp_mengege * z.lbp_ekp     AS ""Total"",",
+		                    "    k.kst_name                    AS ""Cost Center/Store"",",
+		                    "    k1.kst_name                   AS ""Transfer To"",",
+		                    "    l.lbw_name                    AS ""Document"",",
+		                    "    l.lbw_datum                   AS ""Date"",",
+		                    "    b2.bst_name                   AS ""Created by"",",
+		                    "    l.new_zeit                    AS ""Created At"",",
+		                    "    CASE l.lbw_status",
+		                    "        WHEN 51 THEN 'Booked'",
+		                    "        ELSE 'N\A'",
+		                    "    END                           AS ""Status"",",
+		                    "    l.lbw_info                    AS ""Info""",
+		                    "FROM",
+		                    "    his_lagbewpos z",
+		                    "    LEFT OUTER JOIN lager la ON z.kst_id = la.kst_id",
+		                    "                              AND z.la_typ = la.la_typ",
+		                    "                              AND z.art_nr = la.art_nr",
+		                    "                              AND la.aktiv = ' ',",
+		                    "    artikel a,",
+		                    "    warengruppe w,",
+		                    "    vpckeinh v,",
+		                    "    vpckeinh vg,",
+		                    "    his_lagerbew l",
+		                    "    LEFT OUTER JOIN besteller owner ON l.lbw_owner = owner.bst_id,",
+		                    "    kostst k,",
+		                    "    kostst k1,",
+		                    "    besteller b1,",
+		                    "    besteller b2",
+		                    "WHERE",
+		                    "        k1.kst_id = l.kst_id1",
+		                    "    AND k.kst_id = l.kst_id",
+		                    "    AND b1.bst_id = l.chg_user",
+		                    "    AND b2.bst_id = l.new_user",
+		                    "    AND z.la_typ = 0",
+		                    "    AND a.art_id = z.art_nr",
+		                    "    AND w.wgr_id = a.wgr_id",
+		                    "    AND v.vpk_id = z.vpk_id",
+		                    "    AND vg.vpk_id = v.vpk_grund",
+		                    "    AND k.kst_id = z.kst_id",
+		                    "    AND l.lbw_status = 51",
+		                    "    AND z.lbw_id = l.lbw_id",
+		                    "    AND l.lbw_status <> 10"
+		                },
+		                "#(lf)"
+		            )
+		        ]
+		    ),
+		
+		    #"Changed Type" = Table.TransformColumnTypes(
+		        Source,
+		        {
+		            {"Pos", Int64.Type},
+		            {"SOH", type number},
+		            {"Article No.", Int64.Type},
+		            {"Article", type text},
+		            {"QTY", type number},
+		            {"Req QTY", type number},
+		            {"Unit", type text},
+		            {"Base Unit", type text},
+		            {"QTY/BU", type number},
+		            {"AVE", type number},
+		            {"P.Price", type number},
+		            {"Total", type number},
+		            {"Cost Center/Store", type text},
+		            {"Transfer To", type text},
+		            {"Document", type text},
+		            {"Date", type date},
+		            {"Created by", type text},
+		            {"Created At", type datetime},
+		            {"Status", type text},
+		            {"Info", type text}
+		        }
+		    ),
+		
+		    #"Filtered Date Range" = Table.SelectRows(
+		        #"Changed Type",
+		        each [Date] <> null and Date.From([Date]) >= p_FromDate
+		    )
+		in
+		    #"Filtered Date Range"
+	lineageTag: 5c3440b4-bd57-4a53-a53a-1020bb3cc589
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression 'Replen Planning' =
+		let
+		    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/RECIPIES%20TEST.xlsm"), null, true),
+		    #"Replen Planning_Sheet" = Source{[Item="Replen Planning",Kind="Sheet"]}[Data],
+		    #"Promoted Headers" = Table.PromoteHeaders(#"Replen Planning_Sheet", [PromoteAllScalars=true]),
+		    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"From Date", type any}, {"To Date", type any}, {"Column3", type text}, {"Column4", type text}, {"Column5", type text}, {"Column6", type any}, {"Column7", type text}, {"Column8", type any}, {"Column9", type text}, {"Column10", type text}, {"Column11", type any}, {"Column12", type any}, {"Column13", type any}, {"Column14", type any}, {"Column15", type any}, {"Column16", type any}, {"Column17", type any}, {"Column18", type any}, {"Column19", type any}, {"Column20", type any}, {"Column21", type any}, {"Column22", type any}, {"Column23", type any}, {"Column24", type any}, {"Column25", type any}, {"Column26", type any}, {"Column27", type any}, {"Column28", type any}, {"Column29", type any}, {"Column30", type any}, {"Column31", type text}, {"Column32", type text}, {"Column33", type text}, {"Column34", type text}, {"Column35", type any}, {"Column36", type any}, {"Column37", type text}, {"Column38", type text}, {"Column39", type any}, {"Column40", type any}, {"Column41", type any}, {"Column42", type any}, {"Column43", type any}, {"Column44", type any}, {"Column45", type any}, {"Column46", type any}, {"Column47", type any}, {"Column48", type any}, {"Column49", type any}, {"Column50", type text}, {"Column51", type text}, {"Column52", type text}, {"Column53", type text}, {"Column54", type text}, {"Column55", type text}, {"Column56", type text}, {"Column57", type text}, {"Column58", type text}, {"Column59", type text}, {"Column60", type text}, {"Column61", type text}, {"Column62", type text}, {"Column63", type text}, {"Column64", type text}, {"Column65", type text}, {"Column66", type text}, {"Column67", type text}, {"Column68", type text}, {"Column69", type text}, {"Column70", type text}, {"Column71", type text}, {"Column72", type text}, {"Column73", type text}, {"Column74", type any}, {"Column75", type any}}),
+		    #"Removed Top Rows" = Table.Skip(#"Changed Type",7),
+		    #"Promoted Headers1" = Table.PromoteHeaders(#"Removed Top Rows", [PromoteAllScalars=true]),
+		    #"Changed Type1" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Article No.", type any}, {"CODE", type text}, {"ITEM DESCRIPTION", type text}, {"BASE UNIT", type text}, {"IS ACTIVE", type text}, {"Designation", type any}, {"SubCAT", type text}, {"Current WHS ID", type any}, {"ITEM GROUP", type text}, {"STORAGE TYPE", type text}, {"PURCH UNIT", type any}, {"CURRENT STOCK WAC", type any}, {"TOTAL WAC MTD", type any}, {"LEAD TIME", type any}, {"open delivery note", Int64.Type}, {"TRF OUT Delivered & Declined", type any}, {"CURRENT STOCK", Int64.Type}, {"Actual SOH", type any}, {"Last PP", type any}, {"Last PD", type any}, {"Last TR", type any}, {"12/25/2025", Int64.Type}, {"1/26/2026", Int64.Type}, {"2/26/2026", Int64.Type}, {"3/26/2026", Int64.Type}, {"MIN", Int64.Type}, {"MAX", Int64.Type}, {"AVG TRANSFER OUT", Int64.Type}, {"WEIGHT MIN", Int64.Type}, {"WEIGHT MAX", Int64.Type}, {"DAYS TO LAST (DTL)", type text}, {"ReqDate", type text}, {"ReceinvgDate", type text}, {"OOS DATE", type text}, {"CURRENT MONTH - MTD TRANSFER", Int64.Type}, {"MTD XTRAPOL % vs. AVG TRANSFER", Int64.Type}, {"MTD #(lf)DAYS TO LAST", type text}, {"MTD OOS", type text}, {"Target Cover", Int64.Type}, {"% Increase", type number}, {"QTY", Int64.Type}, {"QTY MTD", Int64.Type}, {"Delivery#(lf)Freq", Int64.Type}, {"Delivery Date 1", type any}, {"Delivery Date 2", type any}, {"Delivery Date 3", type any}, {"Delivery Date 4", type any}, {"Delivery Date 5", type any}, {"Delivery Date 6", type any}, {"PIPELINE PENDNG PO", type text}, {"last Supplier Name", type text}, {"Status", type text}, {"WEEK2 PROJ STOCK AVG", type text}, {"WEEK2 PROJ DTL AVG", type text}, {"WEEK4 QTY REPLEN", type text}, {"WEEK4 PROJ STOCK", type text}, {"WEEK4 PROJ DTL", type text}, {"WEEK6 QTY REPLEN", type text}, {"W6 PIPELINE PENDNG PO", type text}, {"WEEK6 PROJ STOCK", type text}, {"WEEK6 PROJ DTL", type text}, {"WEEK8 QTY REPLEN", type text}, {"WEEK8 PROJ STOCK", type text}, {"WEEK8 PROJ DTL", type text}, {"WEEK10 QTY REPLEN", type text}, {"W10 PIPELINE PENDNG PO", type text}, {"WEEK10 PROJ STOCK", type text}, {"WEEK10 PROJ DTL", type text}, {"WEEK12 QTY REPLEN", type text}, {"WEEK12 PROJ STOCK", type text}, {"WEEK12 PROJ DTL", type text}, {"OOS, <3DTL, <7DTL,<15DTL", type text}, {"Current Common", type text}, {"Column74", type any}, {"Column75", type any}}),
+		    #"Removed Columns" = Table.RemoveColumns(#"Changed Type1",{"CURRENT STOCK WAC", "TOTAL WAC MTD", "LEAD TIME", "open delivery note", "TRF OUT Delivered & Declined", "CURRENT STOCK", "Actual SOH", "Last PP", "Last PD", "Last TR", "12/25/2025", "1/26/2026", "2/26/2026", "3/26/2026", "MIN", "MAX", "AVG TRANSFER OUT", "WEIGHT MIN", "WEIGHT MAX", "DAYS TO LAST (DTL)", "ReqDate", "ReceinvgDate", "OOS DATE", "CURRENT MONTH - MTD TRANSFER", "MTD XTRAPOL % vs. AVG TRANSFER", "MTD #(lf)DAYS TO LAST", "MTD OOS", "Target Cover", "% Increase", "QTY", "QTY MTD", "Delivery#(lf)Freq", "Delivery Date 1", "Delivery Date 2", "Delivery Date 3", "Delivery Date 4", "Delivery Date 5", "Delivery Date 6", "PIPELINE PENDNG PO", "last Supplier Name", "Status", "WEEK2 PROJ STOCK AVG", "WEEK2 PROJ DTL AVG", "WEEK4 QTY REPLEN", "WEEK4 PROJ STOCK", "WEEK4 PROJ DTL", "WEEK6 QTY REPLEN", "W6 PIPELINE PENDNG PO", "WEEK6 PROJ STOCK", "WEEK6 PROJ DTL", "WEEK8 QTY REPLEN", "WEEK8 PROJ STOCK", "WEEK8 PROJ DTL", "WEEK10 QTY REPLEN", "W10 PIPELINE PENDNG PO", "WEEK10 PROJ STOCK", "WEEK10 PROJ DTL", "WEEK12 QTY REPLEN", "WEEK12 PROJ STOCK", "WEEK12 PROJ DTL", "OOS, <3DTL, <7DTL,<15DTL", "Current Common", "Column74", "Column75"}),
+		    #"Replaced Errors" = Table.ReplaceErrorValues(#"Removed Columns", {{"PURCH UNIT", "N/A"}}),
+		    #"Replaced Errors1" = Table.ReplaceErrorValues(#"Replaced Errors", {{"Current WHS ID", "N/A"}}),
+		    #"Replaced Errors2" = Table.ReplaceErrorValues(#"Replaced Errors1", {{"Designation", "N/A"}})
+		in
+		    #"Replaced Errors2"
+	lineageTag: 49c25903-123e-4bac-b48e-a0ed63f59761
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+
+expression ref_soh_article_global_status =
+		let
+		    Source = #"SOH Control",
+		
+		    FxArticleNoText =
+		        (x as any) as nullable text =>
+		            let
+		                Result =
+		                    try
+		                        if x = null then null
+		                        else if Value.Is(x, type number) then Number.ToText(x, "0")
+		                        else Text.Trim(Text.Clean(Text.From(x)))
+		                    otherwise null
+		            in
+		                Result,
+		
+		    FxCleanKey =
+		        (x as any) as nullable text =>
+		            let
+		                Result =
+		                    try
+		                        if x = null then null
+		                        else fnCleanText(x)
+		                    otherwise null
+		            in
+		                Result,
+		
+		    FxArticleMatchKey =
+		        (ArticleNoValue as any, ArticleValue as any) as nullable text =>
+		            let
+		                ArticleNoKey = FxArticleNoText(ArticleNoValue),
+		                ArticleNameKey = FxCleanKey(ArticleValue),
+		
+		                Result =
+		                    if ArticleNoKey <> null and ArticleNoKey <> "" then
+		                        "NO|" & ArticleNoKey
+		                    else if ArticleNameKey <> null and ArticleNameKey <> "" then
+		                        "NAME|" & ArticleNameKey
+		                    else
+		                        null
+		            in
+		                Result,
+		
+		    KeepColumns =
+		        Table.SelectColumns(
+		            Source,
+		            {
+		                "Article No.",
+		                "Article",
+		                "ACT SOH",
+		                "Base Unit",
+		                "P. Price",
+		                "AVE"
+		            },
+		            MissingField.Ignore
+		        ),
+		
+		    TypeChanges =
+		        Table.TransformColumnTypes(
+		            KeepColumns,
+		            {
+		                {"Article No.", type text},
+		                {"Article", type text},
+		                {"ACT SOH", type number},
+		                {"Base Unit", type text},
+		                {"P. Price", type number},
+		                {"AVE", type number}
+		            },
+		            "en-US"
+		        ),
+		
+		    CleanColumns =
+		        Table.TransformColumns(
+		            TypeChanges,
+		            {
+		                {"Article No.", each FxArticleNoText(_), type nullable text},
+		                {"Article", each fnCleanText(_), type nullable text},
+		                {"Base Unit", each fnCleanBaseUnit(_), type nullable text}
+		            },
+		            null,
+		            MissingField.Ignore
+		        ),
+		
+		    AddArticleMatchKey =
+		        Table.AddColumn(
+		            CleanColumns,
+		            "Article Match Key",
+		            each FxArticleMatchKey([#"Article No."], [Article]),
+		            type nullable text
+		        ),
+		
+		    FilterValidArticle =
+		        Table.SelectRows(
+		            AddArticleMatchKey,
+		            each
+		                [Article Match Key] <> null
+		                and [Article Match Key] <> ""
+		        ),
+		
+		    GroupedByArticle =
+		        Table.Group(
+		            FilterValidArticle,
+		            {"Article Match Key"},
+		            {
+		                {"SOH Article No.", each try List.First(List.RemoveNulls([#"Article No."])) otherwise null, type nullable text},
+		                {"SOH Article", each try List.First(List.RemoveNulls([Article])) otherwise null, type nullable text},
+		                {"SOH Base Unit", each try List.First(List.RemoveNulls([Base Unit])) otherwise null, type nullable text},
+		                {"Article Total ACT SOH", each try List.Sum(List.RemoveNulls([ACT SOH])) otherwise null, type nullable number},
+		                {"Article Max ACT SOH", each try List.Max(List.RemoveNulls([ACT SOH])) otherwise null, type nullable number},
+		                {"Article Min ACT SOH", each try List.Min(List.RemoveNulls([ACT SOH])) otherwise null, type nullable number},
+		                {"SOH Row Count", each Table.RowCount(_), Int64.Type},
+		                {"SOH Valid Row Count", each List.Count(List.RemoveNulls([ACT SOH])), Int64.Type},
+		                {"SOH Negative/Zero Row Count", each List.Count(List.Select(List.RemoveNulls([ACT SOH]), each _ <= 0)), Int64.Type},
+		                {"SOH Avg P. Price", each try List.Average(List.RemoveNulls([#"P. Price"])) otherwise null, type nullable number},
+		                {"SOH Avg AVE", each try List.Average(List.RemoveNulls([AVE])) otherwise null, type nullable number}
+		            }
+		        ),
+		
+		    AddArticleGlobalNegativeFlag =
+		        Table.AddColumn(
+		            GroupedByArticle,
+		            "Article Global Negative Flag",
+		            each
+		                if [SOH Valid Row Count] > 0 and [Article Max ACT SOH] <= 0
+		                then 1
+		                else 0,
+		            Int64.Type
+		        ),
+		
+		    AddArticleGlobalNegativeStatus =
+		        Table.AddColumn(
+		            AddArticleGlobalNegativeFlag,
+		            "Article Global Negative Status",
+		            each
+		                if [SOH Valid Row Count] = 0 then "No Valid SOH"
+		                else if [Article Max ACT SOH] <= 0 then "Globally Negative / Zero"
+		                else "Positive SOH Exists",
+		            type text
+		        ),
+		
+		    ReorderedColumns =
+		        Table.ReorderColumns(
+		            AddArticleGlobalNegativeStatus,
+		            {
+		                "Article Match Key",
+		                "SOH Article No.",
+		                "SOH Article",
+		                "SOH Base Unit",
+		                "Article Total ACT SOH",
+		                "Article Max ACT SOH",
+		                "Article Min ACT SOH",
+		                "SOH Row Count",
+		                "SOH Valid Row Count",
+		                "SOH Negative/Zero Row Count",
+		                "Article Global Negative Flag",
+		                "Article Global Negative Status",
+		                "SOH Avg P. Price",
+		                "SOH Avg AVE"
+		            },
+		            MissingField.Ignore
+		        )
+		in
+		    ReorderedColumns
+	lineageTag: e8469a08-d588-4d13-8066-4451c659b5ff
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

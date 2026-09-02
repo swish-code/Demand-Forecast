@@ -1,0 +1,450 @@
+table fact_po_line
+	lineageTag: e0dec704-491d-40da-b01a-cdae094ebf66
+
+	column Article
+		dataType: string
+		lineageTag: ebe8267f-980e-43b9-9402-a9b16fc5f89d
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 7ff240a5-691b-49ff-9801-4e1279917b69
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 00d1bdc8-84c6-4b1a-9499-92f297898861
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: 24264748-7372-4ab5-b626-cad9e0dcc695
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit'
+		dataType: string
+		lineageTag: 989736d5-3ec4-4238-bcf2-95b9bd127a18
+		summarizeBy: none
+		sourceColumn: PO Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Unit'
+		dataType: string
+		lineageTag: 00e247ba-6d90-4210-bfe1-95aa304481f8
+		summarizeBy: none
+		sourceColumn: PO Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO No'
+		dataType: string
+		lineageTag: aa9cfad4-51dc-4b40-9000-5eff0c67dd83
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 71dde11b-3062-4f04-bde1-96cd8fe3ed82
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'PO Qty'
+		dataType: double
+		lineageTag: c1818782-9bfd-494a-af1b-28dd2c61cc96
+		summarizeBy: sum
+		sourceColumn: PO Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Base Qty'
+		dataType: double
+		lineageTag: 8e0bff7f-622e-485f-b36b-d4e15fb119fe
+		summarizeBy: sum
+		sourceColumn: PO Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Price'
+		dataType: double
+		lineageTag: ef940d51-6524-4b99-adba-50d8e78ee286
+		summarizeBy: sum
+		sourceColumn: PO Unit Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Value'
+		dataType: double
+		lineageTag: 14fdd8fc-04e8-4dbf-9f4f-ad6a3e6b43e7
+		summarizeBy: sum
+		sourceColumn: PO Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Multiplier'
+		dataType: double
+		lineageTag: a2db5387-863f-4269-af8e-c46fabf10b96
+		summarizeBy: sum
+		sourceColumn: PO Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Mapping Status'
+		dataType: string
+		lineageTag: 6c308127-a999-46de-8e12-24543d3fe7ab
+		summarizeBy: none
+		sourceColumn: PO Unit Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 32066592-8df3-4acb-ba9d-ddd68f1a3071
+		summarizeBy: none
+		sourceColumn: PO Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 21b14fb3-cd3c-4dcc-a521-bdfd9418dd5b
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 04ca8208-53d4-42ab-bf7b-7807b6180f93
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 18b3617b-4dd5-4247-9834-4367b4efb046
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_po_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Open PO",
+				
+				    RenameColumns =
+				        Table.RenameColumns(
+				            Source,
+				            {
+				                {"Stock Article", "Article"},
+				                {"SUPPLIER", "Supplier"},
+				                {"Cost Center", "Warehouse"},
+				                {"UNIT", "PO Unit"},
+				                {"PO_QTY", "PO Qty"},
+				                {"Unit Price", "PO Unit Price"},
+				                {"ORDER DATE", "PO Order Date"},
+				                {"DELEVERY DATE", "PO Delivery Date"}
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    KeepColumns =
+				        Table.SelectColumns(
+				            RenameColumns,
+				            {
+				                "Purchase Article",
+				                "Article",
+				                "Supplier",
+				                "Warehouse",
+				                "PO Unit",
+				                "PO No",
+				                "PO Qty",
+				                "PO Unit Price",
+				                "PO Date",
+				                "PO Order Date",
+				                "PO Delivery Date",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    CleanTextColumns =
+				        Table.TransformColumns(
+				            KeepColumns,
+				            {
+				                {"Purchase Article", each fnCleanText(_), type nullable text},
+				                {"Article", each fnCleanText(_), type nullable text},
+				                {"Supplier", each fnCleanText(_), type nullable text},
+				                {"Warehouse", each fnCleanText(_), type nullable text},
+				                {"PO Unit", each fnCleanText(_), type nullable text},
+				                {"PO No", each if _ = null then null else Text.From(_), type nullable text},
+				                {"Sub_Category", each fnCleanText(_), type nullable text},
+				                {"Item_Group", each fnCleanText(_), type nullable text},
+				                {"Storage_Type", each fnCleanText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    CleanDates =
+				        Table.TransformColumns(
+				            CleanTextColumns,
+				            {
+				                {"PO Date", each fnDateOnly(_), type nullable date},
+				                {"PO Order Date", each fnDateOnly(_), type nullable date},
+				                {"PO Delivery Date", each fnDateOnly(_), type nullable date}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    EnsurePODate =
+				        if Table.HasColumns(CleanDates, "PO Date") then
+				            CleanDates
+				        else if Table.HasColumns(CleanDates, "PO Order Date") then
+				            Table.DuplicateColumn(CleanDates, "PO Order Date", "PO Date")
+				        else
+				            CleanDates,
+				
+				    TypeChanges =
+				        List.Select(
+				            {
+				                {"PO Qty", type number},
+				                {"PO Unit Price", type number},
+				                {"PO Date", type date},
+				                {"PO Order Date", type date},
+				                {"PO Delivery Date", type date}
+				            },
+				            each Table.HasColumns(EnsurePODate, _{0})
+				        ),
+				
+				    ChangeTypes =
+				        Table.TransformColumnTypes(
+				            EnsurePODate,
+				            TypeChanges,
+				            "en-US"
+				        ),
+				
+				    AddPOUnitKey =
+				        Table.AddColumn(
+				            ChangeTypes,
+				            "__PO Unit Key",
+				            each fnCleanText([PO Unit]),
+				            type nullable text
+				        ),
+				
+				    UnitDim =
+				        let
+				            U0 = dim_unit_conversion,
+				            U1 =
+				                if List.Contains(Table.ColumnNames(U0), "Unitkey")
+				                then Table.RenameColumns(U0, {{"Unitkey", "Unit Key"}}, MissingField.Ignore)
+				                else U0,
+				            U2 =
+				                Table.TransformColumns(
+				                    U1,
+				                    {
+				                        {"Unit Key", each fnCleanText(_), type nullable text},
+				                        {"Base Unit Key", each fnCleanBaseUnit(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                )
+				        in
+				            U2,
+				
+				    MergeUnit =
+				        Table.NestedJoin(
+				            AddPOUnitKey,
+				            {"__PO Unit Key"},
+				            UnitDim,
+				            {"Unit Key"},
+				            "Unit Conversion",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandUnit =
+				        Table.ExpandTableColumn(
+				            MergeUnit,
+				            "Unit Conversion",
+				            {"Unit Multiplier", "Base Unit Key"},
+				            {"PO Unit Multiplier", "PO Base Unit"}
+				        ),
+				
+				    AddPOBaseQty =
+				        Table.AddColumn(
+				            ExpandUnit,
+				            "PO Base Qty",
+				            each if [PO Unit Multiplier] = null then null else [PO Qty] * [PO Unit Multiplier],
+				            type nullable number
+				        ),
+				
+				    AddPOValue =
+				        Table.AddColumn(
+				            AddPOBaseQty,
+				            "PO Value",
+				            each [PO Qty] * [PO Unit Price],
+				            type nullable number
+				        ),
+				
+				    AddUnitMappingStatus =
+				        Table.AddColumn(
+				            AddPOValue,
+				            "PO Unit Mapping Status",
+				            each if [PO Unit Multiplier] = null then "Missing Unit Mapping" else "Mapped",
+				            type text
+				        ),
+				
+				    AddWarehouseKey =
+				        Table.AddColumn(
+				            AddUnitMappingStatus,
+				            "__Warehouse Key",
+				            each fnCleanText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    WarehouseDim =
+				        let
+				            W0 = dim_warehouse,
+				
+				            W1 =
+				                if List.Contains(Table.ColumnNames(W0), "Warehouse Key")
+				                then W0
+				                else Table.AddColumn(W0, "Warehouse Key", each fnCleanText([Warehouse]), type nullable text),
+				
+				            W2 =
+				                Table.TransformColumns(
+				                    W1,
+				                    {
+				                        {"Warehouse Key", each fnCleanText(_), type nullable text},
+				                        {"Cost Center", each fnCleanText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            W3 =
+				                Table.SelectRows(
+				                    W2,
+				                    each [Warehouse Key] <> null and [Warehouse Key] <> ""
+				                ),
+				
+				            W4 =
+				                Table.Group(
+				                    W3,
+				                    {"Warehouse Key"},
+				                    {
+				                        {
+				                            "Cost Center",
+				                            each try List.First(List.RemoveNulls([Cost Center])) otherwise null,
+				                            type nullable text
+				                        }
+				                    }
+				                )
+				        in
+				            W4,
+				
+				    MergeWarehouse =
+				        Table.NestedJoin(
+				            AddWarehouseKey,
+				            {"__Warehouse Key"},
+				            WarehouseDim,
+				            {"Warehouse Key"},
+				            "Warehouse Mapping",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandWarehouse =
+				        Table.ExpandTableColumn(
+				            MergeWarehouse,
+				            "Warehouse Mapping",
+				            {"Cost Center"},
+				            {"Cost Center"}
+				        ),
+				
+				    AddFinalCostCenter =
+				        Table.AddColumn(
+				            ExpandWarehouse,
+				            "Final Cost Center",
+				            each if [Cost Center] = null then [Warehouse] else [Cost Center],
+				            type nullable text
+				        ),
+				
+				    RemoveTempColumns =
+				        Table.RemoveColumns(
+				            AddFinalCostCenter,
+				            {"__PO Unit Key", "__Warehouse Key", "Cost Center"},
+				            MissingField.Ignore
+				        ),
+				
+				    ReorderColumns =
+				        Table.ReorderColumns(
+				            RemoveTempColumns,
+				            {
+				                "Purchase Article",
+				                "Article",
+				                "Supplier",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "PO Unit",
+				                "PO Base Unit",
+				                "PO No",
+				                "PO Qty",
+				                "PO Base Qty",
+				                "PO Unit Price",
+				                "PO Value",
+				                "PO Unit Multiplier",
+				                "PO Unit Mapping Status",
+				                "PO Date",
+				                "PO Order Date",
+				                "PO Delivery Date",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

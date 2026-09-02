@@ -1,4 +1,5 @@
 import { config } from './config.js'
+import { note } from './perf.js'
 
 const store = new Map()
 
@@ -46,15 +47,25 @@ function refresh(key, fn, ttl) {
   return promise
 }
 
-/** Run `fn` at most once per `key` per TTL window. */
-export async function cached(key, fn) {
-  if (!config.cacheTtl) return fn()
+/**
+ * Run `fn` at most once per `key` per TTL window.
+ *
+ * `seconds` overrides the configured lifetime for entries that mean something
+ * different — a figure labelled "live" cannot sit in a half-hour cache and still
+ * be called live, but it cannot be fetched fresh on every request either, which
+ * is how the capacity gets a burst it answers with a sixty-second refusal.
+ */
+export async function cached(key, fn, { seconds = null } = {}) {
+  if (!config.cacheTtl && !seconds) return fn()
 
-  const ttl = config.cacheTtl * 1000
+  const ttl = (seconds ?? config.cacheTtl) * 1000
   const now = Date.now()
   const hit = store.get(key)
 
-  if (hit && hit.expires > now) return hit.value
+  if (hit && hit.expires > now) {
+    note('cache', 0)
+    return hit.value
+  }
 
   // Usable stale value: answer from it and bring the entry up to date behind
   // the request.
@@ -70,6 +81,7 @@ export async function cached(key, fn) {
       // rejection and takes the process down.
       refresh(key, fn, ttl).catch(() => {})
     }
+    note('cache-stale', 0)
     return hit.settled
   }
 

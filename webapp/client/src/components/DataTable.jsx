@@ -36,6 +36,15 @@ export function DataTable({
   tableId,
   /** Told when the hidden set changes, so a page can react to it. */
   onColumnsChange,
+  /**
+   * Told what the table is currently showing — the visible columns, in order,
+   * and the rows left after the search box.
+   *
+   * This exists so the CSV button in the panel header can export the view
+   * rather than the data behind it. Ticking six columns out of twelve and then
+   * downloading all twelve is not an export of what you built.
+   */
+  onViewChange,
 }) {
   const [sort, setSort] = useState(initialSort ?? { key: columns[0]?.key, dir: 'asc' })
   const [query, setQuery] = useState('')
@@ -98,6 +107,24 @@ export function DataTable({
       return String(x).localeCompare(String(y), undefined, { numeric: true }) * dir
     })
   }, [searched, sort])
+
+  /*
+   * Keyed on which columns are shown rather than on the array holding them.
+   *
+   * A caller that rebuilds its `columns` prop each render would otherwise give
+   * `shown` a new identity each render, this a new dependency each render, and
+   * the parent a state update each render — a loop, from a prop that looks
+   * entirely reasonable. Pagination is deliberately not part of the view: the
+   * page you are on is where you are reading, not what you asked for.
+   */
+  const shownKey = shown.map((c) => c.key).join('|')
+  useEffect(() => {
+    onViewChange?.({
+      columns: shown.map(({ key, label }) => ({ key, label })),
+      rows: sorted,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shownKey stands for shown
+  }, [shownKey, sorted])
 
   const size = !paginate || pageSize === 'All' ? sorted.length || 1 : Number(pageSize)
   const pageCount = Math.max(1, Math.ceil(sorted.length / size))

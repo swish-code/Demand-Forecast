@@ -6,7 +6,7 @@ import { BrandPicker } from './BrandPicker.jsx'
  * A single row of filter pills. `show` lists the slicers this page carries,
  * mirroring the corresponding Power BI report page:
  *
- *   brand | location | product | article | item | recipeGroup |
+ *   brand | location | product | article | item |
  *   nodeType (production type) | prepStatus | date
  *
  * Each pill reads "Label: value"; unset pills read "All".
@@ -20,7 +20,6 @@ const SLICERS = [
   // branch staff, who know the product but not its article code.
   { id: 'articleName', key: 'articles', label: 'Product PLU', options: 'articleNames', placeholder: 'All' },
   { id: 'item', key: 'items', label: 'Component', options: 'items', placeholder: 'All' },
-  { id: 'recipeGroup', key: 'recipeGroups', label: 'Recipe group', options: 'recipeGroups', placeholder: 'All' },
   { id: 'nodeType', key: 'nodeTypes', label: 'Prod. type', options: 'nodeTypes', placeholder: 'All' },
 ]
 

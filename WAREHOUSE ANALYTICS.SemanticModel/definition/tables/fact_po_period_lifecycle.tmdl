@@ -1,0 +1,599 @@
+table fact_po_period_lifecycle
+	lineageTag: d835399a-7331-402a-8ffd-afdea2e2d116
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: 269931fa-3ed5-47f5-be57-07054deed9bf
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 8c447f8f-8492-4de4-bfda-b4740a08d308
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: e3f29ca5-dcbc-4693-b2e5-3c4ab0fec2fa
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: a399190a-d2d9-47f3-83b0-556bc309b644
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier'
+		dataType: string
+		lineageTag: 05e0ad98-c454-4d70-be3a-51bf7afc018d
+		summarizeBy: none
+		sourceColumn: PO Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier List'
+		dataType: string
+		lineageTag: 3c9ace09-85e5-44ca-8871-0c1565ebc94d
+		summarizeBy: none
+		sourceColumn: PO Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Supplier'
+		dataType: string
+		lineageTag: 3514e612-0acc-4c81-9809-796a6440c980
+		summarizeBy: none
+		sourceColumn: Actual GRN Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Supplier List'
+		dataType: string
+		lineageTag: a8efe476-8157-49da-8b84-154b39ea95d5
+		summarizeBy: none
+		sourceColumn: Actual GRN Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit List'
+		dataType: string
+		lineageTag: 9275afe0-5b35-4884-81eb-cdd137e9b279
+		summarizeBy: none
+		sourceColumn: PO Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Unit List'
+		dataType: string
+		lineageTag: 44a18147-4ff4-4c12-b09a-37b92d936bcb
+		summarizeBy: none
+		sourceColumn: Actual GRN Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Unit List'
+		dataType: string
+		lineageTag: 6a2e4190-5e6f-479d-aa14-ebd2c9dd3581
+		summarizeBy: none
+		sourceColumn: PO Base Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Start Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: b24ccc44-7109-4b1b-82d9-e4105d7e86f8
+		summarizeBy: none
+		sourceColumn: PO Start Date
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'Next PO Date'
+		dataType: string
+		lineageTag: 0b17ab60-2c80-41b3-9edd-09d8519f52d8
+		summarizeBy: none
+		sourceColumn: Next PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO End Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: 2707960c-9520-4985-b657-ad65e31de3e1
+		summarizeBy: none
+		sourceColumn: PO End Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'PO Base Qty'
+		dataType: int64
+		formatString: #,0
+		lineageTag: b9e71f3c-95fb-4729-97ae-da70c41c9876
+		summarizeBy: sum
+		sourceColumn: PO Base Qty
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Allocated GRN Base Qty'
+		dataType: double
+		lineageTag: 25484b8a-a132-40fd-8ff2-cc67d7a0020a
+		summarizeBy: sum
+		sourceColumn: Allocated GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Same Day GRN Base Qty'
+		dataType: double
+		lineageTag: d8286919-8d46-49c5-93c6-2b6644256d35
+		summarizeBy: sum
+		sourceColumn: Same Day GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Late GRN Base Qty'
+		dataType: double
+		lineageTag: a238c974-b456-4a38-bd10-e5b529ca2a2d
+		summarizeBy: sum
+		sourceColumn: Late GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Pending Qty'
+		dataType: double
+		lineageTag: 61c0642c-ce8f-44b7-a68f-a498a1e81e05
+		summarizeBy: sum
+		sourceColumn: Pending Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Over Delivered Qty'
+		dataType: double
+		lineageTag: 43e01afa-1f75-4907-a5d0-f69fc6e7cf82
+		summarizeBy: sum
+		sourceColumn: Over Delivered Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Value'
+		dataType: double
+		lineageTag: 13c4c54e-65cc-4e76-9a27-efce1d1cadee
+		summarizeBy: sum
+		sourceColumn: PO Value
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: 56d829fc-6c59-41bb-a930-1190cf806add
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: f5634a1f-c7e3-45ac-8cfe-560ae642f3f8
+		summarizeBy: sum
+		sourceColumn: PO Count
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column 'PO Line Count'
+		dataType: string
+		lineageTag: b402b556-a4cf-4da2-9eb2-870a3932848b
+		summarizeBy: none
+		sourceColumn: PO Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Delivery Note Count'
+		dataType: double
+		lineageTag: d4f87ddf-ac85-4473-95ef-1d8b480533fb
+		summarizeBy: sum
+		sourceColumn: Delivery Note Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Line Count'
+		dataType: double
+		lineageTag: c018e912-b9f2-4e78-b5b3-c53af3781896
+		summarizeBy: sum
+		sourceColumn: GRN Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'First GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 4176098b-970f-49f3-aeed-0d97454bf695
+		summarizeBy: none
+		sourceColumn: First GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Last GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 7334844c-0789-42b7-8a37-58c504ec3468
+		summarizeBy: none
+		sourceColumn: Last GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'First Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: e9ec44eb-fc00-49a6-a374-126b4599b1ff
+		summarizeBy: none
+		sourceColumn: First Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Last Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 73064c9f-b1e3-478c-9066-b163eb94e175
+		summarizeBy: none
+		sourceColumn: Last Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'First Receipt Delay Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: 678890fb-b9fc-413d-b08e-072d6205b4be
+		summarizeBy: sum
+		sourceColumn: First Receipt Delay Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Receipt Spread Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: 57ea5d1a-a4bd-4daa-8995-29899a644b39
+		summarizeBy: sum
+		sourceColumn: Receipt Spread Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Fulfillment Status'
+		dataType: string
+		lineageTag: 1661ece0-1867-43ff-ac64-5b612fe377b2
+		summarizeBy: none
+		sourceColumn: Fulfillment Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'In Full Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 5c683e5c-7670-466a-bc47-08517513768e
+		summarizeBy: sum
+		sourceColumn: In Full Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'On Time Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 8d7ebffb-d34a-47f4-baf9-45e0ad22dc8f
+		summarizeBy: sum
+		sourceColumn: On Time Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'OTIF Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: a984bfc2-81b5-4c41-9674-10f914a614aa
+		summarizeBy: sum
+		sourceColumn: OTIF Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 73aea124-b4dc-4872-b6ee-913d667c5373
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 6d577502-3086-4f19-ae80-20bb6c06cf44
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: b0357407-e8c7-49e8-ad64-2e31ff116b9d
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center' =
+			
+			LOOKUPVALUE(
+			    dim_warehouse[Cost Center],
+			    dim_warehouse[Warehouse],
+			    fact_po_period_lifecycle[Warehouse]
+			)
+		lineageTag: 31d88c2f-b38b-4df4-bf4c-0e3e686a65a5
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: string
+		lineageTag: 32200aa6-0ddc-4775-bc96-e50f06dd4120
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO No'
+		dataType: string
+		lineageTag: f44be62c-39d0-4786-83c9-669205f3f654
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_po_period_lifecycle = m
+		mode: import
+		source =
+				let
+				    PO = fact_po_period_base,
+				    GRN = agg_grn_by_po_period,
+				
+				    Merged =
+				        Table.NestedJoin(
+				            PO,
+				            {"PO Period ID"},
+				            GRN,
+				            {"PO Period ID"},
+				            "GRN Summary",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    Expanded =
+				        Table.ExpandTableColumn(
+				            Merged,
+				            "GRN Summary",
+				            {
+				                "Allocated GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "First GRN Date",
+				                "Last GRN Date",
+				                "First Booking Date",
+				                "Last Booking Date",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List",
+				                "Actual GRN Unit List"
+				            },
+				            {
+				                "Allocated GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "First GRN Date",
+				                "Last GRN Date",
+				                "First Booking Date",
+				                "Last Booking Date",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List",
+				                "Actual GRN Unit List"
+				            }
+				        ),
+				
+				    ReplaceNullNumbers =
+				        Table.ReplaceValue(
+				            Expanded,
+				            null,
+				            0,
+				            Replacer.ReplaceValue,
+				            {
+				                "Allocated GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count"
+				            }
+				        ),
+				
+				    AddedPendingQty =
+				        Table.AddColumn(
+				            ReplaceNullNumbers,
+				            "Pending Qty",
+				            each if [PO Base Qty] > [Allocated GRN Base Qty] then [PO Base Qty] - [Allocated GRN Base Qty] else 0,
+				            type number
+				        ),
+				
+				    AddedOverDeliveredQty =
+				        Table.AddColumn(
+				            AddedPendingQty,
+				            "Over Delivered Qty",
+				            each if [Allocated GRN Base Qty] > [PO Base Qty] then [Allocated GRN Base Qty] - [PO Base Qty] else 0,
+				            type number
+				        ),
+				
+				    AddedFulfillmentStatus =
+				        Table.AddColumn(
+				            AddedOverDeliveredQty,
+				            "Fulfillment Status",
+				            each
+				                if [Allocated GRN Base Qty] = 0 then "Not Received"
+				                else if Number.Abs([Allocated GRN Base Qty] - [PO Base Qty]) <= 0.01 then "Fully Delivered"
+				                else if [Allocated GRN Base Qty] < [PO Base Qty] then "Partially Delivered"
+				                else if [Allocated GRN Base Qty] > [PO Base Qty] then "Over Delivered"
+				                else "Unknown",
+				            type text
+				        ),
+				
+				    AddedInFullFlag =
+				        Table.AddColumn(
+				            AddedFulfillmentStatus,
+				            "In Full Flag",
+				            each if [Allocated GRN Base Qty] >= [PO Base Qty] then 1 else 0,
+				            Int64.Type
+				        ),
+				
+				    AddedOnTimeFlag =
+				        Table.AddColumn(
+				            AddedInFullFlag,
+				            "On Time Flag",
+				            each if [Same Day GRN Base Qty] >= [PO Base Qty] then 1 else 0,
+				            Int64.Type
+				        ),
+				
+				    AddedOTIFFlag =
+				        Table.AddColumn(
+				            AddedOnTimeFlag,
+				            "OTIF Flag",
+				            each if [Same Day GRN Base Qty] >= [PO Base Qty] then 1 else 0,
+				            Int64.Type
+				        ),
+				
+				    AddedFirstReceiptDelay =
+				        Table.AddColumn(
+				            AddedOTIFFlag,
+				            "First Receipt Delay Days",
+				            each
+				                if [First GRN Date] = null then null
+				                else Duration.Days([First GRN Date] - [PO Start Date]),
+				            Int64.Type
+				        ),
+				
+				    AddedReceiptSpread =
+				        Table.AddColumn(
+				            AddedFirstReceiptDelay,
+				            "Receipt Spread Days",
+				            each
+				                if [First GRN Date] = null or [Last GRN Date] = null then null
+				                else Duration.Days([Last GRN Date] - [First GRN Date]),
+				            Int64.Type
+				        ),
+				
+				    ReorderedColumns =
+				        Table.ReorderColumns(
+				            AddedReceiptSpread,
+				            {
+				                "PO Period ID",
+				                "Article",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "PO No",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List",
+				                "PO Unit List",
+				                "Actual GRN Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "Allocated GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "Pending Qty",
+				                "Over Delivered Qty",
+				                "PO Value",
+				                "GRN Value",
+				                "PO Count",
+				                "PO Line Count",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "First GRN Date",
+				                "Last GRN Date",
+				                "First Booking Date",
+				                "Last Booking Date",
+				                "First Receipt Delay Days",
+				                "Receipt Spread Days",
+				                "Fulfillment Status",
+				                "In Full Flag",
+				                "On Time Flag",
+				                "OTIF Flag",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderedColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
+  "name": "298528f61241219ca273",
+  "position": {
+    "x": 340,
+    "y": 222.85714285714286,
+    "z": 0,
+    "height": 274.28571428571428,
+    "width": 485.71428571428572,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Issue Requests & Transfer"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  },
+                  "Function": 5
+                }
+              },
+              "queryRef": "Issue Requests & Transfer.Article",
+              "nativeQueryRef": "Count of Article"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Issue Requests & Transfer"
+                        }
+                      },
+                      "Property": "Document"
+                    }
+                  },
+                  "Function": 5
+                }
+              },
+              "queryRef": "Issue Requests & Transfer.Document",
+              "nativeQueryRef": "Count of Document"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

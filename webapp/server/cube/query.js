@@ -1,3 +1,4 @@
+import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
 
 /**
@@ -114,6 +115,28 @@ function within(cover, win, filters) {
   return from >= win.from && to <= win.to
 }
 
+/**
+ * The model's calendar, out of the copy.
+ *
+ * Every page needs these four dates before it can resolve its own window, so
+ * they were fetched live on every cold load — one query per brand, nine of
+ * them, measured at six seconds. They change once a day and the extract already
+ * asks for them, so it writes them down and this reads them back.
+ *
+ * Null when the copy has not recorded them yet, which sends the caller to the
+ * model exactly as before.
+ */
+export function dateRangeFor(brand) {
+  const cover = coverageCache.get(brand)
+  if (!cover?.cal_today || !cover?.model_from || !cover?.model_to) return null
+  return {
+    min: cover.model_from,
+    max: cover.model_to,
+    today: cover.cal_today,
+    lastActual: cover.cal_last_actual ?? null,
+  }
+}
+
 /** WHERE fragment and bindings for one brand's slice. */
 function where(brand, f = {}) {
   const sql = ['brand = ?']
@@ -139,7 +162,7 @@ function where(brand, f = {}) {
   return { sql: sql.join(' AND '), args }
 }
 
-const rowsOf = (sql, args) => pg.all(sql, args)
+const rowsOf = (sql, args) => timed('copy', () => pg.all(sql, args))
 
 /*
  * A window, split into the whole months it contains and the days at each end.
@@ -696,6 +719,99 @@ export async function outboundByArticleDay(brand, f) {
   return out
 }
 
+/**
+ * Every article the warehouse has ever shipped to this brand.
+ *
+ * The point is to tell two different zeros apart. An article the warehouse ships
+ * to this brand regularly and did not ship this month is a real zero, and the
+ * forecast asking for it anyway is a real miss. An article the warehouse has
+ * never once shipped to this brand cannot be measured at all — it reaches the
+ * shops another way, or its code does not match — and scoring it zero says the
+ * forecast is wrong about something nobody has any evidence on.
+ *
+ * Measured over the whole outbound copy rather than the requested window, which
+ * is the point: a month tells you nothing about whether an article exists.
+ *
+ * Cached because it changes only when the extract runs, and it is asked once per
+ * brand per request.
+ */
+const shippedCache = new Map()
+
+export async function articlesShippedTo(brand) {
+  const held = shippedCache.get(brand)
+  if (held) return held
+  const rows = await rowsOf('SELECT DISTINCT article FROM cube_outbound_monthly WHERE brand = ?', [brand])
+  const out = new Set(rows.map((r) => String(r.article)))
+  shippedCache.set(brand, out)
+  return out
+}
+
+/** Dropped when the extract rewrites outbound, so a new article shows up. */
+export function forgetShipped() {
+  shippedCache.clear()
+}
+
+/**
+ * The brand's own sales, month by month.
+ *
+ * The denominator of the warehouse constant: how much this brand sold in a
+ * month, in the same units the forecast counts. Actuals for the months behind
+ * us, the forecast for the month ahead.
+ */
+export async function monthlySales(brand, months) {
+  if (!months?.length) return new Map()
+  const rows = await rowsOf(
+    `SELECT LEFT(date, 7) AS month,
+            SUM(actual)   AS actual,
+            SUM(forecast) AS forecast
+       FROM cube_location_daily
+      WHERE brand = ? AND LEFT(date, 7) IN (${months.map(() => '?').join(', ')})
+      GROUP BY LEFT(date, 7)`,
+    [brand, ...months]
+  )
+  const out = new Map()
+  for (const r of rows) {
+    out.set(String(r.month), { actual: Number(r.actual) || 0, forecast: Number(r.forecast) || 0 })
+  }
+  return out
+}
+
+/** What went out to this brand, by article and by month. */
+export async function outboundByMonth(brand, months) {
+  if (!months?.length) return new Map()
+  const rows = await rowsOf(
+    `SELECT article, month, qty
+       FROM cube_outbound_monthly
+      WHERE brand = ? AND month IN (${months.map(() => '?').join(', ')})`,
+    [brand, ...months]
+  )
+  const out = new Map()
+  for (const r of rows) {
+    const a = String(r.article)
+    if (!out.has(a)) out.set(a, new Map())
+    out.get(a).set(String(r.month), Number(r.qty) || 0)
+  }
+  return out
+}
+
+/** The brand's forecast sales over an arbitrary window, from the copy. */
+export async function forecastSales(brand, f) {
+  if (!f?.dateFrom || !f?.dateTo) return null
+  const rows = await rowsOf(
+    `SELECT SUM(forecast) AS forecast
+       FROM cube_location_daily
+      WHERE brand = ? AND date >= ? AND date <= ?`,
+    [brand, f.dateFrom, f.dateTo]
+  )
+  const v = Number(rows[0]?.forecast)
+  return Number.isFinite(v) ? v : null
+}
+
+/** The dashboard's own idea of today, as the model reports it. */
+export function todayFor(brand) {
+  return coverageCache.get(brand)?.cal_today ?? null
+}
+
 /** The constants for items no recipe covers, and the article master. */
 export async function constantsFromCopy(brand) {
   const rows = await rowsOf(
@@ -754,6 +870,66 @@ export async function productLevel(brand, f) {
   // The brand is the same for every row of this call, so it is stamped on here
   // rather than carried through the union as a constant column.
   return rows.map((r) => ({ ...r, CHAINID: brand }))
+}
+
+/**
+ * Tomorrow's plan, from the copy.
+ *
+ * The page's slicers become a WHERE clause here. Prep status included: it is a
+ * stored column rather than a measure once it is local, so filtering on it no
+ * longer needs its own round trip.
+ *
+ * Returns null when nothing has been copied for this brand, so the caller asks
+ * Power BI exactly as it did before.
+ */
+export async function planFor(brand, f = {}) {
+  const held = await rowsOf('SELECT COUNT(*)::int AS n FROM cube_plan WHERE brand = ?', [brand])
+  if (!(held[0]?.n > 0)) return null
+
+  const sql = ['brand = ?']
+  const args = [brand]
+  for (const [column, values] of [
+    ['location', f.locations],
+    ['product', f.products],
+    ['article', f.articles],
+    ['prep_status', Array.isArray(f.prepStatus) ? f.prepStatus : f.prepStatus ? [f.prepStatus] : null],
+  ]) {
+    const list = (values ?? []).filter((v) => v && v !== 'All')
+    if (!list.length) continue
+    sql.push(`${column} IN (${list.map(() => '?').join(', ')})`)
+    args.push(...list.map(String))
+  }
+
+  const rows = await rowsOf(
+    `SELECT article AS "Clean_ItemID",
+            location AS "LocationID",
+            product AS "ProductName_Fixed_Option",
+            tomorrow_qty AS "Tomorrow_Forecast_Qty",
+            last_avg AS "Last_Avg_Actual",
+            demand_change AS "Demand_Change_Pct",
+            prep_status AS "Prep_Status"
+       FROM cube_plan
+      WHERE ${sql.join(' AND ')} AND tomorrow_qty > 0
+      ORDER BY tomorrow_qty DESC`,
+    args
+  )
+  return rows.map((r) => ({ ...r, CHAINID: brand }))
+}
+
+/** The five cards above it. Null when nothing has been copied. */
+export async function planKpisFor(brand) {
+  const rows = await rowsOf('SELECT * FROM cube_plan_kpis WHERE brand = ?', [brand])
+  const r = rows[0]
+  if (!r) return null
+  return {
+    Tomorrow_Forecast_Qty: Number(r.tomorrow_qty) || 0,
+    Products_To_Prepare: Number(r.to_prepare) || 0,
+    High_Demand_Products: Number(r.high_demand) || 0,
+    Low_Demand_Products: Number(r.low_demand) || 0,
+    Today_Forecast_Qty: Number(r.today_qty) || 0,
+    Plan_Date: r.plan_date ?? null,
+    Today_Date: r.today_date ?? null,
+  }
 }
 
 export async function stats() {

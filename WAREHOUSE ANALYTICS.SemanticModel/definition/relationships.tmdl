@@ -1,0 +1,33 @@
+relationship 9e12f63b-732b-0f87-2570-4fe63ac696eb
+	fromColumn: fact_po_period_lifecycle.'PO Start Date'
+	toColumn: dim_date.Date
+
+relationship cc05ecc9-8ebd-287c-59cc-d58ecf3de1b9
+	fromColumn: fact_grn_allocated_detail.'PO Period ID'
+	toColumn: fact_po_period_lifecycle.'PO Period ID'
+
+relationship a1e72141-28e2-fc43-f437-f4db19f92601
+	fromColumn: fact_po_period_lifecycle.Article
+	toColumn: dim_item.Article
+
+relationship 262aa893-4c60-20ce-bae9-b3081b3fbce9
+	fromColumn: fact_po_period_lifecycle.Warehouse
+	toColumn: dim_warehouse.Warehouse
+
+relationship AutoDetected_bc55b209-4a43-450f-b43d-9a4dcc96a10f
+	fromColumn: bridge_supplier_po_period.Supplier
+	toColumn: dim_supplier.Supplier
+
+relationship 86b9fef2-a839-5270-969f-ade74397480b
+	crossFilteringBehavior: bothDirections
+	fromColumn: bridge_supplier_po_period.'PO Period ID'
+	toColumn: fact_po_period_lifecycle.'PO Period ID'
+
+relationship 162e3a21-56a5-112d-6018-fc511b51e4df
+	fromColumn: fact_outbound_line.'Requested Delivery Date'
+	toColumn: dim_date.Date
+
+relationship 91938944-405e-9a94-7ed3-128836c2461a
+	fromColumn: fact_outbound_line.Article
+	toColumn: dim_item.Article
+

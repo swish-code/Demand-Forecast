@@ -1,8 +1,10 @@
 import { config } from '../config.js'
 import { pg } from '../db/accounts.js'
-import { backfillAll, backfillBrand, refreshAllRecent, coverage, rebuildRollup } from './extract.js'
+import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, coverage, rebuildRollup, vacuum } from './extract.js'
 import { refreshAllOutbound } from './outbound.js'
 import { clearCache } from '../cache.js'
+import { loadCoverage } from './query.js'
+import { raise, clear } from '../insights/alerts.js'
 
 /**
  * Keeping the local copy current.
@@ -63,12 +65,11 @@ async function guarded(label, run) {
     // branch took 5ms with current statistics and 42ms without, and an index
     // created without them made the unfiltered view four times slower — SQLite
     // chose an index that skipped a sort by walking three times as many rows.
-    try {
-      await pg.exec('ANALYZE')
-    } catch {
-      // Statistics are an optimisation; a locked database is not worth failing
-      // an extract over.
-    }
+    // VACUUM ANALYZE, not ANALYZE alone: every refresh rewrites the same recent
+    // days, and the rows it replaced stay on disk until something collects
+    // them. Nothing did, and the copy grew to nine times the size of the data
+    // in it — which every scan then reads past.
+    await vacuum()
 
     // Anything already answered from the old rows is now out of date.
     clearCache()
@@ -83,7 +84,20 @@ async function guarded(label, run) {
   }
 }
 
-export const refreshRecentAll = () => guarded('recent', refreshAllRecent)
+/*
+ * The recent days and tomorrow's plan, in one pass.
+ *
+ * Folded together rather than chained because every guarded run rebuilds the
+ * product rollup and vacuums afterwards, and the plan refresh touches neither
+ * of the tables that work exists for — two passes an hour would rebuild 1.5
+ * million rows for nothing.
+ */
+export const refreshRecentAll = () =>
+  guarded('recent', async () => {
+    const out = await refreshAllRecent()
+    await refreshAllPlans()
+    return out
+  })
 export const runBackfill = () => guarded('backfill', () => backfillAll())
 
 /**
@@ -113,26 +127,103 @@ async function refreshOutboundAll() {
 
 export const runOutbound = () => guarded('outbound', refreshOutboundAll)
 
+/** Tomorrow's plan, alongside the hourly refresh that keeps the rest current. */
+export const runPlans = () => guarded('plans', refreshAllPlans)
+
 /**
- * Brands with nothing stored yet, filled one at a time on startup.
+ * The shortest window a brand's copy has to cover to be worth having.
  *
- * Without this a fresh install answers everything live until the first
- * overnight run, which is the slow behaviour the copy exists to replace.
+ * The pages open on the last thirty days and the date picker offers ninety, so
+ * a copy holding less than ninety is a copy the dashboard will refuse for most
+ * of what people ask it — and refusing means Power BI, per brand, per request.
  */
-async function backfillMissing() {
-  const have = new Set((await coverage()).map((c) => c.brand))
-  const missing = config.brands.filter((b) => !have.has(b.code))
-  if (!missing.length) return
+const MIN_WIDE_DAYS = Number(process.env.CUBE_MIN_WIDE_DAYS) || 90
+
+const DAY_MS = 86_400_000
+const spanDays = (from, to) =>
+  from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS) + 1 : 0
+
+/**
+ * Why this brand's copy cannot be trusted with a normal question, or null.
+ *
+ * Having a coverage row is not the same as being backfilled, and treating the
+ * two as equivalent is what let this sit unnoticed. The hourly refresh writes a
+ * coverage row for every brand whether or not the wide tables were ever filled,
+ * so a copy holding eight days looked, to the startup check, exactly like one
+ * holding a year — and the only thing that would have repaired it was the 02:00
+ * backfill, which a process that restarts more often than daily never reaches.
+ *
+ * Measured on 1 Sep 2026: all nine brands held eight days of the branch rollup
+ * and eight of the recipe copy against a thirty-day window, so every page for
+ * every brand was served from Power BI. The copy could answer the same nine
+ * brands in about two hundred milliseconds.
+ */
+function thinness(cover) {
+  if (!cover) return 'nothing stored'
+  const wide = spanDays(cover.from_date, cover.to_date)
+  if (wide < MIN_WIDE_DAYS) return `branch and article tables hold ${wide} days`
+  const comp = spanDays(cover.comp_from, cover.comp_to)
+  if (comp < MIN_WIDE_DAYS) return `recipe copy holds ${comp} days`
+  return null
+}
+
+/**
+ * Brands whose copy cannot answer, filled one at a time on startup.
+ *
+ * A brand with nothing stored gets the full backfill, one branch at a time. A
+ * brand that has rows but thin wide tables gets only those three tables — about
+ * seventeen queries rather than one per branch on top — because the expensive
+ * per-branch table is not the one that goes short.
+ */
+async function backfillThin() {
+  const have = new Map((await coverage()).map((c) => [c.brand, c]))
+  const work = []
+  for (const brand of config.brands) {
+    const cover = have.get(brand.code)
+    const why = thinness(cover)
+    if (why) work.push({ brand, cover, why })
+  }
+  if (!work.length) return
+
+  for (const { brand, why } of work) console.log(`  [cube] ${brand.code} needs filling: ${why}`)
+
   await guarded('initial backfill', async () => {
-    for (const brand of missing) {
+    for (const { brand, cover } of work) {
       try {
-        await backfillBrand(brand)
-        console.log(`  [cube] ${brand.code} backfilled`)
+        // No coverage row at all means no rows anywhere, so the per-branch table
+        // has to be built too. Otherwise only the wide tables are short.
+        if (cover) await backfillWide(brand)
+        else await backfillBrand(brand)
+        console.log(`  [cube] ${brand.code} filled`)
       } catch (err) {
         console.log(`  [cube] ${brand.code} failed: ${err.message.slice(0, 80)}`)
       }
     }
   })
+
+  // The gate reads this cache, and it was loaded before any of that ran.
+  await loadCoverage()
+
+  // Say plainly whether it worked, because "the dashboard is slow" is what this
+  // looks like from the outside and nothing else in the log names the cause.
+  const after = new Map((await coverage()).map((c) => [c.brand, c]))
+  const stillThin = config.brands.filter((b) => thinness(after.get(b.code)))
+  if (stillThin.length) {
+    raise({
+      source: 'cube',
+      key: 'cube:thin',
+      severity: 'warning',
+      title: `${stillThin.length} brand${stillThin.length === 1 ? '' : 's'} answering from Power BI rather than the copy`,
+      detail: [
+        ...stillThin.map((b) => `${b.code}: ${thinness(after.get(b.code))}`),
+        '',
+        'Every page for these brands is fetched live on every request, which is',
+        'the slowness people notice with several brands selected.',
+      ].join('\n'),
+    })
+  } else {
+    clear('cube:thin')
+  }
 }
 
 /** Milliseconds until the next time the local clock passes `hour`. */
@@ -167,20 +258,27 @@ export function startCubeSchedule() {
 
   setTimeout(() => {
     detached('initial backfill', () =>
-      backfillMissing()
+      backfillThin()
         .then(() => refreshRecentAll())
         // Outbound last: the constants are derived from what the others hold.
         .then(() => runOutbound())
     )
-    setInterval(() => detached('recent refresh', refreshRecentAll), REFRESH_MINUTES * 60_000).unref?.()
+    setInterval(
+      () => detached('recent refresh', refreshRecentAll),
+      REFRESH_MINUTES * 60_000
+    ).unref?.()
   }, FIRST_RUN_MS).unref?.()
 
   setTimeout(() => {
-    detached('nightly backfill', () => runBackfill().then(() => runOutbound()))
-    setInterval(
-      () => detached('nightly backfill', () => runBackfill().then(() => runOutbound())),
-      24 * HOUR
-    ).unref?.()
+    // VACUUM FULL only overnight: it rewrites each table under an exclusive
+    // lock — half a minute for cube_daily — which is fine at two in the morning
+    // and not fine while somebody is reading a page.
+    const nightly = () =>
+      runBackfill()
+        .then(() => runOutbound())
+        .then(() => vacuum({ full: true }))
+    detached('nightly backfill', nightly)
+    setInterval(() => detached('nightly backfill', nightly), 24 * HOUR).unref?.()
   }, untilHour(BACKFILL_HOUR)).unref?.()
 
   return true

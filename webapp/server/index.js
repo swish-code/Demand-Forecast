@@ -7,6 +7,7 @@ import { initDatabase } from './db/accounts.js'
 import { attachUser } from './auth/middleware.js'
 import { purgeExpiredSessions } from './auth/sessions.js'
 import { api } from './routes/api.js'
+import { perfMiddleware } from './perf.js'
 import { auth } from './routes/auth.js'
 import { admin } from './routes/admin.js'
 import { startDigestSchedule } from './insights/digest.js'
@@ -70,6 +71,9 @@ app.use((req, res, next) => {
   })
   next()
 })
+
+// Before the routers, so every API request carries a ledger.
+app.use('/api', perfMiddleware)
 
 app.use('/api/auth', auth)
 app.use('/api/admin', admin)

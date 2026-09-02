@@ -1,0 +1,33 @@
+table Append1
+	lineageTag: a0f37a1d-92d5-4884-b096-a145abbef563
+
+	column Warehouse
+		dataType: string
+		lineageTag: a1dae6f1-18fb-4bfd-aa29-27cd0c4444f8
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center'
+		dataType: string
+		lineageTag: cedda8db-9f84-478e-a895-6eb71f3e0cb7
+		summarizeBy: none
+		sourceColumn: Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Append1 = m
+		mode: import
+		source =
+				let
+				    Source = Table.Combine({#"Warehouse Mapping", fact_grn_line, fact_po_line, fact_po_period_lifecycle, fact_grn_allocated_detail}),
+				    #"Removed Columns" = Table.RemoveColumns(Source,{"Article No.", "Article", "Supplier", "Final Cost Center", "GRN Unit", "GRN Base Unit", "GRN Qty", "GRN Base Qty", "GRN Price Per Unit", "GRN Price Per Base Unit", "GRN Value", "Discount", "Delivery Note No", "GRN Delivery Date", "DN Status", "Order No.", "DN Order Date", "Requested Qty", "Booking DateTime", "GRN Booking Date", "Sub_Category", "Item_Group", "Storage_Type", "PO Unit", "PO Base Unit", "PO No", "PO Date", "PO Qty", "PO Base Qty", "PO Unit Price", "PO Value", "PO Unit Multiplier", "PO Unit Mapping Status", "PO Delivery Date", "PO Period ID", "PO Supplier", "PO Supplier List", "Actual GRN Supplier", "Actual GRN Supplier List", "PO Unit List", "Actual GRN Unit List", "PO Base Unit List", "PO Start Date", "Next PO Date", "PO End Date", "Allocated GRN Base Qty", "Same Day GRN Base Qty", "Late GRN Base Qty", "Pending Qty", "Over Delivered Qty", "PO Count", "PO Line Count", "Delivery Note Count", "GRN Line Count", "First GRN Date", "Last GRN Date", "First Booking Date", "Last Booking Date", "First Receipt Delay Days", "Receipt Spread Days", "Fulfillment Status", "In Full Flag", "On Time Flag", "OTIF Flag", "PO Period Base Qty", "PO Period Value", "Days After PO", "GRN Timing Status", "Booking Delay Days"}),
+				    #"Removed Duplicates" = Table.Distinct(#"Removed Columns", {"Warehouse"})
+				in
+				    #"Removed Duplicates"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

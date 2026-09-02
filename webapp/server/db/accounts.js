@@ -397,6 +397,51 @@ ALTER TABLE cube_component_monthly ADD COLUMN IF NOT EXISTS article TEXT NOT NUL
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS out_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS out_to TEXT;
 
+-- The model's own calendar, so a cold page load does not have to ask nine
+-- semantic models what day it is. Every page needs this to resolve its window,
+-- so it was fetched live on every cold load: measured at six seconds for nine
+-- brands, for four dates that change once a day.
+/*
+ * Tomorrow's plan, as Power BI computed it.
+ *
+ * The measures behind this page — Prep Status, Last 2 Weekdays Avg Actual,
+ * Demand Change % — live in the model, and reimplementing them here would be
+ * two definitions of the same figure waiting to disagree. So the answers are
+ * copied rather than the logic: whatever Power BI returned, stored as it came.
+ *
+ * It is one query per brand per refresh and the plan changes once a day, but it
+ * was being fetched live on every cold load — measured at 3.4 seconds for nine
+ * brands, for the page branch staff open first thing every morning.
+ */
+CREATE TABLE IF NOT EXISTS cube_plan (
+  brand          TEXT NOT NULL,
+  plan_date      TEXT,
+  article        TEXT NOT NULL,
+  location       TEXT NOT NULL,
+  product        TEXT NOT NULL DEFAULT '',
+  tomorrow_qty   REAL NOT NULL DEFAULT 0,
+  last_avg       REAL,
+  demand_change  REAL,
+  prep_status    TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (brand, article, location, product)
+);
+CREATE INDEX IF NOT EXISTS idx_cube_plan ON cube_plan(brand, tomorrow_qty DESC);
+
+/* The five cards above it, one row a brand. */
+CREATE TABLE IF NOT EXISTS cube_plan_kpis (
+  brand        TEXT PRIMARY KEY,
+  plan_date    TEXT,
+  today_date   TEXT,
+  tomorrow_qty REAL NOT NULL DEFAULT 0,
+  to_prepare   REAL NOT NULL DEFAULT 0,
+  high_demand  REAL NOT NULL DEFAULT 0,
+  low_demand   REAL NOT NULL DEFAULT 0,
+  today_qty    REAL NOT NULL DEFAULT 0,
+  refreshed_at TEXT
+);
+
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS cal_today TEXT;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS cal_last_actual TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_to TEXT;
 /*

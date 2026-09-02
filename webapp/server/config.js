@@ -60,11 +60,24 @@ export const config = {
     /*
      * What counts as having left the building.
      *
-     * The model's own Outbound Fulfilled Qty also includes DECLINED, which by
-     * name did not go anywhere; it is about 1% of BOOKED. Overridable because
-     * it is a business definition rather than a technical one.
+     * These are the model's own Outbound Fulfilled Qty, exactly:
+     *
+     *   CALCULATE(SUM(fact_outbound_line[Action Base Qty]),
+     *             [Status Group] IN {"BOOKED", "DELIVERED", "DECLINED"})
+     *
+     * DECLINED was left out here at first — the word suggests nothing moved —
+     * but the warehouse's own definition counts it, and the warehouse is the
+     * authority on what its statuses mean. Two definitions of the same figure
+     * is how a dashboard comes to disagree with the report it is copying.
+     *
+     * It is 0.81% of all quantity and very unevenly spread: 91% of it is one
+     * brand, SS, where it adds about 4.9%. Everywhere else it is under 1%.
+     *
+     * Still overridable, because it is a business definition rather than a
+     * technical one. Note what stays out: REQUESTED is 21.6% of all quantity
+     * and is not fulfilment — it is what was asked for, not what moved.
      */
-    statuses: (process.env.WH_STATUSES || 'BOOKED,DELIVERED')
+    statuses: (process.env.WH_STATUSES || 'BOOKED,DELIVERED,DECLINED')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),

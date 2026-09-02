@@ -376,7 +376,7 @@ async function locationsOf(brand) {
  * their union: a date the branch rollup has and the article table does not is
  * not a date this copy can answer questions about.
  */
-async function noteCoverage(brand, _from, _to, detail = null, model = null) {
+async function noteCoverage(brand, _from, _to, detail = null, model = null, calendar = null) {
   const spanOf = async (table) =>
     (await pg.get(
       `SELECT MIN(date) AS lo, MAX(date) AS hi, COUNT(*)::int AS n FROM ${table} WHERE brand = ?`,
@@ -396,8 +396,8 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null) {
   await pg.run(
     `INSERT INTO cube_coverage
        (brand, from_date, to_date, rows, refreshed_at, detail_from, detail_to,
-        components, model_from, model_to, comp_from, comp_to)
-     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?, ?, ?)
+        components, model_from, model_to, comp_from, comp_to, cal_today, cal_last_actual)
+     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (brand) DO UPDATE SET
        from_date = excluded.from_date,
        to_date = excluded.to_date,
@@ -409,7 +409,9 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null) {
        comp_from = excluded.comp_from,
        comp_to = excluded.comp_to,
        model_from = COALESCE(excluded.model_from, cube_coverage.model_from),
-       model_to = COALESCE(excluded.model_to, cube_coverage.model_to)`,
+       model_to = COALESCE(excluded.model_to, cube_coverage.model_to),
+       cal_today = COALESCE(excluded.cal_today, cube_coverage.cal_today),
+       cal_last_actual = COALESCE(excluded.cal_last_actual, cube_coverage.cal_last_actual)`,
     [
       brand.code,
       wideFrom,
@@ -422,6 +424,8 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null) {
       model?.to ?? null,
       components.lo,
       components.hi,
+      calendar?.today ?? null,
+      calendar?.lastActual ?? null,
     ]
   )
   await loadCoverage()
@@ -455,6 +459,7 @@ async function windowFor(brand) {
   const today = pick('Today')
   const max = pick('MaxDate')
   const min = pick('MinDate')
+  const lastActual = pick('LastActual')
   const anchor = today || max
   if (!anchor) return null
 
@@ -480,6 +485,9 @@ async function windowFor(brand) {
     to: detailTo,
     anchor,
     wide: { from: min || detailFrom, to: max || detailTo },
+    // Carried so it can be written down: every page needs these four dates and
+    // nothing but the extract had any reason to ask for them.
+    calendar: { min, max, today, lastActual },
   }
 }
 
@@ -522,7 +530,21 @@ export async function backfillBrand(brand, onStep) {
    * a quarter is about fourteen thousand; branch totals sixteen a day, which is
    * six thousand for the entire year and needs no splitting at all.
    */
-  const wide = window.wide
+  await fillWide(brand, window.wide)
+
+  await noteCoverage(brand, window.wide.from, window.wide.to, { from: window.from, to: window.to }, window.wide, window.calendar)
+  return { brand: brand.code, rows, from: window.wide.from, to: window.wide.to, branches: locations.length }
+}
+
+/**
+ * The three branch-free tables, filled over the whole model calendar.
+ *
+ * Split out of backfillBrand because these are what go thin, and repairing them
+ * costs about seventeen queries a brand where the full backfill costs one per
+ * branch on top. A copy whose branch rollup holds eight days when the pages ask
+ * for thirty does not need every branch re-pulled — it needs these three.
+ */
+async function fillWide(brand, wide) {
   for (const [what, run] of [
     ['articles', async () =>
       writeArticles(brand.code, await inSpans(wide, 30, (w) => fetchArticles(brand, w)), wide)],
@@ -540,9 +562,29 @@ export async function backfillBrand(brand, onStep) {
   }
 
   await rebuildMonthly(brand.code)
+}
 
-  await noteCoverage(brand, window.wide.from, window.wide.to, { from: window.from, to: window.to }, window.wide)
-  return { brand: brand.code, rows, from: window.wide.from, to: window.wide.to, branches: locations.length }
+/**
+ * Repair one brand's wide tables without re-pulling every branch.
+ *
+ * The whole application turns on whether these hold the window the pages ask
+ * for. cube_location_daily is what the Overview's trend and branch panel read
+ * and cube_component_daily is the entire Ingredients page; when either is short,
+ * canAnswer() refuses and every request for that brand goes to Power BI — which
+ * is a page that takes seconds instead of the two hundred milliseconds the copy
+ * answers the same question in.
+ *
+ * That is not hypothetical. Measured on 1 Sep 2026: the branch rollup held eight
+ * days against a thirty-day window, so all nine brands were served live on every
+ * page, all day.
+ */
+export async function backfillWide(brand) {
+  const window = await windowFor(brand)
+  if (!window) return { brand: brand.code, skipped: 'no calendar' }
+  await sleep(GAP_MS)
+  await fillWide(brand, window.wide)
+  await noteCoverage(brand, window.wide.from, window.wide.to, null, window.wide, window.calendar)
+  return { brand: brand.code, from: window.wide.from, to: window.wide.to }
 }
 
 /** The last few days for one brand, every branch in a single query. */
@@ -586,8 +628,134 @@ export async function refreshRecent(brand) {
 
   // No detail window passed: a refresh does not change how far back the
   // branch-by-product table reaches, only how fresh its recent end is.
-  await noteCoverage(brand, from, to)
+  // The calendar travels with every refresh: `today` moves on its own, and a
+  // page reading a stale one would open on the wrong window.
+  await noteCoverage(brand, from, to, null, null, window.calendar)
   return { brand: brand.code, rows: slice.length, from, to }
+}
+
+/**
+ * Give the copy its space back.
+ *
+ * Every hourly refresh deletes the last few days and writes them again, and
+ * PostgreSQL marks the old rows dead rather than removing them. Nothing ever
+ * collected them: measured on 1 Sep 2026 the directory held 3.5 GB for under
+ * 400 MB of live rows — cube_component_daily alone was 107 MB of a table that
+ * fits in seven, fifteen times its own size in tuples no query can return but
+ * every scan still walks past.
+ *
+ * Plain VACUUM after each extract keeps the file from growing again; it takes
+ * no exclusive lock, so a page load during it still answers. VACUUM FULL
+ * actually returns the space to the disk but locks each table while it rewrites
+ * it — thirty-three seconds for cube_daily — so it is kept for the overnight
+ * run, when nobody is reading.
+ */
+const CUBE_TABLES = [
+  'cube_daily',
+  'cube_product_daily',
+  'cube_location_daily',
+  'cube_article_daily',
+  'cube_component_daily',
+  'cube_article_monthly',
+  'cube_component_monthly',
+  'cube_outbound_daily',
+  'cube_outbound_monthly',
+  'cube_article',
+  'cube_constant',
+  'cube_coverage',
+]
+
+export async function vacuum({ full = false } = {}) {
+  const started = Date.now()
+  for (const table of CUBE_TABLES) {
+    try {
+      await pg.exec(full ? `VACUUM FULL ANALYZE ${table}` : `VACUUM ANALYZE ${table}`)
+    } catch (err) {
+      // Reclaiming space is an optimisation; a table that refuses is not worth
+      // failing an extract over.
+      console.log(`  [cube] vacuum ${table} skipped: ${err.message.slice(0, 60)}`)
+    }
+  }
+  return { full, seconds: Math.round((Date.now() - started) / 1000) }
+}
+
+/**
+ * Tomorrow's plan for one brand, copied whole.
+ *
+ * Unfiltered on purpose: the page's branch, product and prep-status slicers are
+ * a WHERE clause over this once it is local, and fetching one variant per
+ * combination would be the burst this exists to avoid. Two queries a brand.
+ */
+export async function refreshPlan(brand) {
+  const bare = brandFilters(brand, {})
+
+  const [rows, kpis] = await Promise.all([
+    executeQuery(dax.productionPlanQuery(bare), brand.datasetId, { bulk: true }),
+    executeQuery(dax.productionPlanKpiQuery(bare), brand.datasetId),
+  ])
+
+  const k = kpis[0] ?? {}
+  const planDate = k.Plan_Date ? String(k.Plan_Date).slice(0, 10) : null
+
+  await pg.run('DELETE FROM cube_plan WHERE brand = ?', [brand.code])
+  await insertBatched(
+    'cube_plan',
+    ['brand', 'plan_date', 'article', 'location', 'product', 'tomorrow_qty', 'last_avg', 'demand_change', 'prep_status'],
+    ['brand', 'article', 'location', 'product'],
+    rows,
+    (r) => [
+      brand.code,
+      planDate,
+      String(r.Clean_ItemID ?? ''),
+      String(r.LocationID ?? ''),
+      String(r.ProductName_Fixed_Option ?? ''),
+      Number(r.Tomorrow_Forecast_Qty) || 0,
+      r.Last_Avg_Actual === null || r.Last_Avg_Actual === undefined ? null : Number(r.Last_Avg_Actual),
+      r.Demand_Change_Pct === null || r.Demand_Change_Pct === undefined ? null : Number(r.Demand_Change_Pct),
+      String(r.Prep_Status ?? ''),
+    ]
+  )
+
+  await pg.run(
+    `INSERT INTO cube_plan_kpis
+       (brand, plan_date, today_date, tomorrow_qty, to_prepare, high_demand, low_demand, today_qty, refreshed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))
+     ON CONFLICT (brand) DO UPDATE SET
+       plan_date = excluded.plan_date,
+       today_date = excluded.today_date,
+       tomorrow_qty = excluded.tomorrow_qty,
+       to_prepare = excluded.to_prepare,
+       high_demand = excluded.high_demand,
+       low_demand = excluded.low_demand,
+       today_qty = excluded.today_qty,
+       refreshed_at = excluded.refreshed_at`,
+    [
+      brand.code,
+      planDate,
+      k.Today_Date ? String(k.Today_Date).slice(0, 10) : null,
+      Number(k.Tomorrow_Forecast_Qty) || 0,
+      Number(k.Products_To_Prepare) || 0,
+      Number(k.High_Demand_Products) || 0,
+      Number(k.Low_Demand_Products) || 0,
+      Number(k.Today_Forecast_Qty) || 0,
+    ]
+  )
+
+  return { brand: brand.code, rows: rows.length, planDate }
+}
+
+/** Every brand's plan, one at a time so nine of them are not a burst. */
+export async function refreshAllPlans() {
+  const out = []
+  for (const brand of config.brands) {
+    try {
+      out.push(await refreshPlan(brand))
+    } catch (err) {
+      out.push({ brand: brand.code, rows: 0, error: err.message.slice(0, 80) })
+    }
+    await sleep(GAP_MS)
+  }
+  return out
 }
 
 export async function backfillAll(onStep) {

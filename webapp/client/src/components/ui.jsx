@@ -220,7 +220,10 @@ export function InfoBanner({ children, tone = 'info', icon }) {
  * along the bottom edge. No tint and no icon — colour is reserved for state.
  */
 export function MetricCard({ label, value, foot, accent = 'green', progress, loading, textValue }) {
-  if (loading) return <div className="metric skel" style={{ height: 96, border: 'none' }} aria-hidden="true" />
+  // minHeight, not height: the flow is a stretch grid, so a fixed height left
+  // the two input skeletons floating at the top of a row the taller Performance
+  // skeleton beside them had already made 208px deep.
+  if (loading) return <div className="metric skel" style={{ minHeight: 96, border: 'none' }} aria-hidden="true" />
   return (
     <div className="metric">
       <span className="metric__label">{label}</span>
@@ -240,7 +243,7 @@ export function MetricCard({ label, value, foot, accent = 'green', progress, loa
  * the inputs beside it. White card, coloured figure — the number carries state.
  */
 export function PerfCard({ title = 'Performance', items, loading, height = 208 }) {
-  if (loading) return <div className="perf skel" style={{ height, border: 'none' }} aria-hidden="true" />
+  if (loading) return <div className="perf skel" style={{ minHeight: height, border: 'none' }} aria-hidden="true" />
   return (
     <div className="perf">
       <span className="perf__title">{title}</span>
@@ -268,6 +271,61 @@ export function MetricFlow({ inputs, children }) {
       </span>
       {children}
     </div>
+  )
+}
+
+/**
+ * A standing notice that scrolls across the page.
+ *
+ * For a fact about the figures that is always true and easy to forget — not for
+ * an alert, which has to be dismissible and has its own place. It moves because
+ * a line of small print above a table is read once and then never again, and
+ * this one has to be read by whoever is about to place an order.
+ *
+ * The text is written twice so the loop is seamless: the track slides by
+ * exactly half its width and starts again, and the second copy is where the
+ * first one was. It is hidden from screen readers, which would otherwise hear
+ * the sentence twice, and pauses on hover so a long line can be read at rest.
+ */
+export function Ticker({ tag = 'Note', tone = 'red', short = false, children }) {
+  return (
+    <div className={`ticker ticker--${tone}${short ? ' ticker--short' : ''}`} role="status">
+      <span className="ticker__tag">
+        <IconAlert size={12} />
+        {tag}
+      </span>
+      <div className="ticker__window">
+        <div className="ticker__track">
+          <span className="ticker__item">{children}</span>
+          <span className="ticker__item" aria-hidden="true">
+            {children}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The FM notice, in one place because it appears on four pages.
+ *
+ * Two lengths of the same fact. The Ingredients page gets the long one — it is
+ * the page people order from, and there the consequence is specific enough to
+ * be worth spelling out. Everywhere else gets the short one: the figures on the
+ * Overview, Products and Tomorrow's Prep are equally incomplete, but nobody
+ * places an order off them, so a sentence about warehouse stock would be noise.
+ */
+export function FmNotice({ detail = false }) {
+  return detail ? (
+    <Ticker tag="FM not included">
+      <b>FM is not covered by this forecast.</b> Raw article quantities are for the nine
+      forecast brands only and exclude FM&rsquo;s requirement on the same warehouse stock —
+      please cross-check FM before placing an order.
+    </Ticker>
+  ) : (
+    <Ticker tag="FM not included" short>
+      <b>FM is not included.</b> These figures forecast the other nine brands only.
+    </Ticker>
   )
 }
 

@@ -1,6 +1,8 @@
 import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 import { consumptionByArticle, articleNames } from '../powerbi/warehouse.js'
+import { forgetShipped } from './query.js'
+import { forgetConstants } from '../insights/whConstant.js'
 
 /**
  * Keeping the outbound figures locally, for the same reason as everything else.
@@ -178,5 +180,11 @@ export async function refreshAllOutbound({ from, to, month, lastFrom, lastTo }) 
       out.push({ brand: brand.code, rows: 0, error: err.message.slice(0, 80) })
     }
   }
+  // An article the warehouse has started shipping is new evidence, and the
+  // "never shipped here" set is what decides whether a component can be scored
+  // at all. Held for the life of the process otherwise.
+  forgetShipped()
+  // The six-month constants are averages over these very rows.
+  forgetConstants()
   return out
 }

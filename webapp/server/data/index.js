@@ -136,7 +136,11 @@ export const data = {
           : {}
         const keys = Object.keys(local)
         const rest = need ? need.filter((k) => !keys.includes(k)) : need
-        const live = await provider.slicers(f, ds, rest)
+        // The calendar too, when the copy has it. It is four dates that change
+        // once a day, and asking nine models for them was six seconds of every
+        // cold load — the single biggest live cost left on a page.
+        const calendar = cube.dateRangeFor(f.brand)
+        const live = await provider.slicers(f, ds, rest, { dateRange: calendar })
         // Local values win where present; everything else is as the model gave it.
         return { ...live, ...local }
       },
@@ -268,6 +272,27 @@ export const data = {
             : provider.componentLevel(f, ds, grain),
       grainKey(grain)
     ),
-  productionPlan: (f, ds) => call('productionPlan', f, ds, () => provider.productionPlan(f, ds)),
-  productionPlanKpis: (f, ds) => call('productionPlanKpis', f, ds, () => provider.productionPlanKpis(f, ds)),
+  /*
+   * The plan is copied whole and filtered locally.
+   *
+   * These two were the last queries on any page that always went live: 3.4s and
+   * 1.7s for nine brands, on a page opened first thing every morning and a card
+   * that sits on the Overview. What the copy holds is Power BI's own answer,
+   * refreshed hourly, so the figures are the model's — only the waiting is gone.
+   */
+  productionPlan: (f, ds) =>
+    call('productionPlan', f, ds, async () => {
+      const local = await fromCopyOrLive('productionPlan', () => cube.planFor(f.brand, f), () => null)
+      return local ?? provider.productionPlan(f, ds)
+    }),
+  productionPlanKpis: (f, ds) =>
+    call('productionPlanKpis', f, ds, async () => {
+      // Only when nothing is filtered: the stored measures are the brand's
+      // totals, and a branch-filtered card has to be recomputed by the model.
+      const plain = !f.locations?.length && !f.products?.length && !f.articles?.length
+      const local = plain
+        ? await fromCopyOrLive('productionPlanKpis', () => cube.planKpisFor(f.brand), () => null)
+        : null
+      return local ?? provider.productionPlanKpis(f, ds)
+    }),
 }

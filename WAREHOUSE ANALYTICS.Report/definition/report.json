@@ -1,0 +1,117 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.3.0/schema.json",
+  "themeCollection": {
+    "baseTheme": {
+      "name": "CY26SU04",
+      "reportVersionAtImport": {
+        "visual": "2.8.0",
+        "report": "3.2.0",
+        "page": "2.3.1"
+      },
+      "type": "SharedResources"
+    }
+  },
+  "objects": {
+    "section": [
+      {
+        "properties": {
+          "verticalAlignment": {
+            "expr": {
+              "Literal": {
+                "Value": "'Top'"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "outspacePane": [
+      {
+        "properties": {
+          "expanded": {
+            "expr": {
+              "Literal": {
+                "Value": "true"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "publicCustomVisuals": [
+    "BulletChart1443347686880"
+  ],
+  "resourcePackages": [
+    {
+      "name": "SharedResources",
+      "type": "SharedResources",
+      "items": [
+        {
+          "name": "CY26SU04",
+          "path": "BaseThemes/CY26SU04.json",
+          "type": "BaseTheme"
+        }
+      ]
+    },
+    {
+      "name": "RegisteredResources",
+      "type": "RegisteredResources",
+      "items": [
+        {
+          "name": "check-out668067280985492.png",
+          "path": "check-out668067280985492.png",
+          "type": "Image"
+        },
+        {
+          "name": "clock3534195880777319.png",
+          "path": "clock3534195880777319.png",
+          "type": "Image"
+        },
+        {
+          "name": "exchange4648327796966084.png",
+          "path": "exchange4648327796966084.png",
+          "type": "Image"
+        },
+        {
+          "name": "out-of-stock_(1)7091741516780059.png",
+          "path": "out-of-stock_(1)7091741516780059.png",
+          "type": "Image"
+        },
+        {
+          "name": "package-delivered5568058351082146.png",
+          "path": "package-delivered5568058351082146.png",
+          "type": "Image"
+        },
+        {
+          "name": "preorder29665582518060074.png",
+          "path": "preorder29665582518060074.png",
+          "type": "Image"
+        },
+        {
+          "name": "rating6220560917817188.png",
+          "path": "rating6220560917817188.png",
+          "type": "Image"
+        },
+        {
+          "name": "SwishLogo39150353683278005.jpg",
+          "path": "SwishLogo39150353683278005.jpg",
+          "type": "Image"
+        },
+        {
+          "name": "time_(1)4855731698111231.png",
+          "path": "time_(1)4855731698111231.png",
+          "type": "Image"
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "useStylableVisualContainerHeader": true,
+    "exportDataMode": "AllowSummarized",
+    "defaultDrillFilterOtherVisuals": true,
+    "allowChangeFilterTypes": true,
+    "useEnhancedTooltips": true,
+    "useDefaultAggregateDisplayName": true
+  }
+}

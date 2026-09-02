@@ -1,0 +1,439 @@
+table fact_grn_line
+	lineageTag: 8fd4c05a-28d0-40a0-82ac-2ec52a8ab0a3
+
+	column 'Article No.'
+		dataType: int64
+		formatString: 0
+		lineageTag: 80bbdcee-ea30-45ed-82a8-b130ac6eb2e9
+		summarizeBy: sum
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 3d066fe9-0320-4099-87c0-13e10d53959d
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 4c95806a-363e-470d-b12e-db7c671b876e
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 86d84583-03bf-44dd-98d7-02910fc1ac87
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: 46f10de1-6157-43d8-bf66-1cd75b4bf159
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit'
+		dataType: string
+		lineageTag: e5e0fcee-db24-463b-a285-8691270e5852
+		summarizeBy: none
+		sourceColumn: GRN Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Base Unit'
+		dataType: string
+		lineageTag: 89c90f1b-a743-47f6-bf31-8ce6c4c5c6b4
+		summarizeBy: none
+		sourceColumn: GRN Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Qty'
+		dataType: double
+		lineageTag: 196e8cd7-b62a-4d3d-b48b-9c4500b84994
+		summarizeBy: sum
+		sourceColumn: GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Base Qty'
+		dataType: double
+		lineageTag: 4a88baa1-ce90-4cf2-952b-cc5a1f54502d
+		summarizeBy: sum
+		sourceColumn: GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Price Per Unit'
+		dataType: double
+		lineageTag: 491f8cab-8982-43fe-b6cf-14cb803d666e
+		summarizeBy: sum
+		sourceColumn: GRN Price Per Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Price Per Base Unit'
+		dataType: double
+		lineageTag: ff51e052-c993-45b8-a127-73f21c2d7c20
+		summarizeBy: sum
+		sourceColumn: GRN Price Per Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: a29178a7-4211-4b75-afa4-ad5add068473
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Discount
+		dataType: double
+		lineageTag: 116db0d7-1db1-43f5-9fdb-9c9b18b714df
+		summarizeBy: sum
+		sourceColumn: Discount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Delivery Note No'
+		dataType: string
+		lineageTag: 68f37025-94da-4c40-a751-4f29f596f23f
+		summarizeBy: none
+		sourceColumn: Delivery Note No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 00b2fc2f-a0f3-497b-b8d7-f64192ef1704
+		summarizeBy: none
+		sourceColumn: GRN Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'DN Status'
+		dataType: string
+		lineageTag: f3794967-a8d0-4280-9a59-2071b47740d9
+		summarizeBy: none
+		sourceColumn: DN Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order No.'
+		dataType: string
+		lineageTag: bc1e1fa3-09d1-4181-934b-19860f557d6d
+		summarizeBy: none
+		sourceColumn: Order No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Order Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 86c655f9-4a71-42a2-b9f7-651829597f11
+		summarizeBy: none
+		sourceColumn: DN Order Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Requested Qty'
+		dataType: double
+		lineageTag: 620d6507-dd5c-4909-b155-493c7e372bb4
+		summarizeBy: sum
+		sourceColumn: Requested Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ba11075d-402d-4639-814d-179c09ca6596
+		summarizeBy: none
+		sourceColumn: Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 529aae58-0616-425a-9acb-cbc2f52d3895
+		summarizeBy: none
+		sourceColumn: GRN Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Sub_Category
+		dataType: string
+		lineageTag: ef40a418-df2d-482d-8b5e-7d745c0da1f7
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 6b85d8da-1241-44e6-af50-331cb6a1935e
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 0daf4e4e-4287-4f70-ab1b-ae40d5398e47
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_grn_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Delivery Note",
+				
+				    RenameColumns =
+				        Table.RenameColumns(
+				            Source,
+				            {
+				                {"Delivery Date", "GRN Delivery Date"},
+				                {"Base Unit", "GRN Base Unit"},
+				                {"Price/Unit", "GRN Price Per Unit"},
+				                {"Price/BU", "GRN Price Per Base Unit"},
+				                {"Requested QTY", "Requested Qty"}
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    KeepColumns =
+				        Table.SelectColumns(
+				            RenameColumns,
+				            {
+				                "Article No.",
+				                "Article",
+				                "Supplier",
+				                "Warehouse",
+				                "GRN Unit",
+				                "GRN Qty",
+				                "GRN Base Qty",
+				                "GRN Base Unit",
+				                "GRN Price Per Unit",
+				                "GRN Price Per Base Unit",
+				                "GRN Value",
+				                "Discount",
+				                "Delivery Note No",
+				                "GRN Delivery Date",
+				                "DN Status",
+				                "Order No.",
+				                "DN Order Date",
+				                "Requested Qty",
+				                "Booking DateTime",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    CleanTextColumns =
+				        Table.TransformColumns(
+				            KeepColumns,
+				            {
+				                {"Article", each fnCleanText(_), type nullable text},
+				                {"Supplier", each fnCleanText(_), type nullable text},
+				                {"Warehouse", each fnCleanText(_), type nullable text},
+				                {"GRN Unit", each fnCleanText(_), type nullable text},
+				                {"GRN Base Unit", each fnCleanBaseUnit(_), type nullable text},
+				                {"Delivery Note No", each Text.From(_), type nullable text},
+				                {"DN Status", each fnCleanText(_), type nullable text},
+				                {"Order No.", each Text.From(_), type nullable text},
+				                {"Sub_Category", each fnCleanText(_), type nullable text},
+				                {"Item_Group", each fnCleanText(_), type nullable text},
+				                {"Storage_Type", each fnCleanText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    CleanDates =
+				        Table.TransformColumns(
+				            CleanTextColumns,
+				            {
+				                {"GRN Delivery Date", each fnDateOnly(_), type nullable date},
+				                {"DN Order Date", each fnDateOnly(_), type nullable date}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    AddBookingDate =
+				        Table.AddColumn(
+				            CleanDates,
+				            "GRN Booking Date",
+				            each fnDateOnly([Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    ChangeTypes =
+				        Table.TransformColumnTypes(
+				            AddBookingDate,
+				            {
+				                {"Article No.", Int64.Type},
+				                {"GRN Qty", type number},
+				                {"GRN Base Qty", type number},
+				                {"GRN Price Per Unit", type number},
+				                {"GRN Price Per Base Unit", type number},
+				                {"GRN Value", type number},
+				                {"Discount", Percentage.Type},
+				                {"Requested Qty", type number},
+				                {"GRN Delivery Date", type date},
+				                {"DN Order Date", type date},
+				                {"GRN Booking Date", type date}
+				            },
+				            "en-US"
+				        ),
+				    FilterValidGRN =
+				        Table.SelectRows(
+				            ChangeTypes,
+				            each
+				                List.Contains(
+				                    {
+				                        "BOOKED DELIVERY NOTE",
+				                        "BOOKED INVOICE","CLOSED INVOICE",
+				                        "OPEN DELIVERY NOTE"
+				                    },
+				                    [DN Status]
+				                )
+				        ),
+				
+				    AddWarehouseKey =
+				        Table.AddColumn(
+				            FilterValidGRN,
+				            "__Warehouse Key",
+				            each fnCleanText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    WarehouseDim =
+				        let
+				            W0 = dim_warehouse,
+				            W1 =
+				                if List.Contains(Table.ColumnNames(W0), "Warehouse Key")
+				                then W0
+				                else Table.AddColumn(W0, "Warehouse Key", each fnCleanText([Warehouse]), type nullable text),
+				            W2 =
+				                Table.TransformColumns(
+				                    W1,
+				                    {
+				                        {"Warehouse Key", each fnCleanText(_), type nullable text},
+				                        {"Cost Center", each fnCleanText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                )
+				        in
+				            W2,
+				
+				    MergeWarehouse =
+				        Table.NestedJoin(
+				            AddWarehouseKey,
+				            {"__Warehouse Key"},
+				            WarehouseDim,
+				            {"Warehouse Key"},
+				            "Warehouse Mapping",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandWarehouse =
+				        Table.ExpandTableColumn(
+				            MergeWarehouse,
+				            "Warehouse Mapping",
+				            {"Cost Center"},
+				            {"Mapped Cost Center"}
+				        ),
+				
+				    AddFinalCostCenter =
+				        Table.AddColumn(
+				            ExpandWarehouse,
+				            "Final Cost Center",
+				            each if [Mapped Cost Center] = null then [Warehouse] else [Mapped Cost Center],
+				            type nullable text
+				        ),
+				
+				    RemoveTempColumns =
+				        Table.RemoveColumns(
+				            AddFinalCostCenter,
+				            {"__Warehouse Key", "Mapped Cost Center"},
+				            MissingField.Ignore
+				        ),
+				
+				    ReorderColumns =
+				        Table.ReorderColumns(
+				            RemoveTempColumns,
+				            {
+				                "Article No.",
+				                "Article",
+				                "Supplier",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "GRN Unit",
+				                "GRN Base Unit",
+				                "GRN Qty",
+				                "GRN Base Qty",
+				                "GRN Price Per Unit",
+				                "GRN Price Per Base Unit",
+				                "GRN Value",
+				                "Discount",
+				                "Delivery Note No",
+				                "GRN Delivery Date",
+				                "DN Status",
+				                "Order No.",
+				                "DN Order Date",
+				                "Requested Qty",
+				                "Booking DateTime",
+				                "GRN Booking Date",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

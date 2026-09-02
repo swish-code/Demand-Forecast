@@ -1,0 +1,45 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		fastCombine
+		legacyRedirects
+		returnErrorValuesAsNull
+
+/// Errors in queries that were loaded on 17/06/2026 1:30:18 AM.
+queryGroup 'Query Errors - 17/06/2026 1:30:18 AM'
+
+	annotation PBI_QueryGroupOrder = 0
+
+/// Errors in queries that were loaded on 19/06/2026 8:04:27 PM.
+queryGroup 'Query Errors - 19/06/2026 8:04:27 PM'
+
+	annotation PBI_QueryGroupOrder = 1
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["Delivery Note","Open PO","Issue Requests & Transfer","Issue Requests & Transfer Grouped","Replen Planning","Unit Conversion","fnCleanText","fnCleanBaseUnit","fnDateOnly","dim_unit_conversion","dim_item","dim_supplier","dim_date","CategoryLookup","Warehouse Mapping","dim_warehouse","fact_po_line","fact_grn_line","fact_po_period_base","fact_grn_allocated_detail","agg_grn_by_po_period","fact_po_period_lifecycle","Append1","bridge_supplier_po_period","fact_outbound_line","Errors in fact_outbound_line","OutboundWH","fact_outbound_line (2)","Errors in fact_outbound_line (2)","p_FromDate","SOH Control","ref_soh_article_global_status"]
+
+annotation PBI_ProTooling = ["WebModelingEdit","DevMode"]
+
+ref table dim_item
+ref table dim_supplier
+ref table dim_date
+ref table dim_warehouse
+ref table fact_po_line
+ref table fact_grn_line
+ref table fact_grn_allocated_detail
+ref table fact_po_period_lifecycle
+ref table dim_unit_conversion
+ref table '_Measures Inbound'
+ref table Append1
+ref table bridge_supplier_po_period
+ref table '_Measures Color'
+ref table fact_outbound_line
+ref table '_Measures Outbound'
+ref table p_FromDate
+ref table 'Refresh Info'
+
+ref cultureInfo en-US
+

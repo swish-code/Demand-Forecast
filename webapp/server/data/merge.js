@@ -82,9 +82,21 @@ export function mergeTrend(parts) {
  * `key` includes the brand for anything a brand can own — a product name or a
  * location code is only unique inside its own chain.
  */
-export function mergeRows(parts, { key, sum, sort }) {
+/**
+ * `keepNull` names measures where blank means "not known", not "none".
+ *
+ * Consumption is the case. It sits on one row per article and every other row
+ * of that article is blank, so merging two brands that both carry the blank
+ * side of the same component summed null with null and produced a measured
+ * zero — a component the warehouse simply had not reported on came out looking
+ * like one nobody had issued, and scored 0% accuracy for it.
+ */
+export function mergeRows(parts, { key, sum, sort, keepNull = [] }) {
   const lists = parts.filter(Boolean)
   if (lists.length === 1) return lists[0]
+
+  const blank = new Set(keepNull)
+  const missing = (v) => v === null || v === undefined
 
   const out = new Map()
   for (const list of lists) {
@@ -95,7 +107,13 @@ export function mergeRows(parts, { key, sum, sort }) {
         out.set(k, { ...r })
         continue
       }
-      for (const field of sum) prev[field] = num(prev[field]) + num(r[field])
+      for (const field of sum) {
+        if (blank.has(field) && missing(prev[field]) && missing(r[field])) {
+          prev[field] = null
+          continue
+        }
+        prev[field] = num(prev[field]) + num(r[field])
+      }
     }
   }
   const rows = [...out.values()]

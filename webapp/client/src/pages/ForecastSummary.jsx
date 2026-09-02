@@ -16,6 +16,7 @@ import {
   MetricFlow,
   SignedQty,
   InfoBanner,
+  FmNotice,
 } from '../components/ui.jsx'
 import { IconDownload, IconInfo, IconCalendar } from '../components/Icons.jsx'
 import { TrendChart } from '../components/charts/TrendChart.jsx'
@@ -356,6 +357,8 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
 
   return (
     <>
+      <FmNotice />
+
       {/*
         The way in to the guide.
         

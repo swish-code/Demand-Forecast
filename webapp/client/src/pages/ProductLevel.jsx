@@ -12,6 +12,7 @@ import {
   MetricCard,
   MetricFlow,
   PerfCard,
+  FmNotice,
 } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
@@ -76,6 +77,17 @@ const COLUMNS = [
 
 /** Mirrors the report's PRODUCT LEVEL page. */
 export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, onDrill }) {
+  /*
+   * What the CSV holds.
+   *
+   * The table tells us the columns it is showing and the rows left after its
+   * search box; the download is that, not the full set behind it. Someone who
+   * ticks six columns out of twelve and downloads twelve has not exported the
+   * view they built. Falls back to everything until the table has reported —
+   * which is before the button can be clicked.
+   */
+  const [view, setView] = useState(null)
+
   const [hiddenCols, setHiddenCols] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('df-cols-products-detail') || 'null')
@@ -119,7 +131,12 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
     ...(future ? ['Actual_Qty', 'Variance_Qty', 'Variance_Pct', 'Demand_Shift_Pct'] : []),
     ...(grain.includes('date') ? ['Demand_Shift_Pct'] : []),
   ]
-  const columns = drop.length ? COLUMNS.filter((c) => !drop.includes(c.key)) : COLUMNS
+  // Memoised on what it is derived from, not rebuilt each render: the table
+  // sorts and filters against this array, and a fresh identity every render
+  // threw that work away on every keystroke.
+  const dropKey = drop.join(',')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- dropKey is `drop`
+  const columns = useMemo(() => (drop.length ? COLUMNS.filter((c) => !drop.includes(c.key)) : COLUMNS), [dropKey])
 
   const actual = kpis.Actual_Qty ?? 0
   const forecast = kpis.Forecast_Qty ?? 0
@@ -128,6 +145,8 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
 
   return (
     <>
+      <FmNotice />
+
       <MetricFlow
         inputs={
           <>
@@ -193,9 +212,13 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
           <button
             type="button"
             className="btn"
-            disabled={!rows.length}
+            disabled={!(view?.rows ?? rows).length}
             onClick={() =>
-              downloadCsv('bbt-product-level.csv', rows, COLUMNS.map(({ key, label }) => ({ key, label })))
+              downloadCsv(
+                'bbt-product-level.csv',
+                view?.rows ?? rows,
+                view?.columns ?? COLUMNS.map(({ key, label }) => ({ key, label }))
+              )
             }
           >
             <IconDownload size={12} />
@@ -216,7 +239,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             searchPlaceholder="Search product or PLU…"
             tableId="products-detail"
             onColumnsChange={setHiddenCols}
-            totals
+            onViewChange={setView}
           />
         )}
       </Panel>
