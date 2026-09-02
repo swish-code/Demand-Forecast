@@ -4,6 +4,7 @@ import { consumptionByArticle, articleNames } from '../powerbi/warehouse.js'
 import * as dax from '../powerbi/dax.js'
 import * as cube from '../cube/query.js'
 import { constantsFromCopy } from '../cube/query.js'
+import { forecastFromConstants } from './whConstant.js'
 
 /**
  * Forecasting the things no recipe knows about.
@@ -225,15 +226,42 @@ export async function constantsFor(brand, { today = new Date() } = {}) {
  */
 export async function nonRecipeRows(brand, filters, { today = new Date() } = {}) {
   if (!filters?.dateFrom || !filters?.dateTo) return []
-  const constants = await constantsFor(brand, { today })
-  if (!constants.size) return []
+
+  /*
+   * The articles: everything the warehouse ships that no recipe names.
+   *
+   * 753 of the 1,655 articles issued in the last six months — 45% of them, and
+   * 32% of all the volume that leaves the building. Gloves, packaging, sauces
+   * bought in ready-made: as much a warehouse requirement as flour, and none of
+   * it in a recipe, so none of it forecast by the recipe explosion.
+   *
+   * The membership comes from the copy, which already excludes anything a
+   * recipe covers — forecasting those a second time here would double them.
+   */
+  const known = await constantsFor(brand, { today })
+  if (!known.size) return []
+
+  /*
+   * The figure: the six-month average rate, not last month's.
+   *
+   * One month is one delivery pattern, and an article bought in bulk every
+   * eight weeks looks enormous in the month it arrives and absent in the month
+   * it does not. The same six-month average the WH forecast column uses is
+   * applied here, so a warehouse-only article and a recipe article are forecast
+   * by the same method and can be read against each other.
+   *
+   * Last month's constant stays as the fallback, for an article whose six
+   * months of history are too thin to average.
+   */
+  const sixMonth = await forecastFromConstants(brand.code ?? brand, filters, { today }).catch(
+    () => new Map()
+  )
 
   const windowSales = await salesFor(brand, { from: filters.dateFrom, to: filters.dateTo }, 'forecast')
-  if (!windowSales) return []
 
   const rows = []
-  for (const [article, c] of constants) {
-    const forecast = windowSales / c.constant
+  for (const [article, c] of known) {
+    const forecast = sixMonth.get(article) ?? (windowSales ? windowSales / c.constant : null)
     if (!Number.isFinite(forecast) || forecast <= 0) continue
     rows.push({
       'Recipe Group': 'No recipe — from outbound',

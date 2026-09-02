@@ -836,6 +836,45 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
     }
   }
 
+  /*
+   * Articles the warehouse ships that reach no brand at all.
+   *
+   * 304 of them: raw materials that only ever go to the central kitchen, plus
+   * everything issued to the bakery, head office and R&D. No recipe names them
+   * and no brand receives them, so nothing put them on this page — and this is
+   * the page somebody orders from, so leaving them off means they are ordered
+   * from a spreadsheet or not at all.
+   *
+   * Forecast the same way as every other warehouse-only article: the six-month
+   * average of outbound per unit sold, applied to the sales forecast for the
+   * window on screen. Added once, after the brands are merged, and only when
+   * they are not already on the page under a brand.
+   */
+  const names = await cube.constantsFromCopy(OTHER_BUCKET).catch(() => new Map())
+  const already = new Set(
+    rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
+  )
+
+  for (const [article, forecast] of otherForecast) {
+    if (already.has(article)) continue
+    if (!Number.isFinite(forecast) || forecast <= 0) continue
+    const known = names.get(article)
+    rows.push({
+      'Recipe Group': 'No recipe — from outbound',
+      Item: known?.name || article,
+      'Item No.': article,
+      BU: known?.unit || '',
+      'Node Type': 'RAW',
+      // Nothing implies these: no recipe says how many go with a burger, which
+      // is exactly why they are here.
+      Component_Forecast_Qty: null,
+      Component_Actual_Qty: null,
+      Consumed_Qty: other?.get(article) ?? null,
+      Live_Outbound_MTD: otherMtd?.get(article) ?? null,
+      WH_Constant_Forecast_Qty: forecast,
+    })
+  }
+
   return rows
 }
 
