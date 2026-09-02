@@ -100,6 +100,50 @@ SUMMARIZECOLUMNS(
 }
 
 /**
+ * The same question, asked once for several brands.
+ *
+ * `Mapped Transfer To` is in the grouping as well as the filter, so one query
+ * answers for every brand selected and the rows come back labelled. Nine brands
+ * used to mean nine queries fired together, which is the burst the capacity
+ * refuses — measured at 6.6 seconds of query time on one page load.
+ *
+ * Returns a Map of brand code to that brand's article map.
+ */
+export async function consumptionByBrands(brandCodes, { dateFrom, dateTo } = {}) {
+  if (!isConfigured() || !brandCodes?.length || !dateFrom || !dateTo) return null
+
+  const dax = `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Mapped Transfer To],
+  fact_outbound_line[Article No.],
+  TREATAS({${literal(brandCodes)}}, fact_outbound_line[Mapped Transfer To]),
+  DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${literal(config.warehouse.statuses)}}
+  ),
+  "Consumed_Qty", SUM(fact_outbound_line[Action Base Qty])
+)`
+
+  const rows = await executeQuery(dax, config.warehouse.datasetId, {
+    bulk: true,
+    workspace: config.warehouse.workspaceId,
+  })
+
+  const out = new Map()
+  for (const code of brandCodes) out.set(code, new Map())
+  for (const r of rows) {
+    const brand = String(r['Mapped Transfer To'] ?? '').trim()
+    const article = String(r['Article No.'] ?? '').trim()
+    const qty = Number(r.Consumed_Qty)
+    if (!brand || !article || !Number.isFinite(qty)) continue
+    const held = out.get(brand)
+    if (held) held.set(article, (held.get(article) ?? 0) + qty)
+  }
+  return out
+}
+
+/**
  * Article number to the name the warehouse knows it by.
  *
  * A nine-digit code identifies a thing without describing it, and nobody

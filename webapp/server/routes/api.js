@@ -17,7 +17,7 @@ import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
 import * as cube from '../cube/query.js'
-import { consumptionByArticle } from '../powerbi/warehouse.js'
+import { consumptionByArticle, consumptionByBrands } from '../powerbi/warehouse.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import {
@@ -514,7 +514,7 @@ api.all('/product-level', handle(async (req, res) => {
  * why the column has no total in the table: a measured quantity cannot be split
  * across recipes without inventing an allocation nobody asked for.
  */
-async function withConsumption(rows, brand, filters, grain = {}) {
+async function withConsumption(rows, brand, filters, grain = {}, mtd = undefined) {
   /*
    * Split by branch, there is nothing truthful to show.
    *
@@ -560,21 +560,6 @@ async function withConsumption(rows, brand, filters, grain = {}) {
    */
   const shipped = await cube.articlesShippedTo(brand.code).catch(() => null)
 
-  /*
-   * What has actually gone out so far, asked of the warehouse rather than the
-   * copy.
-   *
-   * The Outbound column covers the whole selected window; this one stops at
-   * today. Choose September and it answers for the first to the tenth, so the
-   * month's requirement can be read against the part of it already drawn.
-   *
-   * Live, and cached for five minutes. Both halves matter: a figure labelled
-   * live cannot come from an hourly copy, and it cannot be fetched afresh on
-   * every request either — nine brands doing that is the burst the capacity
-   * answers with a sixty-second refusal, which is exactly the fault this page
-   * was suffering from a few hours ago.
-   */
-  const mtd = byDate ? null : await liveOutboundToDate(brand, filters)
 
   /*
    * The same articles, forecast a completely different way.
@@ -625,50 +610,82 @@ async function withConsumption(rows, brand, filters, grain = {}) {
 
     // The article number, without the day, is what the warehouse knows.
     const article = String(r['Item No.'] ?? '').trim()
-    const extra = {
-      Live_Outbound_MTD: mtd ? (mtd.get(article) ?? 0) : null,
-      WH_Constant_Forecast_Qty: byConstant.get(article) ?? null,
-    }
+    /*
+     * Live outbound to date.
+     *
+     * `mtd === undefined` means the window has already ended, and then this is
+     * the same figure as Outbound beside it — the window and the window-to-date
+     * are the same range — so the copy's answer is used and no query is made.
+     * A Map means the window includes today and the warehouse was asked; null
+     * means the window has not started.
+     */
+    const constant = byConstant.get(article) ?? null
 
-    if (consumed.has(k)) return { ...r, ...extra, Consumed_Qty: consumed.get(k) }
+    // Live outbound follows Outbound's rules, not its own. An article the
+    // warehouse has never shipped is blank in both — reading "0" in one column
+    // and "–" in the other says the warehouse shipped none of it, when the
+    // truth is that it has no record of it at all.
+    const live = (fallback) =>
+      mtd === undefined ? fallback : mtd ? (mtd.get(article) ?? 0) : null
+
+    if (consumed.has(k)) {
+      const qty = consumed.get(k)
+      return { ...r, Consumed_Qty: qty, Live_Outbound_MTD: live(qty), WH_Constant_Forecast_Qty: constant }
+    }
     // No shipping history at all, so there is nothing to compare against.
     if (shipped && !shipped.has(article)) {
-      return { ...r, ...extra, Consumed_Qty: null, Consumed_Unknown: true }
+      return {
+        ...r,
+        Consumed_Qty: null,
+        Consumed_Unknown: true,
+        Live_Outbound_MTD: null,
+        WH_Constant_Forecast_Qty: constant,
+      }
     }
-    return { ...r, ...extra, Consumed_Qty: 0 }
+    return { ...r, Consumed_Qty: 0, Live_Outbound_MTD: live(0), WH_Constant_Forecast_Qty: constant }
   })
 }
 
 /**
- * Outbound from the start of the window up to today, straight from the model.
+ * Live outbound to date, for every selected brand, in one query.
  *
- * The window's end is clamped to today and nothing else is. That sounds obvious
- * and the first version was not: it refused any window that had already ended,
- * on the reasoning that there is no "so far" about a finished month. But the
- * page opens on the last thirty days, which ends yesterday — so the column was
- * blank the moment anybody looked at it, which reads as broken rather than as
- * deliberate.
+ * Three answers, and the difference matters:
  *
- * On a window that has ended this equals the Outbound column, with one real
- * difference: that one comes from the hourly copy and this one is asked of the
- * warehouse now. Held for five minutes, because live cannot mean a fresh query
- * per brand per request.
+ *   undefined  the window has already ended, so window-to-date is the whole
+ *              window and the copy beside it already holds the number. No query
+ *              is made at all.
+ *   a Map      the window includes today; the warehouse was asked, once, for
+ *              every brand together.
+ *   null       the window has not started. Nothing has gone out for October and
+ *              a zero would say otherwise.
  *
- * Null only when the window has not started yet. Nothing has gone out for
- * October, and a zero would claim otherwise.
+ * The first case is what makes this cheap. Every ordinary view of this page —
+ * the default is the last thirty days, ending yesterday — now costs nothing,
+ * where a moment ago it cost one live query per brand: 6.6 seconds of query
+ * time across nine of them, on a page whose own rows were already local.
+ *
+ * When a query is needed it is one, not nine, because the destination column is
+ * in the grouping as well as the filter. Held for five minutes: live cannot
+ * mean a fresh query per request, and nine at once is the burst the capacity
+ * refuses outright.
  */
-async function liveOutboundToDate(brand, filters) {
+async function liveOutboundToDate(parts, filters) {
   if (!filters?.dateFrom || !filters?.dateTo) return null
-  const today = cube.todayFor(brand.code) ?? new Date().toISOString().slice(0, 10)
-  if (filters.dateFrom > today) return null
+  // A branch filter cannot be honoured by outbound at all, and the per-brand
+  // path already returns nothing for it.
+  if (parts.some((p) => p.f.locations?.length)) return null
 
-  const to = filters.dateTo < today ? filters.dateTo : today
+  const codes = parts.map((p) => p.brand.code)
+  const today = cube.todayFor(codes[0]) ?? new Date().toISOString().slice(0, 10)
+  if (filters.dateFrom > today) return null
+  // Already finished: the copy's own answer for the window is the same figure.
+  if (filters.dateTo <= today) return undefined
 
   return cached(
-    `${brand.code}:mtd:${filters.dateFrom}:${to}`,
+    `mtd:${codes.join(',')}:${filters.dateFrom}:${today}`,
     () =>
-      consumptionByArticle(brand.code, { ...filters, dateTo: to }, {}).catch((err) => {
-        console.warn(`  [warehouse] live outbound unavailable for ${brand.code}: ${err.message}`)
+      consumptionByBrands(codes, { dateFrom: filters.dateFrom, dateTo: today }).catch((err) => {
+        console.warn(`  [warehouse] live outbound unavailable: ${err.message}`)
         return null
       }),
     { seconds: 300 }
@@ -707,6 +724,10 @@ api.all('/component-level', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
   const grain = grainOf(req)
+
+  // Once, for every brand, before the fan-out — not once per brand inside it.
+  const mtdAll = grain.date ? null : await liveOutboundToDate(g.parts, g.parts[0].f)
+
   const results = await g.fanOut(async ({ ds, f, brand }) => {
     const rows = await data.componentLevel(f, ds, grain)
 
@@ -741,7 +762,8 @@ api.all('/component-level', handle(async (req, res) => {
             return []
           })
 
-    return withConsumption([...rows, ...extra], brand, f, grain)
+    const mine = mtdAll === undefined ? undefined : mtdAll?.get(brand.code) ?? null
+    return withConsumption([...rows, ...extra], brand, f, grain, mine)
   })
   if (g.single) return res.json({ rows: results[0] })
 

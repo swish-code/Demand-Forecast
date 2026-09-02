@@ -1,16 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api.js'
 import { useData } from './useData.js'
 import { SideNav } from './components/SideNav.jsx'
 import { FilterBar } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
 import { IconSummary, IconProduct, IconComponent, IconPlan, IconUsers } from './components/Icons.jsx'
-import { ForecastSummary } from './pages/ForecastSummary.jsx'
-import { ProductLevel } from './pages/ProductLevel.jsx'
-import { ComponentLevel } from './pages/ComponentLevel.jsx'
-import { ProductionPlan } from './pages/ProductionPlan.jsx'
-import { Admin } from './pages/Admin.jsx'
-import { Guide } from './pages/Guide.jsx'
+/*
+ * The pages are fetched when they are opened, not when the app starts.
+ *
+ * Everything was in one file: 743 kB of JavaScript, most of it the charting
+ * library, which every visitor downloaded and parsed before the Overview could
+ * paint — including the charts on four pages they had not opened and the admin
+ * screens most of them cannot see at all.
+ *
+ * Named exports, so each import is mapped to the default shape lazy() expects.
+ */
+const lazyPage = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })))
+
+const ForecastSummary = lazyPage(() => import('./pages/ForecastSummary.jsx'), 'ForecastSummary')
+const ProductLevel = lazyPage(() => import('./pages/ProductLevel.jsx'), 'ProductLevel')
+const ComponentLevel = lazyPage(() => import('./pages/ComponentLevel.jsx'), 'ComponentLevel')
+const ProductionPlan = lazyPage(() => import('./pages/ProductionPlan.jsx'), 'ProductionPlan')
+const Admin = lazyPage(() => import('./pages/Admin.jsx'), 'Admin')
+const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
 
 /** One entry per report page: rail label, rail kicker, blurb and slicers. */
 const PAGES = [
@@ -411,6 +423,7 @@ export default function App({ session, onSignedOut }) {
               {mailboxResult.text}
             </InfoBanner>
           )}
+          <Suspense fallback={<div className="skel" style={{ height: 320, margin: 'var(--s4) 0' }} aria-hidden="true" />}>
           {page.adminOnly ? (
             <Admin session={session} />
           ) : (
@@ -426,7 +439,18 @@ export default function App({ session, onSignedOut }) {
             <ErrorBanner error={slicers.error} onRetry={slicers.reload} />
           ) : (
             <page.Component
-              key={page.id + brandCodes.join(',')}
+              /*
+               * Keyed on the page alone, not on the brand selection.
+               *
+               * With the brands in the key, every tick of a brand box threw the
+               * whole page away and built it again: every memo discarded, every
+               * chart's SVG destroyed and redrawn, every table re-sorted from
+               * nothing — on a page that had only had two props change. It is
+               * the single most expensive thing a brand click did, and it did
+               * it before any data had even arrived. Filters flow in as props;
+               * the data hook reacts to them; nothing needs remounting.
+               */
+              key={page.id}
               filters={scoped}
               options={options}
               ready={ready}
@@ -437,6 +461,7 @@ export default function App({ session, onSignedOut }) {
           )}
             </>
           )}
+          </Suspense>
         </div>
       </div>
     </div>

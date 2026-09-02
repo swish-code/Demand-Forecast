@@ -29,20 +29,28 @@ function unreachable(message) {
   return err
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, { signal } = {}) {
   let res
   try {
     res = await fetch(
       `/api${path}`,
-      method === 'GET'
+      method === 'GET' && !signal
         ? undefined
         : {
             method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body ?? {}),
+            signal,
+            ...(method === 'GET'
+              ? {}
+              : {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body ?? {}),
+                }),
           }
     )
-  } catch {
+  } catch (err) {
+    // A caller that walked away is not a failure to report — the effect that
+    // started this has already been replaced by a newer one.
+    if (err?.name === 'AbortError') throw err
     // fetch rejects only when the request never reached a server at all.
     throw unreachable(UNREACHABLE_TEXT)
   }
@@ -69,13 +77,15 @@ async function request(method, path, body) {
  * to repeat; writes are not, so they go through `send` and fail on the spot
  * rather than risk sending an email or creating a user twice.
  */
-async function read(method, path, body) {
+async function read(method, path, body, options) {
   try {
-    return await request(method, path, body)
+    return await request(method, path, body, options)
   } catch (err) {
     if (!err.retryable) throw err
+    // Not worth retrying something nobody is waiting for any more.
+    if (options?.signal?.aborted) throw err
     await new Promise((r) => setTimeout(r, 900))
-    return request(method, path, body)
+    return request(method, path, body, options)
   }
 }
 
@@ -88,7 +98,7 @@ const send = (method, path, body) => request(method, path, body)
 const post = (path, body) => send('POST', path, body)
 
 /** The report queries: reads, whatever verb carries their filters. */
-const query = (path, body) => read('POST', path, body)
+const query = (path, body, options) => read('POST', path, body, options)
 
 export const api = {
   me: async () => {
@@ -112,14 +122,14 @@ export const api = {
     if (!res.ok) throw new Error(`Server not reachable (${res.status})`)
     return res.json()
   },
-  slicers: (filters) => query('/slicers', filters),
-  summary: (filters) => query('/summary', filters),
-  context: (filters) => query('/context', filters),
-  productLevel: (filters) => query('/product-level', filters),
-  componentLevel: (filters) => query('/component-level', filters),
-  productionPlan: (filters) => query('/production-plan', filters),
+  slicers: (filters, options) => query('/slicers', filters, options),
+  summary: (filters, options) => query('/summary', filters, options),
+  context: (filters, options) => query('/context', filters, options),
+  productLevel: (filters, options) => query('/product-level', filters, options),
+  componentLevel: (filters, options) => query('/component-level', filters, options),
+  productionPlan: (filters, options) => query('/production-plan', filters, options),
   // Tomorrow's totals without tomorrow's rows, for the Overview card.
-  productionPlanKpis: (filters) => query('/production-plan/kpis', filters),
+  productionPlanKpis: (filters, options) => query('/production-plan/kpis', filters, options),
   clearCache: () => post('/cache/clear'),
 
   admin: {

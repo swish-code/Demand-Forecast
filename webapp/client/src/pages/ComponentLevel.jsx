@@ -102,38 +102,6 @@ const COLUMNS = [
   },
   { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },
   /*
-   * What has gone out so far, against a window that has not finished.
-   *
-   * Outbound beside it covers the whole selection; this stops at today. Pick
-   * September on the tenth and this reads the first to the tenth, so the
-   * month's requirement can be read against the part already drawn.
-   *
-   * Asked of the warehouse directly rather than of the hourly copy — a figure
-   * called live has to be — but held for five minutes, because nine brands
-   * asking afresh on every request is the burst that gets the whole page
-   * refused for a minute.
-   *
-   * Blank on a window that has already ended: there is no "so far" about a
-   * finished month, and a second column repeating the first under a different
-   * name only invites the question of why they differ.
-   */
-  {
-    key: 'Live_Outbound_MTD',
-    label: 'Live outbound MTD',
-    width: 132,
-    num: true,
-    total: 'sum',
-    renderTotal: fmtInt,
-    render: (v) =>
-      v === null || v === undefined ? (
-        <span className="muted" title="Nothing yet — this window has not started. The figure runs from the start of the selected window up to today.">
-          –
-        </span>
-      ) : (
-        fmtInt(v)
-      ),
-  },
-  /*
    * The same article, forecast without touching a recipe.
    *
    * The constant is a rate: how much of this article the warehouse shipped per
@@ -155,13 +123,45 @@ const COLUMNS = [
     // reader needs is the difference between them, which is where each figure
     // came from — the recipes, or the warehouse's own history.
     label: 'Warehouse forecast',
-    width: 140,
+    width: 162,
     num: true,
     total: 'sum',
     renderTotal: fmtInt,
     render: (v) =>
       v === null || v === undefined ? (
         <span className="muted" title="No warehouse history for this article in the last six months, so there is no ratio to forecast from.">
+          –
+        </span>
+      ) : (
+        fmtInt(v)
+      ),
+  },
+  /*
+   * What has gone out so far, against a window that has not finished.
+   *
+   * Outbound beside it covers the whole selection; this stops at today. Pick
+   * September on the tenth and this reads the first to the tenth, so the
+   * month's requirement can be read against the part already drawn.
+   *
+   * Asked of the warehouse directly rather than of the hourly copy — a figure
+   * called live has to be — but held for five minutes, because nine brands
+   * asking afresh on every request is the burst that gets the whole page
+   * refused for a minute.
+   *
+   * Blank on a window that has already ended: there is no "so far" about a
+   * finished month, and a second column repeating the first under a different
+   * name only invites the question of why they differ.
+   */
+  {
+    key: 'Live_Outbound_MTD',
+    label: 'Live outbound MTD',
+    width: 162,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtInt,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="Nothing yet — this window has not started. The figure runs from the start of the selected window up to today.">
           –
         </span>
       ) : (

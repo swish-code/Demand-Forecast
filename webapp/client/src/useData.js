@@ -33,19 +33,37 @@ export function useData(fetcher, filters, { enabled = true, debounce = 250, nonc
     const id = ++seq.current
     setState((s) => ({ ...s, loading: true }))
 
+    /*
+     * Superseded requests are abandoned, not just ignored.
+     *
+     * Stale answers were already dropped, but the request itself ran to
+     * completion: ticking four brands in turn left three full dashboard queries
+     * running on the server, each fanning out over every brand already
+     * selected, all of them for an answer nobody would ever see. The debounce
+     * only helps when the clicks are close together.
+     *
+     * An aborted fetch rejects, and that rejection is not an error worth
+     * showing anyone — it is this effect tidying up after itself.
+     */
+    const control = new AbortController()
+
     const timer = setTimeout(() => {
-      fetcher(JSON.parse(key))
+      fetcher(JSON.parse(key), { signal: control.signal })
         .then((data) => {
           if (seq.current !== id) return
           setState({ data, error: null, loading: false })
           loadedRef.current?.()
         })
         .catch((error) => {
+          if (control.signal.aborted || error?.name === 'AbortError') return
           if (seq.current === id) setState({ data: null, error, loading: false })
         })
     }, debounce)
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      control.abort()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` is the serialised filter state
   }, [key, enabled, nonce, selfNonce])
 

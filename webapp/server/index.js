@@ -1,5 +1,7 @@
 import express from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
+import { gzip } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import { config, missingSettings } from './config.js'
 import { seedFirstAdmin } from './db/seed.js'
@@ -74,6 +76,101 @@ app.use((req, res, next) => {
 
 // Before the routers, so every API request carries a ledger.
 app.use('/api', perfMiddleware)
+
+/*
+ * Nothing was compressed. Not the JSON, not the bundle.
+ *
+ * Express does not compress anything by default and nothing here had been added
+ * to. The production plan for nine brands is 4.7 MB of JSON on the wire; the
+ * client bundle is another half a megabyte. Both are text, both compress about
+ * ten to one, and on any connection slower than a local socket that transfer is
+ * most of what the reader is waiting for — the server had already finished its
+ * work in a tenth of a second.
+ *
+ * Written against node's own zlib rather than pulling in a package, and
+ * asynchronous rather than gzipSync: compressing four megabytes on the event
+ * loop would stall every other request in flight to save one of them some
+ * bytes.
+ */
+const MIN_GZIP = Number(process.env.GZIP_MIN_BYTES) || 1400
+
+const wantsGzip = (req) => /\bgzip\b/.test(req.headers['accept-encoding'] || '')
+
+app.use((req, res, next) => {
+  if (!wantsGzip(req)) return next()
+  const plain = res.json.bind(res)
+
+  res.json = (body) => {
+    let text
+    try {
+      text = JSON.stringify(body)
+    } catch {
+      return plain(body)
+    }
+    // Below about one packet the gzip header costs more than it saves.
+    if (text.length < MIN_GZIP) return plain(body)
+
+    gzip(text, (err, buf) => {
+      if (err) return plain(body)
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      res.setHeader('Content-Encoding', 'gzip')
+      res.setHeader('Vary', 'Accept-Encoding')
+      res.setHeader('Content-Length', buf.length)
+      res.end(buf)
+    })
+    return res
+  }
+
+  next()
+})
+
+/*
+ * The bundle, compressed once and kept.
+ *
+ * A build produces a handful of hashed files that never change, so they are
+ * gzipped the first time somebody asks and held in memory afterwards. The hash
+ * is in the filename, so a new build is a new key and the old entries fall out
+ * of use rather than going stale.
+ */
+const packed = new Map()
+
+app.use((req, res, next) => {
+  if (!wantsGzip(req) || req.method !== 'GET') return next()
+  if (!/\.(js|css|svg|json|map)$/.test(req.path)) return next()
+
+  const file = path.join(clientDist, req.path)
+  if (!file.startsWith(clientDist)) return next()
+
+  const serve = (buf) => {
+    res.setHeader('Content-Type', TYPES[path.extname(req.path)] ?? 'application/octet-stream')
+    res.setHeader('Content-Encoding', 'gzip')
+    res.setHeader('Vary', 'Accept-Encoding')
+    // Hashed filenames, so this can be cached hard; index.html is not served here.
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    res.setHeader('Content-Length', buf.length)
+    res.end(buf)
+  }
+
+  const held = packed.get(req.path)
+  if (held) return serve(held)
+
+  fs.readFile(file, (readErr, raw) => {
+    if (readErr) return next()
+    gzip(raw, (err, buf) => {
+      if (err) return next()
+      packed.set(req.path, buf)
+      serve(buf)
+    })
+  })
+})
+
+const TYPES = {
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+}
 
 app.use('/api/auth', auth)
 app.use('/api/admin', admin)
