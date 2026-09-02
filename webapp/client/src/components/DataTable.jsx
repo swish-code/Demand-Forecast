@@ -79,6 +79,62 @@ export function DataTable({
     [columns, hidden]
   )
 
+  /*
+   * Column widths the reader can drag, and keep.
+   *
+   * The table is `table-layout: fixed`, so a long article name is cut off at
+   * whatever width the column was given — and no single width suits both
+   * "Salt" and "Sticker White For Yelo Pizza - Chili Flakes". Rather than guess
+   * wider and waste the space on every other row, the edge between two headers
+   * can be dragged, and where it is dragged to is remembered per table on this
+   * device, like the column choice above it.
+   */
+  const widthKey = tableId ? `df-widths-${tableId}` : null
+  const [widths, setWidths] = useState(() => {
+    if (!widthKey) return {}
+    try {
+      const saved = JSON.parse(localStorage.getItem(widthKey) || 'null')
+      return saved && typeof saved === 'object' ? saved : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const widthOf = (c) => widths[c.key] ?? c.width
+
+  const startResize = (event, col) => {
+    // The header is a sort button; dragging its edge is not a click on it.
+    event.preventDefault()
+    event.stopPropagation()
+
+    const startX = event.clientX
+    const startWidth = event.currentTarget.parentElement?.offsetWidth ?? col.width ?? 140
+    const MIN = 64
+
+    const move = (e) => {
+      const next = Math.max(MIN, Math.round(startWidth + (e.clientX - startX)))
+      setWidths((prev) => (prev[col.key] === next ? prev : { ...prev, [col.key]: next }))
+    }
+    const done = () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', done)
+      document.body.classList.remove('resizing')
+    }
+
+    document.body.classList.add('resizing')
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', done)
+  }
+
+  useEffect(() => {
+    if (!widthKey) return
+    try {
+      localStorage.setItem(widthKey, JSON.stringify(widths))
+    } catch {
+      /* a browser refusing storage should not break the table */
+    }
+  }, [widthKey, widths])
+
   const toggleColumn = (key) =>
     setHidden((prev) => {
       const next = new Set(prev)
@@ -164,7 +220,7 @@ export function DataTable({
    * accuracy column claimed 160 it did not need.
    */
   const FLEXIBLE_MIN = 116
-  const minWidth = shown.reduce((a, c) => a + (c.width || FLEXIBLE_MIN), 0)
+  const minWidth = shown.reduce((a, c) => a + (widthOf(c) || FLEXIBLE_MIN), 0)
 
   if (!rows.length) return <Empty />
 
@@ -289,7 +345,7 @@ export function DataTable({
                       key={c.key}
                       scope="col"
                       className={`${c.num ? 'num th--num' : ''}`}
-                      style={c.width ? { width: c.width } : undefined}
+                      style={widthOf(c) ? { width: widthOf(c) } : undefined}
                       onClick={() => toggle(c.key)}
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                     >
@@ -299,6 +355,22 @@ export function DataTable({
                           {on ? <Arrow size={12} /> : <IconSort size={12} />}
                         </span>
                       </span>
+                      <span
+                        className="th__grip"
+                        role="separator"
+                        aria-label={`Resize ${c.label}`}
+                        title="Drag to resize · double-click to reset"
+                        onMouseDown={(e) => startResize(e, c)}
+                        onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation()
+                          setWidths((prev) => {
+                            const next = { ...prev }
+                            delete next[c.key]
+                            return next
+                          })
+                        }}
+                      />
                     </th>
                   )
                 })}

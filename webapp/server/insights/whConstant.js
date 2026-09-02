@@ -1,4 +1,5 @@
 import * as cube from '../cube/query.js'
+import { OTHER_BUCKET } from '../powerbi/warehouse.js'
 
 /**
  * Forecasting an article from what the warehouse actually shipped.
@@ -66,9 +67,13 @@ export async function constantsFor(brand, { today = new Date(), months = 6 } = {
   const held = cache.get(key)
   if (held) return held
 
+  // The catch-all bucket is measured against every brand's sales, because it
+  // has none of its own — see monthlySales for why.
+  const allBrands = brand === OTHER_BUCKET
+
   const work = (async () => {
     const [sales, outbound] = await Promise.all([
-      cube.monthlySales(brand, list),
+      cube.monthlySales(brand, list, { allBrands }),
       cube.outboundByMonth(brand, list),
     ])
 
@@ -164,7 +169,7 @@ export async function forecastFromConstants(brand, filters, { today = new Date()
   const constants = await constantsFor(brand, { today })
   if (!constants.size) return new Map()
 
-  const sales = await cube.forecastSales(brand, filters)
+  const sales = await cube.forecastSales(brand, filters, { allBrands: brand === OTHER_BUCKET })
   if (!sales) return new Map()
 
   const out = new Map()

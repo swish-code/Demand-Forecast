@@ -2693,6 +2693,8 @@ table.dt td {
 
 table.dt thead th {
   position: sticky;
+  /* The resize grip is positioned against this. */
+  overflow: visible;
   top: 0;
   z-index: 2;
   background: var(--surface);
@@ -2752,6 +2754,46 @@ table.dt tfoot td {
 
 .th__inner {
   display: block;
+}
+
+/* The draggable edge between two headers.
+   Sits over the cell's right border and is invisible until pointed at, so it
+   is discoverable without being decoration. Eight pixels wide because four is
+   a target only a mouse can hit and nobody can. */
+.th__grip {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+.th__grip::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.th__grip:hover::after,
+body.resizing .th__grip::after {
+  background: var(--blue);
+}
+
+/* While a drag is running the pointer must not select text or flick between
+   cursors as it passes over other cells. */
+body.resizing,
+body.resizing * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 .th__sort {

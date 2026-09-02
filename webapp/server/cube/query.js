@@ -776,16 +776,27 @@ export function forgetShipped() {
  * month, in the same units the forecast counts. Actuals for the months behind
  * us, the forecast for the month ahead.
  */
-export async function monthlySales(brand, months) {
+export async function monthlySales(brand, months, { allBrands = false } = {}) {
   if (!months?.length) return new Map()
+  /*
+   * The catch-all bucket has no sales of its own.
+   *
+   * It stands for the central kitchen, the bakery, head office and FM — real
+   * consumers with no forecast behind them. Asked for "its" sales it returns
+   * nothing, every month is unusable, and every constant derived from it comes
+   * out empty, which is why WH forecast stayed blank on exactly the articles
+   * the outbound fix had just filled in. Measured against every brand's sales
+   * together it has a denominator again, and the rate it produces is per item
+   * the business sells rather than per item one brand sells.
+   */
   const rows = await rowsOf(
     `SELECT LEFT(date, 7) AS month,
             SUM(actual)   AS actual,
             SUM(forecast) AS forecast
        FROM cube_location_daily
-      WHERE brand = ? AND LEFT(date, 7) IN (${months.map(() => '?').join(', ')})
+      WHERE ${allBrands ? '' : 'brand = ? AND '}LEFT(date, 7) IN (${months.map(() => '?').join(', ')})
       GROUP BY LEFT(date, 7)`,
-    [brand, ...months]
+    allBrands ? [...months] : [brand, ...months]
   )
   const out = new Map()
   for (const r of rows) {
@@ -813,13 +824,14 @@ export async function outboundByMonth(brand, months) {
 }
 
 /** The brand's forecast sales over an arbitrary window, from the copy. */
-export async function forecastSales(brand, f) {
+export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
+  // Same reasoning as monthlySales: the bucket borrows everyone's denominator.
   const rows = await rowsOf(
     `SELECT SUM(forecast) AS forecast
        FROM cube_location_daily
-      WHERE brand = ? AND date >= ? AND date <= ?`,
-    [brand, f.dateFrom, f.dateTo]
+      WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?`,
+    allBrands ? [f.dateFrom, f.dateTo] : [brand, f.dateFrom, f.dateTo]
   )
   const v = Number(rows[0]?.forecast)
   return Number.isFinite(v) ? v : null
@@ -828,6 +840,41 @@ export async function forecastSales(brand, f) {
 /** The dashboard's own idea of today, as the model reports it. */
 export function todayFor(brand) {
   return coverageCache.get(brand)?.cal_today ?? null
+}
+
+/**
+ * Where each article goes when it does not go to a brand.
+ *
+ * Only for articles nothing could be attributed to, so the blank on the page
+ * can say why it is blank. Cached: it changes when the extract runs, and it is
+ * asked once per request.
+ */
+let elsewhereCache = null
+
+export async function outboundElsewhere() {
+  if (elsewhereCache) return elsewhereCache
+  const work = (async () => {
+    const rows = await rowsOf(
+      `SELECT article, destination, qty FROM cube_article_elsewhere ORDER BY qty DESC`
+    )
+    const out = new Map()
+    for (const r of rows) {
+      const a = String(r.article)
+      const held = out.get(a) ?? { total: 0, top: null }
+      held.total += Number(r.qty) || 0
+      // Rows arrive largest first, so the first one seen is the main route.
+      if (!held.top) held.top = { destination: String(r.destination), qty: Number(r.qty) || 0 }
+      out.set(a, held)
+    }
+    return out
+  })()
+  elsewhereCache = work
+  return work
+}
+
+/** Dropped when the extract rewrites it. */
+export function forgetElsewhere() {
+  elsewhereCache = null
 }
 
 /** The constants for items no recipe covers, and the article master. */

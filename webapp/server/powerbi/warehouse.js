@@ -33,6 +33,12 @@ import { executeQuery } from './client.js'
  */
 const isConfigured = () => Boolean(config.warehouse.workspaceId && config.warehouse.datasetId)
 
+/** The bucket everything that is not a forecast brand is counted under. */
+export const OTHER_BUCKET = '__other'
+
+/** The one place goods are issued from. Destination, and now source. */
+export const WAREHOUSE = 'Central Warehouse'
+
 const literal = (values) => values.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(', ')
 
 const asDate = (iso) => {
@@ -72,6 +78,7 @@ export async function consumptionByArticle(brandCode, { dateFrom, dateTo, locati
   const dax = `EVALUATE
 SUMMARIZECOLUMNS(
   fact_outbound_line[Article No.],${byDate ? '\n  dim_date[Date],' : ''}
+  TREATAS({${literal([WAREHOUSE])}}, fact_outbound_line[Mapped Cost Center/Store]),
   TREATAS({${literal([brandCode])}}, fact_outbound_line[Mapped Transfer To]),
   DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
   FILTER(
@@ -100,6 +107,71 @@ SUMMARIZECOLUMNS(
 }
 
 /**
+ * Everything the central warehouse issued, by destination and article.
+ *
+ * The rule, and why each half of it matters:
+ *
+ *   source      = Central Warehouse    what the warehouse had to have on hand
+ *   destination ≠ Central Warehouse    minus anything that came straight back
+ *
+ * Filtering on the source is what makes this correct, and it was the piece
+ * missing before. Counting by destination alone swept in movements the
+ * warehouse never made: SS to SS is twenty million units that never left the
+ * brand, and the central kitchen shipping a prepared item onward to a shop
+ * would have been counted a second time after its raw material was counted
+ * going in. Neither has the warehouse as its source, so both fall away without
+ * needing a rule of their own.
+ *
+ * Measured over the last thirty days: 15,681,880 units issued, of which
+ * 13,180,314 went to a forecast brand and 2,501,566 went to the central
+ * kitchen, FM, the bakery, head office and R&D. That last figure is what the
+ * old rule threw away, and it is why raw beef and sauce containers read blank
+ * beside a requirement of thousands.
+ */
+export async function outboundFromWarehouse({ dateFrom, dateTo, byDate = false } = {}) {
+  if (!isConfigured() || !dateFrom || !dateTo) return null
+
+  const dax = `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Mapped Transfer To],
+  fact_outbound_line[Article No.],${byDate ? '\n  dim_date[Date],' : ''}
+  TREATAS({${literal([WAREHOUSE])}}, fact_outbound_line[Mapped Cost Center/Store]),
+  DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${literal(config.warehouse.statuses)}}
+  ),
+  "Qty", SUM(fact_outbound_line[Action Base Qty])
+)`
+
+  const rows = await executeQuery(dax, config.warehouse.datasetId, {
+    bulk: true,
+    workspace: config.warehouse.workspaceId,
+  })
+
+  const brands = new Set(config.brands.map((b) => b.code))
+  const out = []
+  for (const r of rows) {
+    const destination = String(r['Mapped Transfer To'] ?? '').trim()
+    const article = String(r['Article No.'] ?? '').trim()
+    const qty = Number(r.Qty)
+    if (!destination || !article || !Number.isFinite(qty)) continue
+    // Straight back into the warehouse is not an issue of stock.
+    if (destination === WAREHOUSE) continue
+    out.push({
+      // Anything that is not a forecast brand is real consumption with nobody
+      // to attribute it to, so it is kept together rather than discarded.
+      bucket: brands.has(destination) ? destination : OTHER_BUCKET,
+      destination,
+      article,
+      date: byDate ? String(r.Date ?? '').slice(0, 10) : null,
+      qty,
+    })
+  }
+  return out
+}
+
+/**
  * The same question, asked once for several brands.
  *
  * `Mapped Transfer To` is in the grouping as well as the filter, so one query
@@ -116,6 +188,7 @@ export async function consumptionByBrands(brandCodes, { dateFrom, dateTo } = {})
 SUMMARIZECOLUMNS(
   fact_outbound_line[Mapped Transfer To],
   fact_outbound_line[Article No.],
+  TREATAS({${literal([WAREHOUSE])}}, fact_outbound_line[Mapped Cost Center/Store]),
   TREATAS({${literal(brandCodes)}}, fact_outbound_line[Mapped Transfer To]),
   DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
   FILTER(
@@ -141,6 +214,44 @@ SUMMARIZECOLUMNS(
     if (held) held.set(article, (held.get(article) ?? 0) + qty)
   }
   return out
+}
+
+/**
+ * Every article, and every destination it was ever shipped to.
+ *
+ * One query for the lot — destination crossed with article is a few thousand
+ * rows for the whole history, small enough not to need chunking. The caller
+ * keeps only the destinations that are not brands.
+ */
+export async function outboundByDestination({ dateFrom, dateTo } = {}) {
+  if (!isConfigured()) return []
+  const window = dateFrom && dateTo
+    ? `
+  DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),`
+    : ''
+
+  const rows = await executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Mapped Transfer To],
+  fact_outbound_line[Article No.],${window}
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${literal(config.warehouse.statuses)}}
+  ),
+  "Qty", SUM(fact_outbound_line[Action Base Qty])
+)`,
+    config.warehouse.datasetId,
+    { bulk: true, workspace: config.warehouse.workspaceId }
+  )
+
+  return rows
+    .map((r) => ({
+      destination: String(r['Mapped Transfer To'] ?? '').trim(),
+      article: String(r['Article No.'] ?? '').trim(),
+      qty: Number(r.Qty) || 0,
+    }))
+    .filter((r) => r.destination && r.article && Number.isFinite(r.qty))
 }
 
 /**

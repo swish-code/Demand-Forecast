@@ -87,14 +87,29 @@ const COLUMNS = [
     // which. One is "counted on another line of this article"; the other is
     // "the warehouse has no record of this article at all", which is a gap in
     // what can be measured rather than anything about the forecast.
+    /*
+     * A blank that says which blank it is.
+     *
+     * Three different things produced the same dash, and one of them looked
+     * exactly like a bug: an article the warehouse moves in quantity, but only
+     * ever into the central kitchen or the central warehouse. Clear Sauce
+     * Container is 6,504,632 units of real movement with nothing going to a
+     * shop, so nothing is attributable to a brand — and holding the Warehouse
+     * Dashboard beside this page, that reads as missing data rather than as
+     * data that belongs to nobody here.
+     */
     render: (v, row) =>
       v === null || v === undefined ? (
         <span
           className="muted"
           title={
-            row?.Consumed_Unknown
-              ? 'The warehouse has never issued this article to this brand, so there is nothing to compare against. It may reach the shops another way, or the article code may not match.'
-              : "Counted on this article's largest line. Outbound belongs to an article, so it is shown once rather than repeated on every recipe that uses it — and it is not available at all when the table is split by branch."
+            row?.No_Article
+              ? 'This is a kitchen step, not a stocked article, so it has no ERP article number — and the warehouse can only report movement against an article number. What the kitchen makes here reaches the shops under a different code. Nothing can be matched to it, in any date range.'
+              : row?.Consumed_Elsewhere
+                ? `Nothing was issued to this brand. The warehouse does ship this article — ${fmtInt(row.Consumed_Elsewhere.qty)} units, mostly to ${row.Consumed_Elsewhere.destination} — but that is an internal transfer, not a shop, so it cannot be attributed to any brand. It reaches the shops later inside a prepared item.`
+                : row?.Consumed_Unknown
+                  ? 'The warehouse has never issued this article, to this brand or anywhere else. The article code may not match, or it may be bought locally.'
+                  : "Counted on this article's largest line. Outbound belongs to an article, so it is shown once rather than repeated on every recipe that uses it — and it is not available at all when the table is split by branch."
           }
         >
           –
@@ -140,20 +155,18 @@ const COLUMNS = [
       ),
   },
   /*
-   * What has gone out so far, against a window that has not finished.
+   * This month, so far — and only ever this month.
    *
-   * Outbound beside it covers the whole selection; this stops at today. Pick
-   * September on the tenth and this reads the first to the tenth, so the
-   * month's requirement can be read against the part already drawn.
+   * A fixed window that ignores the date slicer entirely: the first of the
+   * current month to today. Outbound beside it answers "what moved in the
+   * period I am looking at"; this answers "how much of what I am about to
+   * order has already gone out this month", and that second question does not
+   * change when you go and look at July.
    *
    * Asked of the warehouse directly rather than of the hourly copy — a figure
    * called live has to be — but held for five minutes, because nine brands
    * asking afresh on every request is the burst that gets the whole page
    * refused for a minute.
-   *
-   * Blank on a window that has already ended: there is no "so far" about a
-   * finished month, and a second column repeating the first under a different
-   * name only invites the question of why they differ.
    */
   {
     key: 'Live_Outbound_MTD',
@@ -164,7 +177,10 @@ const COLUMNS = [
     renderTotal: fmtInt,
     render: (v) =>
       v === null || v === undefined ? (
-        <span className="muted" title="Nothing yet — this window has not started. The figure runs from the start of the selected window up to today.">
+        <span
+          className="muted"
+          title="Not available — outbound cannot be split by branch, so this is blank while a branch filter is applied. Otherwise it is the 1st of the current month up to today, whatever date range is selected."
+        >
           –
         </span>
       ) : (
@@ -190,8 +206,8 @@ const COLUMNS = [
    */
   {
     key: 'Accuracy',
-    label: 'Accuracy',
-    width: W.pct,
+    label: 'ACC',
+    width: 104,
     num: true,
     render: (v, row) =>
       v === null || v === undefined ? (
@@ -236,8 +252,8 @@ const COLUMNS = [
    */
   {
     key: 'WH_Accuracy',
-    label: 'WH forecast accuracy',
-    width: 170,
+    label: 'WH Forecast ACC',
+    width: 150,
     num: true,
     render: (v) =>
       v === null || v === undefined ? (
@@ -606,8 +622,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             (c) =>
               c.key !== 'Consumed_Qty' &&
               c.key !== 'Accuracy' &&
-              c.key !== 'WH_Accuracy' &&
-              c.key !== 'Live_Outbound_MTD'
+              c.key !== 'WH_Accuracy'
           )
         : COLUMNS,
     [future]
@@ -728,7 +743,16 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           </button>
         }
       >
-        {busy ? (
+        {/*
+          * The skeleton only before there is anything to show.
+          *
+          * Swapping the whole table out on every refresh unmounted it, and with
+          * it went the search box, the sort and the page you were on — type an
+          * article name, change the date, and the table came back showing
+          * everything. The search is a question about the data, not about one
+          * particular load of it.
+          */}
+        {busy && !rows.length ? (
           <div style={{ padding: 16 }}>
             <ChartSkeleton height={420} />
           </div>

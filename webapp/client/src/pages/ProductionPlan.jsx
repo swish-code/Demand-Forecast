@@ -296,7 +296,16 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           </button>
         }
       >
-        {busy ? (
+        {/*
+          * The skeleton only before there is anything to show.
+          *
+          * Swapping the whole table out on every refresh unmounted it, and with
+          * it went the search box, the sort and the page you were on — type an
+          * article name, change the date, and the table came back showing
+          * everything. The search is a question about the data, not about one
+          * particular load of it.
+          */}
+        {busy && !rows.length ? (
           <div style={{ padding: 16 }}>
             <ChartSkeleton height={420} />
           </div>

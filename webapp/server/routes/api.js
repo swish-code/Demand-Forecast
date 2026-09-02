@@ -17,7 +17,11 @@ import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings, missingWarehouse } from '../config.js'
 import { nodeTypesFor, pagesFor } from '../departments.js'
 import * as cube from '../cube/query.js'
-import { consumptionByArticle, consumptionByBrands } from '../powerbi/warehouse.js'
+import {
+  consumptionByArticle,
+  outboundFromWarehouse,
+  OTHER_BUCKET,
+} from '../powerbi/warehouse.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import {
@@ -295,7 +299,23 @@ api.all('/slicers', handle(async (req, res) => {
   if (!g) return
 
   const src = req.method === 'POST' ? req.body || {} : req.query || {}
-  const need = Array.isArray(src.need) && src.need.length ? src.need : null
+  /*
+   * Absent and empty are different questions.
+   *
+   * Absent means "everything", which is what an older client or a hand-built
+   * URL means by leaving it out. Empty means "none of them" — the page has not
+   * had a single dropdown opened yet, so nothing but the calendar is wanted.
+   *
+   * Reading empty as absent was costing nine brands about seventy live queries
+   * on every page load, for eight lists nobody had asked to see. One page load
+   * was measured at 10.7 seconds and 76 Power BI queries before it gave up.
+   */
+  const raw = src.need
+  const need = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.trim()
+      ? raw.split(',').map((v) => v.trim()).filter(Boolean)
+      : null
 
   /*
    * The branch list is a grant, not a catalogue.
@@ -515,7 +535,7 @@ api.all('/product-level', handle(async (req, res) => {
  * why the column has no total in the table: a measured quantity cannot be split
  * across recipes without inventing an allocation nobody asked for.
  */
-async function withConsumption(rows, brand, filters, grain = {}, mtd = undefined) {
+async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
   /*
    * Split by branch, there is nothing truthful to show.
    *
@@ -560,6 +580,10 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = undefined
    * all, each scored zero, which is most of what the accuracy card was reporting.
    */
   const shipped = await cube.articlesShippedTo(brand.code).catch(() => null)
+
+  // Only read to explain a blank: where an article goes when it goes nowhere
+  // near a shop. Nothing here is ever added to a brand's figure.
+  const elsewhere = await cube.outboundElsewhere().catch(() => new Map())
 
 
   /*
@@ -606,7 +630,24 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = undefined
     // single row and are blank on the rest. Splitting them differently would
     // put an article's figures on two different lines.
     if (!isOwner) {
-      return { ...r, Consumed_Qty: null, Live_Outbound_MTD: null, WH_Constant_Forecast_Qty: null }
+      /*
+       * Two reasons a row is not the owner, and they are not the same.
+       *
+       * Usually it is another line of an article whose figure sits elsewhere.
+       * But a PREP step has no article number at all — every one of the 941 of
+       * them, because a kitchen step is not a thing the ERP stocks — so there
+       * is nothing for the warehouse to be matched against, ever. Saying
+       * "counted on another line" about a row that has no line to be counted on
+       * is the wrong answer to the wrong question.
+       */
+      const noArticle = !String(r['Item No.'] ?? '').trim()
+      return {
+        ...r,
+        Consumed_Qty: null,
+        Live_Outbound_MTD: null,
+        WH_Constant_Forecast_Qty: null,
+        ...(noArticle ? { No_Article: true } : {}),
+      }
     }
 
     // The article number, without the day, is what the warehouse knows.
@@ -626,72 +667,81 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = undefined
     // warehouse has never shipped is blank in both — reading "0" in one column
     // and "–" in the other says the warehouse shipped none of it, when the
     // truth is that it has no record of it at all.
-    const live = (fallback) =>
-      mtd === undefined ? fallback : mtd ? (mtd.get(article) ?? 0) : null
+    // Always the month to date, or nothing when it could not be asked for.
+    const live = () => (mtd ? (mtd.get(article) ?? 0) : null)
 
     if (consumed.has(k)) {
       const qty = consumed.get(k)
-      return { ...r, Consumed_Qty: qty, Live_Outbound_MTD: live(qty), WH_Constant_Forecast_Qty: constant }
+      return { ...r, Consumed_Qty: qty, Live_Outbound_MTD: live(), WH_Constant_Forecast_Qty: constant }
     }
     // No shipping history at all, so there is nothing to compare against.
     if (shipped && !shipped.has(article)) {
+      const other = elsewhere.get(article)
       return {
         ...r,
         Consumed_Qty: null,
         Consumed_Unknown: true,
+        // "The warehouse has none of this" and "the warehouse has plenty of
+        // this and none of it comes here" are different answers, and the page
+        // was giving the same dash to both.
+        Consumed_Elsewhere: other
+          ? { destination: other.top?.destination ?? null, qty: other.total }
+          : null,
         Live_Outbound_MTD: null,
         WH_Constant_Forecast_Qty: constant,
       }
     }
-    return { ...r, Consumed_Qty: 0, Live_Outbound_MTD: live(0), WH_Constant_Forecast_Qty: constant }
+    return { ...r, Consumed_Qty: 0, Live_Outbound_MTD: live(), WH_Constant_Forecast_Qty: constant }
   })
 }
 
 /**
- * Live outbound to date, for every selected brand, in one query.
+ * Live outbound for the current month, up to today, for every bucket.
  *
- * Three answers, and the difference matters:
+ * A fixed window, deliberately independent of the date slicer: the first of
+ * this month to today, whatever the rest of the page is showing. Look at July
+ * and this still answers for September, because the question it exists for is
+ * "how much of what I am about to order has already gone out this month".
  *
- *   undefined  the window has already ended, so window-to-date is the whole
- *              window and the copy beside it already holds the number. No query
- *              is made at all.
- *   a Map      the window includes today; the warehouse was asked, once, for
- *              every brand together.
- *   null       the window has not started. Nothing has gone out for October and
- *              a zero would say otherwise.
+ * It asks the same question as the copy — issued *from* the central warehouse,
+ * to anywhere but itself — and buckets the answer the same way, so the articles
+ * that only ever reach the central kitchen are here too. Asking only about the
+ * brands, as this did at first, left MTD blank on exactly the rows the outbound
+ * rule had just filled in.
  *
- * The first case is what makes this cheap. Every ordinary view of this page —
- * the default is the last thirty days, ending yesterday — now costs nothing,
- * where a moment ago it cost one live query per brand: 6.6 seconds of query
- * time across nine of them, on a page whose own rows were already local.
- *
- * When a query is needed it is one, not nine, because the destination column is
- * in the grouping as well as the filter. Held for five minutes: live cannot
- * mean a fresh query per request, and nine at once is the burst the capacity
- * refuses outright.
+ * One query for every destination together, held for five minutes: live cannot
+ * mean a fresh query per request, and a burst is what the capacity refuses.
  */
-async function liveOutboundToDate(parts, filters) {
-  if (!filters?.dateFrom || !filters?.dateTo) return null
-  // A branch filter cannot be honoured by outbound at all, and the per-brand
-  // path already returns nothing for it.
+async function liveOutboundToDate(parts) {
+  // Outbound names a destination, not a branch, so a branch filter gets nothing.
   if (parts.some((p) => p.f.locations?.length)) return null
 
   const codes = parts.map((p) => p.brand.code)
   const today = cube.todayFor(codes[0]) ?? new Date().toISOString().slice(0, 10)
-  if (filters.dateFrom > today) return null
-  // Already finished: the copy's own answer for the window is the same figure.
-  if (filters.dateTo <= today) return undefined
+  const from = `${today.slice(0, 7)}-01`
 
   return cached(
-    `mtd:${codes.join(',')}:${filters.dateFrom}:${today}`,
-    () =>
-      consumptionByBrands(codes, { dateFrom: filters.dateFrom, dateTo: today }).catch((err) => {
+    `mtd:${from}:${today}`,
+    async () => {
+      const lines = await outboundFromWarehouse({ dateFrom: from, dateTo: today }).catch((err) => {
         console.warn(`  [warehouse] live outbound unavailable: ${err.message}`)
         return null
-      }),
+      })
+      if (!lines) return null
+
+      const out = new Map()
+      for (const l of lines) {
+        let byArticle = out.get(l.bucket)
+        if (!byArticle) out.set(l.bucket, (byArticle = new Map()))
+        byArticle.set(l.article, (byArticle.get(l.article) ?? 0) + l.qty)
+      }
+      return out
+    },
     { seconds: 300 }
   )
 }
+
+
 
 /**
  * Brands added together, with consumption's blank kept blank.
@@ -721,13 +771,81 @@ function merged(results) {
   return rows
 }
 
+/**
+ * The warehouse's issues that belong to no single brand, added to the page once.
+ *
+ * The central kitchen, the bakery, head office, R&D and FM are all real
+ * consumers of real stock — 2,501,566 units in a month — but none of them is a
+ * forecast brand, so there is nothing to attribute them to. Discarding them was
+ * what left raw beef and sauce containers showing a requirement of thousands
+ * against a blank: every unit of those articles leaves the warehouse for the
+ * kitchen and never reaches a shop under its own code.
+ *
+ * Added after the brands are merged, and exactly once, because the figure is a
+ * property of the article rather than of any brand — adding it inside the
+ * per-brand fan-out would have multiplied it by however many brands were ticked.
+ *
+ * It lands on the row that already carries that article's figure, so the column
+ * still totals correctly: one number per article, wherever that article sits.
+ */
+async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
+  if (grain.date || grain.location) return rows
+
+  const other = await cube.outboundByArticle(OTHER_BUCKET, filters).catch(() => null)
+  const otherForecast = await forecastFromConstants(OTHER_BUCKET, filters).catch(() => new Map())
+  if (!other && !otherForecast.size && !otherMtd?.size) return rows
+
+  // One row per article carries the figures: the one that already has them, or
+  // failing that the largest by requirement.
+  const owner = new Map()
+  for (const r of rows) {
+    const a = String(r['Item No.'] ?? '').trim()
+    if (!a) continue
+    const held = owner.get(a)
+    const measured = r.Consumed_Qty !== null && r.Consumed_Qty !== undefined
+    if (!held) {
+      owner.set(a, r)
+      continue
+    }
+    const heldMeasured = held.Consumed_Qty !== null && held.Consumed_Qty !== undefined
+    if (measured && !heldMeasured) owner.set(a, r)
+    else if (measured === heldMeasured &&
+             (Number(r.Component_Forecast_Qty) || 0) > (Number(held.Component_Forecast_Qty) || 0)) {
+      owner.set(a, r)
+    }
+  }
+
+  for (const [article, row] of owner) {
+    const extra = other?.get(article) ?? 0
+    const extraForecast = otherForecast.get(article) ?? 0
+    const extraMtd = otherMtd?.get(article) ?? 0
+    if (!extra && !extraForecast && !extraMtd) continue
+
+    if (extraMtd) {
+      row.Live_Outbound_MTD = (Number(row.Live_Outbound_MTD) || 0) + extraMtd
+    }
+
+    if (extra) {
+      row.Consumed_Qty = (Number(row.Consumed_Qty) || 0) + extra
+      // It is measured now, so the blank and its explanation both go.
+      delete row.Consumed_Unknown
+      delete row.Consumed_Elsewhere
+    }
+    if (extraForecast) {
+      row.WH_Constant_Forecast_Qty = (Number(row.WH_Constant_Forecast_Qty) || 0) + extraForecast
+    }
+  }
+
+  return rows
+}
+
 api.all('/component-level', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
   const grain = grainOf(req)
 
   // Once, for every brand, before the fan-out — not once per brand inside it.
-  const mtdAll = grain.date ? null : await liveOutboundToDate(g.parts, g.parts[0].f)
+  const mtdAll = grain.date ? null : await liveOutboundToDate(g.parts)
 
   const results = await g.fanOut(async ({ ds, f, brand }) => {
     const rows = await data.componentLevel(f, ds, grain)
@@ -763,15 +881,19 @@ api.all('/component-level', handle(async (req, res) => {
             return []
           })
 
-    const mine = mtdAll === undefined ? undefined : mtdAll?.get(brand.code) ?? null
+    const mine = mtdAll?.get(brand.code) ?? null
     return withConsumption([...rows, ...extra], brand, f, grain, mine)
   })
-  if (g.single) return res.json({ rows: results[0] })
+  const window = g.parts[0].f
+  if (g.single)
+    return res.json({
+      rows: await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+    })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
-    rows: merged(results),
+    rows: await addWarehouseWide(merged(results), window, grain, mtdAll?.get(OTHER_BUCKET)),
   })
 }))
 

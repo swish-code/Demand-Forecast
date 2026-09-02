@@ -352,6 +352,27 @@ CREATE TABLE IF NOT EXISTS cube_article (
   unit    TEXT NOT NULL DEFAULT ''
 );
 
+/*
+ * Where an article goes when it does not go to a shop.
+ *
+ * Outbound is attributed to a brand by its destination, so an article that only
+ * ever moves into the central kitchen or the central warehouse is correctly
+ * excluded from every brand's figure — and correctly reads as a blank, which
+ * looks exactly like a fault to anybody holding the Warehouse Dashboard beside
+ * it. Clear Sauce Container is the case: 6,504,632 units of real movement, all
+ * of it to CKU/CPU and Central Warehouse, none of it to a brand.
+ *
+ * So the destinations that are not brands are recorded too. Nothing is added to
+ * any brand's total from here; it exists so the blank can say what it means.
+ */
+CREATE TABLE IF NOT EXISTS cube_article_elsewhere (
+  article     TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  qty         DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (article, destination)
+);
+CREATE INDEX IF NOT EXISTS idx_cube_elsewhere ON cube_article_elsewhere(article);
+
 CREATE TABLE IF NOT EXISTS cube_constant (
   brand    TEXT NOT NULL,
   article  TEXT NOT NULL,

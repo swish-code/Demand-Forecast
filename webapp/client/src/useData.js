@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Strip UI-only keys and empties so the server sees a clean filter payload. */
+/*
+ * `need` is exempt from the empty-array rule, and has to be.
+ *
+ * Everywhere else an empty array is the same as no filter, so dropping it keeps
+ * the request — and the cache key — clean. `need` is the opposite: it names the
+ * dropdown lists this page wants fetched, and an empty one means "none yet".
+ * Stripped, it arrived as no key at all, which the server reads as "all of
+ * them" — seventy-odd live queries for lists nobody had opened.
+ */
+const KEEP_EMPTY = new Set(['need'])
+
 export function toPayload(filters) {
   const out = {}
   for (const [k, v] of Object.entries(filters)) {
     if (k === 'defaultFrom' || k === 'defaultTo') continue
     if (v === null || v === undefined || v === '') continue
-    if (Array.isArray(v) && v.length === 0) continue
+    if (Array.isArray(v) && v.length === 0 && !KEEP_EMPTY.has(k)) continue
     out[k] = v
   }
   return out

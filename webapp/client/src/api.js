@@ -29,7 +29,70 @@ function unreachable(message) {
   return err
 }
 
+/**
+ * What went wrong, in the console, in enough detail to act on.
+ *
+ * The banner on screen carries one sentence, which is right for the reader and
+ * useless for anybody diagnosing it: it names neither the endpoint, nor the
+ * status, nor the filters that produced it. Pressing F12 should answer "what
+ * broke and with what" without having to reproduce anything.
+ *
+ * Grouped and collapsed so a page with three failing calls is three lines
+ * until one is opened, and timed so a slow failure can be told from a fast one.
+ */
+function logFailure({ method, path, status, error, body, ms }) {
+  /* eslint-disable no-console */
+  try {
+    console.groupCollapsed(
+      `%c[API]%c ${method} /api${path} %c${status ?? 'network'}%c — ${error?.message ?? error}`,
+      'color:#fff;background:#b3243f;padding:1px 5px;border-radius:3px',
+      'font-weight:600',
+      'color:#b3243f;font-weight:700',
+      'color:inherit;font-weight:400'
+    )
+    console.log('endpoint   ', `${method} /api${path}`)
+    console.log('status     ', status ?? '(no response — server unreachable)')
+    console.log('took       ', `${ms} ms`)
+    console.log('message    ', error?.message ?? String(error))
+    if (body && typeof body === 'object') {
+      console.log('brands     ', body.brands ?? '(none)')
+      console.log('dates      ', body.dateFrom || body.dateTo ? `${body.dateFrom} .. ${body.dateTo}` : '(none)')
+      const slicers = ['locations', 'products', 'articles', 'items', 'nodeTypes', 'prepStatus']
+        .filter((k) => body[k]?.length)
+        .map((k) => `${k}=${body[k].length}`)
+      console.log('slicers    ', slicers.length ? slicers.join(' · ') : '(none)')
+      console.log('full body  ', body)
+    }
+    if (error?.stack) console.log('stack      ', error.stack)
+    console.log('what next  ', 'Check the server console for the matching [api] line, or webapp/data/error.log')
+    console.groupEnd()
+  } catch {
+    /* a console that refuses must not break the request path */
+  }
+  /* eslint-enable no-console */
+}
+
+/*
+ * Anything that escapes entirely still gets named.
+ *
+ * A render error or a stray rejection otherwise reaches the console as a bare
+ * stack with no indication that it came from this application at all.
+ */
+if (typeof window !== 'undefined' && !window.__dfErrorHooks) {
+  window.__dfErrorHooks = true
+  window.addEventListener('error', (e) => {
+    // eslint-disable-next-line no-console
+    console.error('[app] uncaught error', { message: e.message, source: e.filename, line: e.lineno, error: e.error })
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    if (e.reason?.name === 'AbortError') return // a superseded request, not a fault
+    // eslint-disable-next-line no-console
+    console.error('[app] unhandled promise rejection', e.reason)
+  })
+}
+
 async function request(method, path, body, { signal } = {}) {
+  const started = Date.now()
   let res
   try {
     res = await fetch(
@@ -52,6 +115,7 @@ async function request(method, path, body, { signal } = {}) {
     // started this has already been replaced by a newer one.
     if (err?.name === 'AbortError') throw err
     // fetch rejects only when the request never reached a server at all.
+    logFailure({ method, path, status: null, error: err, body, ms: Date.now() - started })
     throw unreachable(UNREACHABLE_TEXT)
   }
 
@@ -62,9 +126,13 @@ async function request(method, path, body, { signal } = {}) {
     throw new UnauthorizedError(json?.error || 'Session expired')
   }
   if (!res.ok) {
-    if (json?.error) throw new Error(json.error)
-    if (UNREACHABLE.has(res.status)) throw unreachable(`${UNREACHABLE_TEXT} (${res.status})`)
-    throw new Error(`Request failed (${res.status})`)
+    const err = json?.error
+      ? new Error(json.error)
+      : UNREACHABLE.has(res.status)
+        ? unreachable(`${UNREACHABLE_TEXT} (${res.status})`)
+        : new Error(`Request failed (${res.status})`)
+    logFailure({ method, path, status: res.status, error: err, body, ms: Date.now() - started })
+    throw err
   }
   return json ?? {}
 }
@@ -101,10 +169,39 @@ const post = (path, body) => send('POST', path, body)
 const query = (path, body, options) => read('POST', path, body, options)
 
 export const api = {
+  /*
+   * The session check, with a deadline.
+   *
+   * This is the first request the application makes and nothing renders until
+   * it answers, so a request that never answers is a spinner that never stops.
+   * That is not hypothetical: the server restarts on every code change and
+   * spends a moment opening a two-gigabyte local database before it listens, and
+   * anybody who reloads inside that window waited for ever on "Checking your
+   * session".
+   *
+   * Eight seconds, then an error the shell can act on — offering to try again is
+   * a far better answer than a spinner, and much better than silently deciding
+   * the visitor is signed out when the truth is the server was busy.
+   */
   me: async () => {
-    const res = await fetch('/api/auth/me')
+    let res
+    try {
+      res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(8000) })
+    } catch (err) {
+      const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError'
+      // eslint-disable-next-line no-console
+      console.error('[app] session check failed', { timedOut, error: err })
+      throw unreachable(
+        timedOut
+          ? 'The server did not answer in time — it may still be starting up.'
+          : UNREACHABLE_TEXT
+      )
+    }
     if (res.status === 401) return null
-    if (!res.ok) throw new Error(`Could not read session (${res.status})`)
+    if (!res.ok) {
+      if (UNREACHABLE.has(res.status)) throw unreachable(`${UNREACHABLE_TEXT} (${res.status})`)
+      throw new Error(`Could not read session (${res.status})`)
+    }
     return res.json()
   },
   logout: () => post('/auth/logout'),
