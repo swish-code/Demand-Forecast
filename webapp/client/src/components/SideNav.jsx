@@ -24,7 +24,15 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
         </span>
       </div>
 
-      <div className="nav__section">Reports</div>
+      {/*
+        * The heading only earns its place when there is a list under it.
+        *
+        * A reader granted one page sees one button; calling that "Reports" and
+        * ruling it off from the brand above adds a section divider to separate
+        * nothing from nothing. Their page is simply where they are, so the rail
+        * shows it and stops.
+        */}
+      {pages.length > 1 && <div className="nav__section">Reports</div>}
 
       <div className="nav__items">
         {pages.map((p) => (

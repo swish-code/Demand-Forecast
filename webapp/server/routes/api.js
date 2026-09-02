@@ -850,7 +850,7 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
    * window on screen. Added once, after the brands are merged, and only when
    * they are not already on the page under a brand.
    */
-  const names = await cube.constantsFromCopy(OTHER_BUCKET).catch(() => new Map())
+  const names = await cube.articleMaster().catch(() => new Map())
   const already = new Set(
     rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
   )

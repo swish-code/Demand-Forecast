@@ -684,19 +684,29 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
               : 'No transfers matched this view'
           }
         />
-        <MetricCard
-          label="Accuracy"
-          accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
-          progress={summary.overall ?? 0}
-          loading={busy}
-          value={summary.overall === null ? '–' : fmtPct(summary.overall, 1)}
-          foot={
-            summary.overall === null
-              ? 'Needs outbound to compare against'
-              : `Totals compared · ${fmtPct(summary.perComponent, 0)} for the average component` +
-                (summary.unmatched ? ` · ${fmtInt(summary.unmatched)} unmatched` : '')
-          }
-        />
+        {/*
+          * No accuracy on a window that has not happened.
+          *
+          * Nothing has been issued against a future requirement, so the card
+          * reads 0.0% — which looks like a catastrophic forecast rather than an
+          * absence of evidence. The columns it summarises are already dropped
+          * for a future window; the card was the piece left behind.
+          */}
+        {!future && (
+          <MetricCard
+            label="Accuracy"
+            accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
+            progress={summary.overall ?? 0}
+            loading={busy}
+            value={summary.overall === null ? '–' : fmtPct(summary.overall, 1)}
+            foot={
+              summary.overall === null
+                ? 'Needs outbound to compare against'
+                : `Totals compared · ${fmtPct(summary.perComponent, 0)} for the average component` +
+                  (summary.unmatched ? ` · ${fmtInt(summary.unmatched)} unmatched` : '')
+            }
+          />
+        )}
         <MetricCard
           label="Articles"
           accent="slate"

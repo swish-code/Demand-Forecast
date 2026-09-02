@@ -877,6 +877,41 @@ export function forgetElsewhere() {
   elsewhereCache = null
 }
 
+/**
+ * Every article the warehouse knows, by number.
+ *
+ * The whole master, not the subset that happened to move last month. The rows
+ * appended for warehouse-only articles were being named from cube_constant,
+ * which only holds what shipped in the month the constant was measured over —
+ * so an article with six months of history but a quiet August came out named by
+ * its bare number. "SWISH MAYONNAISE" appeared as "106200080", which is not
+ * something anybody would search for or recognise.
+ *
+ * Cached: it changes when the extract runs and is asked once per request.
+ */
+let masterCache = null
+
+export async function articleMaster() {
+  if (masterCache) return masterCache
+  const work = (async () => {
+    // An explicit empty list: the driver binds whatever it is handed, and
+    // `undefined` reaches PostgreSQL as one bad parameter.
+    const rows = await rowsOf('SELECT article, name, unit FROM cube_article', [])
+    const out = new Map()
+    for (const r of rows) {
+      out.set(String(r.article), { name: r.name ?? '', unit: r.unit ?? '' })
+    }
+    return out
+  })()
+  masterCache = work
+  return work
+}
+
+/** Dropped when the extract rewrites the master. */
+export function forgetMaster() {
+  masterCache = null
+}
+
 /** The constants for items no recipe covers, and the article master. */
 export async function constantsFromCopy(brand) {
   const rows = await rowsOf(

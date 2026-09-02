@@ -145,16 +145,37 @@ async function request(method, path, body, { signal } = {}) {
  * to repeat; writes are not, so they go through `send` and fail on the spot
  * rather than risk sending an email or creating a user twice.
  */
+/**
+ * Reads survive a restart; writes do not get the chance.
+ *
+ * The server reopens a two-gigabyte local database before it listens, so a
+ * restart is several seconds during which nothing answers and the dev proxy
+ * returns a bare 500. One retry after 900ms was not enough to cover that, and
+ * the reader got an error banner for something that fixed itself a moment
+ * later. Three attempts spread over about five seconds covers an ordinary
+ * restart without making a genuinely dead server take any longer to report.
+ *
+ * Reads only. A write repeated is an email sent twice or a user created twice,
+ * so those go through `send` and fail on the spot.
+ */
+const RETRY_DELAYS = [900, 1800, 3000]
+
 async function read(method, path, body, options) {
-  try {
-    return await request(method, path, body, options)
-  } catch (err) {
-    if (!err.retryable) throw err
-    // Not worth retrying something nobody is waiting for any more.
-    if (options?.signal?.aborted) throw err
-    await new Promise((r) => setTimeout(r, 900))
-    return request(method, path, body, options)
+  let lastError
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      return await request(method, path, body, options)
+    } catch (err) {
+      lastError = err
+      // Only a server that could not be reached is worth asking again.
+      if (!err.retryable) throw err
+      // Nobody is waiting for this any more.
+      if (options?.signal?.aborted) throw err
+      if (attempt === RETRY_DELAYS.length) break
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
+    }
   }
+  throw lastError
 }
 
 /** Reads a JSON endpoint, routing an expired session back to the login screen. */

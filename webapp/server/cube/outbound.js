@@ -6,7 +6,7 @@ import {
   outboundFromWarehouse,
   OTHER_BUCKET,
 } from '../powerbi/warehouse.js'
-import { forgetShipped, forgetElsewhere } from './query.js'
+import { forgetShipped, forgetElsewhere, forgetMaster } from './query.js'
 import { forgetConstants } from '../insights/whConstant.js'
 
 /**
@@ -311,6 +311,7 @@ export async function refreshAllOutbound({ from, to, month, lastFrom, lastTo }) 
   // at all. Held for the life of the process otherwise.
   forgetShipped()
   forgetElsewhere()
+  forgetMaster()
   // The six-month constants are averages over these very rows.
   forgetConstants()
   return out
