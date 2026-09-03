@@ -251,21 +251,29 @@ select {
   width: 24px;
   height: 24px;
   padding: 0;
-  color: var(--text);
-  border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
-  opacity: 0.9;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.18));
+  /* Quiet until wanted. A solid white pill on the dark rail read as the most
+     important thing in the navigation, which it is not — it is a convenience
+     used once and then forgotten about. Idle it is barely there; hovered it
+     becomes the solid control it was, so the affordance is unmistakable at the
+     moment somebody is reaching for it. */
+  color: var(--rail-fg, #fff);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+  opacity: 0.7;
   transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease);
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.nav__toggle:hover {
+.nav__toggle:hover,
+.nav__toggle:focus-visible {
   opacity: 1;
-  border-color: var(--accent, var(--blue));
-  color: var(--accent, var(--blue));
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.18));
 }
 
 /* Points the way it will move. */
@@ -2783,6 +2791,18 @@ table.dt th.num,
 table.dt td.num {
   text-align: center;
   font-variant-numeric: tabular-nums;
+  /* Tighter than a text column. A number is short and centred, so 16px each
+     side was 32px of empty column on every numeric column in the table. */
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* A column that wraps rather than truncates. Only the article name does this:
+   it is the one column where losing the end of the text loses the meaning. */
+table.dt td.dt--wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 table.dt td.strong {

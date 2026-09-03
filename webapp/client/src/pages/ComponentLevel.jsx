@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtInt, fmtPct, fmtDate, downloadCsv } from '../api.js'
+import { api, fmtInt, fmtQty, fmtPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
@@ -85,7 +85,14 @@ const COLUMNS = [
     // No practical ceiling: the whole point of this column is that the name is
     // never cut off. A very long name makes a wide column and the table
     // scrolls, which is the trade asked for.
-    autoWidth: { min: 140, max: 900 },
+    /*
+     * Wide enough for 95% of names exactly, and the rest wrap.
+     *
+     * Nothing is ever truncated, and the column is not held open by the one
+     * 60-character name in three and a half thousand rows.
+     */
+    autoWidth: { min: 140, max: null, percentile: 0.95 },
+    wrap: true,
   },
   {
     key: 'Node Type',
@@ -135,7 +142,7 @@ const COLUMNS = [
      * is what a total under a filtered table means everywhere else.
      */
     total: 'sum',
-    renderTotal: fmtInt,
+    renderTotal: fmtQty,
     // A dash is not zero, and the difference matters here. Rather than leave
     // somebody guessing which it is, the blank says why it is blank.
     // Two different blanks, and they mean opposite things, so the tooltip says
@@ -170,7 +177,7 @@ const COLUMNS = [
           –
         </span>
       ) : (
-        fmtInt(v)
+        fmtQty(v)
       ),
   },
   /*
@@ -189,8 +196,8 @@ const COLUMNS = [
     num: true,
     group: 'fcst',
     total: 'sum',
-    render: fmtInt,
-    renderTotal: fmtInt,
+    render: fmtQty,
+    renderTotal: fmtQty,
   },
   {
     key: 'Component_Actual_Qty',
@@ -199,8 +206,8 @@ const COLUMNS = [
     num: true,
     group: 'fcst',
     total: 'sum',
-    render: fmtInt,
-    renderTotal: fmtInt,
+    render: fmtQty,
+    renderTotal: fmtQty,
   },
   /*
    * The same article, forecast without touching a recipe.
@@ -228,14 +235,14 @@ const COLUMNS = [
     num: true,
     group: 'wh',
     total: 'sum',
-    renderTotal: fmtInt,
+    renderTotal: fmtQty,
     render: (v) =>
       v === null || v === undefined ? (
         <span className="muted" title="No warehouse history for this article in the last six months, so there is no ratio to forecast from.">
           –
         </span>
       ) : (
-        fmtInt(v)
+        fmtQty(v)
       ),
   },
   /*
@@ -258,7 +265,7 @@ const COLUMNS = [
     autoWidth: true,
     num: true,
     total: 'sum',
-    renderTotal: fmtInt,
+    renderTotal: fmtQty,
     render: (v) =>
       v === null || v === undefined ? (
         <span
@@ -268,7 +275,7 @@ const COLUMNS = [
           –
         </span>
       ) : (
-        fmtInt(v)
+        fmtQty(v)
       ),
   },
   /*
@@ -779,6 +786,26 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             ? null
             : rescore(Number(r.Component_Forecast_Qty) || 0),
         WH_Accuracy: rescore(r.WH_Constant_Forecast_Qty),
+        /*
+         * Re-scored on the row's own totals, like the other two.
+         *
+         * This one was being carried over from whichever article the fold
+         * happened to keep, so a merged row could show quantities from several
+         * articles beside an accuracy belonging to one of them.
+         */
+        Sales_Accuracy:
+          r.Component_Actual_Qty === null ||
+          r.Component_Actual_Qty === undefined ||
+          Number(r.Component_Actual_Qty) <= 0 ||
+          r.Component_Forecast_Qty === null ||
+          r.Component_Forecast_Qty === undefined
+            ? null
+            : Math.max(
+                0,
+                1 -
+                  Math.abs(Number(r.Component_Actual_Qty) - Number(r.Component_Forecast_Qty)) /
+                    Number(r.Component_Actual_Qty)
+              ),
       }
     })
   }, [priced, visibleDims])
@@ -955,7 +982,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     let forecast = 0
     let consumed = 0
     let scored = 0
-    let accuracySum = 0
     /*
      * The requirement for the articles the consumption total actually covers.
      *
@@ -976,7 +1002,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * covering different articles.
      */
     let whScored = 0
-    let whAccuracySum = 0
     let whMatchedForecast = 0
     let whConsumed = 0
     // Components with a requirement the warehouse has no record of shipping.
@@ -1023,7 +1048,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       // article the same way. Every article, recipe or not.
       if (r.WH_Accuracy !== null && r.WH_Accuracy !== undefined && !whSeen.has(a)) {
         whSeen.add(a)
-        whAccuracySum += r.WH_Accuracy
         whScored += 1
         whMatchedForecast += Number(r.WH_Constant_Forecast_Qty) || 0
         whConsumed += Number(c) || 0
@@ -1036,22 +1060,20 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       }
       if (seen.has(a)) continue
       seen.add(a)
-      accuracySum += r.Accuracy
       scored += 1
       // Once per article: the roll-up repeats on every row of it.
       matchedForecast += Number(r.Article_Forecast_Qty) || 0
     }
 
     /*
-     * Two honest answers to "how accurate is this", and they are not the same
-     * question.
+     * The totals, compared — which is the figure a reader can check by hand
+     * against the two column totals in the table below.
      *
-     * The headline compares the totals, which is what the two cards beside it
-     * show and what anybody reading them expects to be able to check by hand.
-     * The foot gives the average component, which is far lower — because the
-     * totals can agree while every component inside them is wrong, one over-
-     * forecast cancelling the next. Both are true; the gap between them is
-     * itself the finding, and hiding either one would misrepresent the page.
+     * It flatters: totals can agree while every article inside them is wrong,
+     * one over-forecast cancelling the next. The card used to carry the average
+     * article beside it to say so, and that was removed on 3 Sep 2026; the two
+     * band charts under the table now show that distribution properly, which is
+     * more use than a single averaged number was.
      *
      * Divided by what actually moved, and floored at zero, so it reads as a
      * percentage of reality rather than of the forecast's own opinion.
@@ -1072,10 +1094,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       measured: scored,
       unmatched: unmatched.size,
       overall,
-      perComponent: scored ? accuracySum / scored : null,
       whMeasured: whScored,
       whOverall,
-      whPerComponent: whScored ? whAccuracySum / whScored : null,
     }
   }, [focused])
 
@@ -1208,7 +1228,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           */}
         {!future && (
           <MetricCard
-            label="Accuracy"
+            label="Demand accuracy"
             accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
             progress={summary.overall ?? 0}
             loading={busy}
@@ -1216,7 +1236,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             foot={
               summary.overall === null
                 ? 'Needs outbound to compare against'
-                : `Totals compared · ${fmtPct(summary.perComponent, 0)} for the average component` +
+                : `Totals compared · ${fmtInt(summary.measured)} scored` +
                   (summary.unmatched ? ` · ${fmtInt(summary.unmatched)} unmatched` : '')
             }
           />
@@ -1231,7 +1251,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           */}
         {!future && (
           <MetricCard
-            label="WH ACC%"
+            label="Warehouse accuracy"
             accent={
               summary.whOverall === null ? 'slate' : summary.whOverall >= 0.9 ? 'green' : 'amber'
             }
@@ -1241,9 +1261,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             foot={
               summary.whOverall === null
                 ? 'Needs warehouse history to compare against'
-                : `Totals compared · ${fmtPct(summary.whPerComponent, 0)} for the average article · ${fmtInt(
-                    summary.whMeasured
-                  )} scored`
+                : `Totals compared · ${fmtInt(summary.whMeasured)} scored`
             }
           />
         )}

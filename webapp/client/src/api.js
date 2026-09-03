@@ -290,6 +290,26 @@ const nf2 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
 
 export const fmtInt = (v) => (v === null || v === undefined || v === '' ? '–' : nf0.format(Math.round(Number(v))))
 
+/**
+ * A quantity, rounded — except when rounding would call it nothing.
+ *
+ * `fmtInt` rounds 0.35 to "0", which is fine for a total and wrong for a row:
+ * a forecast of 0.2 against an actual of 0.4 printed as "0" and "0" beside an
+ * accuracy of 50%, and there is no way to check that from what is on screen.
+ * The accuracy was right and the two numbers next to it were not.
+ *
+ * So anything real but under half a unit keeps two decimals, and everything
+ * else formats as before. Fractional quantities are ordinary here — a recipe
+ * asks for grams of something sold by the kilogram.
+ */
+export const fmtQty = (v) => {
+  if (v === null || v === undefined || v === '') return '–'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '–'
+  if (n !== 0 && Math.abs(n) < 0.5) return n.toFixed(2)
+  return nf0.format(Math.round(n))
+}
+
 export const fmtNum = (v) => (v === null || v === undefined || v === '' ? '–' : nf2.format(Number(v)))
 
 /** Compact axis label: 60000 -> '60k'. */

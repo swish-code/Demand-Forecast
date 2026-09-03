@@ -184,7 +184,7 @@ export function DataTable({
   // Versioned: widths saved before the article column became the flexible one
   // were absolute, and restoring one as a floor would pin it at whatever it was
   // dragged to back when dragging it stretched the whole table.
-  const widthKey = tableId ? `df-widths2-${tableId}` : null
+  const widthKey = tableId ? `df-widths3-${tableId}` : null
   const [widths, setWidths] = useState(() => {
     if (!widthKey) return {}
     try {
@@ -217,11 +217,19 @@ export function DataTable({
     for (const c of shown) {
       if (!c.autoWidth) continue
       const opts = c.autoWidth === true ? {} : c.autoWidth
-      // 16px of padding each side, plus room for the sort icon in the header.
-      const { min = 72, max = 640, pad = 32 + 18 } = opts
+      /*
+       * 16px of cell padding each side. The sort icon is added to the header
+       * only — it sits beside the header text, not beside the values, and
+       * charging every row for it made the column 18px wider than any name in
+       * it needs.
+       */
+      // Numeric columns get tighter side padding — see the stylesheet. Their
+      // width is set by the header almost every time, so every pixel of padding
+      // is a pixel of empty column.
+      const { min = 72, max = null, percentile = null, pad = c.num ? 20 : 32 } = opts
       // The header is very often the widest thing in a numeric column, so it is
       // the starting point rather than an afterthought.
-      let widest = measure(String(c.label ?? '').toUpperCase(), true)
+      let widest = measure(String(c.label ?? '').toUpperCase(), true) + 14
 
       if (c.num) {
         /*
@@ -245,14 +253,40 @@ export function DataTable({
           const w = measure(text)
           if (w > widest) widest = w
         }
-      } else {
+      } else if (percentile === null) {
         for (const r of rows) {
-          const w = measure(String(r[c.key] ?? ''))
+          const w = measure(String(r[c.key] ?? '').trim())
           if (w > widest) widest = w
+        }
+      } else {
+        /*
+         * Sized to most of the names, not to the longest one.
+         *
+         * Article names run from 4 characters to 60, and the single 60 was
+         * setting the width of all 3,536 rows — 90% of them need barely half
+         * that, so nine columns out of ten were empty space. Sizing to the 95th
+         * percentile fits almost everything exactly.
+         *
+         * The few that overflow are not truncated: this column wraps, so a long
+         * name takes two lines and is still read in full. That is the only
+         * arrangement that satisfies both "never cut off" and "never wider than
+         * it needs to be" — one of them has to give, and a second line costs
+         * less than 200px of empty column on every other row.
+         */
+        const all = []
+        for (const r of rows) {
+          const t = String(r[c.key] ?? '').trim()
+          if (t) all.push(measure(t))
+        }
+        if (all.length) {
+          all.sort((x, y) => x - y)
+          const at = all[Math.min(all.length - 1, Math.floor(all.length * percentile))]
+          if (at > widest) widest = at
         }
       }
 
-      out[c.key] = Math.round(Math.min(max, Math.max(min, widest + pad)))
+      const want = Math.max(min, widest + pad)
+      out[c.key] = Math.round(max === null ? want : Math.min(max, want))
     }
     return out
   }, [shown, rows])
@@ -275,7 +309,28 @@ export function DataTable({
    * wide as its longest name, and dragging any column changes that column
    * alone.
    */
-  const widthOf = (c) => widths[c.key] ?? autoWidths[c.key] ?? c.width
+  /*
+   * Only the measured column can be dragged, and only wider.
+   *
+   * Two rules that read as one: the full article name is always visible, and
+   * dragging never disturbs anything else.
+   *
+   * A dragged width used to win outright, which is why the column went back to
+   * truncating the moment it was touched — the saved number outranked the
+   * measurement from then on, on every later load, for every later result set.
+   * Here it can only raise the floor. Drag it wider and it stays wider; drag it
+   * narrower and it stops at the longest name, because that is the one thing
+   * this column exists to show.
+   *
+   * Every other column takes its own width and offers no grip at all, so there
+   * is no gesture that can move them.
+   */
+  const widthOf = (c) => {
+    const measured = autoWidths[c.key]
+    if (measured === undefined) return c.width
+    const dragged = Number(widths[c.key]) || 0
+    return Math.max(measured, dragged)
+  }
 
   const startResize = (event, col) => {
     // The header is a sort button; dragging its edge is not a click on it.
@@ -579,6 +634,7 @@ export function DataTable({
                           {on ? <Arrow size={12} /> : <IconSort size={12} />}
                         </span>
                       </span>
+                      {c.autoWidth && (
                       <span
                         className="th__grip"
                         role="separator"
@@ -595,6 +651,7 @@ export function DataTable({
                           })
                         }}
                       />
+                      )}
                     </th>
                   )
                 })}
@@ -617,6 +674,7 @@ export function DataTable({
                         c.num ? 'num' : '',
                         c.id ? 'id' : '',
                         c.strong ? 'strong' : '',
+                        c.wrap ? 'dt--wrap' : '',
                         // Columns that belong together are shaded together, so
                         // the relationship reads without a legend.
                         groupClass(c),
