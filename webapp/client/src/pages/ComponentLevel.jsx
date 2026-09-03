@@ -337,11 +337,23 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         held.consumed += Number(r.Consumed_Qty) || 0
         held.measured = true
       }
-      // The warehouse figure is already a whole-article number and sits on one
-      // row, so it is taken rather than added — summing it across the article's
-      // recipe rows would multiply it by however many recipes use the article.
+      /*
+       * Added, not taken.
+       *
+       * It sits on one row per article per brand — never repeated within a
+       * brand — so there is nothing to double. But when the same article is
+       * used by different recipe groups in different brands the merge keeps
+       * those as separate rows, each carrying its own share, and taking one of
+       * them threw the rest away.
+       *
+       * The table folds those rows together and sums this column, so the figure
+       * on screen was the total while the figure behind the accuracy was
+       * whichever share happened to be read last. CPUSH Sunflower Oil showed
+       * 4,070 outbound against 3,887 forecast and scored 2.2%, because the
+       * score was being computed against about 89.
+       */
       if (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined) {
-        held.wh = Number(r.WH_Constant_Forecast_Qty) || 0
+        held.wh = (held.wh ?? 0) + (Number(r.WH_Constant_Forecast_Qty) || 0)
       }
       perArticle.set(a, held)
     }
@@ -453,6 +465,63 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       }
     })
   }, [priced, visibleDims])
+
+  /*
+   * Accuracy bands, for working through the bad ones.
+   *
+   * The table sorts by accuracy, but sorting only tells you the order — it does
+   * not tell you how many are in trouble, and it does not let you take the
+   * worst hundred and work through them. Each band carries its own count, so
+   * the shape of the problem is visible before anything is clicked.
+   *
+   * Banded on ACC, the recipe forecast against what the warehouse issued: that
+   * is the number somebody can actually improve by fixing a recipe. The
+   * warehouse figure beside it is a second opinion, not something to correct.
+   *
+   * Articles with no score of their own are a band too. There are hundreds of
+   * them and they are not accurate or inaccurate — nothing was measured — so
+   * hiding them in "all" would overstate how much of the page is scored.
+   */
+  const BANDS = [
+    { key: '0-20', label: '0–20%', lo: 0, hi: 0.2 },
+    { key: '20-40', label: '20–40%', lo: 0.2, hi: 0.4 },
+    { key: '40-60', label: '40–60%', lo: 0.4, hi: 0.6 },
+    { key: '60-80', label: '60–80%', lo: 0.6, hi: 0.8 },
+    { key: '80-100', label: '80–100%', lo: 0.8, hi: 1.0001 },
+    { key: 'none', label: 'Not scored', lo: null, hi: null },
+  ]
+
+  const [band, setBand] = useState(null)
+
+  const inBand = (row, b) => {
+    const v = row.Accuracy
+    const scored = v !== null && v !== undefined
+    if (b.lo === null) return !scored
+    return scored && v >= b.lo && v < b.hi
+  }
+
+  const bandCounts = useMemo(() => {
+    const counts = new Map()
+    for (const b of BANDS) counts.set(b.key, 0)
+    for (const r of grouped) {
+      for (const b of BANDS) {
+        if (inBand(r, b)) {
+          counts.set(b.key, counts.get(b.key) + 1)
+          break
+        }
+      }
+    }
+    return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
+  }, [grouped])
+
+  /** What the table shows: the chosen band, or everything. */
+  const banded = useMemo(() => {
+    if (!band) return grouped
+    const b = BANDS.find((x) => x.key === band)
+    return b ? grouped.filter((r) => inBand(r, b)) : grouped
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
+  }, [grouped, band])
 
   const top = useMemo(
     () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
@@ -769,7 +838,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         ) : (
           <DataTable
             columns={columns}
-            rows={grouped}
+            rows={banded}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search article or group…"
@@ -794,6 +863,45 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         * in the table on the left, and the note under the stack says so rather
         * than letting it disappear.
         */}
+      {/* Under the table it filters, because it is read after the table:
+          you look at the figures, then decide which end to work on. */}
+      {!busy && !future && (
+        <div className="bands" role="group" aria-label="Filter by accuracy">
+          <span className="bands__label">Accuracy</span>
+          <button
+            type="button"
+            className={`bands__chip${band === null ? ' bands__chip--on' : ''}`}
+            onClick={() => setBand(null)}
+          >
+            All
+            <span className="bands__count">{fmtInt(grouped.length)}</span>
+          </button>
+          {BANDS.map((b) => {
+            const n = bandCounts.get(b.key) ?? 0
+            return (
+              <button
+                key={b.key}
+                type="button"
+                disabled={!n}
+                className={`bands__chip${band === b.key ? ' bands__chip--on' : ''}${
+                  b.lo !== null && b.hi <= 0.4 ? ' bands__chip--poor' : ''
+                }`}
+                onClick={() => setBand(band === b.key ? null : b.key)}
+              >
+                {b.label}
+                <span className="bands__count">{fmtInt(n)}</span>
+              </button>
+            )
+          })}
+          {band && (
+            <span className="bands__note">
+              Showing {fmtInt(banded.length)} of {fmtInt(grouped.length)} — the CSV and the totals
+              row follow this selection.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="unitrow" style={{ '--cards': busy ? 3 : Math.min(3, Math.max(1, facets.length)) }}>
         {busy ? (
           <>

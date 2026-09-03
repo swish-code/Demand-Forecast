@@ -177,9 +177,34 @@ app.use('/api/auth', auth)
 app.use('/api/admin', admin)
 app.use('/api', api)
 
+/*
+ * The one file that must never be cached.
+ *
+ * Every build gives the bundles new hashed names, and those are served with a
+ * year of immutable caching because a hashed file's content can never change.
+ * index.html is the opposite: it is the only thing that knows which hashes are
+ * current, and a browser holding yesterday's copy asks for bundles that no
+ * longer exist — a blank page that a hard reload fixes and nothing else does.
+ *
+ * So the shell revalidates every time. It is 833 bytes; the round trip costs
+ * nothing next to being served a page that cannot start.
+ */
+const noStore = (res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+}
+
 // Serve the built SPA in production; in dev, Vite serves it and proxies /api.
-app.use(express.static(clientDist))
+app.use(
+  express.static(clientDist, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) noStore(res)
+    },
+  })
+)
 app.get(/^\/(?!api\/).*/, (req, res, next) => {
+  noStore(res)
   res.sendFile(path.join(clientDist, 'index.html'), (err) => {
     if (err) next()
   })

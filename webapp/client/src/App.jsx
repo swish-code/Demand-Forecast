@@ -438,6 +438,7 @@ export default function App({ session, onSignedOut }) {
   return (
     <div className="shell">
       <SideNav
+        collapsed={navPages.length <= 1}
         pages={navPages}
         active={tab}
         onSelect={setTab}

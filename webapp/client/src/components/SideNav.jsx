@@ -11,12 +11,22 @@ import { IconRefresh } from './Icons.jsx'
  * is for, so the content area does not have to spend a row restating which page
  * you are on.
  */
-export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefresh, user, onSignOut }) {
+export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefresh, user, onSignOut, collapsed = false }) {
   const status = !health ? 'down' : health.mode === 'demo' ? 'demo' : 'live'
   const statusText = !health ? 'API unreachable' : health.mode === 'demo' ? 'Sample data' : 'Power BI live'
 
+  /*
+   * A rail of one page is a label, not a navigation.
+   *
+   * Somebody granted only Ingredients has nowhere to go, so the rail spends two
+   * hundred pixels of a wide table telling them where they already are. It
+   * collapses to icons instead — the styling for that already existed for
+   * narrow screens and had simply never been applied to this case — keeping the
+   * status, Refresh and Sign out, which are the only things in it they can act
+   * on.
+   */
   return (
-    <nav className="nav" aria-label="Pages">
+    <nav className={`nav${collapsed ? ' nav--collapsed' : ''}`} aria-label="Pages">
       <div className="nav__brand">
         <img className="nav__logo" src="/swish-logo.png" alt="Swishhh" />
         <span className="nav__wordmark">
