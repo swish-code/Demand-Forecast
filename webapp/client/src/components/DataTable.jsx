@@ -75,9 +75,38 @@ export function DataTable({
   }, [storeKey, hidden])
 
   const shown = useMemo(
-    () => columns.filter((c) => c.required || !hidden.has(c.key)),
+    // `Boolean` first, deliberately. A stray comma in a caller's column list
+    // leaves a hole in the array, and reading `.required` off the undefined it
+    // produces took the entire page down with a blank screen — a whole class of
+    // white-screen crash that one guard removes.
+    () => columns.filter(Boolean).filter((c) => c.required || !hidden.has(c.key)),
     [columns, hidden]
   )
+
+  /*
+   * Where a shaded group starts and ends, among the columns actually visible.
+   *
+   * Computed here rather than declared on the column, because hiding one of a
+   * group's members moves its edges: shade three columns and hide the middle
+   * one and the block is now two blocks, which should look like two blocks.
+   */
+  const edges = useMemo(() => {
+    const map = new Map()
+    shown.forEach((c, i) => {
+      if (!c.group) return
+      map.set(c.key, {
+        start: shown[i - 1]?.group !== c.group,
+        end: shown[i + 1]?.group !== c.group,
+      })
+    })
+    return map
+  }, [shown])
+
+  const groupClass = (c) => {
+    if (!c.group) return ''
+    const e = edges.get(c.key)
+    return `dt--${c.group}${e?.start ? ' dt--gstart' : ''}${e?.end ? ' dt--gend' : ''}`
+  }
 
   /*
    * Column widths the reader can drag, and keep.
@@ -344,7 +373,7 @@ export function DataTable({
                     <th
                       key={c.key}
                       scope="col"
-                      className={`${c.num ? 'num th--num' : ''}`}
+                      className={`${c.num ? 'num th--num' : ''} ${groupClass(c)}`.trim()}
                       style={widthOf(c) ? { width: widthOf(c) } : undefined}
                       onClick={() => toggle(c.key)}
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -387,7 +416,14 @@ export function DataTable({
                   {shown.map((c) => (
                     <td
                       key={c.key}
-                      className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '']
+                      className={[
+                        c.num ? 'num' : '',
+                        c.id ? 'id' : '',
+                        c.strong ? 'strong' : '',
+                        // Columns that belong together are shaded together, so
+                        // the relationship reads without a legend.
+                        groupClass(c),
+                      ]
                         .filter(Boolean)
                         .join(' ')}
                     >
@@ -404,7 +440,10 @@ export function DataTable({
                   {shown.map((c, i) => {
                     const value = totalOf(c)
                     return (
-                      <td key={c.key} className={c.num ? 'num' : undefined}>
+                      <td
+                        key={c.key}
+                        className={[c.num ? 'num' : '', groupClass(c)].filter(Boolean).join(' ')}
+                      >
                         {i === 0
                           ? 'Total'
                           : value === null

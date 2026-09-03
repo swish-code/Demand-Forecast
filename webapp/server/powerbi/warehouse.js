@@ -36,8 +36,23 @@ const isConfigured = () => Boolean(config.warehouse.workspaceId && config.wareho
 /** The bucket everything that is not a forecast brand is counted under. */
 export const OTHER_BUCKET = '__other'
 
-/** The one place goods are issued from. Destination, and now source. */
-export const WAREHOUSE = 'Central Warehouse'
+/**
+ * The place stock is issued from.
+ *
+ * Everything this file calls "outbound" means goods leaving *here* for
+ * somewhere else. Today that is the central warehouse, and the whole page is
+ * built on that meaning — Outbound, Outbound MTD, the six-month constants and
+ * every accuracy derived from them.
+ *
+ * Named once, and overridable, because it will not always be the only source:
+ * a second issuing point (a CPU, a regional depot) changes what outbound means
+ * without changing any of the arithmetic around it. Anything that needs to know
+ * should read this rather than write the string again.
+ */
+export const SUPPLY_SOURCE = process.env.WH_SUPPLY_SOURCE || 'Central Warehouse'
+
+/** The old name, kept so nothing that imports it has to change at once. */
+export const WAREHOUSE = SUPPLY_SOURCE
 
 const literal = (values) => values.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(', ')
 

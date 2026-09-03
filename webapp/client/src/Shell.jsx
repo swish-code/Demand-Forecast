@@ -1,7 +1,69 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Component, useCallback, useEffect, useState } from 'react'
 import { api } from './api.js'
 import App from './App.jsx'
 import { Login } from './pages/Login.jsx'
+
+/**
+ * Anything that throws while rendering says so, instead of leaving a blank page.
+ *
+ * React unmounts the whole tree when a render throws, and with nothing to catch
+ * it the result is a white screen: no message, no stack, nothing on the page to
+ * act on. The console has the detail, but "it is not loading" is what gets
+ * reported, and a blank page gives no reason to go and look.
+ *
+ * Class component because this is the one thing hooks cannot do — there is no
+ * useErrorBoundary.
+ */
+class Boundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error('[app] render failed', error, info?.componentStack)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+
+    const { error } = this.state
+    return (
+      <div className="signin">
+        <div className="signin__card">
+          <h2 style={{ margin: '0 0 8px' }}>Something in this page failed to render</h2>
+          <p style={{ margin: '0 0 12px', color: 'var(--text-muted)' }}>
+            The rest of the application is fine. Reloading usually clears it; if it does not, the
+            message below is what to report.
+          </p>
+          <pre
+            style={{
+              margin: '0 0 12px',
+              padding: 12,
+              maxHeight: 220,
+              overflow: 'auto',
+              background: 'var(--sunken)',
+              borderRadius: 8,
+              fontSize: 12,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {String(error?.message || error)}
+            {error?.stack ? `\n\n${error.stack}` : ''}
+          </pre>
+          <button type="button" className="btn" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
 
 /**
  * Decides between the login screen and the dashboard.
@@ -90,5 +152,9 @@ export function Shell() {
 
   if (!session) return <Login onSignedIn={setSession} />
 
-  return <App session={session} onSignedOut={signOut} />
+  return (
+    <Boundary>
+      <App session={session} onSignedOut={signOut} />
+    </Boundary>
+  )
 }

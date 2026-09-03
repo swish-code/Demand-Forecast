@@ -21,6 +21,14 @@ const SLICERS = [
   { id: 'articleName', key: 'articles', label: 'Product PLU', options: 'articleNames', placeholder: 'All' },
   { id: 'item', key: 'items', label: 'Component', options: 'items', placeholder: 'All' },
   { id: 'nodeType', key: 'nodeTypes', label: 'Prod. type', options: 'nodeTypes', placeholder: 'All' },
+  /*
+   * Where an article's stock comes from.
+   *
+   * Two fixed values rather than a list read from a model: it is derived from
+   * whether the warehouse has issued the article in six months, so there is
+   * nothing to look up and no third answer.
+   */
+  { id: 'supply', key: 'supply', label: 'Supply', options: 'supply', placeholder: 'All' },
 ]
 
 export function FilterBar({ show, options, filters, setFilters, loading, brands, selectedBrands, onBrandChange, onNeedOptions }) {
@@ -43,6 +51,7 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       items: [],
       recipeGroups: [],
       nodeTypes: [],
+      supply: [],
       prepStatus: [],
       dateFrom: f.defaultFrom,
       dateTo: f.defaultTo,

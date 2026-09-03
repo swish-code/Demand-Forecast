@@ -65,11 +65,20 @@ async function guarded(label, run) {
     // branch took 5ms with current statistics and 42ms without, and an index
     // created without them made the unfiltered view four times slower — SQLite
     // chose an index that skipped a sort by walking three times as many rows.
-    // VACUUM ANALYZE, not ANALYZE alone: every refresh rewrites the same recent
-    // days, and the rows it replaced stay on disk until something collects
-    // them. Nothing did, and the copy grew to nine times the size of the data
-    // in it — which every scan then reads past.
-    await vacuum()
+    // ANALYZE here, VACUUM overnight.
+    //
+    // The copy is PostgreSQL compiled to WebAssembly running inside this
+    // process, so anything it does blocks the event loop and the server answers
+    // nothing while it runs. Vacuuming twelve tables of a two-gigabyte database
+    // after every extract was minutes of that, on a schedule that fires hourly
+    // and on every restart. Statistics are what the planner actually needs and
+    // they cost a fraction of it; reclaiming space is real but it is not urgent,
+    // and the nightly run already does it properly.
+    try {
+      await pg.exec('ANALYZE')
+    } catch {
+      // Statistics are an optimisation, not something to fail an extract over.
+    }
 
     // Anything already answered from the old rows is now out of date.
     clearCache()
@@ -126,6 +135,36 @@ async function refreshOutboundAll() {
 }
 
 export const runOutbound = () => guarded('outbound', refreshOutboundAll)
+
+/**
+ * How long an outbound copy stays good enough to skip re-pulling at startup.
+ *
+ * A restart used to re-fetch a year of warehouse movement whatever had happened
+ * five minutes earlier — twelve heavy queries and a rewrite of the whole table,
+ * during which the copy is locked and the server answers nothing. It changes
+ * once a day at most. Anything fresher than this is left alone; the hourly
+ * schedule brings it forward soon enough either way.
+ */
+const OUTBOUND_FRESH_HOURS = Number(process.env.CUBE_OUTBOUND_FRESH_HOURS) || 6
+
+async function outboundIsFresh() {
+  const rows = await coverage()
+  if (!rows.length) return false
+  const stamps = rows.map((r) => r.refreshed_at).filter(Boolean)
+  if (stamps.length !== rows.length) return false
+  const newest = Date.parse(`${stamps.sort().pop().replace(' ', 'T')}Z`)
+  if (!Number.isFinite(newest)) return false
+  return Date.now() - newest < OUTBOUND_FRESH_HOURS * HOUR
+}
+
+/** The startup pull, skipped when the copy is already current. */
+async function outboundIfStale() {
+  if (await outboundIsFresh().catch(() => false)) {
+    console.log('  [cube] outbound is recent — not re-pulling it on startup')
+    return null
+  }
+  return runOutbound()
+}
 
 /** Tomorrow's plan, alongside the hourly refresh that keeps the rest current. */
 export const runPlans = () => guarded('plans', refreshAllPlans)
@@ -261,7 +300,7 @@ export function startCubeSchedule() {
       backfillThin()
         .then(() => refreshRecentAll())
         // Outbound last: the constants are derived from what the others hold.
-        .then(() => runOutbound())
+        .then(() => outboundIfStale())
     )
     setInterval(
       () => detached('recent refresh', refreshRecentAll),

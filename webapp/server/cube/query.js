@@ -21,7 +21,7 @@ const SUPPORTED = new Set(['brand', 'brands', 'locations', 'products', 'dateFrom
  * had never heard of them refused every real request from the browser — the
  * copy answered every test and nothing at all in the actual application.
  */
-const HARMLESS = new Set(['defaultFrom', 'defaultTo', 'need', 'top'])
+const HARMLESS = new Set(['defaultFrom', 'defaultTo', 'need', 'top', 'supply'])
 
 /**
  * Can the copy answer this request truthfully?
@@ -578,6 +578,9 @@ export async function listsFor(brand, f, need) {
  * type, which is every dimension this page filters or groups on.
  */
 const COMPONENT_FILTERS = new Set([
+  // Applied after the rows are built, from the outbound copy, so it does not
+  // narrow the query itself.
+  'supply',
   'brand',
   'brands',
   'dateFrom',
@@ -824,6 +827,26 @@ export async function outboundByMonth(brand, months) {
 }
 
 /** The brand's forecast sales over an arbitrary window, from the copy. */
+/**
+ * Actual sales for the window, the twin of forecastSales.
+ *
+ * Same table, same window, the other column. It exists so a quantity derived
+ * from the sales forecast can have a counterpart derived from the sales that
+ * happened — which is the only way an article with no recipe can be scored the
+ * way a recipe article is.
+ */
+export async function actualSales(brand, f, { allBrands = false } = {}) {
+  if (!f?.dateFrom || !f?.dateTo) return null
+  const rows = await rowsOf(
+    `SELECT SUM(actual) AS actual
+       FROM cube_location_daily
+      WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?`,
+    allBrands ? [f.dateFrom, f.dateTo] : [brand, f.dateFrom, f.dateTo]
+  )
+  const v = Number(rows[0]?.actual)
+  return Number.isFinite(v) ? v : null
+}
+
 export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   // Same reasoning as monthlySales: the bucket borrows everyone's denominator.
@@ -872,8 +895,40 @@ export async function outboundElsewhere() {
   return work
 }
 
+/**
+ * Articles the warehouse has moved in the last `months` whole months.
+ *
+ * Membership, not quantity: an article absent from this has no recent history
+ * at all, so nothing can be measured against its requirement and nothing can be
+ * forecast from its behaviour. Read across every bucket, brands and the
+ * unattributed one alike — going to the central kitchen is still moving.
+ */
+const shippedSinceCache = new Map()
+
+export async function articlesShippedSince(months = 6, today = new Date()) {
+  const list = []
+  for (let i = 1; i <= months; i++) {
+    list.push(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1)).toISOString().slice(0, 7))
+  }
+  const key = list[0] + '|' + months
+  const held = shippedSinceCache.get(key)
+  if (held) return held
+
+  const work = (async () => {
+    const rows = await rowsOf(
+      `SELECT DISTINCT article FROM cube_outbound_monthly
+        WHERE month IN (${list.map(() => '?').join(', ')}) AND qty > 0`,
+      list
+    )
+    return new Set(rows.map((r) => String(r.article)))
+  })()
+  shippedSinceCache.set(key, work)
+  return work
+}
+
 /** Dropped when the extract rewrites it. */
 export function forgetElsewhere() {
+  shippedSinceCache.clear()
   elsewhereCache = null
 }
 

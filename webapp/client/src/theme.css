@@ -235,6 +235,65 @@ select {
   overflow: hidden;
 }
 
+/* Anchored to the rail's outside edge, vertically centred, so it is in the
+   same place whether the rail is open or collapsed and covers nothing in
+   either state. Inside the edge rather than straddling it, because the rail
+   clips its overflow to stop the wordmark spilling as it collapses. */
+.nav__toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.9;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.18));
+  transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.nav__toggle:hover {
+  opacity: 1;
+  border-color: var(--accent, var(--blue));
+  color: var(--accent, var(--blue));
+}
+
+/* Points the way it will move. */
+.nav--collapsed .nav__toggle svg { transform: rotate(180deg); }
+
+/* Collapsed there is no edge to sit against, so it centres on the rail. */
+.nav--collapsed .nav__toggle {
+  right: 50%;
+  transform: translate(50%, -50%);
+}
+
+/* The button is positioned against the rail, so the rail is the frame. */
+.nav {
+  position: relative;
+}
+
+/* Collapsed, the icons are the only labels there are, so hovering one has to
+   be unmistakable — a tooltip alone is too slow to scan a list with. */
+.nav--collapsed .nav__item:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.nav--collapsed .nav__item {
+  border-radius: var(--r-sm, 6px);
+  margin: 1px var(--s2);
+  transition: background var(--t-fast) var(--ease);
+}
+
 .nav--collapsed {
   width: var(--nav-w-collapsed);
 }
@@ -4350,7 +4409,69 @@ table.dt thead th:hover .th__sort--idle {
 
 .split--pair > .panel > .panel__head { flex: 0 0 auto; }
 
+/* --------------------------------------------- related column groups ----- */
+
+/* Two blocks of three, each shaded so the relationship reads at a glance:
+   what the forecast said and how close it came, then what the warehouse did
+   and how close that came. Deliberately faint — this is a grouping cue, not a
+   highlight, and it sits behind numbers that must stay easy to read. */
+table.dt th.dt--fcst,
+table.dt td.dt--fcst {
+  background: color-mix(in srgb, var(--blue) 2.5%, var(--surface));
+}
+
+table.dt th.dt--wh,
+table.dt td.dt--wh {
+  background: color-mix(in srgb, var(--green, #16a34a) 3%, var(--surface));
+}
+
+/* A hairline at each end, so a group reads as one block rather than three
+   columns that happen to share a tint. Only at the edges — a rule between
+   every pair would fight the row lines. */
+table.dt th.dt--gstart,
+table.dt td.dt--gstart {
+  border-left: 1px solid var(--line);
+}
+
+table.dt th.dt--gend,
+table.dt td.dt--gend {
+  border-right: 1px solid var(--line);
+}
+
+/* Collapsed, the rail is 56px of icons — anything with words in it either
+   wraps into nonsense or spills past the edge, which is what the account name
+   and the refresh label were doing. Hidden outright: a person who wants them
+   expands the rail, and the avatar alone still says who is signed in. */
+.nav--collapsed .nav__action,
+.nav--collapsed .nav__userText {
+  display: none;
+}
+
+.nav--collapsed .nav__foot {
+  align-items: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.nav--collapsed .nav__user {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The row hover still has to win, or a shaded column looks unhoverable. */
+table.dt tbody tr:hover td.dt--fcst,
+table.dt tbody tr:hover td.dt--wh {
+  background: var(--sunken);
+}
+
 /* ------------------------------------------------- accuracy bands -------- */
+
+.bandstack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
 
 .bands {
   display: flex;

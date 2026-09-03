@@ -23,7 +23,7 @@ import { isFutureWindow } from '../window.js'
 const COLUMNS = [
   // Off unless asked for: each one splits every row by that field.
   { key: 'Date', label: 'Date', width: 116, hiddenByDefault: true, costly: true, render: fmtDate },
-  { key: 'LocationID', label: 'Branch', width: 96, hiddenByDefault: true, costly: true },
+  { key: 'LocationID', label: 'Location', width: 110, hiddenByDefault: true, costly: true },
   // The PLU column is out at the moment — asked for on 25 Aug 2026. The
   // rows are still grouped by it, so two products sharing a name stay on
   // separate lines; only the code itself is hidden. Restore by putting the

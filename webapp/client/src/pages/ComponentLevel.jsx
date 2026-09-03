@@ -4,6 +4,7 @@ import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
 import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
+import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { IconDownload } from '../components/Icons.jsx'
 
@@ -22,7 +23,43 @@ const COLUMNS = [
   // window every component repeats once per day, and most readers open this
   // page for a total rather than a diary. The Columns button turns it on.
   { key: 'Date', label: 'Date', width: 116, hiddenByDefault: true, costly: true, render: fmtDate },
-  { key: 'LocationID', label: 'Branch', width: 96, hiddenByDefault: true, costly: true },
+  { key: 'LocationID', label: 'Location', width: 110, hiddenByDefault: true, costly: true },
+  /*
+   * Which brand a line belongs to.
+   *
+   * Costly like the other two, and for the same reason: the rows are merged
+   * across brands by default, because a component used by two brands is one
+   * thing to order. Switching this on stops that merge, so the same article
+   * appears once per brand and the row count multiplies.
+   */
+  {
+    key: 'CHAINID',
+    label: 'Brand',
+    width: W.brand,
+    hiddenByDefault: true,
+    costly: true,
+    render: (v) => (v ? <BrandTag code={v} /> : <span className="muted" title="Issued to the central kitchen or another internal destination, so it belongs to no single brand">–</span>),
+  },
+  /*
+   * Where the row's requirement comes from.
+   *
+   * Two quite different things sit in this table: components a recipe asks for,
+   * and articles the warehouse ships that no recipe mentions at all. They are
+   * forecast by different methods and trusted to different degrees, and until
+   * now the only clue was the recipe group reading "No recipe — from outbound".
+   */
+  {
+    key: 'Source',
+    label: 'Recipe',
+    width: 116,
+    hiddenByDefault: true,
+    render: (_v, row) =>
+      String(row?.['Recipe Group'] ?? '').startsWith('No recipe') ? (
+        <Pill tone="slate">Non-recipe</Pill>
+      ) : (
+        <Pill tone="green">Recipe</Pill>
+      ),
+  },
   // Off by default — asked for on 1 Sep 2026. The table opens on the five
   // columns somebody reads: what it is, what kind, in what unit, what moved and
   // what is needed. Recipe group and the article number are a click away in
@@ -68,6 +105,7 @@ const COLUMNS = [
     width: W.qty,
     num: true,
     strong: true,
+    group: 'wh',
     /*
      * It does total, and correctly: the figure sits on exactly one row per
      * article and every other row is blank, so adding the column counts each
@@ -118,7 +156,35 @@ const COLUMNS = [
         fmtInt(v)
       ),
   },
-  { key: 'Component_Forecast_Qty', label: 'Forecast qty', width: W.qty, num: true, total: 'sum', render: fmtInt, renderTotal: fmtInt },
+  /*
+   * The forecast dashboard's own three figures, banded together.
+   *
+   * Forecast qty and Actual qty come out of the same recipe at the same
+   * quantities, so the recipe cancels and the only difference between them is
+   * which sales figure was multiplied by it — predicted or actual. Their
+   * accuracy is therefore the sales forecast's accuracy, and nothing to do with
+   * the warehouse. Shading them as one block says so without a legend.
+   */
+  {
+    key: 'Component_Forecast_Qty',
+    label: 'Forecast qty',
+    width: W.qty,
+    num: true,
+    group: 'fcst',
+    total: 'sum',
+    render: fmtInt,
+    renderTotal: fmtInt,
+  },
+  {
+    key: 'Component_Actual_Qty',
+    label: 'Actual qty',
+    width: W.qty,
+    num: true,
+    group: 'fcst',
+    total: 'sum',
+    render: fmtInt,
+    renderTotal: fmtInt,
+  },
   /*
    * The same article, forecast without touching a recipe.
    *
@@ -143,6 +209,7 @@ const COLUMNS = [
     label: 'WH forecast',
     width: 138,
     num: true,
+    group: 'wh',
     total: 'sum',
     renderTotal: fmtInt,
     render: (v) =>
@@ -236,7 +303,7 @@ const COLUMNS = [
       return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
     },
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
-  },,
+  },
   /*
    * The same measurement, against the warehouse's own forecast.
    *
@@ -250,11 +317,45 @@ const COLUMNS = [
    * Blank when there is no warehouse history to forecast from, which is the
    * same reason WH forecast beside it is blank.
    */
+  /*
+   * Sales accuracy: the forecast against what the sales actually implied.
+   *
+   * The other two columns measure the app against the warehouse. This one
+   * measures the sales forecast against itself, so a row that scores badly here
+   * and well on ACC has a demand problem rather than a recipe problem.
+   */
+  {
+    key: 'Sales_Accuracy',
+    label: 'Forecast ACC',
+    width: 128,
+    num: true,
+    group: 'fcst',
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="Nothing has sold in this window yet, so there is nothing to compare the forecast against.">
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    total: (list) => {
+      const seen = new Map()
+      for (const r of list) {
+        const a = String(r['Item No.'] ?? '').trim()
+        if (!a || r.Sales_Accuracy === null || r.Sales_Accuracy === undefined) continue
+        if (!seen.has(a)) seen.set(a, r.Sales_Accuracy)
+      }
+      if (!seen.size) return null
+      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
+    },
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
   {
     key: 'WH_Accuracy',
     label: 'WH Forecast ACC',
     width: 150,
     num: true,
+    group: 'wh',
     render: (v) =>
       v === null || v === undefined ? (
         <span
@@ -281,6 +382,96 @@ const COLUMNS = [
   }
 ]
 
+/**
+ * The order the columns are read in, declared rather than left to the order
+ * they happen to be defined in.
+ *
+ * The two groups are the point. Each is a question and its answer, side by
+ * side: what the forecast said, what actually sold, how close it came — then
+ * what the warehouse rate predicted, what it actually issued, how close that
+ * came. Reading either one means reading three adjacent numbers, and the
+ * shading only works if they are adjacent to begin with.
+ *
+ * The two that follow belong to neither. Outbound MTD is a different window
+ * entirely, and ACC compares across the groups — the recipe's forecast against
+ * the warehouse's issue — so putting it inside either would claim it belongs
+ * to one of them.
+ *
+ * Editing this list is how the table is rearranged; the definitions below can
+ * then stay grouped by what they do rather than by where they appear.
+ */
+const COLUMN_ORDER = [
+  // What the row is.
+  'Date',
+  'LocationID',
+  'CHAINID',
+  'Source',
+  'Recipe Group',
+  'Item',
+  'Node Type',
+  'BU',
+  'Item No.',
+  // Forecast dashboard: predicted, actual, and the gap between them.
+  'Component_Forecast_Qty',
+  'Component_Actual_Qty',
+  'Sales_Accuracy',
+  // Warehouse: predicted, issued, and the gap between them.
+  'WH_Constant_Forecast_Qty',
+  'Consumed_Qty',
+  'WH_Accuracy',
+  // Neither group.
+  'Live_Outbound_MTD',
+  'Accuracy',
+]
+
+const ORDERED_COLUMNS = (() => {
+  const rank = new Map(COLUMN_ORDER.map((key, i) => [key, i]))
+  // Anything not named keeps its relative position at the end rather than
+  // silently jumping to the front, so a column added below still appears.
+  return [...COLUMNS].sort(
+    (a, b) => (rank.get(a.key) ?? COLUMN_ORDER.length) - (rank.get(b.key) ?? COLUMN_ORDER.length)
+  )
+})()
+
+/**
+ * One row of accuracy bands.
+ *
+ * Written once because there are two of them and they must behave identically —
+ * two copies of this drift the moment one gains a feature the other does not.
+ */
+function BandRow({ label, bands, counts, active, total, onPick }) {
+  return (
+    <div className="bands" role="group" aria-label={`Filter by ${label}`}>
+      <span className="bands__label">{label}</span>
+      <button
+        type="button"
+        className={`bands__chip${active === null ? ' bands__chip--on' : ''}`}
+        onClick={() => onPick(active)}
+      >
+        All
+        <span className="bands__count">{fmtInt(total)}</span>
+      </button>
+      {bands.map((b) => {
+        const n = counts.get(b.key) ?? 0
+        return (
+          <button
+            key={b.key}
+            type="button"
+            disabled={!n}
+            className={`bands__chip${active === b.key ? ' bands__chip--on' : ''}${
+              b.lo !== null && b.hi <= 0.4 ? ' bands__chip--poor' : ''
+            }`}
+            onClick={() => onPick(b.key)}
+          >
+            {b.label}
+            <span className="bands__count">{fmtInt(n)}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /** Mirrors the report's COMPONENT LEVEL page. */
 export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded }) {
   /*
@@ -300,7 +491,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
   })
 
   const grain = useMemo(
-    () => [!hiddenCols.includes('Date') && 'date', !hiddenCols.includes('LocationID') && 'location'].filter(Boolean),
+    () =>
+      [
+        !hiddenCols.includes('Date') && 'date',
+        !hiddenCols.includes('LocationID') && 'location',
+        !hiddenCols.includes('CHAINID') && 'brand',
+      ].filter(Boolean),
     [hiddenCols]
   )
 
@@ -333,6 +529,9 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       if (!a) continue
       const held = perArticle.get(a) ?? { forecast: 0, consumed: 0, wh: null, measured: false }
       held.forecast += Number(r.Component_Forecast_Qty) || 0
+      if (r.Component_Actual_Qty !== null && r.Component_Actual_Qty !== undefined) {
+        held.implied = (held.implied ?? 0) + (Number(r.Component_Actual_Qty) || 0)
+      }
       if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) {
         held.consumed += Number(r.Consumed_Qty) || 0
         held.measured = true
@@ -381,9 +580,46 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           ? 1 - Math.abs(held.consumed - target) / Math.max(held.consumed, target)
           : null
 
+      /*
+       * How good the sales forecast was, read through this article.
+       *
+       * Both sides come out of the same recipe at the same quantities, so the
+       * recipe cancels: the only thing that differs is which sales figure was
+       * multiplied by it. Forecast qty uses the sales we predicted, Implied by
+       * sales uses the sales that happened. The gap between them is the sales
+       * forecast's error, expressed in this article's own unit.
+       *
+       * That makes it the one accuracy on the row that is not about the
+       * warehouse at all — and the only one a better sales forecast would move.
+       */
+      const implied = held?.implied ?? null
+      /*
+       * Divided by the actual, matching the report's own measure.
+       *
+       *   Variation % MTD = DIVIDE(ActualSales - MonthRunrate, ActualSales)
+       *
+       * and accuracy is one minus the size of that variation. It was previously
+       * divided by the larger of the two, which is symmetric and never leaves
+       * the 0..1 range — but it is not the number the brand dashboards report,
+       * and two places computing "sales accuracy" differently is worse than one
+       * place computing it with a rough edge.
+       *
+       * The rough edge is inherited: with actual on the bottom, a forecast more
+       * than twice the actual scores below zero, and an actual of zero has no
+       * answer at all. The first is clamped to zero, the second left blank —
+       * DIVIDE's fallback would call it 0% variation, i.e. a perfect forecast
+       * against sales that never happened, which is the one reading that is
+       * certainly wrong.
+       */
+      const salesAccuracy =
+        implied !== null && implied > 0
+          ? Math.max(0, 1 - Math.abs(implied - forecast) / implied)
+          : null
+
       return {
         ...r,
         Article_Forecast_Qty: forecast,
+        Sales_Accuracy: salesAccuracy,
         Accuracy: score(forecast),
         // The same measurement against the other forecast, so the two methods
         // can be judged on the same evidence rather than on each other.
@@ -412,7 +648,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * several articles is re-scored on its own totals, which is the only figure
    * that matches what the row now shows.
    */
-  const DIMENSIONS = ['Date', 'LocationID', 'Recipe Group', 'Item', 'Node Type', 'BU', 'Item No.']
+  const DIMENSIONS = ['Date', 'LocationID', 'CHAINID', 'Source', 'Recipe Group', 'Item', 'Node Type', 'BU', 'Item No.']
 
   const visibleDims = useMemo(
     () => DIMENSIONS.filter((k) => !hiddenCols.includes(k)),
@@ -474,9 +710,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * worst hundred and work through them. Each band carries its own count, so
    * the shape of the problem is visible before anything is clicked.
    *
-   * Banded on ACC, the recipe forecast against what the warehouse issued: that
-   * is the number somebody can actually improve by fixing a recipe. The
-   * warehouse figure beside it is a second opinion, not something to correct.
+   * Banded on WH Forecast ACC — asked for on 3 Sep 2026. That is the warehouse's
+   * own six-month rate measured against what it actually issued, so a low band
+   * is an article whose usage does not behave the way its history says it
+   * should: a supply change, a menu change, or a code that has drifted.
    *
    * Articles with no score of their own are a band too. There are hundreds of
    * them and they are not accurate or inaccurate — nothing was measured — so
@@ -486,42 +723,71 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     { key: '0-20', label: '0–20%', lo: 0, hi: 0.2 },
     { key: '20-40', label: '20–40%', lo: 0.2, hi: 0.4 },
     { key: '40-60', label: '40–60%', lo: 0.4, hi: 0.6 },
-    { key: '60-80', label: '60–80%', lo: 0.6, hi: 0.8 },
-    { key: '80-100', label: '80–100%', lo: 0.8, hi: 1.0001 },
+    { key: '60-85', label: '60–85%', lo: 0.6, hi: 0.85 },
+    { key: '85-100', label: '85–100%', lo: 0.85, hi: 1.0001 },
     { key: 'none', label: 'Not scored', lo: null, hi: null },
   ]
 
+  /*
+   * Two measures worth banding, so two rows of bands.
+   *
+   * They are not the same question and an article can sit in opposite ends of
+   * the two: a good forecast against bad warehouse behaviour is a supply
+   * change, the reverse is a recipe problem. Filtering on both at once narrows
+   * to exactly that intersection, which is the useful thing to be able to ask.
+   */
   const [band, setBand] = useState(null)
+  const [fcstBand, setFcstBand] = useState(null)
 
-  const inBand = (row, b) => {
-    const v = row.Accuracy
+  const inBand = (row, b, key = 'WH_Accuracy') => {
+    const v = row[key]
     const scored = v !== null && v !== undefined
     if (b.lo === null) return !scored
     return scored && v >= b.lo && v < b.hi
   }
 
-  const bandCounts = useMemo(() => {
+  const countBands = (rows, key) => {
     const counts = new Map()
     for (const b of BANDS) counts.set(b.key, 0)
-    for (const r of grouped) {
+    for (const r of rows) {
       for (const b of BANDS) {
-        if (inBand(r, b)) {
+        if (inBand(r, b, key)) {
           counts.set(b.key, counts.get(b.key) + 1)
           break
         }
       }
     }
     return counts
+  }
+
+  // Counted against what the other band is already showing, so the numbers
+  // describe the rows you would actually get rather than the whole table.
+  const bandCounts = useMemo(
+    () => countBands(fcstBand ? grouped.filter((r) => inBand(r, BANDS.find((x) => x.key === fcstBand), 'Sales_Accuracy')) : grouped, 'WH_Accuracy'),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
-  }, [grouped])
+    [grouped, fcstBand]
+  )
+
+  const fcstBandCounts = useMemo(
+    () => countBands(band ? grouped.filter((r) => inBand(r, BANDS.find((x) => x.key === band), 'WH_Accuracy')) : grouped, 'Sales_Accuracy'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
+    [grouped, band]
+  )
 
   /** What the table shows: the chosen band, or everything. */
   const banded = useMemo(() => {
-    if (!band) return grouped
-    const b = BANDS.find((x) => x.key === band)
-    return b ? grouped.filter((r) => inBand(r, b)) : grouped
+    let out = grouped
+    if (band) {
+      const b = BANDS.find((x) => x.key === band)
+      if (b) out = out.filter((r) => inBand(r, b, 'WH_Accuracy'))
+    }
+    if (fcstBand) {
+      const b = BANDS.find((x) => x.key === fcstBand)
+      if (b) out = out.filter((r) => inBand(r, b, 'Sales_Accuracy'))
+    }
+    return out
     // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
-  }, [grouped, band])
+  }, [grouped, band, fcstBand])
 
   const top = useMemo(
     () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
@@ -562,6 +828,19 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * one level up. So the headline compares like with like.
      */
     let matchedForecast = 0
+    /*
+     * The same pair again, for the warehouse forecast.
+     *
+     * Kept separate rather than reusing the figures above, because the two are
+     * scored over different sets: an article can have a recipe requirement and
+     * no warehouse history, or warehouse history and no recipe. Comparing one
+     * method's total against the other's set would flatter or punish it for
+     * covering different articles.
+     */
+    let whScored = 0
+    let whAccuracySum = 0
+    let whMatchedForecast = 0
+    let whConsumed = 0
     // Components with a requirement the warehouse has no record of shipping.
     // Counted rather than scored: nothing about them says the forecast is wrong,
     // and scoring them zero is what made this card unreadable.
@@ -574,6 +853,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * accuracy for every component used by more than one recipe.
      */
     const seen = new Set()
+    const whSeen = new Set()
     for (const r of priced) {
       forecast += Number(r.Component_Forecast_Qty) || 0
       const c = r.Consumed_Qty
@@ -581,6 +861,17 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
+
+      // The warehouse side, scored over its own set and counted once per
+      // article the same way.
+      if (r.WH_Accuracy !== null && r.WH_Accuracy !== undefined && !whSeen.has(a)) {
+        whSeen.add(a)
+        whAccuracySum += r.WH_Accuracy
+        whScored += 1
+        whMatchedForecast += Number(r.WH_Constant_Forecast_Qty) || 0
+        whConsumed += Number(c) || 0
+      }
+
       if (r.Accuracy === null) {
         if (r.Consumed_Unknown) unmatched.add(a)
         continue
@@ -612,6 +903,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         ? Math.max(0, 1 - Math.abs(matchedForecast - consumed) / consumed)
         : null
 
+    const whOverall =
+      whScored && whConsumed > 0
+        ? Math.max(0, 1 - Math.abs(whMatchedForecast - whConsumed) / whConsumed)
+        : null
+
     return {
       forecast,
       consumed,
@@ -619,6 +915,9 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       unmatched: unmatched.size,
       overall,
       perComponent: scored ? accuracySum / scored : null,
+      whMeasured: whScored,
+      whOverall,
+      whPerComponent: whScored ? whAccuracySum / whScored : null,
     }
   }, [priced])
 
@@ -687,13 +986,14 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
   const columns = useMemo(
     () =>
       future
-        ? COLUMNS.filter(
+        ? ORDERED_COLUMNS.filter(
             (c) =>
               c.key !== 'Consumed_Qty' &&
               c.key !== 'Accuracy' &&
-              c.key !== 'WH_Accuracy'
+              c.key !== 'WH_Accuracy' &&
+              c.key !== 'Sales_Accuracy'
           )
-        : COLUMNS,
+        : ORDERED_COLUMNS,
     [future]
   )
 
@@ -730,18 +1030,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
       <div className="metrics">
         <MetricCard
-          label="Forecast requirement"
-          accent="blue"
-          progress={1}
-          loading={busy}
-          value={fmtInt(summary.forecast)}
-          foot={
-            units.length > 1
-              ? `Across ${units.length} units — ${units.join(', ')}`
-              : units[0] || 'Total requirement'
-          }
-        />
-        <MetricCard
           label="Outbound"
           accent="green"
           progress={summary.forecast ? Math.min(1, summary.consumed / summary.forecast) : 0}
@@ -776,6 +1064,33 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             }
           />
         )}
+        {/*
+          * The other forecast, scored the same way.
+          *
+          * Beside the recipe accuracy rather than instead of it: the two are
+          * measured over different sets of articles — one needs a recipe, the
+          * other needs six months of warehouse history — so neither is a
+          * substitute for the other, and where they disagree is the finding.
+          */}
+        {!future && (
+          <MetricCard
+            label="WH forecast ACC"
+            accent={
+              summary.whOverall === null ? 'slate' : summary.whOverall >= 0.9 ? 'green' : 'amber'
+            }
+            progress={summary.whOverall ?? 0}
+            loading={busy}
+            value={summary.whOverall === null ? '–' : fmtPct(summary.whOverall, 1)}
+            foot={
+              summary.whOverall === null
+                ? 'Needs warehouse history to compare against'
+                : `Totals compared · ${fmtPct(summary.whPerComponent, 0)} for the average article · ${fmtInt(
+                    summary.whMeasured
+                  )} scored`
+            }
+          />
+        )}
+
         <MetricCard
           label="Articles"
           accent="slate"
@@ -865,35 +1180,34 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         */}
       {/* Under the table it filters, because it is read after the table:
           you look at the figures, then decide which end to work on. */}
+      {/*
+        * Two rows of bands, under the table they filter.
+        *
+        * Each counts against what the other is already showing, so the numbers
+        * describe the rows you would actually get rather than the whole table —
+        * pick a poor warehouse band and the forecast counts beside it narrow to
+        * match. Selecting one in each asks for the intersection, which is where
+        * the interesting articles are.
+        */}
       {!busy && !future && (
-        <div className="bands" role="group" aria-label="Filter by accuracy">
-          <span className="bands__label">Accuracy</span>
-          <button
-            type="button"
-            className={`bands__chip${band === null ? ' bands__chip--on' : ''}`}
-            onClick={() => setBand(null)}
-          >
-            All
-            <span className="bands__count">{fmtInt(grouped.length)}</span>
-          </button>
-          {BANDS.map((b) => {
-            const n = bandCounts.get(b.key) ?? 0
-            return (
-              <button
-                key={b.key}
-                type="button"
-                disabled={!n}
-                className={`bands__chip${band === b.key ? ' bands__chip--on' : ''}${
-                  b.lo !== null && b.hi <= 0.4 ? ' bands__chip--poor' : ''
-                }`}
-                onClick={() => setBand(band === b.key ? null : b.key)}
-              >
-                {b.label}
-                <span className="bands__count">{fmtInt(n)}</span>
-              </button>
-            )
-          })}
-          {band && (
+        <div className="bandstack">
+          <BandRow
+            label="WH forecast ACC"
+            bands={BANDS}
+            counts={bandCounts}
+            active={band}
+            total={grouped.length}
+            onPick={(k) => setBand(band === k ? null : k)}
+          />
+          <BandRow
+            label="Forecast ACC"
+            bands={BANDS}
+            counts={fcstBandCounts}
+            active={fcstBand}
+            total={grouped.length}
+            onPick={(k) => setFcstBand(fcstBand === k ? null : k)}
+          />
+          {(band || fcstBand) && (
             <span className="bands__note">
               Showing {fmtInt(banded.length)} of {fmtInt(grouped.length)} — the CSV and the totals
               row follow this selection.

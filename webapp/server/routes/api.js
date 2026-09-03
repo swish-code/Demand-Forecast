@@ -45,7 +45,7 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
 // everything below it requires a session.
 
 
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes']
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -59,7 +59,14 @@ function grainOf(req) {
   const raw = src.grain
   const asked = Array.isArray(raw) ? raw : String(raw ?? '').split(',')
   const want = new Set(asked.map((v) => String(v).trim().toLowerCase()))
-  return { date: want.has('date'), location: want.has('location') }
+  /*
+   * Brand joins date and branch as a dimension the table can be split by.
+   *
+   * The rows are merged across brands by default — a component in two brands is
+   * one thing to order — so showing which brand a line belongs to is not a
+   * display choice: the merge has to not happen in the first place.
+   */
+  return { date: want.has('date'), location: want.has('location'), brand: want.has('brand') }
 }
 
 /** Accept filters from a JSON body (POST) or query string (GET). */
@@ -793,6 +800,11 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
 
   const other = await cube.outboundByArticle(OTHER_BUCKET, filters).catch(() => null)
   const otherForecast = await forecastFromConstants(OTHER_BUCKET, filters).catch(() => new Map())
+  // The same rate against the sales that happened, so these rows carry an
+  // Actual qty like every other row rather than a blank.
+  const otherImplied = await forecastFromConstants(OTHER_BUCKET, filters, { basis: 'actual' }).catch(
+    () => new Map()
+  )
   if (!other && !otherForecast.size && !otherMtd?.size) return rows
 
   // One row per article carries the figures: the one that already has them, or
@@ -865,10 +877,8 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
       'Item No.': article,
       BU: known?.unit || '',
       'Node Type': 'RAW',
-      // Nothing implies these: no recipe says how many go with a burger, which
-      // is exactly why they are here.
-      Component_Forecast_Qty: null,
-      Component_Actual_Qty: null,
+      Component_Forecast_Qty: forecast,
+      Component_Actual_Qty: otherImplied.get(article) ?? null,
       Consumed_Qty: other?.get(article) ?? null,
       Live_Outbound_MTD: otherMtd?.get(article) ?? null,
       WH_Constant_Forecast_Qty: forecast,
@@ -876,6 +886,42 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
   }
 
   return rows
+}
+
+/**
+ * Every row says where its stock comes from.
+ *
+ * An article the warehouse has not issued in six months is not a hole in the
+ * data — it is a **direct supply** item, delivered straight to the CPU or to
+ * the warehouse by its supplier without ever being issued out again. It has a
+ * real requirement and somebody still has to order it; what it does not have is
+ * a warehouse movement to measure against, which is why every measured column
+ * beside it is blank.
+ *
+ * So the rows are labelled rather than dropped. An earlier version excluded
+ * them, which lost the requirement along with the blanks.
+ *
+ * Judged on the outbound copy over six whole months, not on the window on
+ * screen: an article delivered in May and not since is still warehouse-supplied
+ * in September, and a window-based test would relabel it every month.
+ */
+const SUPPLY_WAREHOUSE = 'Warehouse'
+const SUPPLY_DIRECT = 'Direct Supply'
+
+async function withSupply(rows, filters) {
+  const moved = await cube.articlesShippedSince(6).catch(() => null)
+
+  const labelled = rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    // No article number is no evidence either way — a kitchen step is neither.
+    const supply = !article || !moved ? null : moved.has(article) ? SUPPLY_WAREHOUSE : SUPPLY_DIRECT
+    return { ...r, Supply: supply }
+  })
+
+  const wanted = (filters?.supply ?? []).filter(Boolean)
+  if (!wanted.length) return labelled
+  const keep = new Set(wanted)
+  return labelled.filter((r) => r.Supply && keep.has(r.Supply))
 }
 
 api.all('/component-level', handle(async (req, res) => {
@@ -921,18 +967,33 @@ api.all('/component-level', handle(async (req, res) => {
           })
 
     const mine = mtdAll?.get(brand.code) ?? null
-    return withConsumption([...rows, ...extra], brand, f, grain, mine)
+    const withOutbound = await withConsumption([...rows, ...extra], brand, f, grain, mine)
+    // Only stamped when the table is actually split by brand: carrying it
+    // otherwise would make every row look brand-specific after the merge.
+    return grain.brand ? withOutbound.map((r) => ({ ...r, CHAINID: brand.code })) : withOutbound
   })
   const window = g.parts[0].f
   if (g.single)
     return res.json({
-      rows: await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+      rows: await withSupply(
+        await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+        window
+      ),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
-    rows: await addWarehouseWide(merged(results), window, grain, mtdAll?.get(OTHER_BUCKET)),
+    rows: await withSupply(
+      await addWarehouseWide(
+        // Split by brand, the brands are the answer, so they are not added up.
+        grain.brand ? results.flat() : merged(results),
+        window,
+        grain,
+        mtdAll?.get(OTHER_BUCKET)
+      ),
+      window
+    ),
   })
 }))
 

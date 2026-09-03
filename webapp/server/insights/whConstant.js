@@ -151,7 +151,11 @@ export function forgetConstants() {
  * daily figures and the monthly figure agree by construction rather than by
  * rounding.
  */
-export async function forecastFromConstants(brand, filters, { today = new Date() } = {}) {
+export async function forecastFromConstants(
+  brand,
+  filters,
+  { today = new Date(), basis = 'forecast' } = {}
+) {
   /*
    * Whole brand or nothing.
    *
@@ -169,7 +173,18 @@ export async function forecastFromConstants(brand, filters, { today = new Date()
   const constants = await constantsFor(brand, { today })
   if (!constants.size) return new Map()
 
-  const sales = await cube.forecastSales(brand, filters, { allBrands: brand === OTHER_BUCKET })
+  /*
+   * Which sales figure the rate is applied to.
+   *
+   * The constant is a rate — units shipped per unit sold — so multiplying it by
+   * the sales forecast gives a forecast requirement, and multiplying it by the
+   * sales that actually happened gives the requirement those sales implied.
+   * That second one is the counterpart of the recipe explosion's Actual qty,
+   * and computing it here rather than in a second function keeps both halves
+   * derived from exactly the same constants.
+   */
+  const read = basis === 'actual' ? cube.actualSales : cube.forecastSales
+  const sales = await read(brand, filters, { allBrands: brand === OTHER_BUCKET })
   if (!sales) return new Map()
 
   const out = new Map()

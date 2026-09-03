@@ -1,4 +1,4 @@
-import { IconRefresh } from './Icons.jsx'
+import { IconChevron, IconRefresh } from './Icons.jsx'
 
 /**
  * Left navigation rail.
@@ -11,7 +11,7 @@ import { IconRefresh } from './Icons.jsx'
  * is for, so the content area does not have to spend a row restating which page
  * you are on.
  */
-export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefresh, user, onSignOut, collapsed = false }) {
+export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefresh, user, onSignOut, collapsed = false, onToggle }) {
   const status = !health ? 'down' : health.mode === 'demo' ? 'demo' : 'live'
   const statusText = !health ? 'API unreachable' : health.mode === 'demo' ? 'Sample data' : 'Power BI live'
 
@@ -27,6 +27,27 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
    */
   return (
     <nav className={`nav${collapsed ? ' nav--collapsed' : ''}`} aria-label="Pages">
+      {/*
+        * On the rail's edge, halfway down.
+        *
+        * It sat in the brand row, where it took the space the wordmark needed
+        * and clipped "Demand Forecast" to fit. Halfway down the outside edge it
+        * is nowhere near anything it can cover, it is the same distance from
+        * the pointer wherever it is in the list, and it reads as belonging to
+        * the rail itself rather than to the logo.
+        */}
+      {onToggle && (
+        <button
+          type="button"
+          className="nav__toggle"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand the menu' : 'Collapse the menu'}
+          aria-label={collapsed ? 'Expand the menu' : 'Collapse the menu'}
+        >
+          <IconChevron size={14} />
+        </button>
+      )}
       <div className="nav__brand">
         <img className="nav__logo" src="/swish-logo.png" alt="Swishhh" />
         <span className="nav__wordmark">
@@ -52,7 +73,7 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
             className={`nav__item${p.id === active ? ' nav__item--active' : ''}`}
             onClick={() => onSelect(p.id)}
             aria-current={p.id === active ? 'page' : undefined}
-            title={p.blurb}
+            title={collapsed ? `${p.label} — ${p.kicker}` : p.blurb}
           >
             <p.Icon size={15} />
             <span className="nav__item-text">

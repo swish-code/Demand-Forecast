@@ -49,7 +49,7 @@ const PAGES = [
   },
   {
     id: 'component',
-    label: 'Ingredients',
+    label: 'Stock Article',
     kicker: 'Prep and raw materials',
     blurb: 'Product articles, prep items and raw materials the forecast implies you need',
     Icon: IconComponent,
@@ -58,7 +58,7 @@ const PAGES = [
     // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
     // the table; only the slicer is gone. Put 'recipeGroup' back in this list
     // and its row back in FilterBar's SLICERS to restore it.
-    slicers: ['location', 'product', 'date', 'item', 'nodeType'],
+    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply'],
   },
   {
     id: 'production',
@@ -105,6 +105,8 @@ const EMPTY_OPTIONS = {
   items: [],
   recipeGroups: [],
   nodeTypes: [],
+  // Fixed, not fetched: the two answers are computed from the outbound copy.
+  supply: ['Warehouse', 'Direct Supply'],
   prepStatus: ['Extra Prep Needed', 'Normal', 'Reduced Prep Needed'],
   dateRange: {},
 }
@@ -114,6 +116,30 @@ const iso = (d) => new Date(d).toISOString().slice(0, 10)
 
 export default function App({ session, onSignedOut }) {
   const [tab, setTab] = useState('summary')
+
+  /*
+   * Whether the rail is collapsed, remembered per person.
+   *
+   * A table fourteen columns wide wants the width more than the reader wants
+   * the page names, and which of those matters is not something to decide for
+   * them. A reader granted a single page still starts collapsed, because a rail
+   * of one is a label rather than a navigation.
+   */
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('df-nav-collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('df-nav-collapsed', navCollapsed ? '1' : '0')
+    } catch {
+      /* a browser refusing storage should not break the page */
+    }
+  }, [navCollapsed])
   const [mailboxResult, setMailboxResult] = useState(null)
 
   /*
@@ -175,6 +201,7 @@ export default function App({ session, onSignedOut }) {
     items: [],
     recipeGroups: [],
     nodeTypes: [],
+    supply: [],
     prepStatus: [],
     dateFrom: undefined,
     dateTo: undefined,
@@ -275,6 +302,7 @@ export default function App({ session, onSignedOut }) {
     item: { list: 'items', filter: 'items' },
     recipeGroup: { list: 'recipeGroups', filter: 'recipeGroups' },
     nodeType: { list: 'nodeTypes', filter: 'nodeTypes' },
+    supply: { list: 'supply', filter: 'supply' },
     prepStatus: { list: 'prepStatus', filter: 'prepStatus' },
   }
 
@@ -321,7 +349,24 @@ export default function App({ session, onSignedOut }) {
 
   const slicerRequest = useMemo(() => ({ ...scoped, need: slicerNeed }), [scoped, slicerNeed])
   const slicers = useData(api.slicers, slicerRequest, { enabled: brandCodes.length > 0 })
-  const options = slicers.data ?? EMPTY_OPTIONS
+  /*
+   * The server's lists, over the defaults — not instead of them.
+   *
+   * `slicers.data ?? EMPTY_OPTIONS` looked equivalent and was not: the moment
+   * the fetch resolved, the whole defaults object was replaced by a response
+   * that has no `supply` key, because supply is not a column anything queries —
+   * it is derived from whether the warehouse has shipped the article. So the
+   * slicer read `undefined` and said "No values available", but only after the
+   * data arrived, which is the window nobody looks at it in.
+   *
+   * Merging keeps the fixed lists present and still lets every fetched list
+   * win. Supply is reasserted afterwards so a future response carrying an empty
+   * one cannot blank it again.
+   */
+  const options = useMemo(
+    () => ({ ...EMPTY_OPTIONS, ...(slicers.data ?? {}), supply: EMPTY_OPTIONS.supply }),
+    [slicers.data]
+  )
 
   /**
    * Default the window to the last 30 days once the model's calendar is known.
@@ -438,7 +483,8 @@ export default function App({ session, onSignedOut }) {
   return (
     <div className="shell">
       <SideNav
-        collapsed={navPages.length <= 1}
+        collapsed={navCollapsed || navPages.length <= 1}
+        onToggle={navPages.length > 1 ? () => setNavCollapsed((v) => !v) : undefined}
         pages={navPages}
         active={tab}
         onSelect={setTab}
