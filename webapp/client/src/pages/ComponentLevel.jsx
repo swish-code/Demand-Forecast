@@ -69,14 +69,31 @@ const COLUMNS = [
   // "Article", not "Component" — asked for on 2 Sep 2026. It is the thing the
   // warehouse stocks and the thing you order, and the page already carries its
   // number in Article No.
-  { key: 'Item', label: 'Article', strong: true, required: true },
+  /*
+   * Sized to the names actually in the table.
+   *
+   * It had no width at all, which made it the column that absorbs whatever is
+   * left over — generous when four columns are shown and punishing when
+   * fourteen are, which is exactly when the long names matter. Measured
+   * instead, with a ceiling so one outlier cannot take the row.
+   */
+  {
+    key: 'Item',
+    label: 'Article',
+    strong: true,
+    required: true,
+    // No practical ceiling: the whole point of this column is that the name is
+    // never cut off. A very long name makes a wide column and the table
+    // scrolls, which is the trade asked for.
+    autoWidth: { min: 140, max: 900 },
+  },
   {
     key: 'Node Type',
     label: 'Type',
     width: 96,
     render: (v) => (v ? <Pill tone={TYPE_TONE[v] ?? 'slate'}>{v}</Pill> : '–'),
   },
-  { key: 'BU', label: 'Unit', width: 92 },
+  { key: 'BU', label: 'Unit', autoWidth: true },
   // The ERP article number: the key the warehouse knows this component by, and
   // the reason a consumption figure can be put beside a recipe figure at all.
   { key: 'Item No.', label: 'Article No.', width: 104, hiddenByDefault: true },
@@ -102,7 +119,7 @@ const COLUMNS = [
     // exact word. This is what left the warehouse for this brand's shops. What
     // the shops then actually used is a different quantity nothing measures.
     label: 'Outbound',
-    width: W.qty,
+    autoWidth: true,
     num: true,
     strong: true,
     group: 'wh',
@@ -168,7 +185,7 @@ const COLUMNS = [
   {
     key: 'Component_Forecast_Qty',
     label: 'Forecast qty',
-    width: W.qty,
+    autoWidth: true,
     num: true,
     group: 'fcst',
     total: 'sum',
@@ -178,7 +195,7 @@ const COLUMNS = [
   {
     key: 'Component_Actual_Qty',
     label: 'Actual qty',
-    width: W.qty,
+    autoWidth: true,
     num: true,
     group: 'fcst',
     total: 'sum',
@@ -207,7 +224,7 @@ const COLUMNS = [
     // reader needs is the difference between them, which is where each figure
     // came from — the recipes, or the warehouse's own history.
     label: 'WH forecast',
-    width: 138,
+    autoWidth: true,
     num: true,
     group: 'wh',
     total: 'sum',
@@ -238,7 +255,7 @@ const COLUMNS = [
   {
     key: 'Live_Outbound_MTD',
     label: 'Outbound MTD',
-    width: 138,
+    autoWidth: true,
     num: true,
     total: 'sum',
     renderTotal: fmtInt,
@@ -274,7 +291,7 @@ const COLUMNS = [
   {
     key: 'Accuracy',
     label: 'ACC',
-    width: 104,
+    autoWidth: true,
     num: true,
     render: (v, row) =>
       v === null || v === undefined ? (
@@ -326,8 +343,8 @@ const COLUMNS = [
    */
   {
     key: 'Sales_Accuracy',
-    label: 'Forecast ACC',
-    width: 128,
+    label: 'ACC%',
+    autoWidth: true,
     num: true,
     group: 'fcst',
     render: (v) =>
@@ -352,8 +369,8 @@ const COLUMNS = [
   },
   {
     key: 'WH_Accuracy',
-    label: 'WH Forecast ACC',
-    width: 150,
+    label: 'WH ACC%',
+    autoWidth: true,
     num: true,
     group: 'wh',
     render: (v) =>
@@ -434,40 +451,83 @@ const ORDERED_COLUMNS = (() => {
 })()
 
 /**
- * One row of accuracy bands.
+ * The accuracy bands, drawn rather than listed.
  *
- * Written once because there are two of them and they must behave identically —
- * two copies of this drift the moment one gains a feature the other does not.
+ * They were a row of chips, which said which bands exist but not how many
+ * articles sat in each: "0–20% 504" beside "20–40% 115" reads as two similar
+ * things until you notice one number is four times the other. Bars put the
+ * counts on a common scale, so the shape of the problem is the first thing
+ * seen rather than something arithmetic has to be done to.
+ *
+ * Bars are measured against the largest band, not against the total. Against
+ * the total the interesting bands — the small, bad ones — would be slivers,
+ * and the point of the control is to find them.
+ *
+ * Colour carries severity, not identity: under 40% is a real problem, 40–60%
+ * is worth a look, above that is fine, and "Not scored" is off the scale
+ * entirely rather than at the bottom of it. Identity is carried by the label
+ * and the count beside every bar, so nothing here depends on seeing colour.
+ *
+ * Written once and used twice, because there are two of these and they must
+ * behave identically.
  */
-function BandRow({ label, bands, counts, active, total, onPick }) {
+function BandChart({ label, bands, counts, active, total, onPick }) {
+  const peak = Math.max(1, ...bands.map((b) => counts.get(b.key) ?? 0))
+
+  const tone = (b) => {
+    if (b.lo === null) return 'none'
+    if (b.hi <= 0.4) return 'poor'
+    if (b.hi <= 0.6) return 'fair'
+    return 'good'
+  }
+
   return (
-    <div className="bands" role="group" aria-label={`Filter by ${label}`}>
-      <span className="bands__label">{label}</span>
-      <button
-        type="button"
-        className={`bands__chip${active === null ? ' bands__chip--on' : ''}`}
-        onClick={() => onPick(active)}
-      >
-        All
-        <span className="bands__count">{fmtInt(total)}</span>
-      </button>
-      {bands.map((b) => {
-        const n = counts.get(b.key) ?? 0
-        return (
-          <button
-            key={b.key}
-            type="button"
-            disabled={!n}
-            className={`bands__chip${active === b.key ? ' bands__chip--on' : ''}${
-              b.lo !== null && b.hi <= 0.4 ? ' bands__chip--poor' : ''
-            }`}
-            onClick={() => onPick(b.key)}
-          >
-            {b.label}
-            <span className="bands__count">{fmtInt(n)}</span>
-          </button>
-        )
-      })}
+    <div className="bandchart" role="group" aria-label={`Filter by ${label}`}>
+      <div className="bandchart__head">
+        <span className="bandchart__label">{label}</span>
+        <button
+          type="button"
+          className={`bandchart__all${active === null ? ' bandchart__all--on' : ''}`}
+          onClick={() => onPick(active)}
+          aria-pressed={active === null}
+        >
+          All <span className="bandchart__allcount">{fmtInt(total)}</span>
+        </button>
+      </div>
+
+      <div className="bandchart__rows">
+        {bands.map((b) => {
+          const n = counts.get(b.key) ?? 0
+          const on = active === b.key
+          const share = total ? Math.round((n / total) * 100) : 0
+          return (
+            <button
+              key={b.key}
+              type="button"
+              disabled={!n}
+              aria-pressed={on}
+              className={`bandrow${on ? ' bandrow--on' : ''}`}
+              onClick={() => onPick(b.key)}
+              title={
+                n
+                  ? `${fmtInt(n)} of ${fmtInt(total)} articles (${share}%) — click to ${
+                      on ? 'clear' : 'show only these'
+                    }`
+                  : 'No articles in this band'
+              }
+            >
+              <span className="bandrow__key">{b.label}</span>
+              <span className="bandrow__track">
+                <span
+                  className={`bandrow__fill bandrow__fill--${tone(b)}`}
+                  style={{ width: `${(n / peak) * 100}%` }}
+                />
+              </span>
+              <span className="bandrow__count">{fmtInt(n)}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -527,8 +587,20 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     for (const r of rows) {
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
-      const held = perArticle.get(a) ?? { forecast: 0, consumed: 0, wh: null, measured: false }
-      held.forecast += Number(r.Component_Forecast_Qty) || 0
+      const held = perArticle.get(a) ?? { forecast: null, consumed: 0, wh: null, measured: false }
+      /*
+       * Null until something contributes, not zero.
+       *
+       * Articles with no recipe carry no demand figure at all now — there is
+       * nothing to explode, and the warehouse constant beside them already says
+       * what they need. Starting this at zero turned "no forecast exists" into
+       * "the forecast was zero", which scored every one of them at 0% accuracy
+       * against real outbound and buried the articles that genuinely were
+       * forecast badly.
+       */
+      if (r.Component_Forecast_Qty !== null && r.Component_Forecast_Qty !== undefined) {
+        held.forecast = (held.forecast ?? 0) + (Number(r.Component_Forecast_Qty) || 0)
+      }
       if (r.Component_Actual_Qty !== null && r.Component_Actual_Qty !== undefined) {
         held.implied = (held.implied ?? 0) + (Number(r.Component_Actual_Qty) || 0)
       }
@@ -560,7 +632,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     return rows.map((r) => {
       const a = String(r['Item No.'] ?? '').trim()
       const held = a ? perArticle.get(a) : null
-      const forecast = held ? held.forecast : Number(r.Component_Forecast_Qty) || 0
+      const forecast = held
+        ? held.forecast
+        : r.Component_Forecast_Qty === null || r.Component_Forecast_Qty === undefined
+          ? null
+          : Number(r.Component_Forecast_Qty) || 0
       /*
        * Divided by the larger of the two, not by the forecast.
        *
@@ -612,7 +688,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        * certainly wrong.
        */
       const salesAccuracy =
-        implied !== null && implied > 0
+        implied !== null && implied > 0 && forecast !== null
           ? Math.max(0, 1 - Math.abs(implied - forecast) / implied)
           : null
 
@@ -696,7 +772,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           : null
       return {
         ...r,
-        Accuracy: rescore(Number(r.Component_Forecast_Qty) || 0),
+        // Same rule as above: a folded row with no demand figure has no demand
+        // accuracy, rather than an accuracy of zero.
+        Accuracy:
+          r.Component_Forecast_Qty === null || r.Component_Forecast_Qty === undefined
+            ? null
+            : rescore(Number(r.Component_Forecast_Qty) || 0),
         WH_Accuracy: rescore(r.WH_Constant_Forecast_Qty),
       }
     })
@@ -789,9 +870,57 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
   }, [grouped, band, fcstBand])
 
+  /*
+   * What the table reports it is showing. Declared here rather than beside the
+   * other view state below, because the memos under it read it — and a `const`
+   * read before its declaration is a crash, not a `undefined`.
+   */
+  const [view, setView] = useState(null)
+
+  /*
+   * What the table is actually showing, fed back to everything above it.
+   *
+   * Search for "Chili Flakes" and the table narrows while the cards keep
+   * reporting the whole warehouse — so the two halves of the screen describe
+   * different things and neither says which. The table already reports its
+   * visible rows through `onViewChange`, for the CSV export; the same set
+   * answers this.
+   *
+   * Matched on article number or on name, because a row may be either: with
+   * Article No. hidden the table folds same-named articles into one row that
+   * carries only the first one's code, and the name is then the only key that
+   * finds the rest. Over-matching two genuinely different articles that share a
+   * name cannot mislead here — folded, they are already one row on screen.
+   *
+   * Band selections come through the same path, so picking 0–20% now moves the
+   * cards too. That was not true before and should have been: a card that
+   * ignores the filter beside it is a card nobody can trust.
+   */
+  const shownKeys = useMemo(() => {
+    if (!view?.rows) return null
+    const set = new Set()
+    for (const r of view.rows) {
+      const a = String(r['Item No.'] ?? '').trim()
+      if (a) set.add(a)
+      const n = String(r.Item ?? '').trim()
+      if (n) set.add(n)
+    }
+    return set
+  }, [view])
+
+  const focused = useMemo(() => {
+    if (!shownKeys) return priced
+    return priced.filter((r) => {
+      const a = String(r['Item No.'] ?? '').trim()
+      if (a && shownKeys.has(a)) return true
+      const n = String(r.Item ?? '').trim()
+      return Boolean(n) && shownKeys.has(n)
+    })
+  }, [priced, shownKeys])
+
   const top = useMemo(
-    () => [...rows].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
-    [rows]
+    () => [...focused].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
+    [focused]
   )
 
   /**
@@ -813,6 +942,15 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * transfer is not 0% accurate, it is unmeasured — and scoring it zero would
    * read as a terrible forecast rather than an absent one.
    */
+  /*
+   * Whether this row's requirement came from a recipe at all.
+   *
+   * The one test, written once. The recipe group is what the server stamps, and
+   * two places deciding "is this a recipe row?" by different means is how the
+   * card and the column start disagreeing.
+   */
+  const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
+
   const summary = useMemo(() => {
     let forecast = 0
     let consumed = 0
@@ -854,16 +992,35 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      */
     const seen = new Set()
     const whSeen = new Set()
-    for (const r of priced) {
-      forecast += Number(r.Component_Forecast_Qty) || 0
+    for (const r of focused) {
+      /*
+       * Non-recipe articles take no part in the Accuracy card — but they are
+       * the whole point of the one beside it.
+       *
+       * Accuracy measures the recipe explosion against what the warehouse
+       * issued. An article with no recipe has nothing on the forecast side to
+       * measure, so it could only ever enter as outbound with no requirement
+       * beside it — adding its whole quantity to the denominator and itself to
+       * "unmatched". That is not a bad forecast; it is not a forecast.
+       *
+       * WH accuracy is the opposite: the constant method is exactly how these
+       * articles are forecast, and excluding them would drop the measure's best
+       * evidence. So the test scopes the recipe side only, and the loop runs on
+       * for both.
+       */
+      const recipeRow = fromRecipe(r)
       const c = r.Consumed_Qty
-      if (c !== null && c !== undefined) consumed += Number(c) || 0
+
+      if (recipeRow) {
+        forecast += Number(r.Component_Forecast_Qty) || 0
+        if (c !== null && c !== undefined) consumed += Number(c) || 0
+      }
 
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
 
       // The warehouse side, scored over its own set and counted once per
-      // article the same way.
+      // article the same way. Every article, recipe or not.
       if (r.WH_Accuracy !== null && r.WH_Accuracy !== undefined && !whSeen.has(a)) {
         whSeen.add(a)
         whAccuracySum += r.WH_Accuracy
@@ -872,6 +1029,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         whConsumed += Number(c) || 0
       }
 
+      if (!recipeRow) continue
       if (r.Accuracy === null) {
         if (r.Consumed_Unknown) unmatched.add(a)
         continue
@@ -919,7 +1077,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       whOverall,
       whPerComponent: whScored ? whAccuracySum / whScored : null,
     }
-  }, [priced])
+  }, [focused])
 
   /**
    * Top components for every unit of measure.
@@ -946,7 +1104,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * share no axis.
      */
     const byUnit = new Map()
-    for (const r of rows) {
+    for (const r of focused) {
       const unit = r.BU || '—'
       if (!byUnit.has(unit)) byUnit.set(unit, new Map())
       const items = byUnit.get(unit)
@@ -973,7 +1131,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         }
       })
       .sort((a, b) => b.count - a.count)
-  }, [rows])
+  }, [focused])
 
   /*
    * Tomorrow has no actual and never will until it arrives.
@@ -1006,11 +1164,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * view they built. Falls back to everything until the table has reported —
    * which is before the button can be clicked.
    */
-  const [view, setView] = useState(null)
 
-  const groups = useMemo(() => new Set(rows.map((r) => r['Recipe Group'])).size, [rows])
+  const groups = useMemo(() => new Set(focused.map((r) => r['Recipe Group'])).size, [focused])
 
-  const units = useMemo(() => [...new Set(rows.map((r) => r.BU).filter(Boolean))], [rows])
+  const units = useMemo(() => [...new Set(focused.map((r) => r.BU).filter(Boolean))], [focused])
 
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
@@ -1074,7 +1231,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           */}
         {!future && (
           <MetricCard
-            label="WH forecast ACC"
+            label="WH ACC%"
             accent={
               summary.whOverall === null ? 'slate' : summary.whOverall >= 0.9 ? 'green' : 'amber'
             }
@@ -1160,6 +1317,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             tableId="component-detail-v2"
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
+            groups={{ fcst: 'Demand', wh: 'Warehouse' }}
             fill
           />
         )}
@@ -1191,16 +1349,16 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         */}
       {!busy && !future && (
         <div className="bandstack">
-          <BandRow
-            label="WH forecast ACC"
+          <BandChart
+            label="WH ACC%"
             bands={BANDS}
             counts={bandCounts}
             active={band}
             total={grouped.length}
             onPick={(k) => setBand(band === k ? null : k)}
           />
-          <BandRow
-            label="Forecast ACC"
+          <BandChart
+            label="ACC%"
             bands={BANDS}
             counts={fcstBandCounts}
             active={fcstBand}

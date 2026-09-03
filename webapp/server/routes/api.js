@@ -800,11 +800,6 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
 
   const other = await cube.outboundByArticle(OTHER_BUCKET, filters).catch(() => null)
   const otherForecast = await forecastFromConstants(OTHER_BUCKET, filters).catch(() => new Map())
-  // The same rate against the sales that happened, so these rows carry an
-  // Actual qty like every other row rather than a blank.
-  const otherImplied = await forecastFromConstants(OTHER_BUCKET, filters, { basis: 'actual' }).catch(
-    () => new Map()
-  )
   if (!other && !otherForecast.size && !otherMtd?.size) return rows
 
   // One row per article carries the figures: the one that already has them, or
@@ -877,8 +872,10 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
       'Item No.': article,
       BU: known?.unit || '',
       'Node Type': 'RAW',
-      Component_Forecast_Qty: forecast,
-      Component_Actual_Qty: otherImplied.get(article) ?? null,
+      // Same reasoning as the non-recipe rows: no recipe, so no demand figure.
+      // The warehouse columns carry these articles.
+      Component_Forecast_Qty: null,
+      Component_Actual_Qty: null,
       Consumed_Qty: other?.get(article) ?? null,
       Live_Outbound_MTD: otherMtd?.get(article) ?? null,
       WH_Constant_Forecast_Qty: forecast,

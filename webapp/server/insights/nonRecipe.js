@@ -242,21 +242,8 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
    * because the explosion forecasts those and doing it twice would double them.
    */
   const code = brand.code ?? brand
-  const [forecasts, implied, covered, names] = await Promise.all([
+  const [forecasts, covered, names] = await Promise.all([
     forecastFromConstants(code, filters, { today }),
-    /*
-     * The same constants applied to the sales that actually happened.
-     *
-     * Actual qty was hard-coded blank here, on the reasoning that no recipe
-     * says how many of these go with a burger — true, but it made the column
-     * blank on exactly the rows with the largest quantities on the page, and
-     * blanked Forecast ACC with it. The recipe is not the only thing that can
-     * turn sales into a quantity: the six-month rate does it too, and it is
-     * already what fills Forecast qty on these rows. Applying it to forecast
-     * sales and to actual sales gives the pair a recipe would have given, so
-     * the two columns mean the same thing here as everywhere else.
-     */
-    forecastFromConstants(code, filters, { today, basis: 'actual' }),
     cube.recipeArticles().catch(() => new Set()),
     cube.articleMaster().catch(() => new Map()),
   ])
@@ -273,8 +260,21 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
       'Item No.': article,
       BU: known?.unit || '',
       'Node Type': 'RAW',
-      Component_Forecast_Qty: qty,
-      Component_Actual_Qty: implied.get(article) ?? null,
+      /*
+       * No demand-side figure for these, deliberately.
+       *
+       * There is no recipe to explode, so the only quantity available is the
+       * warehouse constant — and that is already reported, correctly and once,
+       * in WH forecast beside it. Putting the same number in Forecast qty as
+       * well made a warehouse estimate look like a demand forecast, and the two
+       * columns then disagreed for reasons that had nothing to do with either
+       * method: Mishmash Paper showed exactly twice its warehouse figure.
+       *
+       * Blank is the honest answer. The warehouse group is where these articles
+       * are measured, and it is measured there properly.
+       */
+      Component_Forecast_Qty: null,
+      Component_Actual_Qty: null,
     })
   }
   return rows

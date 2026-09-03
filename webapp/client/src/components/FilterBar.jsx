@@ -19,7 +19,10 @@ const SLICERS = [
   // Same filter, named rather than numbered. The production plan is read by
   // branch staff, who know the product but not its article code.
   { id: 'articleName', key: 'articles', label: 'Product PLU', options: 'articleNames', placeholder: 'All' },
-  { id: 'item', key: 'items', label: 'Component', options: 'items', placeholder: 'All' },
+  // Labelled for what the reader calls it. The other two article slicers are
+  // "Product PLU" and are not offered on the same page, so there is nothing to
+  // confuse it with.
+  { id: 'item', key: 'items', label: 'Article', options: 'items', placeholder: 'All' },
   { id: 'nodeType', key: 'nodeTypes', label: 'Prod. type', options: 'nodeTypes', placeholder: 'All' },
   /*
    * Where an article's stock comes from.

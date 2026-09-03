@@ -2776,9 +2776,12 @@ table.dt thead th:hover {
   color: var(--text);
 }
 
+/* Centred, as asked. Tabular figures stay on so the digits still line up
+   within each cell — without them, centring makes a column of numbers ragged
+   on both edges instead of one. */
 table.dt th.num,
 table.dt td.num {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -4417,12 +4420,58 @@ table.dt thead th:hover .th__sort--idle {
    highlight, and it sits behind numbers that must stay easy to read. */
 table.dt th.dt--fcst,
 table.dt td.dt--fcst {
-  background: color-mix(in srgb, var(--blue) 2.5%, var(--surface));
+  background: color-mix(in srgb, var(--green, #16a34a) 3.5%, var(--surface));
 }
 
 table.dt th.dt--wh,
 table.dt td.dt--wh {
-  background: color-mix(in srgb, var(--green, #16a34a) 3%, var(--surface));
+  background: color-mix(in srgb, #f97316 3.5%, var(--surface));
+}
+
+/* The column that is not a column.
+   It carries the leftover width so every real column keeps exactly the width it
+   was given — without it, `table-layout: fixed` scales them all to fill the row
+   and dragging one edge moves the whole table. Invisible by construction: no
+   content, no padding, no border, and it collapses to nothing once the real
+   columns overflow. */
+table.dt th.dt__spacer,
+table.dt td.dt__spacer {
+  width: auto;
+  padding: 0;
+  border-bottom-color: transparent;
+  background: var(--surface);
+  cursor: default;
+}
+
+table.dt tbody tr:hover td.dt__spacer {
+  background: var(--sunken);
+}
+
+/* The row naming the groups, above the one naming the columns.
+   Its cells carry the same tint, so the title and its columns read as one
+   block from the top of the table down. */
+table.dt thead tr.dt__grouprow th {
+  height: 26px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+  border-bottom: 0;
+  cursor: default;
+  top: 0;
+  z-index: 3;
+}
+
+table.dt thead tr.dt__grouprow th:hover {
+  color: var(--text-muted);
+}
+
+/* The column headers sit below the group row, so they stick below it too —
+   otherwise the two rows stack on top of each other when the body scrolls. */
+table.dt--grouped thead tr:last-child th {
+  top: 26px;
 }
 
 /* A hairline at each end, so a group reads as one block rather than three
@@ -4467,76 +4516,146 @@ table.dt tbody tr:hover td.dt--wh {
 
 /* ------------------------------------------------- accuracy bands -------- */
 
+/* Two charts side by side while there is room for them, stacked when there is
+   not. Side by side is the point: the same article can sit at opposite ends of
+   the two, and that comparison is only available if both are in view. */
 .bandstack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--s3);
+  align-items: start;
 }
 
-.bands {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s2);
+.bandchart {
   padding: var(--s3) var(--s4);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
 }
 
-.bands__label {
+.bandchart__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+
+.bandchart__label {
   font-size: 10px;
   font-weight: var(--w-bold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-right: var(--s2);
 }
 
-.bands__chip {
+.bandchart__all {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 3px 9px;
+  font-size: 11px;
   font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
+  color: var(--text-muted);
+  background: transparent;
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.bands__chip:hover:not(:disabled) { border-color: var(--text-faint); }
+.bandchart__all:hover { border-color: var(--text-faint); color: var(--text); }
 
-.bands__chip:disabled {
-  opacity: 0.45;
-  cursor: default;
+.bandchart__all--on {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: var(--w-medium);
 }
 
-.bands__chip--on {
-  border-color: var(--blue);
-  background: var(--blue-tint, var(--sunken));
-  font-weight: var(--w-bold);
-}
-
-/* The two worst bands are the point of the control, so they are marked even
-   when they are not selected. */
-.bands__chip--poor .bands__count { color: var(--red); }
-
-.bands__count {
+.bandchart__allcount {
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  font-size: 11px;
+  color: var(--text-faint);
 }
 
-.bands__chip--on .bands__count { color: inherit; }
+.bandchart__rows {
+  display: flex;
+  flex-direction: column;
+  /* 2px between bars, so adjacent fills never touch. */
+  gap: 2px;
+}
 
-.bands__note {
+/* Each bar is the hit target, not just the fill — a 6px sliver for a band with
+   one article in it would be unclickable. */
+.bandrow {
+  display: grid;
+  grid-template-columns: 74px 1fr 46px;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: 3px 6px;
+  font-family: inherit;
   font-size: 11.5px;
   color: var(--text-muted);
-  margin-left: var(--s2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 6px);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.bandrow:hover:not(:disabled) { background: var(--sunken); }
+
+.bandrow:disabled { opacity: 0.4; cursor: default; }
+
+.bandrow--on {
+  border-color: var(--accent);
+  background: var(--sunken);
+  color: var(--text);
+  font-weight: var(--w-medium);
+}
+
+.bandrow__key { white-space: nowrap; }
+
+/* The track is the full width every time, so the bars share one scale and a
+   short bar reads as short rather than as a different chart. */
+.bandrow__track {
+  position: relative;
+  height: 10px;
+  background: var(--line-soft, var(--line));
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bandrow__fill {
+  display: block;
+  height: 100%;
+  /* Anchored at the left, rounded only at the growing end. */
+  border-radius: 0 3px 3px 0;
+  transition: width var(--t-med, 240ms) var(--ease);
+}
+
+/* Severity, not identity. Under 40% is a real problem, 40–60% is worth a look,
+   above that is fine, and "Not scored" is off the scale rather than at the
+   bottom of it. Every bar is labelled and counted, so none of this is the only
+   thing carrying the meaning. */
+.bandrow__fill--poor { background: var(--red); }
+.bandrow__fill--fair { background: var(--amber); }
+.bandrow__fill--good { background: var(--green); }
+.bandrow__fill--none { background: var(--text-faint); }
+
+.bandrow__count {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text);
+}
+
+.bandrow:disabled .bandrow__count { color: var(--text-faint); }
+
+.bands__note {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--text-muted);
 }
 
 /* ------------------------------------------------ the standing notice ---- */

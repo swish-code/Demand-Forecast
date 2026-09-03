@@ -13,6 +13,40 @@ import { IconSearch, IconSort, IconArrowUp, IconArrowDown, IconClose, IconCheck,
  *
  * columns: [{ key, label, num?, mono?, strong?, render?, renderTotal?, total?: 'sum' | fn, width? }]
  */
+/**
+ * Measures text the way the browser will actually draw it.
+ *
+ * Counting characters and multiplying by a nominal advance is close for "Salt"
+ * and wrong by 40px for "TISSUE Z FOLD - MISHMASH", because a capital M is
+ * nearly three times the width of a lower-case l. A column sized that way still
+ * truncates the names it was widened for, which is the one thing it exists to
+ * prevent.
+ *
+ * One canvas, reused, and one `measureText` per cell — cheap enough for a few
+ * thousand rows and exact. The font is read from the document so it follows the
+ * theme rather than restating it here; the header is measured in the weight and
+ * size headers are actually drawn at.
+ */
+let ctx = null
+function textMeasurer() {
+  if (!ctx && typeof document !== 'undefined') {
+    ctx = document.createElement('canvas').getContext('2d')
+  }
+  if (!ctx) return (t) => String(t).length * 7.1
+
+  const family =
+    (typeof getComputedStyle !== 'undefined' &&
+      getComputedStyle(document.body).fontFamily) ||
+    'system-ui, sans-serif'
+
+  return (text, header = false) => {
+    // Headers are 10px, uppercase and letter-spaced; body text is 12px.
+    ctx.font = header ? `500 10px ${family}` : `500 12px ${family}`
+    const w = ctx.measureText(text).width
+    return header ? w + text.length * 0.7 : w
+  }
+}
+
 export function DataTable({
   columns,
   rows,
@@ -34,6 +68,14 @@ export function DataTable({
    * rows nothing identifies them by.
    */
   tableId,
+  /**
+   * Titles for the shaded column groups, keyed by the `group` on each column.
+   *
+   * Supplying this adds a row above the headers spanning each run of grouped
+   * columns. The shading says these belong together; the title says what they
+   * belong to, which the shading alone cannot.
+   */
+  groups,
   /** Told when the hidden set changes, so a page can react to it. */
   onColumnsChange,
   /**
@@ -102,6 +144,27 @@ export function DataTable({
     return map
   }, [shown])
 
+  /*
+   * The header row above the headers: one cell per run of adjacent columns.
+   *
+   * Runs rather than groups, because a group is only a block while its members
+   * are adjacent — and the reader can hide one from the middle. Ungrouped runs
+   * still get a cell so the row has the same number of columns as the one under
+   * it; theirs is simply empty.
+   */
+  const groupRuns = useMemo(() => {
+    const runs = []
+    for (const c of shown) {
+      const g = c.group ?? null
+      const last = runs[runs.length - 1]
+      if (last && last.group === g) last.span += 1
+      else runs.push({ group: g, span: 1 })
+    }
+    return runs
+  }, [shown])
+
+  const hasGroupRow = Boolean(groups) && groupRuns.some((r) => r.group && groups[r.group])
+
   const groupClass = (c) => {
     if (!c.group) return ''
     const e = edges.get(c.key)
@@ -118,7 +181,10 @@ export function DataTable({
    * can be dragged, and where it is dragged to is remembered per table on this
    * device, like the column choice above it.
    */
-  const widthKey = tableId ? `df-widths-${tableId}` : null
+  // Versioned: widths saved before the article column became the flexible one
+  // were absolute, and restoring one as a floor would pin it at whatever it was
+  // dragged to back when dragging it stretched the whole table.
+  const widthKey = tableId ? `df-widths2-${tableId}` : null
   const [widths, setWidths] = useState(() => {
     if (!widthKey) return {}
     try {
@@ -129,7 +195,87 @@ export function DataTable({
     }
   })
 
-  const widthOf = (c) => widths[c.key] ?? c.width
+  /*
+   * Columns that size themselves to their longest value.
+   *
+   * `table-layout: fixed` means a column is exactly as wide as it is told, so a
+   * fixed width either truncates "Sticker White For Yelo Pizza - Chili Flakes"
+   * or wastes that width on every row reading "Salt". Measuring the column's
+   * own contents picks a width that fits this particular result set, and it
+   * re-measures when a slicer changes what is in it.
+   *
+   * Characters times a nominal advance rather than real text metrics: it is one
+   * cheap pass over the rows instead of a layout per cell, and being a few
+   * pixels generous is invisible where being short is not. The cap matters as
+   * much as the width — one 90-character name should not push every other
+   * column off the screen; past it the cell wraps, and the reader can still
+   * drag the edge, which continues to win over anything computed here.
+   */
+  const autoWidths = useMemo(() => {
+    const out = {}
+    const measure = textMeasurer()
+    for (const c of shown) {
+      if (!c.autoWidth) continue
+      const opts = c.autoWidth === true ? {} : c.autoWidth
+      // 16px of padding each side, plus room for the sort icon in the header.
+      const { min = 72, max = 640, pad = 32 + 18 } = opts
+      // The header is very often the widest thing in a numeric column, so it is
+      // the starting point rather than an afterthought.
+      let widest = measure(String(c.label ?? '').toUpperCase(), true)
+
+      if (c.num) {
+        /*
+         * One format call, not one per row.
+         *
+         * The widest formatted number is the one with the largest magnitude, so
+         * the maximum is found on the raw values and only that one is rendered
+         * and measured. Formatting every cell of every numeric column to
+         * measure it would be tens of thousands of calls each time a slicer
+         * moves, to learn one number.
+         */
+        let peak = null
+        for (const r of rows) {
+          const v = Number(r[c.key])
+          if (!Number.isFinite(v)) continue
+          if (peak === null || Math.abs(v) > Math.abs(peak)) peak = v
+        }
+        if (peak !== null) {
+          const shown = c.render ? c.render(peak, {}) : peak
+          const text = typeof shown === 'string' || typeof shown === 'number' ? String(shown) : String(peak)
+          const w = measure(text)
+          if (w > widest) widest = w
+        }
+      } else {
+        for (const r of rows) {
+          const w = measure(String(r[c.key] ?? ''))
+          if (w > widest) widest = w
+        }
+      }
+
+      out[c.key] = Math.round(Math.min(max, Math.max(min, widest + pad)))
+    }
+    return out
+  }, [shown, rows])
+
+  /*
+   * Every column is exactly as wide as it says, and a spacer takes the rest.
+   *
+   * `table-layout: fixed` on a table set to `width: 100%` distributes leftover
+   * space by scaling every sized column, so dragging one edge moved all of
+   * them. Leaving one column unsized fixed that, but made *that* column the one
+   * that swallows the slack — and the article column cannot both hug its
+   * longest name and stretch to fill the row.
+   *
+   * So an empty cell is appended to every row instead. It has no width, so it
+   * absorbs whatever is left; it has no content, no border and no background,
+   * so it reads as the table simply ending. When the real columns overflow it
+   * collapses to nothing and the table scrolls, as before.
+   *
+   * The result is the behaviour asked for: the article column is exactly as
+   * wide as its longest name, and dragging any column changes that column
+   * alone.
+   */
+  const widthOf = (c) => widths[c.key] ?? autoWidths[c.key] ?? c.width
 
   const startResize = (event, col) => {
     // The header is a sort button; dragging its edge is not a click on it.
@@ -249,6 +395,14 @@ export function DataTable({
    * accuracy column claimed 160 it did not need.
    */
   const FLEXIBLE_MIN = 116
+  /*
+   * The flexible column counts at its floor, not at zero.
+   *
+   * It has no width, so `widthOf` gives nothing for it — but it still needs
+   * room, and this sum is what decides when the table starts scrolling
+   * sideways. Counting its measured width here is what stops a long article
+   * name being squeezed out by the columns beside it.
+   */
   const minWidth = shown.reduce((a, c) => a + (widthOf(c) || FLEXIBLE_MIN), 0)
 
   if (!rows.length) return <Empty />
@@ -363,8 +517,50 @@ export function DataTable({
           className={`tablewrap${fill ? ' tablewrap--fill' : ''}`}
           style={fill ? undefined : { maxHeight }}
         >
-          <table className="dt" style={{ minWidth }}>
+          <table
+            className={`dt${hasGroupRow ? ' dt--grouped' : ''}`}
+            style={{ minWidth }}
+          >
+            {/*
+              * Widths declared here, not on the header cells.
+              *
+              * `table-layout: fixed` takes its column widths from the first row
+              * of the table — and once a group-title row was added above the
+              * headers, that first row was cells spanning three columns each.
+              * The browser then split each span's width across the columns
+              * under it and ignored what those columns actually asked for, so
+              * widening the article column widened everything in its group.
+              *
+              * A `colgroup` outranks both rows and is the only place a fixed
+              * layout will take a per-column width from unconditionally. The
+              * spacer is left `auto` so it, and only it, absorbs the slack.
+              */}
+            <colgroup>
+              {shown.map((c) => (
+                <col key={c.key} style={widthOf(c) ? { width: widthOf(c) } : undefined} />
+              ))}
+              <col />
+            </colgroup>
             <thead>
+              {hasGroupRow && (
+                <tr className="dt__grouprow">
+                  {groupRuns.map((r, i) => (
+                    <th
+                      key={`${r.group ?? 'none'}-${i}`}
+                      colSpan={r.span}
+                      scope="colgroup"
+                      className={
+                        r.group
+                          ? `dt--${r.group} dt--gstart dt--gend dt__grouphead`
+                          : 'dt__grouphead'
+                      }
+                    >
+                      {r.group ? groups[r.group] : ''}
+                    </th>
+                  ))}
+                  <th className="dt__spacer" aria-hidden="true" />
+                </tr>
+              )}
               <tr>
                 {shown.map((c) => {
                   const on = sort.key === c.key
@@ -374,7 +570,6 @@ export function DataTable({
                       key={c.key}
                       scope="col"
                       className={`${c.num ? 'num th--num' : ''} ${groupClass(c)}`.trim()}
-                      style={widthOf(c) ? { width: widthOf(c) } : undefined}
                       onClick={() => toggle(c.key)}
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                     >
@@ -403,6 +598,8 @@ export function DataTable({
                     </th>
                   )
                 })}
+                {/* Takes the leftover width so no real column is scaled. */}
+                <th className="dt__spacer" aria-hidden="true" />
               </tr>
             </thead>
 
@@ -430,6 +627,7 @@ export function DataTable({
                       {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}
                     </td>
                   ))}
+                  <td className="dt__spacer" />
                 </tr>
               ))}
             </tbody>
@@ -456,6 +654,7 @@ export function DataTable({
                       </td>
                     )
                   })}
+                  <td className="dt__spacer" />
                 </tr>
               </tfoot>
             )}
