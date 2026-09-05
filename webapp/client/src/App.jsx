@@ -4,7 +4,7 @@ import { useData } from './useData.js'
 import { SideNav } from './components/SideNav.jsx'
 import { FilterBar } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
-import { IconSummary, IconProduct, IconComponent, IconPlan, IconUsers } from './components/Icons.jsx'
+import { IconSummary, IconProduct, IconComponent, IconPlan, IconUsers, IconBox } from './components/Icons.jsx'
 /*
  * The pages are fetched when they are opened, not when the app starts.
  *
@@ -20,6 +20,10 @@ const lazyPage = (load, name) => lazy(() => load().then((m) => ({ default: m[nam
 const ForecastSummary = lazyPage(() => import('./pages/ForecastSummary.jsx'), 'ForecastSummary')
 const ProductLevel = lazyPage(() => import('./pages/ProductLevel.jsx'), 'ProductLevel')
 const ComponentLevel = lazyPage(() => import('./pages/ComponentLevel.jsx'), 'ComponentLevel')
+const WarehouseInsights = lazyPage(
+  () => import('./pages/WarehouseInsights.jsx'),
+  'WarehouseInsights'
+)
 const ProductionPlan = lazyPage(() => import('./pages/ProductionPlan.jsx'), 'ProductionPlan')
 const Admin = lazyPage(() => import('./pages/Admin.jsx'), 'Admin')
 const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
@@ -58,6 +62,21 @@ const PAGES = [
     // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
     // the table; only the slicer is gone. Put 'recipeGroup' back in this list
     // and its row back in FilterBar's SLICERS to restore it.
+    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+  },
+  {
+    id: 'warehouse',
+    label: 'Warehouse Insights',
+    kicker: 'Forecast against outbound',
+    blurb: 'How well the warehouse forecast matched what actually left it, article by article',
+    Icon: IconBox,
+    Component: WarehouseInsights,
+    /*
+     * The same slicers as Stock Article, and for the same reason: this page
+     * reads the same endpoint. Product type is here as `nodeType`, and supply
+     * is the two fixed values the outbound copy decides between — there is no
+     * second supply field anywhere.
+     */
     slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply'],
   },
   {
@@ -107,6 +126,8 @@ const EMPTY_OPTIONS = {
   nodeTypes: [],
   // Fixed, not fetched: the two answers are computed from the outbound copy.
   supply: ['Warehouse', 'Direct Supply'],
+  // Fixed too: a row either has a recipe behind it or it does not.
+  recipeKinds: ['Recipe', 'Non-recipe'],
   prepStatus: ['Extra Prep Needed', 'Normal', 'Reduced Prep Needed'],
   dateRange: {},
 }
@@ -202,6 +223,7 @@ export default function App({ session, onSignedOut }) {
     recipeGroups: [],
     nodeTypes: [],
     supply: [],
+    recipeKinds: [],
     prepStatus: [],
     dateFrom: undefined,
     dateTo: undefined,
@@ -303,6 +325,7 @@ export default function App({ session, onSignedOut }) {
     recipeGroup: { list: 'recipeGroups', filter: 'recipeGroups' },
     nodeType: { list: 'nodeTypes', filter: 'nodeTypes' },
     supply: { list: 'supply', filter: 'supply' },
+    recipeKind: { list: 'recipeKinds', filter: 'recipeKinds' },
     prepStatus: { list: 'prepStatus', filter: 'prepStatus' },
   }
 
@@ -364,7 +387,12 @@ export default function App({ session, onSignedOut }) {
    * one cannot blank it again.
    */
   const options = useMemo(
-    () => ({ ...EMPTY_OPTIONS, ...(slicers.data ?? {}), supply: EMPTY_OPTIONS.supply }),
+    () => ({
+      ...EMPTY_OPTIONS,
+      ...(slicers.data ?? {}),
+      supply: EMPTY_OPTIONS.supply,
+      recipeKinds: EMPTY_OPTIONS.recipeKinds,
+    }),
     [slicers.data]
   )
 

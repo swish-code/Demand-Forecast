@@ -4448,25 +4448,6 @@ table.dt td.dt--wh {
   background: color-mix(in srgb, #f97316 3.5%, var(--surface));
 }
 
-/* The column that is not a column.
-   It carries the leftover width so every real column keeps exactly the width it
-   was given — without it, `table-layout: fixed` scales them all to fill the row
-   and dragging one edge moves the whole table. Invisible by construction: no
-   content, no padding, no border, and it collapses to nothing once the real
-   columns overflow. */
-table.dt th.dt__spacer,
-table.dt td.dt__spacer {
-  width: auto;
-  padding: 0;
-  border-bottom-color: transparent;
-  background: var(--surface);
-  cursor: default;
-}
-
-table.dt tbody tr:hover td.dt__spacer {
-  background: var(--sunken);
-}
-
 /* The row naming the groups, above the one naming the columns.
    Its cells carry the same tint, so the title and its columns read as one
    block from the top of the table down. */
@@ -4533,6 +4514,127 @@ table.dt tbody tr:hover td.dt--fcst,
 table.dt tbody tr:hover td.dt--wh {
   background: var(--sunken);
 }
+
+/* ------------------------------------------------ article usage ---------- */
+
+.usage__lead {
+  margin: 0 0 var(--s3);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* The list can run to dozens of products, and the dialog should not run off
+   the bottom of the screen because one article is popular. */
+.usage__scroll {
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.usage__plu {
+  margin-left: var(--s2);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The path is context, not the answer, so it recedes. */
+.usage__path {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.usage__note {
+  margin: var(--s3) 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------- warehouse insights ---------- */
+
+/* Two panels abreast where there is room, stacked where there is not. The
+   comparison is the point of each pair, so they are laid out to be read
+   together rather than scrolled between. */
+.whgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+.whgrid--three {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+/* A ranked list: name, bar, value. Bars are drawn against the leader of the
+   list, never against a total — eight rows out of three thousand would be eight
+   slivers and tell you nothing. */
+.attn {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attn__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(60px, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  padding: 5px var(--s3);
+  font-size: 12px;
+  border-radius: var(--r-sm, 6px);
+}
+
+.attn__row:hover { background: var(--sunken); }
+
+.attn__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.attn__bar {
+  height: 8px;
+  background: var(--line-soft, var(--line));
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.attn__fill {
+  display: block;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+}
+
+.attn__fill--poor { background: var(--red); }
+.attn__fill--fair { background: var(--amber); }
+.attn__fill--good { background: var(--green); }
+
+.attn__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  text-align: right;
+  min-width: 66px;
+}
+
+/* A small summary table with no sorting, search or resizing — it has two rows,
+   and every one of those affordances would be a lie about what it does. */
+table.dt--plain th,
+table.dt--plain td {
+  cursor: default;
+}
+
+table.dt--plain thead th:hover { color: var(--text-muted); }
+
+.pos { color: var(--amber); }
+.neg { color: var(--blue); }
 
 /* ------------------------------------------------- accuracy bands -------- */
 

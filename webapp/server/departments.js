@@ -74,8 +74,10 @@ export const nodeTypesFor = (department) => DEPARTMENT_NODE_TYPES[department] ??
  * types are. Anything not named falls through to the rule below it.
  */
 export const DEPARTMENT_PAGES = {
-  Procurement: ['component', 'guide'],
-  'Supply Chain': ['component', 'guide'],
+  // Warehouse Insights is the same data as Stock Article, read from the
+  // warehouse's side, so anybody trusted with one is trusted with the other.
+  Procurement: ['component', 'warehouse', 'guide'],
+  'Supply Chain': ['component', 'warehouse', 'guide'],
 }
 
 /**
@@ -88,4 +90,4 @@ export const DEPARTMENT_PAGES = {
  * because they would be one. Ingredients is the page these accounts are for.
  */
 export const pagesFor = (department) =>
-  DEPARTMENT_PAGES[department] ?? (nodeTypesFor(department) ? ['component', 'guide'] : null)
+  DEPARTMENT_PAGES[department] ?? (nodeTypesFor(department) ? ['component', 'warehouse', 'guide'] : null)

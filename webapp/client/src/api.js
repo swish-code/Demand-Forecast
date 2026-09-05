@@ -245,6 +245,12 @@ export const api = {
   context: (filters, options) => query('/context', filters, options),
   productLevel: (filters, options) => query('/product-level', filters, options),
   componentLevel: (filters, options) => query('/component-level', filters, options),
+  // Which menu items use one article, and how much of it each takes.
+  articleUsage: (filters, options) => query('/article-usage', filters, options),
+  // Warehouse Insights reads the article figures from componentLevel above —
+  // the same rows the Stock Article page draws — and only the daily series from
+  // its own endpoint, which is aggregated on the server.
+  warehouseTrend: (filters, options) => query('/warehouse-trend', filters, options),
   productionPlan: (filters, options) => query('/production-plan', filters, options),
   // Tomorrow's totals without tomorrow's rows, for the Overview card.
   productionPlanKpis: (filters, options) => query('/production-plan/kpis', filters, options),
@@ -306,7 +312,21 @@ export const fmtQty = (v) => {
   if (v === null || v === undefined || v === '') return '–'
   const n = Number(v)
   if (!Number.isFinite(n)) return '–'
-  if (n !== 0 && Math.abs(n) < 0.5) return n.toFixed(2)
+  /*
+   * Small fractional quantities keep their decimals.
+   *
+   * Rounding is fine for 296,470 and a lie for 1.09: a forecast of 0.72 against
+   * an actual of 1.09 printed as "1" and "1" beside an accuracy of 66.3%, and
+   * there is no way to check that from anything on screen. It reads as a broken
+   * measure when the measure is right and the display is wrong.
+   *
+   * Under ten and not a whole number, show two decimals. Above that the
+   * fraction cannot move the percentage enough to matter, and the digits would
+   * only make a wide column of round numbers harder to scan. Recipes ask for
+   * grams of things the warehouse ships by the kilogram, so these rows are
+   * ordinary rather than exceptional.
+   */
+  if (n !== 0 && Math.abs(n) < 10 && !Number.isInteger(n)) return n.toFixed(2)
   return nf0.format(Math.round(n))
 }
 

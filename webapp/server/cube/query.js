@@ -723,6 +723,63 @@ export async function outboundByArticle(brand, f) {
   return out
 }
 
+/**
+ * Outbound totalled per day, for a trend rather than a table.
+ *
+ * The article split is what makes `outboundByArticleDay` expensive to send to a
+ * browser — thirty days of three and a half thousand articles is a hundred
+ * thousand rows to draw thirty points with. This aggregates in the database and
+ * returns one row per day.
+ *
+ * `articles` narrows it to a set when one is given, which is how the supply
+ * filter reaches this query: supply is a property of the article, decided by
+ * whether the warehouse has shipped it in six months, so it is applied as a
+ * list of articles rather than as a column that exists here.
+ */
+export async function outboundByDay(brand, f, articles = null) {
+  const win = outboundWindow(coverageCache.get(brand), f)
+  if (!win) return null
+  if (articles && !articles.size) return new Map()
+
+  const rows = await rowsOf(
+    `SELECT date, SUM(qty) AS qty
+       FROM cube_outbound_daily
+      WHERE brand = ? AND date >= ? AND date <= ?
+      ${articles ? `AND article IN (${[...articles].map(() => '?').join(', ')})` : ''}
+      GROUP BY date
+      ORDER BY date ASC`,
+    articles ? [brand, win.from, win.to, ...articles] : [brand, win.from, win.to]
+  )
+  const out = new Map()
+  for (const r of rows) out.set(String(r.date).slice(0, 10), Number(r.qty) || 0)
+  return out
+}
+
+/**
+ * Forecast sales per day — the shape the warehouse forecast is spread over.
+ *
+ * The constant method gives one figure for the whole window: a rate per unit
+ * sold, times the sales forecast for that window. Because the rate is a
+ * constant, the window figure decomposes exactly — a day's share of the
+ * warehouse forecast is that day's share of the sales forecast, and the days
+ * sum back to precisely the window total. That is why the trend can be drawn
+ * without a second, differently-defined forecast to disagree with the first.
+ */
+export async function forecastSalesByDay(brand, f, { allBrands = false } = {}) {
+  if (!f?.dateFrom || !f?.dateTo) return new Map()
+  const rows = await rowsOf(
+    `SELECT date, SUM(forecast) AS forecast
+       FROM cube_location_daily
+      WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?
+      GROUP BY date
+      ORDER BY date ASC`,
+    allBrands ? [f.dateFrom, f.dateTo] : [brand, f.dateFrom, f.dateTo]
+  )
+  const out = new Map()
+  for (const r of rows) out.set(String(r.date).slice(0, 10), Number(r.forecast) || 0)
+  return out
+}
+
 /** The same, split by day, for a table that is. */
 export async function outboundByArticleDay(brand, f) {
   const win = outboundWindow(coverageCache.get(brand), f)

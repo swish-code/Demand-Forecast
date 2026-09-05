@@ -6,6 +6,7 @@ import { W } from '../columns.js'
 import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
+import { ArticleUsage } from '../components/ArticleUsage.jsx'
 import { IconDownload } from '../components/Icons.jsx'
 
 /**
@@ -53,11 +54,20 @@ const COLUMNS = [
     label: 'Recipe',
     width: 116,
     hiddenByDefault: true,
-    render: (_v, row) =>
-      String(row?.['Recipe Group'] ?? '').startsWith('No recipe') ? (
-        <Pill tone="slate">Non-recipe</Pill>
+    /*
+     * Rendered from the row's own `Source` value, not derived here.
+     *
+     * It used to test the recipe group inside the renderer and ignore the
+     * value entirely — which looked identical on screen and exported an empty
+     * column, because the CSV writes values and never calls a renderer. The
+     * value is now set once, in `priced`, and both the pill and the download
+     * read the same field.
+     */
+    render: (v) =>
+      v ? (
+        <Pill tone={v === 'Recipe' ? 'green' : 'slate'}>{v}</Pill>
       ) : (
-        <Pill tone="green">Recipe</Pill>
+        <span className="muted">–</span>
       ),
   },
   // Off by default — asked for on 1 Sep 2026. The table opens on the five
@@ -93,6 +103,9 @@ const COLUMNS = [
      */
     autoWidth: { min: 140, max: null, percentile: 0.95 },
     wrap: true,
+    // The column that absorbs whatever width is left over, so the table always
+    // ends flush with its panel instead of trailing off into white.
+    flex: true,
   },
   {
     key: 'Node Type',
@@ -348,6 +361,40 @@ const COLUMNS = [
    * measures the sales forecast against itself, so a row that scores badly here
    * and well on ACC has a demand problem rather than a recipe problem.
    */
+  /*
+   * How the day's sales went, not how this article's did.
+   *
+   * One number per trading day — total actual sales against total forecast
+   * sales — repeated on every row of that day, because that is what it is: a
+   * property of the day. Asked for on 5 Sep 2026, and the repetition is the
+   * point rather than a fault.
+   *
+   * It answers a different question from every other accuracy here. ACC% beside
+   * it is this article's own demand error; this is the trading day's. A day that
+   * went badly explains a whole column of poor article scores at once, and no
+   * per-article figure can show you that.
+   *
+   * Split the table by Date in Build view and it varies by day. Left whole, it
+   * is the window's total, which is the same calculation over a longer period.
+   */
+  {
+    key: 'Sales_Day_Accuracy',
+    label: 'Sales ACC%',
+    autoWidth: true,
+    num: true,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="No sales recorded for this period, so there is nothing to compare the sales forecast against.">
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    // Not summed and not averaged across rows: every row carries the same
+    // figure for its day, so the window's own total is the honest footer.
+    total: (list) => (list.length ? (list[0].Sales_Day_Accuracy ?? null) : null),
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
   {
     key: 'Sales_Accuracy',
     label: 'ACC%',
@@ -443,6 +490,8 @@ const COLUMN_ORDER = [
   'WH_Constant_Forecast_Qty',
   'Consumed_Qty',
   'WH_Accuracy',
+  // Belongs to the day rather than to either group, so it sits outside both.
+  'Sales_Day_Accuracy',
   // Neither group.
   'Live_Outbound_MTD',
   'Accuracy',
@@ -540,6 +589,20 @@ function BandChart({ label, bands, counts, active, total, onPick }) {
 }
 
 /** Mirrors the report's COMPONENT LEVEL page. */
+/*
+ * Whether this row's requirement came from a recipe at all.
+ *
+ * Declared above the component, not merely at column zero inside it. Sitting
+ * unindented among the other helpers made it look like module scope while it
+ * was still lexically inside the function — so `priced`, which runs earlier in
+ * the same body, read it before its declaration and the page died on mount.
+ *
+ * The recipe group is what the server stamps, and two places deciding "is this
+ * a recipe row?" by different means is how a card and a column start
+ * disagreeing.
+ */
+const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
+
 export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded }) {
   /*
    * Which extra dimensions the reader has switched on.
@@ -589,10 +652,53 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * other line by line. Adding the requirement back up per article puts both on
    * the same footing, and that is what accuracy is computed from.
    */
+  /*
+   * The day's sales, forecast against actual, keyed by date.
+   *
+   * Comes down with the rows from the same request, so it is always the same
+   * window and the same brands as the table it sits beside.
+   */
+  const sales = data?.sales ?? null
+
+  const dayAccuracy = useMemo(() => {
+    const score = (t) => {
+      if (!t) return null
+      const actual = Number(t.actual) || 0
+      const forecast = Number(t.forecast) || 0
+      // The report's own shape: 1 − |variation|, divided by what actually sold.
+      // No sales means no answer — a forecast against nothing is not a hit.
+      if (actual <= 0) return null
+      return Math.max(0, 1 - Math.abs(actual - forecast) / actual)
+    }
+
+    const byDate = new Map()
+    for (const [d, t] of Object.entries(sales?.byDate ?? {})) byDate.set(d, score(t))
+    const whole = score(sales?.total)
+    return (r) => {
+      const d = r.Date ? String(r.Date).slice(0, 10) : null
+      return d && byDate.has(d) ? byDate.get(d) : whole
+    }
+  }, [sales])
+
   const priced = useMemo(() => {
+    /*
+     * Keyed on the article number, or on the name when there isn't one.
+     *
+     * All 941 PREP steps have a blank `Item No.` — a kitchen step is not
+     * something the ERP stocks — and they were being skipped here entirely.
+     * That cost them their roll-up, so `implied` stayed null and ACC% read as a
+     * dash on every prep row, even where Forecast qty and Actual qty were both
+     * sitting right there on the line.
+     *
+     * The name is a good enough key for them: two prep steps with the same name
+     * are the same step, and the warehouse columns stay blank either way
+     * because there is still no article for the warehouse to have shipped.
+     */
+    const keyOf = (r) => String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
+
     const perArticle = new Map()
     for (const r of rows) {
-      const a = String(r['Item No.'] ?? '').trim()
+      const a = keyOf(r)
       if (!a) continue
       const held = perArticle.get(a) ?? { forecast: null, consumed: 0, wh: null, measured: false }
       /*
@@ -637,7 +743,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     }
 
     return rows.map((r) => {
-      const a = String(r['Item No.'] ?? '').trim()
+      const a = keyOf(r)
       const held = a ? perArticle.get(a) : null
       const forecast = held
         ? held.forecast
@@ -701,6 +807,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
       return {
         ...r,
+        // A real value, so the CSV has something to write and the table has
+        // something to sort and search on.
+        Source: fromRecipe(r) ? 'Recipe' : 'Non-recipe',
+        Sales_Day_Accuracy: dayAccuracy(r),
         Article_Forecast_Qty: forecast,
         Sales_Accuracy: salesAccuracy,
         Accuracy: score(forecast),
@@ -709,7 +819,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         WH_Accuracy: score(held?.wh ?? null),
       }
     })
-  }, [rows])
+  }, [rows, dayAccuracy])
 
   /**
    * One row per combination the reader can actually see.
@@ -905,6 +1015,14 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
   const [view, setView] = useState(null)
 
   /*
+   * The article whose recipe breakdown is open, or null.
+   *
+   * Held here rather than inside the dialog so that closing it does not throw
+   * away the fetch, and so the table below stays exactly where it was.
+   */
+  const [usage, setUsage] = useState(null)
+
+  /*
    * What the table is actually showing, fed back to everything above it.
    *
    * Search for "Chili Flakes" and the table narrows while the cards keep
@@ -969,15 +1087,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * transfer is not 0% accurate, it is unmeasured — and scoring it zero would
    * read as a terrible forecast rather than an absent one.
    */
-  /*
-   * Whether this row's requirement came from a recipe at all.
-   *
-   * The one test, written once. The recipe group is what the server stamps, and
-   * two places deciding "is this a recipe row?" by different means is how the
-   * card and the column start disagreeing.
-   */
-  const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
-
   const summary = useMemo(() => {
     let forecast = 0
     let consumed = 0
@@ -1335,7 +1444,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             tableId="component-detail-v2"
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
-            groups={{ fcst: 'Demand', wh: 'Warehouse' }}
+            onRowClick={(row) => setUsage(row)}
+            groups={{ fcst: 'Product mix', wh: 'Warehouse' }}
             fill
           />
         )}
@@ -1445,6 +1555,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           {facets.length - 3} further unit{facets.length - 3 === 1 ? '' : 's'} (
           {facets.slice(3).map((f) => f.unit).join(', ')}) — in the table above.
         </p>
+      )}
+
+      {usage && (
+        <ArticleUsage article={usage} filters={filters} onClose={() => setUsage(null)} />
       )}
     </>
   )

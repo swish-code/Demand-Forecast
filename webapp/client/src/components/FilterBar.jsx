@@ -32,6 +32,14 @@ const SLICERS = [
    * nothing to look up and no third answer.
    */
   { id: 'supply', key: 'supply', label: 'Supply', options: 'supply', placeholder: 'All' },
+  /*
+   * Whether a recipe asks for the article, or only the warehouse ships it.
+   *
+   * Two fixed values like Supply, and for the same reason: it is derived from
+   * whether any recipe names the article, so there is nothing to look up and no
+   * third answer.
+   */
+  { id: 'recipeKind', key: 'recipeKinds', label: 'Recipe', options: 'recipeKinds', placeholder: 'All' },
 ]
 
 export function FilterBar({ show, options, filters, setFilters, loading, brands, selectedBrands, onBrandChange, onNeedOptions }) {

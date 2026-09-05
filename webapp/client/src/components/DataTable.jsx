@@ -325,12 +325,33 @@ export function DataTable({
    * Every other column takes its own width and offers no grip at all, so there
    * is no gesture that can move them.
    */
-  const widthOf = (c) => {
+  /*
+   * One column carries no width, and it is the one that can afford to.
+   *
+   * `table-layout: fixed` on a table set to `width: 100%` has to put leftover
+   * space somewhere. Size every column and it scales all of them, so dragging
+   * one edge moves the whole table. Add an empty cell to soak it up and the
+   * table ends in a band of dead white before the panel does.
+   *
+   * The column that should take it is the one whose content is open-ended: the
+   * article name. Everything else is a number or a short label with a natural
+   * width, and no reason to be stretched past it.
+   *
+   * Its measurement is not discarded — it becomes the floor, fed into
+   * `minWidth` below. So the column is never narrower than the names it holds,
+   * takes whatever room is going spare, and the table always ends flush with
+   * its panel however many columns are switched on.
+   */
+  const flexKey = shown.find((c) => c.flex)?.key ?? null
+
+  const floorOf = (c) => {
     const measured = autoWidths[c.key]
     if (measured === undefined) return c.width
     const dragged = Number(widths[c.key]) || 0
     return Math.max(measured, dragged)
   }
+
+  const widthOf = (c) => (c.key === flexKey ? undefined : floorOf(c))
 
   const startResize = (event, col) => {
     // The header is a sort button; dragging its edge is not a click on it.
@@ -458,7 +479,18 @@ export function DataTable({
    * sideways. Counting its measured width here is what stops a long article
    * name being squeezed out by the columns beside it.
    */
-  const minWidth = shown.reduce((a, c) => a + (widthOf(c) || FLEXIBLE_MIN), 0)
+  /*
+   * The flexible column counts at its floor, not at nothing.
+   *
+   * It has no width, so `widthOf` gives none for it — but it still needs room,
+   * and this sum is what decides when the table starts scrolling sideways
+   * instead of squeezing. Counting its measured width here is what stops the
+   * article names being crushed as more columns are switched on.
+   */
+  const minWidth = shown.reduce(
+    (a, c) => a + (c.key === flexKey ? floorOf(c) || FLEXIBLE_MIN : widthOf(c) || FLEXIBLE_MIN),
+    0
+  )
 
   if (!rows.length) return <Empty />
 
@@ -594,7 +626,6 @@ export function DataTable({
               {shown.map((c) => (
                 <col key={c.key} style={widthOf(c) ? { width: widthOf(c) } : undefined} />
               ))}
-              <col />
             </colgroup>
             <thead>
               {hasGroupRow && (
@@ -613,7 +644,6 @@ export function DataTable({
                       {r.group ? groups[r.group] : ''}
                     </th>
                   ))}
-                  <th className="dt__spacer" aria-hidden="true" />
                 </tr>
               )}
               <tr>
@@ -655,8 +685,6 @@ export function DataTable({
                     </th>
                   )
                 })}
-                {/* Takes the leftover width so no real column is scaled. */}
-                <th className="dt__spacer" aria-hidden="true" />
               </tr>
             </thead>
 
@@ -685,7 +713,6 @@ export function DataTable({
                       {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}
                     </td>
                   ))}
-                  <td className="dt__spacer" />
                 </tr>
               ))}
             </tbody>
@@ -712,7 +739,6 @@ export function DataTable({
                       </td>
                     )
                   })}
-                  <td className="dt__spacer" />
                 </tr>
               </tfoot>
             )}

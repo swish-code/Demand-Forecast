@@ -22,6 +22,7 @@ import {
   outboundFromWarehouse,
   OTHER_BUCKET,
 } from '../powerbi/warehouse.js'
+import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import {
@@ -45,7 +46,7 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
 // everything below it requires a session.
 
 
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply']
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply', 'recipeKinds']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -921,6 +922,265 @@ async function withSupply(rows, filters) {
   return labelled.filter((r) => r.Supply && keep.has(r.Supply))
 }
 
+/**
+ * Rows a recipe asks for, rows only the warehouse ships, or both.
+ *
+ * Decided by the recipe group the row arrived with — the non-recipe rows are
+ * stamped "No recipe — from outbound" when they are built, so this is reading
+ * the answer rather than working it out a second way. The page's Recipe column
+ * makes the same test, which is why it has to stay one test.
+ */
+const RECIPE_KIND = (r) =>
+  String(r['Recipe Group'] ?? '').startsWith('No recipe') ? 'Non-recipe' : 'Recipe'
+
+function withRecipeKind(rows, filters) {
+  const wanted = (filters?.recipeKinds ?? []).filter(Boolean)
+  if (!wanted.length) return rows
+  const keep = new Set(wanted)
+  return rows.filter((r) => keep.has(RECIPE_KIND(r)))
+}
+
+/**
+ * The warehouse forecast and what actually left, day by day.
+ *
+ * Composed from the same two calculations the Stock Article page uses, at a
+ * finer grain — not a second definition of either:
+ *
+ *   Outbound  `cube_outbound_daily`, the copy the extract fills from
+ *             `fact_outbound_line` where the source is the Central Warehouse
+ *             and the destination is anything but. Totalled per day here
+ *             instead of per article, because a trend needs thirty numbers and
+ *             not a hundred thousand.
+ *
+ *   Forecast  `forecastFromConstants`, unchanged — the six-month rate times the
+ *             sales forecast for the window. The rate is a constant, so the
+ *             window total decomposes exactly: a day takes its share of the
+ *             sales forecast, and the days sum back to the window figure the
+ *             cards and the table show. Nothing here can drift from them
+ *             without the window total drifting too.
+ *
+ * Aggregated on the server on purpose. The browser gets one row per day.
+ */
+api.all('/warehouse-trend', handle(async (req, res) => {
+  // The rail hides the tab; this refuses the request, which is what a bookmark
+  // or a typed URL actually reaches.
+  if (pageDenied(req, res, 'warehouse')) return
+  const g = guardMany(req, res)
+  if (!g) return
+
+  /*
+   * Supply reaches this query as a list of articles.
+   *
+   * It is not a column in the outbound copy — it is decided by whether the
+   * warehouse has issued the article in the last six months, which is the same
+   * rule `withSupply` applies to the table. Read from the same place, so the
+   * two can never disagree about what "Warehouse" means.
+   */
+  const wanted = new Set((g.parts[0]?.f?.supply ?? []).filter(Boolean))
+  let onlyArticles = null
+  if (wanted.size === 1) {
+    const moved = await cube.articlesShippedSince(6).catch(() => null)
+    if (moved) {
+      if (wanted.has(SUPPLY_WAREHOUSE)) onlyArticles = moved
+      // Direct supply has no warehouse outbound by definition — that is what
+      // makes it direct. An empty set is the honest answer, not a missing one.
+      else onlyArticles = new Set()
+    }
+  }
+
+  const parts = await g.fanOut(async ({ f, brand }) => {
+    const allBrands = false
+    const [outbound, salesByDay, whForecast] = await Promise.all([
+      cube.outboundByDay(brand.code, f, onlyArticles).catch(() => null),
+      cube.forecastSalesByDay(brand.code, f, { allBrands }).catch(() => new Map()),
+      forecastFromConstants(brand.code, f).catch(() => new Map()),
+    ])
+
+    // The window total, from the same map the cards and the table are built
+    // from, narrowed by supply the same way.
+    let total = 0
+    for (const [article, qty] of whForecast) {
+      if (onlyArticles && !onlyArticles.has(article)) continue
+      total += Number(qty) || 0
+    }
+
+    let salesTotal = 0
+    for (const v of salesByDay.values()) salesTotal += v
+
+    return { outbound, salesByDay, total, salesTotal }
+  })
+
+  const days = new Map()
+  const at = (d) => {
+    let held = days.get(d)
+    if (!held) days.set(d, (held = { Date: d, WH_Forecast: 0, Outbound: 0, measured: false }))
+    return held
+  }
+
+  for (const p of parts) {
+    for (const [d, qty] of p.outbound ?? []) {
+      const row = at(d)
+      row.Outbound += qty
+      row.measured = true
+    }
+    if (p.salesTotal > 0 && p.total > 0) {
+      for (const [d, sales] of p.salesByDay) {
+        at(d).WH_Forecast += p.total * (sales / p.salesTotal)
+      }
+    }
+  }
+
+  const rows = [...days.values()].sort((a, b) => a.Date.localeCompare(b.Date))
+  for (const r of rows) {
+    /*
+     * Scored exactly as the table scores an article: symmetric, against the
+     * larger of the two, and blank rather than zero when there is nothing to
+     * compare. A day the warehouse issued nothing and forecast nothing is not
+     * a day it got wrong.
+     */
+    const bigger = Math.max(r.Outbound, r.WH_Forecast)
+    r.WH_Accuracy =
+      r.measured && bigger > 0 ? 1 - Math.abs(r.Outbound - r.WH_Forecast) / bigger : null
+  }
+
+  res.json({ rows })
+}))
+
+
+/**
+ * Total sales per day, forecast against actual, across the brands in scope.
+ *
+ * Sales accuracy is a property of the day, not of the article: the same trading
+ * day either went the way it was forecast or it did not, and every article sold
+ * on it inherits that one answer. Measuring it per component instead — which is
+ * what the recipe explosion gives you — only ever restates the same figure
+ * multiplied by a recipe quantity, which cancels.
+ *
+ * Read from `cube.trend`, the reader the Overview page already draws its daily
+ * chart from, so this page and that chart cannot disagree about what a day's
+ * sales were. Brands are added together, because the reader has chosen them.
+ */
+async function salesByDay(parts) {
+  const series = await Promise.all(
+    parts.map((p) => cube.trend(p.brand.code, p.f).catch(() => null))
+  )
+
+  const byDate = new Map()
+  let actual = 0
+  let forecast = 0
+  for (const list of series) {
+    for (const r of list ?? []) {
+      const d = String(r.Date ?? '').slice(0, 10)
+      if (!d) continue
+      const a = Number(r.Actual_Qty) || 0
+      const f = Number(r.Forecast_Qty) || 0
+      const held = byDate.get(d) ?? { actual: 0, forecast: 0 }
+      held.actual += a
+      held.forecast += f
+      byDate.set(d, held)
+      actual += a
+      forecast += f
+    }
+  }
+
+  return {
+    byDate: Object.fromEntries(byDate),
+    total: { actual, forecast },
+  }
+}
+
+
+/**
+ * Which menu items use an article, and how much of it each one takes.
+ *
+ * Read straight from 'RECIPE TABLE' — the same table the component forecast is
+ * exploded from, so the quantities here are the quantities behind Forecast qty
+ * rather than a second opinion about the recipe.
+ *
+ * `QTY BU` is per one unit of the finished product: a burger taking 0.00018 kg
+ * of parsley is one row. `Recipe Path` says how it gets there, which matters
+ * because most articles arrive through a sub-recipe rather than directly — the
+ * parsley is in the ranch sauce, and the ranch sauce is in the burger.
+ *
+ * Matched on article number where there is one, and on the item name where
+ * there is not: every PREP step has a blank `Item No.`, and those are exactly
+ * the rows somebody is most likely to be asking this question about.
+ */
+api.all('/article-usage', handle(async (req, res) => {
+  const g = guardMany(req, res)
+  if (!g) return
+
+  const src = req.method === 'POST' ? req.body || {} : req.query || {}
+  const articleNo = String(src.articleNo ?? '').trim()
+  const item = String(src.item ?? '').trim()
+  if (!articleNo && !item) {
+    res.status(400).json({ error: 'An article number or an item name is required.' })
+    return
+  }
+
+  const column = articleNo ? "'RECIPE TABLE'[Item No.]" : "'RECIPE TABLE'[Item]"
+  const value = (articleNo || item).replace(/"/g, '""')
+
+  const parts = await g.fanOut(async ({ ds, brand }) =>
+    cached(`${ds}:usage:${column}:${value}`, async () => {
+      const rows = await executeQuery(
+        `EVALUATE
+SUMMARIZECOLUMNS(
+  'RECIPE TABLE'[Product Name],
+  'RECIPE TABLE'[Product PLU],
+  'RECIPE TABLE'[Recipe],
+  'RECIPE TABLE'[Recipe Path],
+  'RECIPE TABLE'[Node Type],
+  'RECIPE TABLE'[BU],
+  TREATAS({"${value}"}, ${column}),
+  "Qty_Per_Unit", SUM('RECIPE TABLE'[QTY BU])
+)`,
+        ds,
+        { bulk: true }
+      )
+      return rows.map((r) => ({ ...r, CHAINID: brand.code }))
+    }).catch((err) => {
+      console.warn(`  [usage] ${brand.code}: ${err.message}`)
+      return []
+    })
+  )
+
+  /*
+   * One line per menu item, per brand.
+   *
+   * The same product can reach an article down more than one path — through a
+   * sauce and again directly — and those are genuinely separate requirements,
+   * so they are added rather than deduplicated. Two brands selling a product
+   * with the same name are still two products, so the brand stays in the key.
+   */
+  const out = new Map()
+  for (const r of parts.flat()) {
+    const key = `${r.CHAINID}|${r['Product PLU'] ?? ''}|${r['Product Name'] ?? ''}`
+    const held = out.get(key)
+    const qty = Number(r.Qty_Per_Unit) || 0
+    if (!held) {
+      out.set(key, {
+        CHAINID: r.CHAINID,
+        Product: r['Product Name'] ?? '',
+        PLU: r['Product PLU'] ?? '',
+        Qty_Per_Unit: qty,
+        BU: r.BU ?? '',
+        Paths: r['Recipe Path'] ? [r['Recipe Path']] : [],
+      })
+      continue
+    }
+    held.Qty_Per_Unit += qty
+    if (r['Recipe Path'] && !held.Paths.includes(r['Recipe Path'])) held.Paths.push(r['Recipe Path'])
+  }
+
+  const rows = [...out.values()]
+    .filter((r) => r.Qty_Per_Unit > 0)
+    .sort((a, b) => b.Qty_Per_Unit - a.Qty_Per_Unit)
+
+  res.json({ rows })
+}))
+
+
 api.all('/component-level', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
@@ -970,10 +1230,17 @@ api.all('/component-level', handle(async (req, res) => {
     return grain.brand ? withOutbound.map((r) => ({ ...r, CHAINID: brand.code })) : withOutbound
   })
   const window = g.parts[0].f
+  // One local query per brand, and the answer is a few dozen numbers.
+  const sales = await salesByDay(g.parts)
+
   if (g.single)
     return res.json({
-      rows: await withSupply(
-        await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+      sales,
+      rows: withRecipeKind(
+        await withSupply(
+          await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+          window
+        ),
         window
       ),
     })
@@ -981,13 +1248,17 @@ api.all('/component-level', handle(async (req, res) => {
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
-    rows: await withSupply(
-      await addWarehouseWide(
-        // Split by brand, the brands are the answer, so they are not added up.
-        grain.brand ? results.flat() : merged(results),
-        window,
-        grain,
-        mtdAll?.get(OTHER_BUCKET)
+    sales,
+    rows: withRecipeKind(
+      await withSupply(
+        await addWarehouseWide(
+          // Split by brand, the brands are the answer, so they are not added up.
+          grain.brand ? results.flat() : merged(results),
+          window,
+          grain,
+          mtdAll?.get(OTHER_BUCKET)
+        ),
+        window
       ),
       window
     ),
