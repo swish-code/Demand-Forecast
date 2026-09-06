@@ -182,7 +182,6 @@ export function Login({ onSignedIn }) {
             <MailIcon />
             Request access
           </a>
-          {methods.contact && <p className="signin__requestWho">Goes to {methods.contact}</p>}
         </div>
       </main>
 

@@ -125,6 +125,22 @@ async function request(method, path, body, { signal } = {}) {
     window.dispatchEvent(new CustomEvent('df:unauthorized'))
     throw new UnauthorizedError(json?.error || 'Session expired')
   }
+  /*
+   * A refused page means the shell is out of date, so it goes and finds out.
+   *
+   * Permissions are read fresh from the account row on every request, but the
+   * shell is built once from the session it fetched when the tab was opened.
+   * Take a page away from somebody while they are looking at it and the server
+   * starts refusing them while the rail carries on offering the tab — which is
+   * exactly what "he can still see the whole dashboard" looks like from the
+   * outside, and it lasts until they happen to reload.
+   *
+   * Re-reading the session on a 403 closes that window: the rail rebuilds from
+   * what they may open now, and the page they cannot open is no longer one of
+   * them. The error still surfaces — this only makes the shell agree with it.
+   */
+  if (res.status === 403) window.dispatchEvent(new CustomEvent('df:forbidden'))
+
   if (!res.ok) {
     const err = json?.error
       ? new Error(json.error)

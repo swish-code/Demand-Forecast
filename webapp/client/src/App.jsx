@@ -300,6 +300,19 @@ export default function App({ session, onSignedOut }) {
     )
   }, [session])
   const page = useMemo(() => pages.find((p) => p.id === tab) ?? pages[0], [tab, pages])
+
+  /*
+   * A tab the account may not open does not stay selected.
+   *
+   * `page` already falls back to the first allowed one, so nothing forbidden
+   * ever rendered — but `tab` kept the old id, so the rail highlighted nothing
+   * and the next render resolved the fallback again. Correcting the state means
+   * the rail agrees with the page, and a grant taken away while somebody is
+   * looking at that page moves them somewhere they can actually be.
+   */
+  useEffect(() => {
+    if (pages.length && !pages.some((p) => p.id === tab)) setTab(pages[0].id)
+  }, [pages, tab])
   // The rail shows the reports; the guide is reachable from the Overview.
   const navPages = useMemo(() => pages.filter((p) => !p.hidden), [pages])
 

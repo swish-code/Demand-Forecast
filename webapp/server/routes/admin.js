@@ -5,8 +5,8 @@ import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
 import {
   DEPARTMENTS,
-  DEPARTMENT_NODE_TYPES,
   DEPARTMENT_PAGES,
+  PAGE_IDS,
   isDepartment,
 } from '../departments.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
@@ -82,6 +82,33 @@ async function scopesByUser() {
  * a spread: `SELECT *` would carry password_hash out to the browser, and a
  * denylist only stays correct until someone adds a column.
  */
+/**
+ * A stored page grant, read back as a list.
+ *
+ * Held as JSON text rather than a table because it is a short fixed list read
+ * whole every time and never joined on — a `user_pages` table would be three
+ * queries and a migration to express what one column already says.
+ *
+ * Anything unparseable reads as "no grant", which falls back to the department
+ * rule rather than to no access. A corrupt value should not lock somebody out.
+ */
+function parsePages(value) {
+  if (!value) return null
+  try {
+    const list = JSON.parse(value)
+    return Array.isArray(list) && list.length ? list.filter((p) => PAGE_IDS.includes(p)) : null
+  } catch {
+    return null
+  }
+}
+
+/** The other direction, with the same rule: an empty grant is stored as none. */
+function serialisePages(list) {
+  if (!Array.isArray(list)) return null
+  const valid = [...new Set(list.filter((p) => PAGE_IDS.includes(p)))]
+  return valid.length ? JSON.stringify(valid) : null
+}
+
 function userRow(row, scopes = []) {
   return {
     id: row.id,
@@ -90,6 +117,8 @@ function userRow(row, scopes = []) {
     role: row.role,
     status: row.status,
     department: row.department ?? null,
+    // The account's own page grant, or null where the department decides.
+    pages: parsePages(row.pages),
     created_at: row.created_at,
     last_login_at: row.last_login_at,
     locked_until: row.locked_until,
@@ -104,7 +133,7 @@ admin.get(
   '/users',
   handle(async (req, res) => {
     const rows = await pg.all(
-      `SELECT u.id, u.email, u.name, u.role, u.status, u.department, u.created_at, u.last_login_at,
+      `SELECT u.id, u.email, u.name, u.role, u.status, u.department, u.pages, u.created_at, u.last_login_at,
               u.locked_until,
               (SELECT COUNT(*) FROM login_events e
                 WHERE e.user_id = u.id AND e.success = 1) AS login_count
@@ -119,11 +148,12 @@ admin.get(
       departments: DEPARTMENTS,
       // What a department restricts on its own, sent so the form can say so
       // while it is being filled in rather than after the account is made. One
-      // source of truth: the same map the requests are narrowed by.
-      departmentScopes: DEPARTMENT_NODE_TYPES,
       // Which pages a department is confined to, where that is not implied by
       // its production types — the form has to be able to say so either way.
       departmentPages: DEPARTMENT_PAGES,
+      // Every page a grant may name, so the form offers exactly what the
+      // server will accept rather than a list that has to be kept in step.
+      pageIds: PAGE_IDS,
     })
   })
 )
@@ -166,10 +196,10 @@ admin.post(
     // than a blank or a placeholder repeated on every account.
     const unusable = await hashPassword(generatePassword())
     const { rows } = await pg.run(
-      `INSERT INTO users (email, name, password_hash, role, status, department, auth_provider)
-       VALUES (?, ?, ?, ?, ?, ?, 'microsoft')
+      `INSERT INTO users (email, name, password_hash, role, status, department, pages, auth_provider)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'microsoft')
        RETURNING *`,
-      [email, name, unusable, role, status, department]
+      [email, name, unusable, role, status, department, serialisePages(req.body?.pages)]
     )
     const row = rows[0]
 
@@ -202,6 +232,15 @@ admin.patch(
       if (d && !isDepartment(d)) return res.status(400).json({ error: 'Unknown department' })
       patch.department = d
     }
+    /*
+     * An explicit grant, or null to hand the decision back to the department.
+     *
+     * Sent as an array to set it and as null to clear it; absent leaves it
+     * alone, so a form that does not know about pages cannot wipe one.
+     */
+    if (req.body?.pages !== undefined) {
+      patch.pages = req.body.pages === null ? null : serialisePages(req.body.pages)
+    }
 
     // An admin must not be able to lock every admin out of the system.
     if ((patch.role && patch.role !== 'admin') || (patch.status && patch.status !== 'active')) {
@@ -218,6 +257,24 @@ admin.patch(
 
     // Losing access should take effect now, not whenever the session expires.
     if (patch.status && patch.status !== 'active') await revokeAllForUser(id)
+    /*
+     * A narrowed grant takes effect on the next request, not the next sign-in.
+     *
+     * The session carries the account's row, and the rail is built from what
+     * the session says — so without this, taking a page away left it open until
+     * the reader happened to sign out. Both the page list and the department it
+     * can be derived from are reloaded, so either one changing is enough.
+     */
+    if (
+      patch.pages !== undefined ||
+      patch.department !== undefined ||
+      // A demotion is an access change like any other. Without this, an admin
+      // moved down to Viewer kept an admin's shell — including the Admin tab —
+      // until they happened to sign out.
+      patch.role !== undefined
+    ) {
+      await revokeAllForUser(id)
+    }
 
     audit(req.user.id, 'user.update', user.email, { ...patch, scopes: req.body?.scopes })
     const fresh = await pg.get('SELECT * FROM users WHERE id = ?', [id])

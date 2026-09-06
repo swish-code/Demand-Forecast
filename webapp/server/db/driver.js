@@ -206,14 +206,51 @@ async function openPglite() {
     }
   }
 
+  /*
+   * One query at a time, in the order they were asked for.
+   *
+   * PGlite is a single connection to an in-process engine, and its wire
+   * protocol has no more room for two overlapping statements than a real
+   * connection would. Every caller in this app fans out with `Promise.all` —
+   * nine brands, several reads each — and nothing was stopping those landing on
+   * the engine together. When they did, the protocol state came apart:
+   *
+   *   unhandledRejection: cannot drop active portal ""
+   *
+   * repeating on every cycle from the moment two paths overlapped, and taking
+   * whatever request was in flight with it.
+   *
+   * A promise chain is the whole fix. Each call waits for the previous one to
+   * settle, so the fan-out still expresses "these are independent" and the
+   * engine still sees them one after another. It costs nothing that matters:
+   * the queries were never running in parallel inside a single-threaded WASM
+   * engine anyway — they were only being handed to it in parallel.
+   *
+   * Note this serialises statements, not transactions. `tx` issues BEGIN, then
+   * its caller's queries, then COMMIT, and another caller's statement can still
+   * land between them — as it could before. That is a separate concern and
+   * unrelated to the corruption this prevents.
+   */
+  let chain = Promise.resolve()
+  const serial = (work) => {
+    const run = chain.then(work, work)
+    // The chain must survive a rejection, or one failed query stops every
+    // query after it for the life of the process.
+    chain = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
   return {
     kind: 'pglite',
     async query(sql, params = []) {
-      const res = await lite.query(toPositional(sql), params)
+      const res = await serial(() => lite.query(toPositional(sql), params))
       return { rows: res.rows ?? [], rowCount: res.affectedRows ?? (res.rows?.length ?? 0) }
     },
     async script(sql) {
-      await lite.exec(sql)
+      await serial(() => lite.exec(sql))
     },
     async close() {
       await lite.close()

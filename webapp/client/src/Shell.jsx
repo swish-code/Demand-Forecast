@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useState } from 'react'
+import { Component, useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api.js'
 import App from './App.jsx'
 import { Login } from './pages/Login.jsx'
@@ -120,6 +120,36 @@ export function Shell() {
     const onUnauthorized = () => setSession(null)
     window.addEventListener('df:unauthorized', onUnauthorized)
     return () => window.removeEventListener('df:unauthorized', onUnauthorized)
+  }, [])
+
+  /*
+   * A 403 means the session is still good but narrower than the shell thinks.
+   *
+   * The account's pages are read from its row on every request, so the server
+   * is already right; it is the rail that is out of date, built once when the
+   * tab was opened. Re-reading the session rebuilds it from what the account
+   * may open now, which is what makes an access change take effect while
+   * somebody is looking rather than whenever they next sign in.
+   *
+   * Throttled, because a page that has just lost access can fire several
+   * refused requests at once and they should cost one session read between
+   * them, not one each.
+   */
+  const refreshedAt = useRef(0)
+  useEffect(() => {
+    const onForbidden = () => {
+      const now = Date.now()
+      if (now - refreshedAt.current < 3000) return
+      refreshedAt.current = now
+      api.me().then(
+        (fresh) => fresh && setSession(fresh),
+        () => {
+          /* a failed re-read leaves the shell as it was; the error still shows */
+        }
+      )
+    }
+    window.addEventListener('df:forbidden', onForbidden)
+    return () => window.removeEventListener('df:forbidden', onForbidden)
   }, [])
 
   if (checking) {

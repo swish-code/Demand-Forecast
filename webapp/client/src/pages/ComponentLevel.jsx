@@ -292,56 +292,6 @@ const COLUMNS = [
       ),
   },
   /*
-   * How close this article's whole requirement came to what actually moved.
-   *
-   * A property of the article, not of the row, so it reads the same on every
-   * recipe group that uses it — the warehouse issues flour, not flour-for-the-
-   * burger, and scoring one recipe's share against the article's whole
-   * consumption would mark every shared ingredient down for being shared.
-   *
-   * Blank has one meaning here: the warehouse has never shipped this article to
-   * this brand, so there is nothing to score against. An article it does ship
-   * and did not ship this window scores a real 0% — that one is a miss.
-   *
-   * The footer averages the article scores rather than deriving one from the
-   * column totals. Each score is already a ratio of two figures in the same
-   * unit, so it is unit-free before anything is added; totalling first would
-   * let the millions of "Each" decide the number for kilograms too.
-   */
-  {
-    key: 'Accuracy',
-    label: 'ACC',
-    autoWidth: true,
-    num: true,
-    render: (v, row) =>
-      v === null || v === undefined ? (
-        <span
-          className="muted"
-          title={
-            row?.Consumed_Unknown
-              ? 'The warehouse has never issued this article to this brand, so there is nothing to score against.'
-              : 'Not enough to compare — nothing went out for this article in the window.'
-          }
-        >
-          –
-        </span>
-      ) : (
-        fmtPct(v, 1)
-      ),
-    total: (list) => {
-      // Once per article: the score repeats on every row of it.
-      const seen = new Map()
-      for (const r of list) {
-        const a = String(r['Item No.'] ?? '').trim()
-        if (!a || r.Accuracy === null || r.Accuracy === undefined) continue
-        if (!seen.has(a)) seen.set(a, r.Accuracy)
-      }
-      if (!seen.size) return null
-      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
-    },
-    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
-  },
-  /*
    * The same measurement, against the warehouse's own forecast.
    *
    * Accuracy beside it scores the recipe explosion: forecast sales multiplied
@@ -494,7 +444,6 @@ const COLUMN_ORDER = [
   'Sales_Day_Accuracy',
   // Neither group.
   'Live_Outbound_MTD',
-  'Accuracy',
 ]
 
 const ORDERED_COLUMNS = (() => {
@@ -1337,7 +1286,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           */}
         {!future && (
           <MetricCard
-            label="Demand accuracy"
+            label="Product mix accuracy"
             accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
             progress={summary.overall ?? 0}
             loading={busy}

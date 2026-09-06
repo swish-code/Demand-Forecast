@@ -28,7 +28,23 @@ const STATUS_HELP = {
   disabled: 'Blocked. Use for people who have left.',
 }
 
-export function UserEditor({ mode, user, roles, statuses, departments = [], departmentScopes = {}, departmentPages = {}, brands, currentUserId, onClose, onSaved }) {
+/**
+ * The rail's own names for the pages, so a grant reads the way the app does.
+ *
+ * The ids are what the server stores and enforces; nobody granting access
+ * should have to know that "component" is the page called Stock Article.
+ */
+const PAGE_LABELS = {
+  summary: 'Overview',
+  product: 'Products',
+  component: 'Stock Article',
+  warehouse: 'Warehouse Insights',
+  production: "Tomorrow's Prep",
+  guide: 'Guide',
+  admin: 'Admin',
+}
+
+export function UserEditor({ mode, user, roles, statuses, departments = [], departmentPages = {}, pageIds = [], brands, currentUserId, onClose, onSaved }) {
   const creating = mode === 'create'
 
   const [email, setEmail] = useState(user?.email ?? '')
@@ -50,6 +66,18 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
     user?.status === 'pending' ? 'active' : (user?.status ?? 'active')
   )
   const [department, setDepartment] = useState(user?.department ?? '')
+
+  /*
+   * Which pages this one account may open, or none for "let the department
+   * decide".
+   *
+   * An explicit grant is what the department rule cannot express: somebody in
+   * Production who also needs the Overview, without every Production account
+   * getting it. Empty means unset rather than "no pages" — locking an account
+   * out of everything is not something a blank form should be able to do by
+   * accident.
+   */
+  const [pages, setPages] = useState(() => new Set(user?.pages ?? []))
   const [brandCodes, setBrandCodes] = useState(
     () => new Set((user?.scopes ?? []).map((s) => s.brand).filter(Boolean))
   )
@@ -88,7 +116,6 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
    * leaving a tick the admin can clear.
    */
   /** The production types this department is confined to, or null for all. */
-  const departmentTypes = departmentScopes[department] ?? null
 
   /*
    * The pages it is confined to, which is a separate restriction.
@@ -117,7 +144,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
   const pickDepartment = (d) => {
     const next = department === d ? '' : d
     setDepartment(next)
-    if (next === 'Management' || departmentScopes[next] || departmentPages?.[next]) {
+    if (next === 'Management' || departmentPages?.[next]) {
       setBrandCodes(new Set(brands.map((b) => b.code)))
     }
   }
@@ -195,11 +222,11 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
     setError(null)
     try {
       if (creating) {
-        const res = await api.admin.createUser({ email, name, role, status, department: department || null, scopes })
+        const res = await api.admin.createUser({ email, name, role, status, department: department || null, pages: pages.size ? [...pages] : null, scopes })
         // Shown once and never recoverable — the admin has to pass it on now.
         setIssued({ email: res.user.email, verb: 'created' })
       } else {
-        await api.admin.updateUser(user.id, { name, role, status, department: department || null, scopes })
+        await api.admin.updateUser(user.id, { name, role, status, department: department || null, pages: pages.size ? [...pages] : null, scopes })
         onSaved(`Saved changes to ${user.email}.`)
       }
     } catch (err) {
@@ -361,29 +388,54 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                     Which part of the business they sit in. Separate from role — role decides what
                     they may see; this is who they are, and the usage figures group on it.
                   </span>
-                  {departmentTypes ? (
+                  {departmentPagesFor ? (
                     <InfoBanner>
                       <strong>
-                        {department} sees the Ingredients page, production {'type'}
-                        {departmentTypes.length === 1 ? '' : 's'} {departmentTypes.join(' and ')}.
+                        {department} opens {departmentPagesFor.length === 1 ? 'one page' : `${departmentPagesFor.length} pages`}:{' '}
+                        {departmentPagesFor.map((p) => PAGE_LABELS[p] ?? p).join(', ')}.
                       </strong>{' '}
-                      Components of any other type are hidden, and the Overview, Products and
-                      Tomorrow&rsquo;s Prep pages are not shown — production type has no meaning
-                      against a product total, so those pages could not honour the restriction.
-                      Every brand has been ticked below; untick any they should not see.
-                    </InfoBanner>
-                  ) : departmentPagesFor ? (
-                    <InfoBanner>
-                      <strong>
-                        {department} sees the Ingredients page only, with every production type.
-                      </strong>{' '}
-                      Raw materials, prep steps and the items the kitchens produce are all shown —
-                      this department buys and moves the stock, so it needs the whole list. The
-                      Overview, Products and Tomorrow&rsquo;s Prep pages are not shown, because
-                      product-level sales figures are not what this account is for. Every brand has
-                      been ticked below; untick any they should not see.
+                      Every other page is refused by the server, not merely hidden, so a typed
+                      address cannot reach one. There is no production-type restriction any more —
+                      raw materials, prep steps and the items the kitchens produce are all shown,
+                      because these accounts order from the whole list. Every brand has been ticked
+                      below; untick any they should not see.
                     </InfoBanner>
                   ) : null}
+                </div>
+              )}
+
+              {pageIds.length > 0 && role !== 'admin' && (
+                <div className="field">
+                  <span className="field__label">Pages</span>
+                  <div className="choices choices--wrap">
+                    {pageIds.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={`choice${pages.has(p) ? ' choice--on' : ''}`}
+                        onClick={() =>
+                          setPages((prev) => {
+                            const next = new Set(prev)
+                            next.has(p) ? next.delete(p) : next.add(p)
+                            return next
+                          })
+                        }
+                      >
+                        {PAGE_LABELS[p] ?? p}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="field__help">
+                    {pages.size
+                      ? 'This account opens only the pages ticked here, whatever its department would allow. The server refuses the rest, so a typed address cannot get past it.'
+                      : 'Nothing ticked, so the department decides — which for most departments is every page. Tick pages to restrict this account to them, or to give it one its department does not normally see.'}
+                  </span>
+                  {pages.size > 0 && !pages.has('component') && department && departmentPagesFor && (
+                    <InfoBanner tone="warn">
+                      This grant does not include Ingredients, which is the page {department}{' '}
+                      normally works from.
+                    </InfoBanner>
+                  )}
                 </div>
               )}
 
@@ -504,10 +556,31 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                   {/* No "reset password": there is none to reset. Somebody who
                       cannot sign in is a question for the tenant, not for this
                       dialog. */}
-                  {!isSelf && (
-                    <button type="button" className="btn btn--danger" disabled={busy} onClick={remove}>
-                      Delete
-                    </button>
+                  {/*
+                    * Shown even when it cannot be used.
+                    *
+                    * Deleting your own account is refused by the server, so the
+                    * button used to be hidden on your own row — and an absent
+                    * button is indistinguishable from a missing feature. An
+                    * administrator opening their own account saw no way to
+                    * delete anybody and reasonably concluded there wasn't one.
+                    * Disabled with a reason says which of the two it is.
+                    */}
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    disabled={busy || isSelf}
+                    onClick={remove}
+                    title={
+                      isSelf
+                        ? 'You cannot delete the account you are signed in with. Ask another administrator.'
+                        : 'Remove this account and its sign-in history'
+                    }
+                  >
+                    Delete
+                  </button>
+                  {isSelf && (
+                    <span className="field__help">This is the account you are signed in with.</span>
                   )}
                 </div>
               )}

@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS users (
   auth_provider   TEXT    NOT NULL DEFAULT 'local'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
+-- Which pages this account may open, as a JSON array. NULL means "use the
+-- department's default", which is what every account had before this column
+-- existed, so an upgrade changes nobody's access.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pages TEXT;
 
 CREATE TABLE IF NOT EXISTS user_scopes (
   id          SERIAL PRIMARY KEY,

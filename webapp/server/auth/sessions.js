@@ -40,7 +40,7 @@ export async function resolveSession(raw) {
   if (!raw) return null
 
   const row = await pg.get(
-    `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status, u.department
+    `SELECT s.id AS sid, s.expires_at, u.id, u.email, u.name, u.role, u.status, u.department, u.pages
        FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.id = ?

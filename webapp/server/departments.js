@@ -31,34 +31,22 @@ export const DEPARTMENTS = [
 
 export const isDepartment = (value) => DEPARTMENTS.includes(value)
 
-/**
- * Which production types a department is allowed to see, and nothing else.
+/*
+ * Departments are matched on their normalised name.
  *
- * A component's Node Type says who handles it: RAW is bought in and lives in
- * the warehouse, PREP is worked on, PA is something a kitchen produces itself.
- * The people who do one of those jobs have no business reading the others'
- * numbers, and were being shown all three.
- *
- * A department not listed here is unrestricted — Management, Analytics and the
- * rest still see everything. This is a restriction to apply, not a permission
- * to grant, so an unknown or missing department can only ever mean "no
- * restriction", never "no access".
- *
- * The values are the model's own, and it is worth saying why they are written
- * out rather than discovered: the whole point is that this list does not change
- * when the model gains a fourth type. A new production type nobody has decided
- * about should be visible to the unrestricted departments and to nobody else,
- * which is what naming the allowed values gives you and what an exclusion list
- * would not.
+ * The list is fixed and the account form only offers these values, but a
+ * department can also arrive from a directory sync or an older row, and
+ * "warehouse " or "Warehouse" then matched nothing — which fails open: no
+ * restriction found means no restriction applied, and the account sees
+ * everything. A lookup that decides who can see what should not turn on a
+ * trailing space.
  */
-export const DEPARTMENT_NODE_TYPES = {
-  Production: ['PA', 'PREP'],
-  Bakery: ['PA', 'PREP'],
-  Warehouse: ['RAW'],
-}
+const norm = (v) => String(v ?? '').trim().toLowerCase()
 
-/** The production types this department may see, or null for all of them. */
-export const nodeTypesFor = (department) => DEPARTMENT_NODE_TYPES[department] ?? null
+const byNormalisedName = (map) =>
+  new Map(Object.entries(map).map(([name, value]) => [norm(name), value]))
+
+
 
 /**
  * Departments that belong on the Ingredients page and nowhere else.
@@ -73,7 +61,26 @@ export const nodeTypesFor = (department) => DEPARTMENT_NODE_TYPES[department] ??
  * A department named here is confined to these pages whatever its production
  * types are. Anything not named falls through to the rule below it.
  */
+/**
+ * Which pages a department may open, where its access is narrower than the app.
+ *
+ * This is now the whole department rule. There used to be a second one beside
+ * it that restricted these accounts to particular production types as well —
+ * Warehouse to RAW, Production to PA and PREP — and it was removed on 6 Sep
+ * 2026 because it answered a question nobody was asking: these departments need
+ * the Ingredients page, and they need all of it. Splitting the page by
+ * production type hid rows from the people who order them.
+ *
+ * A department not named here is unrestricted, which is why this is a list of
+ * exceptions rather than a permission table. An account needing something
+ * different from its department gets an explicit grant instead — see
+ * `allowedPages`.
+ */
 export const DEPARTMENT_PAGES = {
+  // These four work from the stock list and nothing else.
+  Production: ['component'],
+  Bakery: ['component'],
+  Warehouse: ['component'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.
   Procurement: ['component', 'warehouse', 'guide'],
@@ -89,5 +96,58 @@ export const DEPARTMENT_PAGES = {
  * the restriction — they would answer with everything and look like a leak,
  * because they would be one. Ingredients is the page these accounts are for.
  */
-export const pagesFor = (department) =>
-  DEPARTMENT_PAGES[department] ?? (nodeTypesFor(department) ? ['component', 'warehouse', 'guide'] : null)
+const PAGES_BY_NAME = byNormalisedName(DEPARTMENT_PAGES)
+
+/** The pages this department may see by default, or null for all of them. */
+export const pagesFor = (department) => PAGES_BY_NAME.get(norm(department)) ?? null
+
+/**
+ * Every page id the app has, so a grant can be checked against something real.
+ *
+ * Kept here rather than imported from the client, because the server is what
+ * enforces this and it cannot depend on the bundle to know what it is
+ * enforcing. A page added there and not here simply cannot be granted, which is
+ * the safe direction for the mistake to fail in.
+ */
+export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin']
+
+/**
+ * What one account may open — the whole rule, in one place.
+ *
+ * An explicit grant on the account wins. It is stored per user so somebody in
+ * Production can be given the Overview without every other Production account
+ * getting it too, which the department rule alone could never express.
+ *
+ * With no grant, the department's default applies; with neither, the account is
+ * unrestricted. Administrators are never restricted — an admin who could lock
+ * themselves out of the admin page would be a support call with no way back.
+ */
+export function allowedPages(user) {
+  if (user?.role === 'admin') return null
+
+  /*
+   * Everyone else is measured against the report pages, never Admin.
+   *
+   * Admin was only ever kept out of the rail by a flag on the client and by
+   * `requireRole` on its own routes — so it was never really part of this rule,
+   * and a grant naming it would have been honoured. Subtracting it here means
+   * one place decides, and the answer is the same whether it is asked by the
+   * rail or by the route.
+   */
+  const REPORTS = PAGE_IDS.filter((p) => p !== 'admin')
+
+  const granted = Array.isArray(user?.pages)
+    ? user.pages
+    : typeof user?.pages === 'string' && user.pages.trim()
+      ? JSON.parse(user.pages)
+      : null
+
+  if (Array.isArray(granted) && granted.length) {
+    const valid = granted.filter((p) => REPORTS.includes(p))
+    // A grant of nothing valid is a mistake, not an instruction to lock the
+    // account out of every page it has.
+    if (valid.length) return valid
+  }
+
+  return pagesFor(user?.department) ?? REPORTS
+}

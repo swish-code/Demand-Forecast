@@ -182,10 +182,37 @@ const bootstrapAdmins = () =>
       .filter(Boolean)
   )
 
-const isBootstrapAdmin = (...addresses) => {
+const isNamedAdmin = (...addresses) => {
   const named = bootstrapAdmins()
   return addresses.flat().some((e) => e && named.has(String(e).trim().toLowerCase()))
 }
+
+/**
+ * Whether this deployment currently has nobody who could grant access.
+ *
+ * The whole point of ADMIN_EMAILS is the locked room: a fresh deployment where
+ * the first person to sign in would be created pending, with no administrator
+ * in existence to approve them. That is a real problem and this is a reasonable
+ * key under the mat.
+ *
+ * It is only a key under the mat while the room is locked. Applied on every
+ * sign-in it stops being a bootstrap and becomes a standing override: an
+ * account named here was silently restored to `admin` each time it signed in,
+ * so demoting it in the admin screen appeared to work, survived until the
+ * person next logged in, and then undid itself with no trace but a line in the
+ * server log. Access assigned in the app has to outrank a variable set months
+ * ago by somebody who has since left.
+ */
+const noAdministratorExists = async () => {
+  const row = await pg.get(
+    "SELECT COUNT(*)::int AS n FROM users WHERE role = 'admin' AND status = 'active'"
+  )
+  return (row?.n ?? 0) === 0
+}
+
+/** Named in the variable, and genuinely needed — both, or it does not apply. */
+const isBootstrapAdmin = async (...addresses) =>
+  isNamedAdmin(...addresses) && (await noAdministratorExists())
 
 export async function accountFor({ email, emails, name }) {
   // Matched without regard to case: Entra returns whatever casing the directory
@@ -254,9 +281,15 @@ export async function accountFor({ email, emails, name }) {
 
     // A named administrator who was created pending by an earlier sign-in is
     // let in now rather than waiting for somebody who cannot exist yet.
-    if (isBootstrapAdmin(lookup) && (existing.status !== 'active' || existing.role !== 'admin')) {
+    if (
+      (existing.status !== 'active' || existing.role !== 'admin') &&
+      (await isBootstrapAdmin(lookup))
+    ) {
       await pg.run("UPDATE users SET status = 'active', role = 'admin' WHERE id = ?", [existing.id])
-      console.log(`  [auth] ${email} activated as an administrator (named in ADMIN_EMAILS)`)
+      console.log(
+        `  [auth] ${email} activated as an administrator — named in ADMIN_EMAILS and this ` +
+          'deployment had no active administrator'
+      )
       return {
         user: { ...existing, status: 'active', role: 'admin' },
         created: false,
@@ -269,7 +302,7 @@ export async function accountFor({ email, emails, name }) {
   // No password is ever used for these accounts; the column is NOT NULL, so it
   // gets an unusable random value rather than anything guessable.
   const unusable = await hashPassword(b64url(randomBytes(32)))
-  const bootstrap = isBootstrapAdmin(lookup)
+  const bootstrap = await isBootstrapAdmin(lookup)
   if (bootstrap) console.log(`  [auth] ${email} created as an administrator (named in ADMIN_EMAILS)`)
   // RETURNING gives the whole row, so there is no second query and no reliance
   // on a last-insert id that PostgreSQL does not report the same way.

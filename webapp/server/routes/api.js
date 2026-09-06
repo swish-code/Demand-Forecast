@@ -15,7 +15,7 @@ import { cached, clearCache } from '../cache.js'
 import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings, missingWarehouse } from '../config.js'
-import { nodeTypesFor, pagesFor } from '../departments.js'
+import { allowedPages } from '../departments.js'
 import * as cube from '../cube/query.js'
 import {
   consumptionByArticle,
@@ -138,31 +138,6 @@ function scopedFilters(req, brand) {
   if (brand?.code) f.brand = brand.code
   if (brand?.chain) f.brands = [brand.chain]
 
-  /*
-   * The production types this department may see.
-   *
-   * Same rule as branches and for the same reason: read from the session, never
-   * from the request, so editing the payload cannot widen it. Asking for a type
-   * outside the grant leaves the intersection rather than erroring, so a stale
-   * bookmark degrades to their own rows; asking only for types they cannot see
-   * leaves nothing, and that is a refusal.
-   */
-  const types = nodeTypesFor(req.user?.department)
-  if (types) {
-    const asked = Array.isArray(f.nodeTypes) ? f.nodeTypes.map(String) : []
-    const narrowed = asked.length ? types.filter((t) => asked.includes(t)) : types
-    if (!narrowed.length) {
-      return {
-        filters: f,
-        denied: true,
-        reason:
-          `The ${req.user.department} department sees ` +
-          `${types.join(' and ')} components. Clear the production type filter to see them.`,
-      }
-    }
-    f.nodeTypes = narrowed
-  }
-
   // Narrowed within this brand: a branch granted on another brand must not
   // widen this one, and branch codes are not unique across chains.
   return applyLocationScope(f, req.scope, brand?.code ?? null)
@@ -218,12 +193,20 @@ api.use(requireAuth, (req, res, next) => {
  * URL all reach the same route without going near the rail.
  */
 function pageDenied(req, res, page) {
-  const allowed = pagesFor(req.user?.department)
+  const allowed = allowedPages(req.user)
   if (!allowed || allowed.includes(page)) return false
+  /*
+   * Named for the page rather than the department.
+   *
+   * The message used to explain the Ingredients restriction whatever the reason
+   * was, which was wrong as soon as access could be granted per account: a
+   * reader denied the Overview was told about production types they may not
+   * even be restricted by.
+   */
   res.status(403).json({
     error:
-      `The ${req.user.department} department sees ingredients rather than product figures. ` +
-      'Ask an administrator if you need the other pages.',
+      'Your account does not have access to this page. ' +
+      'Ask an administrator if you need it.',
   })
   return true
 }
@@ -341,16 +324,10 @@ api.all('/slicers', handle(async (req, res) => {
   const results = await g.fanOut(async ({ f, ds, brand }) => {
     const out = await data.slicers(f, ds, need)
     const granted = locationsForBrand(req.scope, brand?.code ?? null)
-    const types = nodeTypesFor(req.user?.department)
 
     const narrowed = { ...out }
     if (granted && out?.locations) {
       narrowed.locations = out.locations.filter((l) => granted.has(String(l)))
-    }
-    // Same reasoning as the branch list: offering a production type this
-    // account cannot open is a dropdown entry that answers with nothing.
-    if (types && out?.nodeTypes) {
-      narrowed.nodeTypes = out.nodeTypes.filter((t) => types.includes(String(t)))
     }
     return narrowed
   })
@@ -1061,9 +1038,17 @@ api.all('/warehouse-trend', handle(async (req, res) => {
  * sales were. Brands are added together, because the reader has chosen them.
  */
 async function salesByDay(parts) {
-  const series = await Promise.all(
-    parts.map((p) => cube.trend(p.brand.code, p.f).catch(() => null))
-  )
+  /*
+   * One brand at a time.
+   *
+   * These are local reads against a single-connection engine, so asking for
+   * nine at once buys nothing and was one of the paths handing the engine
+   * overlapping statements. Sequential is the same total work.
+   */
+  const series = []
+  for (const p of parts) {
+    series.push(await cube.trend(p.brand.code, p.f).catch(() => null))
+  }
 
   const byDate = new Map()
   let actual = 0
@@ -1107,6 +1092,7 @@ async function salesByDay(parts) {
  * the rows somebody is most likely to be asking this question about.
  */
 api.all('/article-usage', handle(async (req, res) => {
+  if (pageDenied(req, res, 'component')) return
   const g = guardMany(req, res)
   if (!g) return
 
@@ -1182,6 +1168,7 @@ SUMMARIZECOLUMNS(
 
 
 api.all('/component-level', handle(async (req, res) => {
+  if (pageDenied(req, res, 'component')) return
   const g = guardMany(req, res)
   if (!g) return
   const grain = grainOf(req)
