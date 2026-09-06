@@ -4515,12 +4515,26 @@ table.dt tbody tr:hover td.dt--wh {
   background: var(--sunken);
 }
 
-/* A recipe-derived warehouse forecast, marked so it is not read as a rate. */
-.qmark {
-  margin-left: 2px;
-  color: var(--text-faint);
-  font-size: 10px;
-  vertical-align: super;
+/* The whole answer for somebody who only needs to know it is used. */
+.usage__count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--s6, 40px) var(--s4);
+}
+
+.usage__countnum {
+  font-size: 46px;
+  font-weight: var(--w-bold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.usage__countlabel {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* The recipe path is the answer to "how does this get in there", so it wraps

@@ -585,29 +585,6 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
     return new Map()
   })
 
-  /*
-   * What the recipes ask for, per article, as a fallback forecast.
-   *
-   * An article the warehouse has shipped for fewer than three months has no
-   * rate worth averaging, so `forecastFromConstants` declines it. That is not a
-   * reason to leave the row blank when a menu item actually uses the article:
-   * the recipe explosion already says how much of it those forecast sales
-   * imply, and that is a better answer than a rate fitted to one delivery.
-   *
-   * Summed across every recipe group first, because the requirement is split
-   * over them and the warehouse orders the article, not the recipe's share of
-   * it. An article no recipe names gets nothing here, which is the intended
-   * answer — with no history and no menu item there is nothing to forecast
-   * from, and inventing a number would be worse than a dash.
-   */
-  const recipeTotal = new Map()
-  for (const r of rows) {
-    const article = String(r['Item No.'] ?? '').trim()
-    const qty = Number(r.Component_Forecast_Qty)
-    if (!article || !Number.isFinite(qty) || qty <= 0) continue
-    recipeTotal.set(article, (recipeTotal.get(article) ?? 0) + qty)
-  }
-
   const keyOf = (r) => {
     const article = String(r['Item No.'] ?? '').trim()
     if (!article) return null
@@ -669,12 +646,7 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
      * A Map means the window includes today and the warehouse was asked; null
      * means the window has not started.
      */
-    const fromHistory = byConstant.get(article) ?? null
-    const fromRecipe = recipeTotal.get(article) ?? null
-    const constant = fromHistory ?? fromRecipe
-    // Says which method answered, so the column can explain itself rather than
-    // presenting two quite different derivations as one number.
-    const basis = fromHistory !== null ? 'history' : fromRecipe !== null ? 'recipe' : null
+    const constant = byConstant.get(article) ?? null
 
     // Live outbound follows Outbound's rules, not its own. An article the
     // warehouse has never shipped is blank in both — reading "0" in one column
@@ -690,7 +662,6 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
         Consumed_Qty: qty,
         Live_Outbound_MTD: live(),
         WH_Constant_Forecast_Qty: constant,
-        WH_Forecast_Basis: basis,
       }
     }
     // No shipping history at all, so there is nothing to compare against.
@@ -708,7 +679,6 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
           : null,
         Live_Outbound_MTD: null,
         WH_Constant_Forecast_Qty: constant,
-        WH_Forecast_Basis: basis,
       }
     }
     return {
@@ -716,7 +686,6 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
       Consumed_Qty: 0,
       Live_Outbound_MTD: live(),
       WH_Constant_Forecast_Qty: constant,
-      WH_Forecast_Basis: basis,
     }
   })
 }
@@ -1169,15 +1138,45 @@ api.all('/article-usage', handle(async (req, res) => {
    */
   const byDataset = new Map()
   for (const p of g.parts) {
-    if (!byDataset.has(p.ds)) byDataset.set(p.ds, [])
-    byDataset.get(p.ds).push(p.brand.code)
+    if (!byDataset.has(p.ds)) byDataset.set(p.ds, { codes: [], chains: new Set() })
+    const held = byDataset.get(p.ds)
+    held.codes.push(p.brand.code)
+    // A model can hold two brands, and CHAINID is what separates them inside it.
+    for (const c of p.f.brands?.length ? p.f.brands : [p.brand.chainId ?? p.brand.code]) {
+      if (c) held.chains.add(String(c))
+    }
   }
 
   const parts = await Promise.all(
-    [...byDataset.entries()].map(async ([ds, codes]) =>
-      cached(`${ds}:usage:${column}:${value}`, async () => {
-      const rows = await executeQuery(
-        `EVALUATE
+    [...byDataset.entries()].map(([ds, { codes, chains }]) => {
+      const scope = [...chains].sort()
+      const plu = scope.length
+        ? `TREATAS({${scope.map((c) => `"${c}"`).join(', ')}}, Forecast_Product_Table[CHAINID])`
+        : ''
+
+      /*
+       * Scoped to the products this brand actually sells.
+       *
+       * 'RECIPE TABLE' is a company-wide master and the same 245,874 rows are
+       * loaded into every model — it has no brand column at all. Read on its
+       * own it says every brand makes every product, which is how "9 Arayes &
+       * Wraps Combo" came back under BBT, CHP, PAT and SS when it belongs to
+       * Shawarma Station alone.
+       *
+       * Forecast_Product_Table is the brand-scoped side, and its Clean_ItemID
+       * is the recipe's Product PLU. Narrowing the recipe rows to the PLUs that
+       * table holds for the selected brands is the same join the
+       * [Component_Forecast_Qty] measure makes internally, and the same one the
+       * recipe slicers already use — so this answer and the Forecast qty column
+       * are now scoped identically.
+       */
+      const dax = `EVALUATE
+VAR PLUs =
+  CALCULATETABLE(
+    VALUES(Forecast_Product_Table[Clean_ItemID])${plu ? `,
+    ${plu}` : ''}
+  )
+RETURN
 SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Product Name],
   'RECIPE TABLE'[Product PLU],
@@ -1186,20 +1185,20 @@ SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Node Type],
   'RECIPE TABLE'[BU],
   TREATAS({"${value}"}, ${column}),
+  FILTER(ALL('RECIPE TABLE'[Product PLU]), 'RECIPE TABLE'[Product PLU] IN PLUs),
   "Qty_Per_Unit", SUM('RECIPE TABLE'[QTY BU])
-)`,
-        ds,
-        { bulk: true }
-      )
+)`
+
+      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}`, () =>
         // Raw rows in the cache, so nothing stored carries one caller's label.
-        return rows
-      })
+        executeQuery(dax, ds, { bulk: true })
+      )
         .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / ') })))
         .catch((err) => {
           console.warn(`  [usage] ${codes.join('/')}: ${err.message}`)
           return []
         })
-    )
+    })
   )
 
   /*

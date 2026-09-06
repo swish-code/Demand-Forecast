@@ -646,6 +646,9 @@ export default function App({ session, onSignedOut }) {
               refreshNonce={refreshNonce}
               onLoaded={markUpdated}
               onDrill={drill}
+              // Some detail is for the people who maintain the numbers rather
+              // than the people who read them.
+              isAdmin={session?.user?.role === 'admin'}
             />
           )}
             </>

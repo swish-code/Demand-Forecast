@@ -151,19 +151,10 @@ export function forgetConstants() {
  * daily figures and the monthly figure agree by construction rather than by
  * rounding.
  */
-/**
- * The fewest months of delivery history a rate may be averaged from.
- *
- * Below this the constant is fitted to noise. Three is the line asked for on
- * 6 Sep 2026 — enough for a monthly ordering cycle to have repeated, which is
- * what makes an average mean anything at all.
- */
-export const MIN_MONTHS = 3
-
 export async function forecastFromConstants(
   brand,
   filters,
-  { today = new Date(), basis = 'forecast', minMonths = MIN_MONTHS } = {}
+  { today = new Date(), basis = 'forecast' } = {}
 ) {
   /*
    * Whole brand or nothing.
@@ -198,19 +189,6 @@ export async function forecastFromConstants(
 
   const out = new Map()
   for (const [article, held] of constants) {
-    /*
-     * Too little history to average, so this method declines to answer.
-     *
-     * One or two months of deliveries is a sample, not a rate: a single bulk
-     * drop in an otherwise empty window sets a constant several times too high,
-     * and the article then shows a confident requirement built on one event.
-     *
-     * Declining is not the same as having no forecast. The caller falls back to
-     * the recipe explosion for articles a menu item actually uses, which is a
-     * better answer than a rate from one month — and for articles no recipe
-     * names, no answer is the honest one.
-     */
-    if (held.months < minMonths) continue
     const qty = held.constant * sales
     if (!Number.isFinite(qty) || qty <= 0) continue
     out.set(article, qty)

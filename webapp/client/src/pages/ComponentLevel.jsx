@@ -249,20 +249,10 @@ const COLUMNS = [
     group: 'wh',
     total: 'sum',
     renderTotal: fmtQty,
-    render: (v, row) =>
+    render: (v) =>
       v === null || v === undefined ? (
-        <span
-          className="muted"
-          title="Fewer than three months of warehouse history and no recipe uses this article, so there is nothing to forecast from."
-        >
+        <span className="muted" title="No warehouse history for this article in the last six months, so there is no ratio to forecast from.">
           –
-        </span>
-      ) : row?.WH_Forecast_Basis === 'recipe' ? (
-        // Marked, because it is a different derivation from the number above
-        // and below it, and presenting the two identically would hide that.
-        <span title="Fewer than three months of warehouse history, so this comes from the recipe the menu items use rather than from a shipping rate.">
-          {fmtQty(v)}
-          <span className="qmark">*</span>
         </span>
       ) : (
         fmtQty(v)
@@ -572,7 +562,7 @@ function BandChart({ label, bands, counts, active, total, onPick }) {
  */
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
-export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded }) {
+export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin }) {
   /*
    * Which extra dimensions the reader has switched on.
    *
@@ -1570,7 +1560,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       )}
 
       {usage && (
-        <ArticleUsage article={usage} filters={filters} onClose={() => setUsage(null)} />
+        <ArticleUsage
+          article={usage}
+          filters={filters}
+          isAdmin={isAdmin}
+          onClose={() => setUsage(null)}
+        />
       )}
     </>
   )
