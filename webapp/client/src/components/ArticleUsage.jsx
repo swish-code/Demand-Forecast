@@ -103,7 +103,7 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal__card" role="dialog" aria-modal="true" aria-label="Menu items using this article">
+      <div className="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-label="Menu items using this article">
         <div className="modal__head">
           <div>
             <h2 className="modal__title">{article.Item}</h2>
@@ -151,16 +151,26 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
                 {total > 0 && (
                   <>
                     {' '}
-                    · {perUnit(total)} {article.BU || ''} across all of them, per one unit of each
+                    · {perUnit(total)} {article.BU || ''} in total, per one unit of each
                   </>
                 )}
+                {' · '}quantities are per <strong>one unit</strong> of the menu item; multiply by
+                that product&rsquo;s forecast for its share of{' '}
+                {fmtQty(article.Component_Forecast_Qty)} {article.BU || ''}
               </p>
 
               <DataTable
                 columns={COLUMNS}
                 rows={tableRows}
                 tableId="article-usage"
-                maxHeight={420}
+                // The dialog decides the height now — see `.modal__card--wide`
+                // — so this only stops it growing past the space it was given.
+                fill
+                groupable={[
+                  { key: 'CHAINID', label: 'Brand' },
+                  { key: 'BU', label: 'Unit' },
+                  { key: 'Path', label: 'Recipe path' },
+                ]}
                 searchPlaceholder="Search a menu item…"
                 onViewChange={setView}
                 totals
@@ -168,26 +178,20 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
               />
 
               <p className="usage__note">
-                Quantities are per <strong>one unit</strong> of the menu item, taken from the recipe
-                tree. Multiply by that product&rsquo;s forecast to get its share of the requirement
-                shown in the table — {fmtQty(article.Component_Forecast_Qty)} {article.BU || ''}.
                 {view ? (
-                  <>
-                    {' '}
-                    <button
-                      type="button"
-                      className="btn btn--ghost"
-                      onClick={() =>
-                        downloadCsv(
-                          `${article['Item No.'] || article.Item}-menu-items.csv`,
-                          view.rows,
-                          view.columns
-                        )
-                      }
-                    >
-                      CSV
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() =>
+                      downloadCsv(
+                        `${article['Item No.'] || article.Item}-menu-items.csv`,
+                        view.rows,
+                        view.columns
+                      )
+                    }
+                  >
+                    Download CSV
+                  </button>
                 ) : null}
               </p>
             </>

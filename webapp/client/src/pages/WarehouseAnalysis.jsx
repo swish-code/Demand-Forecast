@@ -379,10 +379,42 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
     return { open, settled }
   }, [s, seg, issues])
 
+  /*
+   * Group labels as plain fields.
+   *
+   * Grouping folds on a value, and the values it would otherwise see are codes
+   * ("under-20") or objects (the diagnosis). Flattening them here keeps the
+   * heading readable without the table having to know what any of them mean.
+   */
+  const BANDS = {
+    'under-20': 'Under 20%',
+    '20-40': '20–40%',
+    '40-60': '40–60%',
+    '60-85': '60–85%',
+    '85-100': '85–100%',
+  }
+  const VOL = {
+    steady: 'Steady',
+    moderate: 'Moderate',
+    volatile: 'Volatile',
+    erratic: 'Very volatile',
+  }
+
+  const labelled = useMemo(
+    () =>
+      articles.map((a) => ({
+        ...a,
+        issueLabel: a.issue?.label ?? '—',
+        bandLabel: BANDS[a.keys?.band] ?? 'Not scored',
+        volatilityLabel: VOL[a.keys?.volatility] ?? '—',
+      })),
+    [articles]
+  )
+
   const shown = useMemo(() => {
-    if (!pick) return articles
-    return articles.filter((a) => a.keys?.[pick.type] === pick.key)
-  }, [articles, pick])
+    if (!pick) return labelled
+    return labelled.filter((a) => a.keys?.[pick.type] === pick.key)
+  }, [labelled, pick])
 
   if (error) return <ErrorBanner error={error} onRetry={reload} />
   if (loading && !data) return <ChartSkeleton height={420} />
@@ -623,6 +655,14 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             columns={COLUMNS}
             rows={shown}
             tableId="wh-analysis-articles"
+            groupable={[
+              { key: 'recipe', label: 'Recipe / non-recipe' },
+              { key: 'issueLabel', label: 'Why it is off' },
+              { key: 'bandLabel', label: 'Accuracy band' },
+              { key: 'volatilityLabel', label: 'How much demand varies' },
+              { key: 'unit', label: 'Unit' },
+            ]}
+            maxHeight={620}
             totals
             initialSort={{ key: 'variance', dir: 'desc' }}
             searchPlaceholder="Search an article…"

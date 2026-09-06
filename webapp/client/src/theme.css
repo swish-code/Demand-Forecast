@@ -2797,6 +2797,91 @@ table.dt td.num {
   padding-right: 10px;
 }
 
+/* --- group by ------------------------------------------------------------ */
+
+.tgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tgroup select {
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 6px);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+/* A heading row inside the body, spanning every column.
+   Deliberately not sticky: the column header already is, and stacking a second
+   sticky row under it means guessing the first one's height — which is wrong
+   the moment a header wraps or a table gains its column-group titles. */
+table.dt tbody tr.dt__grouprow-body th {
+  padding: 0;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.dt__grouptoggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: 8px var(--s4);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: var(--w-medium);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dt__grouptoggle:hover { background: var(--line-soft, var(--line)); }
+
+/* Points down when open, right when shut — the state, not a decoration. */
+.dt__caret {
+  width: 0;
+  height: 0;
+  flex: none;
+  border-left: 5px solid var(--text-faint);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.dt__caret--open { transform: rotate(90deg); }
+
+.dt__groupcount {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+}
+
+/* The group's totals, pushed to the right so they line up down the page. */
+.dt__groupsum {
+  font-size: 11px;
+  font-weight: var(--w-regular);
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.dt__groupsum + .dt__groupsum { margin-left: var(--s3); }
+.dt__groupsum b { color: var(--text); font-variant-numeric: tabular-nums; }
+
 /* A column that wraps rather than truncates. Only the article name does this:
    it is the one column where losing the end of the text loses the meaning. */
 table.dt td.dt--wrap {
@@ -3243,6 +3328,14 @@ table.dt thead th:hover .th__sort--idle {
 
 .modal__card {
   width: min(720px, 100%);
+}
+
+/* A dialog holding a table, rather than a form: as wide as the screen allows
+   so the columns fit, and tall enough that the rows are worth scrolling. */
+.modal__card--wide {
+  width: min(1180px, 96vw);
+  height: min(92vh, 900px);
+  max-height: min(92vh, 900px);
   max-height: min(86vh, 860px);
   display: flex;
   flex-direction: column;
@@ -3252,6 +3345,37 @@ table.dt thead th:hover .th__sort--idle {
   outline: none;
   animation: modalCardIn var(--t-med) var(--ease);
 }
+
+/*
+ * The table takes the space, and cannot be squeezed out of it.
+ *
+ * `.modal__body` is a flex column, so every child shrinks by default. The table
+ * wrapper was therefore collapsing to whatever was left after the heading, the
+ * toolbar, the pager and the footnote — about four rows — and its own
+ * `max-height` never came into play, because it was nowhere near reaching it.
+ *
+ * `flex: 1 1 auto` with a floor makes it the part that grows, and `min-height:0`
+ * is what lets a flex child scroll internally at all rather than growing to fit
+ * its content.
+ */
+.modal__card--wide .modal__body {
+  gap: var(--s4);
+  min-height: 0;
+}
+
+.modal__card--wide .tablewrap {
+  flex: 1 1 auto;
+  /* Ten rows or so before the dialog itself has to scroll. */
+  min-height: 460px;
+}
+
+/* Tighter rows in a dialog than on a page: the space is borrowed, and two
+   fewer pixels a row is another row visible. */
+.modal__card--wide table.dt td { padding-top: 7px; padding-bottom: 7px; }
+.modal__card--wide table.dt td.dt--wrap { line-height: 1.3; }
+
+/* Everything else in that dialog keeps its natural height. */
+.modal__card--wide .modal__body > *:not(.tablewrap) { flex: none; }
 
 @keyframes modalIn {
   from { opacity: 0; }

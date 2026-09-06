@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Empty } from './ui.jsx'
 import { Popover } from './Popover.jsx'
 import { IconSearch, IconSort, IconArrowUp, IconArrowDown, IconClose, IconCheck, IconColumns } from './Icons.jsx'
@@ -88,6 +88,14 @@ export function DataTable({
    */
   tableId,
   /**
+   * Fields the reader may fold the table on, as `[{ key, label }]`.
+   *
+   * Supplying this adds a "Group by" control. Grouping is a reading aid rather
+   * than a filter — every row is still there, gathered under a heading that
+   * carries the count and the totals for its group.
+   */
+  groupable,
+  /**
    * Titles for the shaded column groups, keyed by the `group` on each column.
    *
    * Supplying this adds a row above the headers spanning each run of grouped
@@ -109,6 +117,16 @@ export function DataTable({
 }) {
   const [sort, setSort] = useState(initialSort ?? { key: columns[0]?.key, dir: 'asc' })
   const [query, setQuery] = useState('')
+
+  /*
+   * Which field the rows are folded on, and which groups are shut.
+   *
+   * Collapsed rather than expanded is the wrong default here: somebody who has
+   * just grouped a table wants to see the shape of it, and a page of closed
+   * headings makes them click every one to find out what they did.
+   */
+  const [groupBy, setGroupBy] = useState(null)
+  const [shut, setShut] = useState(() => new Set())
   const [pageSize, setPageSize] = useState(pageSizes[0])
   const [page, setPage] = useState(1)
 
@@ -452,7 +470,31 @@ export function DataTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- shownKey stands for shown
   }, [shownKey, sorted])
 
-  const size = !paginate || pageSize === 'All' ? sorted.length || 1 : Number(pageSize)
+  /*
+   * The rows folded into groups, in the order the sort already put them.
+   *
+   * Grouping switches pagination off. A page boundary through the middle of a
+   * group is meaningless — the heading says "18 articles" and the page shows
+   * four of them — and these tables are small enough to render whole.
+   */
+  const folds = useMemo(() => {
+    if (!groupBy) return null
+    const out = new Map()
+    for (const r of sorted) {
+      const raw = r[groupBy]
+      const key =
+        raw === null || raw === undefined || raw === ''
+          ? '—'
+          : typeof raw === 'boolean'
+            ? raw ? 'Yes' : 'No'
+            : String(raw)
+      if (!out.has(key)) out.set(key, [])
+      out.get(key).push(r)
+    }
+    return [...out.entries()].sort((a, b) => b[1].length - a[1].length)
+  }, [sorted, groupBy])
+
+  const size = !paginate || groupBy || pageSize === 'All' ? sorted.length || 1 : Number(pageSize)
   const pageCount = Math.max(1, Math.ceil(sorted.length / size))
 
   // Keep the page in range when filtering or sorting shrinks the result set.
@@ -587,10 +629,31 @@ export function DataTable({
 
   return (
     <>
-      {(searchable || picker) && (
+      {(searchable || picker || groupable?.length) && (
         <div className="tbar">
           <div className="pager__spacer" />
           {query && <span className="pager__info">{sorted.length.toLocaleString()} match</span>}
+          {groupable?.length ? (
+            <label className="tgroup">
+              <span>Group by</span>
+              <select
+                value={groupBy ?? ''}
+                onChange={(e) => {
+                  setGroupBy(e.target.value || null)
+                  // A new grouping opens fresh; last time's shut headings are
+                  // about a different set of groups.
+                  setShut(new Set())
+                }}
+              >
+                <option value="">Nothing</option>
+                {groupable.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {picker}
           {searchable && (
           <label className="tsearch">
@@ -708,7 +771,76 @@ export function DataTable({
             </thead>
 
             <tbody>
-              {visible.map((row, i) => (
+              {folds
+                ? folds.map(([key, rows]) => {
+                    const open = !shut.has(key)
+                    return (
+                      <Fragment key={key}>
+                        <tr className="dt__grouprow-body">
+                          <th colSpan={shown.length} scope="colgroup">
+                            <button
+                              type="button"
+                              className="dt__grouptoggle"
+                              aria-expanded={open}
+                              onClick={() =>
+                                setShut((prev) => {
+                                  const next = new Set(prev)
+                                  next.has(key) ? next.delete(key) : next.add(key)
+                                  return next
+                                })
+                              }
+                            >
+                              <span className={`dt__caret${open ? ' dt__caret--open' : ''}`} aria-hidden="true" />
+                              {key}
+                              <span className="dt__groupcount">{rows.length}</span>
+                              {/*
+                                * The group's own totals, on the heading.
+                                *
+                                * A collapsed group that shows only a count makes
+                                * somebody open it to learn anything, which is the
+                                * work collapsing was meant to save.
+                                */}
+                              {shown
+                                .filter((c) => c.num && c.total === 'sum')
+                                .slice(0, 3)
+                                .map((c) => (
+                                  <span key={c.key} className="dt__groupsum">
+                                    {c.label}{' '}
+                                    <b>
+                                      {(c.renderTotal ?? c.render ?? String)(
+                                        rows.reduce((a, r) => a + (Number(r[c.key]) || 0), 0),
+                                        {}
+                                      )}
+                                    </b>
+                                  </span>
+                                ))}
+                            </button>
+                          </th>
+                        </tr>
+                        {open &&
+                          rows.map((row, i) => (
+                            <tr
+                              key={shown.map((c) => row[c.key]).join('|') + i}
+                              className={onRowClick ? 'clickable' : undefined}
+                              onClick={onRowClick ? () => onRowClick(row) : undefined}
+                            >
+                              {shown.map((c) => (
+                                <td
+                                  key={c.key}
+                                  className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '', c.wrap ? 'dt--wrap' : '', groupClass(c)]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                  title={exactly(c, row[c.key])}
+                                >
+                                  {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                      </Fragment>
+                    )
+                  })
+                : visible.map((row, i) => (
                 <tr
                   key={shown.map((c) => row[c.key]).join('|') + (start + i)}
                   className={onRowClick ? 'clickable' : undefined}
