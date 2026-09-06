@@ -25,6 +25,10 @@ const WarehouseInsights = lazyPage(
   () => import('./pages/WarehouseInsights.jsx'),
   'WarehouseInsights'
 )
+const WarehouseAnalysis = lazyPage(
+  () => import('./pages/WarehouseAnalysis.jsx'),
+  'WarehouseAnalysis'
+)
 const ProductionPlan = lazyPage(() => import('./pages/ProductionPlan.jsx'), 'ProductionPlan')
 const Admin = lazyPage(() => import('./pages/Admin.jsx'), 'Admin')
 const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
@@ -78,6 +82,18 @@ const PAGES = [
      * is the two fixed values the outbound copy decides between — there is no
      * second supply field anywhere.
      */
+    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply'],
+  },
+  {
+    id: 'wh-analysis',
+    label: 'Forecast Insights',
+    kicker: 'Findings and recommendations',
+    blurb: 'Why the warehouse forecast misses, which articles are responsible, and what to change',
+    Icon: IconBox,
+    Component: WarehouseAnalysis,
+    // Not a report anybody orders from — it explains the method, so it is for
+    // the people who maintain it.
+    adminOnly: true,
     slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply'],
   },
   {
@@ -602,7 +618,16 @@ export default function App({ session, onSignedOut }) {
             </InfoBanner>
           )}
           <Suspense fallback={<div className="skel" style={{ height: 320, margin: 'var(--s4) 0' }} aria-hidden="true" />}>
-          {page.adminOnly ? (
+          {/*
+            * The Admin page, by name — not "whichever page is admin-only".
+            *
+            * This branched on `adminOnly`, which was the same thing for as long
+            * as Admin was the only such page. The moment a second one existed,
+            * Forecast Insights rendered the user-management screen under its
+            * own header: the rail, the title and the slicers were all correct
+            * and the body belonged to something else entirely.
+            */}
+          {page.id === 'admin' ? (
             <Admin session={session} />
           ) : (
             <>

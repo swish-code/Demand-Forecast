@@ -1,5 +1,6 @@
 import * as cube from '../cube/query.js'
 import { OTHER_BUCKET } from '../powerbi/warehouse.js'
+import { articlesWithFutureDemand } from './futureDemand.js'
 
 /**
  * Forecasting an article from what the warehouse actually shipped.
@@ -151,6 +152,15 @@ export function forgetConstants() {
  * daily figures and the monthly figure agree by construction rather than by
  * rounding.
  */
+/**
+ * How many recent months of shipping keep a non-recipe article alive.
+ *
+ * An article the warehouse has not issued in three whole months has stopped
+ * moving, and its six-month rate is describing a period that has ended. Asked
+ * for on 6 Sep 2026.
+ */
+export const ACTIVE_MONTHS = 3
+
 export async function forecastFromConstants(
   brand,
   filters,
@@ -174,6 +184,27 @@ export async function forecastFromConstants(
   if (!constants.size) return new Map()
 
   /*
+   * Two different tests for two different kinds of article.
+   *
+   * A recipe article's requirement comes from the menu: if no product that uses
+   * it is forecast from tomorrow, there is no requirement coming however much
+   * the warehouse shipped in the spring. A non-recipe article has no menu to
+   * ask, so the question becomes whether it is still moving at all.
+   *
+   * Both are exclusions from the forecast itself rather than filters on the
+   * page, so the quantity, the accuracy, the totals, the exports and everything
+   * downstream see the same set.
+   *
+   * The catch-all bucket is neither: those articles reach no brand, so there is
+   * no menu behind them and the activity test is the only one that applies.
+   */
+  const wide = brand === OTHER_BUCKET
+  const [recipeArticles, future] = await Promise.all([
+    wide ? new Set() : cube.recipeArticles().catch(() => new Set()),
+    wide ? null : articlesWithFutureDemand(brand, { today }),
+  ])
+
+  /*
    * Which sales figure the rate is applied to.
    *
    * The constant is a rate — units shipped per unit sold — so multiplying it by
@@ -189,6 +220,20 @@ export async function forecastFromConstants(
 
   const out = new Map()
   for (const [article, held] of constants) {
+    if (recipeArticles.has(article)) {
+      /*
+       * Recipe article: forecast only while a menu item still wants it.
+       *
+       * `future` is null when the question could not be asked — a failed query
+       * must not read as a menu that has emptied, so the article is left alone.
+       */
+      if (future && !future.has(article)) continue
+    } else {
+      const detail = held.detail ?? []
+      const recent = detail.slice(-ACTIVE_MONTHS).some((d) => d.outbound > 0)
+      if (!recent) continue
+    }
+
     const qty = held.constant * sales
     if (!Number.isFinite(qty) || qty <= 0) continue
     out.set(article, qty)

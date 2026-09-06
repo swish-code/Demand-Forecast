@@ -4545,6 +4545,232 @@ table.dt tbody tr:hover td.dt--wh {
   min-width: 200px;
 }
 
+/* ------------------------------------- warehouse forecast analysis ------- */
+
+/* Findings: the number leads, the claim names it, the sentence explains it. */
+.insgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s3);
+}
+
+.ins {
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--neutral);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.ins--green { border-top-color: var(--green); }
+.ins--amber { border-top-color: var(--amber); }
+.ins--red   { border-top-color: var(--red); }
+.ins--blue  { border-top-color: var(--blue); }
+
+.ins__figure {
+  display: block;
+  font-size: 24px;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.ins__title { margin: var(--s2) 0 4px; font-size: 13px; line-height: 1.35; }
+.ins__body { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+
+/* Four cuts of one measure, laid out so they read as a single comparison. */
+.segrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--s4) var(--s5, 32px);
+}
+
+.seg h4 {
+  margin: 0 0 var(--s2);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* What a chart means, in one line under it. */
+.pnote { margin: var(--s3) 0 0; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+
+/* An investigated issue — severity, then the same named fields every time. */
+.issgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+.iss {
+  padding: var(--s4);
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.iss__head { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.iss__head h3 { margin: 0; font-size: 14px; line-height: 1.35; }
+
+.iss__body { margin: 0; display: grid; grid-template-columns: 76px 1fr; gap: 7px var(--s3); }
+
+.iss__body dt {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding-top: 2px;
+}
+
+.iss__body dd { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text); }
+
+/* The action is the row somebody acts on, so it is the one that stands out. */
+.iss__fix { color: var(--text); font-weight: var(--w-medium); }
+
+/*
+ * Wider labels, wrapped rather than clipped.
+ *
+ * The band rows were built for "0–20%" and "Not scored", so 74px of label was
+ * plenty. This page names things instead — "One month distorts the average",
+ * "Erratic · over ±100%" — and at 74px with `nowrap` they slid underneath the
+ * bar and were unreadable.
+ *
+ * Wrapping rather than a wider fixed column, because these charts also sit
+ * three-across in the segment grid: a column wide enough for the longest label
+ * would leave no room for the bar there. A label that needs two lines takes two
+ * lines, and nothing is ever cut off at any width.
+ */
+.bandchart__rows--wide .bandrow {
+  grid-template-columns: minmax(96px, 40%) 1fr auto;
+  align-items: center;
+}
+
+.bandchart__rows--wide .bandrow__key {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+  padding: 2px 0;
+}
+
+.bandchart__rows--wide .bandrow__count { min-width: 40px; text-align: right; }
+
+/* "See the articles" — the link from a finding to its evidence. */
+.iss__see { margin-top: var(--s3); }
+
+/* A bar that filters is a button, so it has to look and behave like one. */
+button.bandrow {
+  font-family: inherit;
+  text-align: left;
+  border: 1px solid transparent;
+  width: 100%;
+}
+
+button.bandrow:disabled { cursor: default; }
+
+/* Parts of a whole: two poles and a neutral middle, 2px apart so adjacent
+   fills never read as one. */
+.split__bar {
+  display: flex;
+  height: 14px;
+  gap: 2px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--line-soft, var(--line));
+}
+
+.split__seg { display: block; height: 100%; }
+.split__seg--over,  .split__dot--over  { background: var(--amber); }
+.split__seg--under, .split__dot--under { background: var(--blue); }
+.split__seg--close, .split__dot--close { background: var(--neutral); }
+
+.split__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.split__keys span { display: inline-flex; align-items: center; gap: 6px; }
+.split__dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.split__totals { margin-top: var(--s4); }
+
+/* A history reads as a timeline: a spine, a dot per entry, the card beside it. */
+.tl { list-style: none; margin: 0; padding: 0 0 0 var(--s4); position: relative; }
+
+.tl::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--line);
+}
+
+.tl__item { position: relative; padding-bottom: var(--s3); }
+.tl__item:last-child { padding-bottom: 0; }
+
+.tl__dot {
+  position: absolute;
+  left: -19px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--surface);
+}
+
+/* Something proposed reads as provisional rather than done. */
+.tl__item--planned .tl__dot { background: var(--text-faint); }
+
+.tl__card {
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.tl__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.tl__head time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.tl__head h3 { margin: 0; font-size: 14px; line-height: 1.3; flex: 1 1 auto; }
+
+.tl__body { margin: 0; display: grid; grid-template-columns: 72px 1fr; gap: 6px var(--s3); }
+
+.tl__body dt {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding-top: 2px;
+}
+
+.tl__body dd { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text); }
+
+@media (max-width: 640px) {
+  .iss__body, .tl__body { grid-template-columns: 1fr; gap: 2px; }
+  .iss__body dd, .tl__body dd { margin-bottom: var(--s2); }
+}
+
 /* --------------------------------------------- calculations panel -------- */
 
 /* A drawer over the page rather than beside it: the pages are already as wide

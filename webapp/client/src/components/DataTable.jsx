@@ -47,6 +47,25 @@ function textMeasurer() {
   }
 }
 
+/**
+ * The unrounded value, for a cell that had to round.
+ *
+ * Quantities are shown as whole numbers once they are big enough that a
+ * fraction does not read — but the percentages beside them are computed on the
+ * true figures, so a column can honestly show "71", "41" and "24.0%" while
+ * 1 − |71−41|/41 is 26.8%. The real numbers were 71.3 and 40.5.
+ *
+ * Nothing is wrong with either figure; what is missing is any way to check one
+ * against the other. Hovering the quantity gives the value the arithmetic
+ * actually used, which costs no space and settles the question on the spot.
+ */
+function exactly(column, value) {
+  if (!column?.num) return undefined
+  const n = Number(value)
+  if (!Number.isFinite(n) || Number.isInteger(n)) return undefined
+  return String(n)
+}
+
 export function DataTable({
   columns,
   rows,
@@ -709,6 +728,7 @@ export function DataTable({
                       ]
                         .filter(Boolean)
                         .join(' ')}
+                      title={exactly(c, row[c.key])}
                     >
                       {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}
                     </td>

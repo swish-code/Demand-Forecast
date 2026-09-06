@@ -267,6 +267,8 @@ export const api = {
   // the same rows the Stock Article page draws — and only the daily series from
   // its own endpoint, which is aggregated on the server.
   warehouseTrend: (filters, options) => query('/warehouse-trend', filters, options),
+  // Admin-only: why the warehouse forecast misses, article by article.
+  warehouseDiagnostics: (filters, options) => query('/warehouse-diagnostics', filters, options),
   productionPlan: (filters, options) => query('/production-plan', filters, options),
   // Tomorrow's totals without tomorrow's rows, for the Overview card.
   productionPlanKpis: (filters, options) => query('/production-plan/kpis', filters, options),

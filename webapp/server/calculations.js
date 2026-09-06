@@ -186,14 +186,14 @@ WH forecast  = constant * forecast sales for the window on screen`,
     visual: 'Product mix accuracy card',
     label: 'Product mix accuracy',
     source: LOCAL,
-    expression: '1 - ABS(SUM(Actual qty) - SUM(Forecast qty)) / SUM(Actual qty)',
+    expression: 'AVERAGE over articles of MAX(0, ACC%)  —  same as the column footer',
     detail:
-      'The totals of the two columns the card sits above, compared — so it can be checked by ' +
-      'hand against the totals row, and the ACC% footer computes the identical figure. Non-recipe ' +
-      'articles take no part: they have no demand forecast, so they could only enter as a ' +
-      'denominator with nothing above it. Until 6 Sep 2026 this compared the recipe requirement ' +
-      'against Outbound instead — a warehouse measure under a product-mix name, which is why the ' +
-      'card could read 0.0% while the column beside it read 95.8%.',
+      'The mean of the per-article scores, one entry per article, with each floored at zero. The ' +
+      'score divides by what actually moved and so has no lower bound — Pepsi Cola Can scores ' +
+      '-1,008,417% since that line stopped shipping in July, and twelve like it out of 1,085 ' +
+      'pulled the mean to -1087%. Zero is what "completely wrong" is worth to an average; below ' +
+      'it the number grades the size of the denominator rather than the forecast. The column ' +
+      'itself keeps the true signed value, and the band chart shows the distribution.',
   },
   {
     id: 'card-warehouse',
@@ -201,7 +201,7 @@ WH forecast  = constant * forecast sales for the window on screen`,
     visual: 'Warehouse accuracy card',
     label: 'Warehouse accuracy',
     source: LOCAL,
-    expression: 'MAX(0, 1 - ABS(SUM(WH forecast) - SUM(Outbound)) / SUM(Outbound))',
+    expression: 'AVERAGE over articles of MAX(0, WH ACC%)  —  same as the column footer',
     detail:
       'Totals compared, over the scored articles only — both sums come from that same set, or ' +
       'it would compare a forecast for one population against outbound for another. This is why ' +
@@ -234,8 +234,12 @@ WH forecast  = constant * forecast sales for the window on screen`,
     expression: 'Warehouse  = the warehouse has issued this article in the last 6 months\nDirect Supply = it has not',
     detail:
       'Direct supply reaches the CPU or the branch without passing through the warehouse, so it ' +
-      'has no outbound by definition. That is the answer, not missing data.',
-    tunable: 'The six-month lookback.',
+      'has no outbound by definition. That is the answer, not missing data. Selecting Warehouse ' +
+      'on its own also narrows to production type RAW: a warehouse issues the chicken, not the ' +
+      '"Brined Chicken Breast" a kitchen makes from it, so a prep or produced item carrying a ' +
+      'Warehouse label is an article-number coincidence rather than something it ships. ' +
+      'Selecting Direct Supply, or both, leaves production type alone.',
+    tunable: 'The six-month lookback, and whether Warehouse implies RAW.',
   },
   {
     id: 'bands',

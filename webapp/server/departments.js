@@ -109,7 +109,7 @@ export const pagesFor = (department) => PAGES_BY_NAME.get(norm(department)) ?? n
  * enforcing. A page added there and not here simply cannot be granted, which is
  * the safe direction for the mistake to fail in.
  */
-export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin']
+export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin', 'wh-analysis']
 
 /**
  * What one account may open — the whole rule, in one place.
@@ -134,7 +134,8 @@ export function allowedPages(user) {
    * one place decides, and the answer is the same whether it is asked by the
    * rail or by the route.
    */
-  const REPORTS = PAGE_IDS.filter((p) => p !== 'admin')
+  // Neither of the administrator-only pages is grantable to anybody else.
+  const REPORTS = PAGE_IDS.filter((p) => p !== 'admin' && p !== 'wh-analysis')
 
   const granted = Array.isArray(user?.pages)
     ? user.pages

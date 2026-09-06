@@ -370,15 +370,8 @@ const COLUMNS = [
      * Computed from the same two totals the row shows, so it is arithmetic
      * anybody can repeat, and identical to the card above by construction.
      */
-    total: (list) => {
-      let f = 0
-      let a = 0
-      for (const r of list) {
-        f += Number(r.Component_Forecast_Qty) || 0
-        a += Number(r.Component_Actual_Qty) || 0
-      }
-      return a > 0 ? 1 - Math.abs(a - f) / a : null
-    },
+    // The average article, computed exactly as the card above it is.
+    total: (list) => averageScore(list, 'Sales_Accuracy')?.value ?? null,
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
   },
   {
@@ -398,17 +391,8 @@ const COLUMNS = [
       ) : (
         fmtPct(v, 1)
       ),
-    total: (list) => {
-      // Once per article: the score repeats on every row of it.
-      const seen = new Map()
-      for (const r of list) {
-        const a = String(r['Item No.'] ?? '').trim()
-        if (!a || r.WH_Accuracy === null || r.WH_Accuracy === undefined) continue
-        if (!seen.has(a)) seen.set(a, r.WH_Accuracy)
-      }
-      if (!seen.size) return null
-      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
-    },
+    // The average article, computed exactly as the card above it is.
+    total: (list) => averageScore(list, 'WH_Accuracy')?.value ?? null,
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
   }
 ]
@@ -560,6 +544,53 @@ function BandChart({ label, bands, counts, active, total, onPick }) {
  * a recipe row?" by different means is how a card and a column start
  * disagreeing.
  */
+/**
+ * The average article's score, one entry per article.
+ *
+ * Per article rather than per row: the requirement is split across every recipe
+ * group that uses an article and the score is a property of the article, so
+ * averaging rows would weight a component used by nine recipes nine times.
+ *
+ * Unweighted, which is the point — a 12-unit article counts the same as a
+ * 600,000-unit one. That is a different question from comparing the totals, and
+ * the answer is usually lower: totals let one article's over-forecast cancel
+ * another's under-forecast, and this does not.
+ *
+ * A mean, with each article's contribution floored at zero.
+ *
+ * The score divides by what actually moved, so it has no lower bound: Pepsi
+ * Cola Can, forecast at 40,345 against four units issued since that line
+ * stopped in July, scores -1,008,417%. Twelve articles like it out of 1,085
+ * pulled the mean of an otherwise healthy set to -1087%, which describes
+ * nothing and contradicted the band chart directly below it.
+ *
+ * Zero is the floor because zero is what "completely wrong" is worth to an
+ * average. Below it the figure stops grading the forecast and starts grading
+ * how small the denominator happened to be — one article that moved four units
+ * would outvote a thousand good ones for ever.
+ *
+ * The column keeps its true signed value: a single row has space for
+ * -1,008,417%, and that figure is a finding about a discontinued product. It is
+ * only the average across articles that cannot carry it.
+ *
+ * Used by the cards and by the column footers from one place, so the figure at
+ * the top of the page and the one at the bottom of the table cannot drift.
+ */
+const averageScore = (rows, key) => {
+  const seen = new Map()
+  for (const r of rows) {
+    const v = r[key]
+    if (v === null || v === undefined) continue
+    const article = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
+    if (!article || seen.has(article)) continue
+    seen.set(article, Number(v))
+  }
+  if (!seen.size) return null
+  let sum = 0
+  for (const v of seen.values()) sum += Math.max(0, v)
+  return { value: sum / seen.size, count: seen.size }
+}
+
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
 export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin }) {
@@ -1016,6 +1047,21 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
   const [usage, setUsage] = useState(null)
 
   /*
+   * The file is named for what it is and when it covers.
+   *
+   * "bbt-component-level.csv" was wrong twice over: the page is Stock Articles
+   * and has not been BBT-only since brands became a slicer. A download that
+   * cannot be told apart from last week's is a download somebody has to open to
+   * identify, and browsers helpfully append "(7)" rather than complaining.
+   */
+  const exportName = useMemo(() => {
+    const from = filters?.dateFrom
+    const to = filters?.dateTo
+    const period = from && to ? (from === to ? from : `${from} to ${to}`) : 'all dates'
+    return `Stock Articles - ${period}.csv`
+  }, [filters?.dateFrom, filters?.dateTo])
+
+  /*
    * What the table is actually showing, fed back to everything above it.
    *
    * Search for "Chili Flakes" and the table narrows while the cards keep
@@ -1083,7 +1129,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
   const summary = useMemo(() => {
     let forecast = 0
     let actual = 0
-    const mixArticles = new Set()
     let consumed = 0
     let scored = 0
     /*
@@ -1104,9 +1149,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * method's total against the other's set would flatter or punish it for
      * covering different articles.
      */
-    let whScored = 0
-    let whMatchedForecast = 0
-    let whConsumed = 0
     // Components with a requirement the warehouse has no record of shipping.
     // Counted rather than scored: nothing about them says the forecast is wrong,
     // and scoring them zero is what made this card unreadable.
@@ -1119,7 +1161,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * accuracy for every component used by more than one recipe.
      */
     const seen = new Set()
-    const whSeen = new Set()
     for (const r of focused) {
       /*
        * Non-recipe articles take no part in the Accuracy card — but they are
@@ -1142,23 +1183,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       if (recipeRow) {
         forecast += Number(r.Component_Forecast_Qty) || 0
         actual += Number(r.Component_Actual_Qty) || 0
-        // What the card is measured over, counted once per article.
-        const key = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '')
-        if (key && Number(r.Component_Actual_Qty) > 0) mixArticles.add(key)
         if (c !== null && c !== undefined) consumed += Number(c) || 0
       }
 
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
-
-      // The warehouse side, scored over its own set and counted once per
-      // article the same way. Every article, recipe or not.
-      if (r.WH_Accuracy !== null && r.WH_Accuracy !== undefined && !whSeen.has(a)) {
-        whSeen.add(a)
-        whScored += 1
-        whMatchedForecast += Number(r.WH_Constant_Forecast_Qty) || 0
-        whConsumed += Number(c) || 0
-      }
 
       if (!recipeRow) continue
       if (r.Accuracy === null) {
@@ -1195,20 +1224,34 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * hand from the totals row underneath it. Divided by actual, floored at
      * zero, matching the report's Variation Percentage MTD.
      */
-    const overall = actual > 0 ? 1 - Math.abs(actual - forecast) / actual : null
+    /*
+     * The average article, not the totals compared.
+     *
+     * Asked for on 6 Sep 2026, and it is the harder of the two numbers: totals
+     * let a component over-forecast by 40,000 cancel one under-forecast by the
+     * same, and report near-perfection over a set where nothing individually
+     * matched. Averaging the article scores refuses that cancellation.
+     *
+     * Computed by the same helper the column footer calls, over the same rows,
+     * so the card and the footer are one figure in two places.
+     */
+    const mix = averageScore(focused.filter(fromRecipe), 'Sales_Accuracy')
+    const overall = mix?.value ?? null
 
-    const whOverall =
-      whScored && whConsumed > 0 ? 1 - Math.abs(whMatchedForecast - whConsumed) / whConsumed : null
+    // The same treatment on the warehouse side, over every article rather than
+    // only the ones a recipe names.
+    const wh = averageScore(focused, 'WH_Accuracy')
+    const whOverall = wh?.value ?? null
 
     return {
       forecast,
       actual,
-      mixArticles: mixArticles.size,
+      mixArticles: mix?.count ?? 0,
       consumed,
       measured: scored,
       unmatched: unmatched.size,
       overall,
-      whMeasured: whScored,
+      whMeasured: wh?.count ?? 0,
       whOverall,
     }
   }, [focused])
@@ -1352,9 +1395,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             foot={
               summary.overall === null
                 ? 'Nothing has sold in this window yet'
-                : `${fmtQty(summary.forecast)} forecast vs ${fmtQty(summary.actual)} actual · ${fmtInt(
-                    summary.mixArticles
-                  )} articles`
+                : `Average article · ${fmtInt(summary.mixArticles)} scored`
             }
           />
         )}
@@ -1379,7 +1420,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             foot={
               summary.whOverall === null
                 ? 'Needs warehouse history to compare against'
-                : `Totals compared · ${fmtInt(summary.whMeasured)} scored`
+                : `Average article · ${fmtInt(summary.whMeasured)} scored`
             }
           />
         )}
@@ -1420,7 +1461,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             disabled={!rows.length}
             onClick={() =>
               downloadCsv(
-                'bbt-component-level.csv',
+                exportName,
                 view?.rows ?? priced,
                 view?.columns ?? columns.map(({ key, label }) => ({ key, label }))
               )

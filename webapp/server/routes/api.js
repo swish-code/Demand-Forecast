@@ -25,6 +25,7 @@ import {
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
+import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -328,6 +329,17 @@ api.all('/slicers', handle(async (req, res) => {
     const narrowed = { ...out }
     if (granted && out?.locations) {
       narrowed.locations = out.locations.filter((l) => granted.has(String(l)))
+    }
+    /*
+     * Warehouse supply is raw materials, so the production type list says so.
+     *
+     * The rows are already narrowed to RAW by `withSupply`; leaving PA and PREP
+     * in this dropdown offered two choices that would return nothing, which
+     * reads as a broken filter rather than as a rule.
+     */
+    const supply = (f?.supply ?? []).filter(Boolean)
+    if (supply.includes(SUPPLY_WAREHOUSE) && !supply.includes(SUPPLY_DIRECT) && out?.nodeTypes) {
+      narrowed.nodeTypes = out.nodeTypes.filter((t) => String(t) === 'RAW')
     }
     return narrowed
   })
@@ -906,7 +918,28 @@ async function withSupply(rows, filters) {
   const wanted = (filters?.supply ?? []).filter(Boolean)
   if (!wanted.length) return labelled
   const keep = new Set(wanted)
-  return labelled.filter((r) => r.Supply && keep.has(r.Supply))
+
+  /*
+   * Warehouse supply means raw materials.
+   *
+   * Prep steps and the items a kitchen produces are made where they are used —
+   * a warehouse does not issue "Brined Chicken Breast", it issues the chicken.
+   * A row of either kind carrying a Warehouse label is the six-month lookup
+   * matching an article number that also happens to appear in a recipe as a
+   * produced item, not a statement that the warehouse ships it.
+   *
+   * So asking for Warehouse supply narrows to RAW as well. Asked for on 6 Sep
+   * 2026, and it only applies to the Warehouse side: picking Direct Supply, or
+   * both, leaves production type alone, because a direct-supplied prep item is
+   * a real thing and hiding it would answer a question nobody asked.
+   */
+  const rawOnly = keep.has(SUPPLY_WAREHOUSE) && !keep.has(SUPPLY_DIRECT)
+
+  return labelled.filter((r) => {
+    if (!r.Supply || !keep.has(r.Supply)) return false
+    if (rawOnly && String(r['Node Type'] ?? '') !== 'RAW') return false
+    return true
+  })
 }
 
 /**
@@ -948,6 +981,23 @@ function withRecipeKind(rows, filters) {
  *
  * Aggregated on the server on purpose. The browser gets one row per day.
  */
+/**
+ * Why the warehouse forecast misses, for whoever has to improve it.
+ *
+ * Administrators only: it is a diagnosis of the method rather than a figure to
+ * order from, and every row on it is an argument about a calculation.
+ */
+api.all('/warehouse-diagnostics', handle(async (req, res) => {
+  if (req.user?.role !== 'admin') {
+    res.status(403).json({ error: 'This analysis is available to administrators.' })
+    return
+  }
+  const g = guardMany(req, res)
+  if (!g) return
+  res.json(await warehouseDiagnostics(g.parts))
+}))
+
+
 api.all('/warehouse-trend', handle(async (req, res) => {
   // The rail hides the tab; this refuses the request, which is what a bookmark
   // or a typed URL actually reaches.
