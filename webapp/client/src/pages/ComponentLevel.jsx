@@ -377,7 +377,7 @@ const COLUMNS = [
         f += Number(r.Component_Forecast_Qty) || 0
         a += Number(r.Component_Actual_Qty) || 0
       }
-      return a > 0 ? Math.max(0, 1 - Math.abs(a - f) / a) : null
+      return a > 0 ? 1 - Math.abs(a - f) / a : null
     },
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
   },
@@ -627,7 +627,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       // The report's own shape: 1 − |variation|, divided by what actually sold.
       // No sales means no answer — a forecast against nothing is not a hit.
       if (actual <= 0) return null
-      return Math.max(0, 1 - Math.abs(actual - forecast) / actual)
+      return 1 - Math.abs(actual - forecast) / actual
     }
 
     const byDate = new Map()
@@ -743,10 +743,21 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       const score = (target) => {
         if (!held || !held.measured || target === null) return null
         const outbound = held.consumed
-        if (outbound > 0) return Math.max(0, 1 - Math.abs(target - outbound) / outbound)
-        // Nothing moved: a real requirement against it is a total miss, and no
-        // requirement either is nothing to measure.
-        return target > 0 ? 0 : null
+        /*
+         * Signed, and no longer floored at zero.
+         *
+         * Everything worse than "completely wrong" used to collapse onto 0.0%,
+         * so a forecast of 17 against 5 issued and one of 82 against 40 read
+         * identically when the first is four times worse. The sign and the size
+         * both carry information: −140% says the forecast asked for nearly
+         * two and a half times what moved, over and above what moved.
+         *
+         * Nothing issued at all has no percentage — the error is divided by
+         * zero — so that stays blank rather than pretending to a number. The
+         * Outbound column beside it already reads 0, which is the finding.
+         */
+        if (outbound > 0) return 1 - Math.abs(target - outbound) / outbound
+        return null
       }
 
       /*
@@ -782,7 +793,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        */
       const salesAccuracy =
         implied !== null && implied > 0 && forecast !== null
-          ? Math.max(0, 1 - Math.abs(implied - forecast) / implied)
+          ? 1 - Math.abs(implied - forecast) / implied
           : null
 
       return {
@@ -864,11 +875,11 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       const c = r.Consumed_Qty
       const known = c !== null && c !== undefined
       // The same formula as `score` above, on a folded row's own totals.
+      // The same rule as `score` above, on a folded row's own totals.
       const rescore = (target) => {
         if (!known || target === null || target === undefined) return null
         const outbound = Number(c)
-        if (outbound > 0) return Math.max(0, 1 - Math.abs(Number(target) - outbound) / outbound)
-        return Number(target) > 0 ? 0 : null
+        return outbound > 0 ? 1 - Math.abs(Number(target) - outbound) / outbound : null
       }
       return {
         ...r,
@@ -893,12 +904,9 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           r.Component_Forecast_Qty === null ||
           r.Component_Forecast_Qty === undefined
             ? null
-            : Math.max(
-                0,
-                1 -
-                  Math.abs(Number(r.Component_Actual_Qty) - Number(r.Component_Forecast_Qty)) /
-                    Number(r.Component_Actual_Qty)
-              ),
+            : 1 -
+              Math.abs(Number(r.Component_Actual_Qty) - Number(r.Component_Forecast_Qty)) /
+                Number(r.Component_Actual_Qty),
       }
     })
   }, [priced, visibleDims])
@@ -921,7 +929,9 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * hiding them in "all" would overstate how much of the page is scored.
    */
   const BANDS = [
-    { key: '0-20', label: '0–20%', lo: 0, hi: 0.2 },
+    // Open-ended at the bottom: a score can now be negative, and an article
+    // that fell off the scale is exactly the one this band is for.
+    { key: '0-20', label: 'Under 20%', lo: -Infinity, hi: 0.2 },
     { key: '20-40', label: '20–40%', lo: 0.2, hi: 0.4 },
     { key: '40-60', label: '40–60%', lo: 0.4, hi: 0.6 },
     { key: '60-85', label: '60–85%', lo: 0.6, hi: 0.85 },
@@ -1185,12 +1195,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * hand from the totals row underneath it. Divided by actual, floored at
      * zero, matching the report's Variation Percentage MTD.
      */
-    const overall = actual > 0 ? Math.max(0, 1 - Math.abs(actual - forecast) / actual) : null
+    const overall = actual > 0 ? 1 - Math.abs(actual - forecast) / actual : null
 
     const whOverall =
-      whScored && whConsumed > 0
-        ? Math.max(0, 1 - Math.abs(whMatchedForecast - whConsumed) / whConsumed)
-        : null
+      whScored && whConsumed > 0 ? 1 - Math.abs(whMatchedForecast - whConsumed) / whConsumed : null
 
     return {
       forecast,

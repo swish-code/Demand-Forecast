@@ -47,7 +47,8 @@ import { W } from '../columns.js'
  * different populations.
  */
 const BANDS = [
-  { key: '0-20', label: '0–20%', lo: 0, hi: 0.2 },
+  // Open-ended at the bottom, so an article that fell off the scale is counted.
+  { key: '0-20', label: 'Under 20%', lo: -Infinity, hi: 0.2 },
   { key: '20-40', label: '20–40%', lo: 0.2, hi: 0.4 },
   { key: '40-60', label: '40–60%', lo: 0.4, hi: 0.6 },
   { key: '60-85', label: '60–85%', lo: 0.6, hi: 0.85 },
@@ -327,7 +328,12 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
          * because scoring "we have no evidence" as a total failure is what made
          * this measure unreadable before.
          */
-        WH_Accuracy: !measured ? null : o > 0 ? Math.max(0, 1 - Math.abs(f - o) / o) : f > 0 ? 0 : null,
+        /*
+         * Signed. Everything worse than "completely wrong" used to land on
+         * 0.0%, which hid how much worse. Nothing issued has no percentage at
+         * all — divided by zero — so that stays blank.
+         */
+        WH_Accuracy: measured && o > 0 ? 1 - Math.abs(f - o) / o : null,
       }
     })
   }, [rows])
@@ -407,7 +413,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       low,
       accuracy:
         scored && scoredOutbound > 0
-          ? Math.max(0, 1 - Math.abs(scoredForecast - scoredOutbound) / scoredOutbound)
+          ? 1 - Math.abs(scoredForecast - scoredOutbound) / scoredOutbound
           : null,
     }
   }, [focused])

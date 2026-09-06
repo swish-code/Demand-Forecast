@@ -1025,13 +1025,10 @@ api.all('/warehouse-trend', handle(async (req, res) => {
      * compare. A day the warehouse issued nothing and forecast nothing is not
      * a day it got wrong.
      */
-    r.WH_Accuracy = !r.measured
-      ? null
-      : r.Outbound > 0
-        ? Math.max(0, 1 - Math.abs(r.WH_Forecast - r.Outbound) / r.Outbound)
-        : r.WH_Forecast > 0
-          ? 0
-          : null
+    // Signed, like the column: a day the warehouse issued far less than the
+    // rate expected reads as the size of that miss, not as a floor.
+    r.WH_Accuracy =
+      r.measured && r.Outbound > 0 ? 1 - Math.abs(r.WH_Forecast - r.Outbound) / r.Outbound : null
   }
 
   res.json({ rows })

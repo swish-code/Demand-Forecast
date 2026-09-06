@@ -160,15 +160,14 @@ WH forecast  = constant * forecast sales for the window on screen`,
     visual: 'Warehouse — WH ACC%',
     label: 'WH ACC% (per article)',
     source: LOCAL,
-    expression: 'MAX(0, 1 - ABS(WH forecast - Outbound) / Outbound)',
+    expression: '1 - ABS(WH forecast - Outbound) / Outbound',
     detail:
       'Divided by what actually left the warehouse, so the column, its footer and the card all ' +
-      'use one formula. The floor does real work: over-forecast by more than twice what moved ' +
-      'and the raw answer is negative; nothing issued at all and it is negative infinity. Both ' +
-      'mean the same thing, and 0% is where it bottoms out — which is also why 0% cannot ' +
-      'distinguish "twice too high" from "twenty times too high". Blank — not zero — when the ' +
-      'warehouse has no history for the article or has never issued it to this brand: those ' +
-      'cannot be measured at all.',
+      'use one formula. Signed and not floored: over-forecast by more than twice what moved and ' +
+      'the answer is negative, and how negative is the point — 17 forecast against 5 issued is ' +
+      'four times worse than 82 against 40, and flooring both at 0% said they were the same. ' +
+      'Blank where there is nothing to divide by: no outbound at all, or no history for the ' +
+      'article. Those cannot be measured, which is not the same as measuring badly.',
   },
   {
     id: 'variance',
@@ -187,7 +186,7 @@ WH forecast  = constant * forecast sales for the window on screen`,
     visual: 'Product mix accuracy card',
     label: 'Product mix accuracy',
     source: LOCAL,
-    expression: 'MAX(0, 1 - ABS(SUM(Actual qty) - SUM(Forecast qty)) / SUM(Actual qty))',
+    expression: '1 - ABS(SUM(Actual qty) - SUM(Forecast qty)) / SUM(Actual qty)',
     detail:
       'The totals of the two columns the card sits above, compared — so it can be checked by ' +
       'hand against the totals row, and the ACC% footer computes the identical figure. Non-recipe ' +
