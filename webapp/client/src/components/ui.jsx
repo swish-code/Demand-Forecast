@@ -34,9 +34,16 @@ export function KpiCard({ label, value, foot, accent = 'slate', tint, progress, 
   )
 }
 
-export function Panel({ title, count, sub, tools, children, flush, fill }) {
+/*
+ * `calc` names the calculations behind this visual, for the inspector.
+ *
+ * Written on the element rather than registered somewhere, so a visual and the
+ * formulas it is built from cannot drift apart: moving the panel moves the
+ * attribute with it, and deleting the panel deletes the claim.
+ */
+export function Panel({ title, count, sub, tools, children, flush, fill, calc }) {
   return (
-    <section className={`panel${fill ? ' panel--fill' : ''}`}>
+    <section className={`panel${fill ? ' panel--fill' : ''}`} data-calc={calc || undefined}>
       <header className="panel__head">
         <div className="panel__titles">
           <h2>
@@ -219,13 +226,13 @@ export function InfoBanner({ children, tone = 'info', icon }) {
  * A plain input metric: muted label, the number as hero, and a thin accent rule
  * along the bottom edge. No tint and no icon — colour is reserved for state.
  */
-export function MetricCard({ label, value, foot, accent = 'green', progress, loading, textValue }) {
+export function MetricCard({ label, value, foot, accent = 'green', progress, loading, textValue, calc }) {
   // minHeight, not height: the flow is a stretch grid, so a fixed height left
   // the two input skeletons floating at the top of a row the taller Performance
   // skeleton beside them had already made 208px deep.
   if (loading) return <div className="metric skel" style={{ minHeight: 96, border: 'none' }} aria-hidden="true" />
   return (
-    <div className="metric">
+    <div className="metric" data-calc={calc || undefined}>
       <span className="metric__label">{label}</span>
       <span className={`metric__value${textValue ? ' metric__value--text' : ''}`} title={textValue ? String(value) : undefined}>
         {value}

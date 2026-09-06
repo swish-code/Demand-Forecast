@@ -9,6 +9,7 @@ import {
   PAGE_IDS,
   isDepartment,
 } from '../departments.js'
+import { calculationsPayload } from '../calculations.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
@@ -289,6 +290,19 @@ admin.patch(
  * active and has the brands and branches they need.
  */
 
+
+/**
+ * Every figure the app shows, and the expression behind it.
+ *
+ * A read of a static catalogue, so it costs nothing and cannot be out of step
+ * with a model that has since been refreshed — it describes what this app
+ * sends and computes, which is the thing somebody troubleshooting a number
+ * actually needs to see.
+ */
+admin.get(
+  '/calculations',
+  handle(async (req, res) => res.json(calculationsPayload()))
+)
 
 admin.delete(
   '/users/:id',

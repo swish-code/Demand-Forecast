@@ -4,6 +4,7 @@ import { useData } from './useData.js'
 import { SideNav } from './components/SideNav.jsx'
 import { FilterBar } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
+import { CalcInspector } from './components/CalcInspector.jsx'
 import { IconSummary, IconProduct, IconComponent, IconPlan, IconUsers, IconBox } from './components/Icons.jsx'
 /*
  * The pages are fetched when they are opened, not when the app starts.
@@ -146,6 +147,14 @@ export default function App({ session, onSignedOut }) {
    * them. A reader granted a single page still starts collapsed, because a rail
    * of one is a label rather than a navigation.
    */
+  /*
+   * Whether the calculations inspector is open.
+   *
+   * Reset whenever the page changes: the panel describes what is on screen, and
+   * a selection made on the Overview means nothing on Stock Article.
+   */
+  const [inspecting, setInspecting] = useState(false)
+
   const [navCollapsed, setNavCollapsed] = useState(() => {
     try {
       return localStorage.getItem('df-nav-collapsed') === '1'
@@ -313,6 +322,8 @@ export default function App({ session, onSignedOut }) {
   useEffect(() => {
     if (pages.length && !pages.some((p) => p.id === tab)) setTab(pages[0].id)
   }, [pages, tab])
+
+  useEffect(() => setInspecting(false), [tab])
   // The rail shows the reports; the guide is reachable from the Overview.
   const navPages = useMemo(() => pages.filter((p) => !p.hidden), [pages])
 
@@ -548,6 +559,23 @@ export default function App({ session, onSignedOut }) {
 
           <div className="topbar__actions">
             {today && <span className="topbar__date">{longDate(today)}</span>}
+            {/*
+              * Administrators only, because it is a troubleshooting tool rather
+              * than part of reading the page — and because the catalogue it
+              * opens is served from an admin route, so offering it to anybody
+              * else would be a button that answers 403.
+              */}
+            {session?.user?.role === 'admin' && page.slicers.length > 0 && (
+              <button
+                type="button"
+                className={`btn btn--ghost${inspecting ? ' btn--on' : ''}`}
+                onClick={() => setInspecting((v) => !v)}
+                title="Show the measures behind each visual on this page"
+                aria-pressed={inspecting}
+              >
+                {inspecting ? 'Done' : 'Calculations'}
+              </button>
+            )}
           </div>
         </header>
 
@@ -624,6 +652,7 @@ export default function App({ session, onSignedOut }) {
           )}
           </Suspense>
         </div>
+        <CalcInspector open={inspecting} onClose={() => setInspecting(false)} />
       </div>
     </div>
   )

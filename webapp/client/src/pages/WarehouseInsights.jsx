@@ -203,7 +203,7 @@ const COLUMNS = [
 function Attention({ title, sub, rows, valueOf, format, tone }) {
   const peak = Math.max(1, ...rows.map((r) => Math.abs(valueOf(r))))
   return (
-    <Panel title={title} sub={sub} count={rows.length}>
+    <Panel title={title} sub={sub} count={rows.length} calc="wh-acc,variance">
       {rows.length ? (
         <ol className="attn">
           {rows.map((r) => (
@@ -308,7 +308,6 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       const f = a.WH_Constant_Forecast_Qty
       const o = a.Consumed_Qty
       const measured = o !== null && o !== undefined && f !== null
-      const bigger = measured ? Math.max(o, f) : 0
       return {
         ...a,
         // Variance as asked: forecast minus what actually left. Positive is
@@ -328,7 +327,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
          * because scoring "we have no evidence" as a total failure is what made
          * this measure unreadable before.
          */
-        WH_Accuracy: measured && bigger > 0 ? 1 - Math.abs(o - f) / bigger : null,
+        WH_Accuracy: !measured ? null : o > 0 ? Math.max(0, 1 - Math.abs(f - o) / o) : f > 0 ? 0 : null,
       }
     })
   }, [rows])
@@ -484,6 +483,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       <div className="unitrow" style={{ '--cards': 3 }}>
         <MetricCard
           label="WH forecast"
+          calc="wh-forecast"
           accent="amber"
           loading={busy}
           value={fmtQty(kpi.forecast)}
@@ -491,6 +491,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <MetricCard
           label="Outbound"
+          calc="outbound"
           accent="amber"
           loading={busy}
           value={fmtQty(kpi.outbound)}
@@ -498,6 +499,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <MetricCard
           label="WH ACC%"
+          calc="card-warehouse,wh-acc"
           accent={kpi.accuracy === null ? 'slate' : kpi.accuracy >= 0.85 ? 'green' : 'amber'}
           progress={kpi.accuracy ?? 0}
           loading={busy}
@@ -527,6 +529,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <MetricCard
           label="Low accuracy articles"
+          calc="low-accuracy,wh-acc"
           accent={kpi.low ? 'red' : 'slate'}
           loading={busy}
           value={fmtInt(kpi.low)}
@@ -535,6 +538,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </div>
 
       <Panel
+        calc="wh-forecast,outbound"
         title="WH forecast against outbound"
         sub="Daily. Bars are what actually left the warehouse; the line is what the six-month rate expected. Follows the slicers above."
       >
@@ -579,6 +583,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        calc="wh-acc,wh-forecast,outbound"
         title="WH ACC% over time"
         sub="Each day scored the way an article is: symmetric, against the larger of forecast and outbound. A day with neither is left out rather than scored zero."
       >
@@ -625,6 +630,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
 
       <div className="whgrid">
         <Panel
+          calc="bands,wh-acc"
           title="WH accuracy groups"
           sub="Articles by WH ACC%. Click a band to narrow the cards, the lists and the table to it."
         >
@@ -650,7 +656,25 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
                   disabled={!n}
                   aria-pressed={on}
                   className={`bandrow${on ? ' bandrow--on' : ''}`}
-                  onClick={() => setBand(on ? null : b.key)}
+                  onClick={() => {
+                    setBand(on ? null : b.key)
+                    /*
+                     * Selecting a group moves to the list it selected.
+                     *
+                     * The table already narrowed to the band, but it sits below
+                     * three panels of charts — so from where the click happens
+                     * nothing appears to have happened, and the articles the
+                     * band was picked to look at are off the bottom of the
+                     * screen.
+                     */
+                    if (!on) {
+                      requestAnimationFrame(() =>
+                        document
+                          .getElementById('wh-article-detail')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      )
+                    }
+                  }}
                   title={`${fmtInt(n)} articles — click to ${on ? 'clear' : 'show only these'}`}
                 >
                   <span className="bandrow__key">{b.label}</span>
@@ -670,6 +694,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         </Panel>
 
         <Panel
+          calc="supply,wh-forecast,outbound"
           title="Warehouse against direct supply"
           sub="Direct supply reaches the CPU or the branch without passing through the warehouse, so it has no outbound by definition. That is the answer, not a gap."
         >
@@ -727,10 +752,20 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
       </div>
 
+      <div id="wh-article-detail" />
       <Panel
-        title="Warehouse article detail"
+        calc="wh-forecast,outbound,wh-acc,variance,supply"
+        title={
+          band
+            ? `Articles scoring ${BANDS.find((b) => b.key === band)?.label ?? band}`
+            : 'Warehouse article detail'
+        }
         count={banded.length}
-        sub="One row per article. Variance is WH forecast minus outbound, so positive is over-forecast."
+        sub={
+          band
+            ? `Every article in this accuracy group, in full. Clear the band above to see all ${fmtInt(articles.length)}.`
+            : 'One row per article. Variance is WH forecast minus outbound, so positive is over-forecast.'
+        }
         tools={
           view ? (
             <button

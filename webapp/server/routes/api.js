@@ -585,6 +585,29 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
     return new Map()
   })
 
+  /*
+   * What the recipes ask for, per article, as a fallback forecast.
+   *
+   * An article the warehouse has shipped for fewer than three months has no
+   * rate worth averaging, so `forecastFromConstants` declines it. That is not a
+   * reason to leave the row blank when a menu item actually uses the article:
+   * the recipe explosion already says how much of it those forecast sales
+   * imply, and that is a better answer than a rate fitted to one delivery.
+   *
+   * Summed across every recipe group first, because the requirement is split
+   * over them and the warehouse orders the article, not the recipe's share of
+   * it. An article no recipe names gets nothing here, which is the intended
+   * answer — with no history and no menu item there is nothing to forecast
+   * from, and inventing a number would be worse than a dash.
+   */
+  const recipeTotal = new Map()
+  for (const r of rows) {
+    const article = String(r['Item No.'] ?? '').trim()
+    const qty = Number(r.Component_Forecast_Qty)
+    if (!article || !Number.isFinite(qty) || qty <= 0) continue
+    recipeTotal.set(article, (recipeTotal.get(article) ?? 0) + qty)
+  }
+
   const keyOf = (r) => {
     const article = String(r['Item No.'] ?? '').trim()
     if (!article) return null
@@ -646,7 +669,12 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
      * A Map means the window includes today and the warehouse was asked; null
      * means the window has not started.
      */
-    const constant = byConstant.get(article) ?? null
+    const fromHistory = byConstant.get(article) ?? null
+    const fromRecipe = recipeTotal.get(article) ?? null
+    const constant = fromHistory ?? fromRecipe
+    // Says which method answered, so the column can explain itself rather than
+    // presenting two quite different derivations as one number.
+    const basis = fromHistory !== null ? 'history' : fromRecipe !== null ? 'recipe' : null
 
     // Live outbound follows Outbound's rules, not its own. An article the
     // warehouse has never shipped is blank in both — reading "0" in one column
@@ -657,7 +685,13 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
 
     if (consumed.has(k)) {
       const qty = consumed.get(k)
-      return { ...r, Consumed_Qty: qty, Live_Outbound_MTD: live(), WH_Constant_Forecast_Qty: constant }
+      return {
+        ...r,
+        Consumed_Qty: qty,
+        Live_Outbound_MTD: live(),
+        WH_Constant_Forecast_Qty: constant,
+        WH_Forecast_Basis: basis,
+      }
     }
     // No shipping history at all, so there is nothing to compare against.
     if (shipped && !shipped.has(article)) {
@@ -674,9 +708,16 @@ async function withConsumption(rows, brand, filters, grain = {}, mtd = null) {
           : null,
         Live_Outbound_MTD: null,
         WH_Constant_Forecast_Qty: constant,
+        WH_Forecast_Basis: basis,
       }
     }
-    return { ...r, Consumed_Qty: 0, Live_Outbound_MTD: live(), WH_Constant_Forecast_Qty: constant }
+    return {
+      ...r,
+      Consumed_Qty: 0,
+      Live_Outbound_MTD: live(),
+      WH_Constant_Forecast_Qty: constant,
+      WH_Forecast_Basis: basis,
+    }
   })
 }
 
@@ -1015,9 +1056,13 @@ api.all('/warehouse-trend', handle(async (req, res) => {
      * compare. A day the warehouse issued nothing and forecast nothing is not
      * a day it got wrong.
      */
-    const bigger = Math.max(r.Outbound, r.WH_Forecast)
-    r.WH_Accuracy =
-      r.measured && bigger > 0 ? 1 - Math.abs(r.Outbound - r.WH_Forecast) / bigger : null
+    r.WH_Accuracy = !r.measured
+      ? null
+      : r.Outbound > 0
+        ? Math.max(0, 1 - Math.abs(r.WH_Forecast - r.Outbound) / r.Outbound)
+        : r.WH_Forecast > 0
+          ? 0
+          : null
   }
 
   res.json({ rows })
@@ -1107,8 +1152,30 @@ api.all('/article-usage', handle(async (req, res) => {
   const column = articleNo ? "'RECIPE TABLE'[Item No.]" : "'RECIPE TABLE'[Item]"
   const value = (articleNo || item).replace(/"/g, '""')
 
-  const parts = await g.fanOut(async ({ ds, brand }) =>
-    cached(`${ds}:usage:${column}:${value}`, async () => {
+  /*
+   * One query per dataset, not one per brand.
+   *
+   * Two pairs of brands share a model — SLC with BUR, MM with TBL — and
+   * 'RECIPE TABLE' has no brand column, so the recipe rows in a shared model
+   * belong to both of the brands it covers. Fanning out per brand asked the
+   * same model the same question twice and, because the cache is keyed on the
+   * dataset, handed back the same rows both times. Merged on a key that
+   * included the brand, the two identical answers landed on one line and their
+   * quantities were added: "2 filaaa on toast + 2 Fries" reported 4 Kids Fries
+   * Sleeves per unit where the recipe says 2, and the second brand vanished.
+   *
+   * Asking each model once removes both faults. The row is labelled with every
+   * brand that model covers, which is what the recipe actually applies to.
+   */
+  const byDataset = new Map()
+  for (const p of g.parts) {
+    if (!byDataset.has(p.ds)) byDataset.set(p.ds, [])
+    byDataset.get(p.ds).push(p.brand.code)
+  }
+
+  const parts = await Promise.all(
+    [...byDataset.entries()].map(async ([ds, codes]) =>
+      cached(`${ds}:usage:${column}:${value}`, async () => {
       const rows = await executeQuery(
         `EVALUATE
 SUMMARIZECOLUMNS(
@@ -1124,20 +1191,24 @@ SUMMARIZECOLUMNS(
         ds,
         { bulk: true }
       )
-      return rows.map((r) => ({ ...r, CHAINID: brand.code }))
-    }).catch((err) => {
-      console.warn(`  [usage] ${brand.code}: ${err.message}`)
-      return []
-    })
+        // Raw rows in the cache, so nothing stored carries one caller's label.
+        return rows
+      })
+        .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / ') })))
+        .catch((err) => {
+          console.warn(`  [usage] ${codes.join('/')}: ${err.message}`)
+          return []
+        })
+    )
   )
 
   /*
-   * One line per menu item, per brand.
+   * One line per menu item, per model.
    *
    * The same product can reach an article down more than one path — through a
    * sauce and again directly — and those are genuinely separate requirements,
-   * so they are added rather than deduplicated. Two brands selling a product
-   * with the same name are still two products, so the brand stays in the key.
+   * so they are added rather than deduplicated. What must not be added is the
+   * same path counted twice, which is what the per-brand fan-out was doing.
    */
   const out = new Map()
   for (const r of parts.flat()) {

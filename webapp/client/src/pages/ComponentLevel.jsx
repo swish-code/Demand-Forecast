@@ -249,10 +249,20 @@ const COLUMNS = [
     group: 'wh',
     total: 'sum',
     renderTotal: fmtQty,
-    render: (v) =>
+    render: (v, row) =>
       v === null || v === undefined ? (
-        <span className="muted" title="No warehouse history for this article in the last six months, so there is no ratio to forecast from.">
+        <span
+          className="muted"
+          title="Fewer than three months of warehouse history and no recipe uses this article, so there is nothing to forecast from."
+        >
           –
+        </span>
+      ) : row?.WH_Forecast_Basis === 'recipe' ? (
+        // Marked, because it is a different derivation from the number above
+        // and below it, and presenting the two identically would hide that.
+        <span title="Fewer than three months of warehouse history, so this comes from the recipe the menu items use rather than from a shipping rate.">
+          {fmtQty(v)}
+          <span className="qmark">*</span>
         </span>
       ) : (
         fmtQty(v)
@@ -359,15 +369,25 @@ const COLUMNS = [
       ) : (
         fmtPct(v, 1)
       ),
+    /*
+     * The totals compared, not the average of the rows' scores.
+     *
+     * Averaging gave a figure nothing else on screen could produce: two rows at
+     * 99.0% and 92.6% averaged to 95.8%, while the column totals directly above
+     * it said 39,740 against 40,178, which is 98.9%. Both were defensible and
+     * neither could be checked against the other.
+     *
+     * Computed from the same two totals the row shows, so it is arithmetic
+     * anybody can repeat, and identical to the card above by construction.
+     */
     total: (list) => {
-      const seen = new Map()
+      let f = 0
+      let a = 0
       for (const r of list) {
-        const a = String(r['Item No.'] ?? '').trim()
-        if (!a || r.Sales_Accuracy === null || r.Sales_Accuracy === undefined) continue
-        if (!seen.has(a)) seen.set(a, r.Sales_Accuracy)
+        f += Number(r.Component_Forecast_Qty) || 0
+        a += Number(r.Component_Actual_Qty) || 0
       }
-      if (!seen.size) return null
-      return [...seen.values()].reduce((x, y) => x + y, 0) / seen.size
+      return a > 0 ? Math.max(0, 1 - Math.abs(a - f) / a) : null
     },
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
   },
@@ -713,10 +733,31 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        * zero and one, so nothing has to be clamped: equal quantities score 100%,
        * one side twice the other scores 50%, and nothing issued scores 0%.
        */
-      const score = (target) =>
-        held && held.measured && target !== null && (held.consumed > 0 || target > 0)
-          ? 1 - Math.abs(held.consumed - target) / Math.max(held.consumed, target)
-          : null
+      /*
+       * Divided by what actually left the warehouse, matching the card.
+       *
+       * It used to divide by the larger of the two, which is symmetric and
+       * never negative — but the card beside it divided by outbound, so the
+       * column footer and the card disagreed by more than their aggregation
+       * explained. Asked for on 6 Sep 2026: one formula, outbound underneath,
+       * floored at zero.
+       *
+       * The floor is doing real work here. Over-forecast by more than twice
+       * what moved and the raw answer goes negative; nothing issued at all and
+       * it is negative infinity. Both mean "the forecast was wrong and the
+       * warehouse shipped less", and 0% is where that bottoms out.
+       *
+       * Blank stays blank: no outbound figure at all, or nothing forecast and
+       * nothing moved, cannot be scored and is not a zero.
+       */
+      const score = (target) => {
+        if (!held || !held.measured || target === null) return null
+        const outbound = held.consumed
+        if (outbound > 0) return Math.max(0, 1 - Math.abs(target - outbound) / outbound)
+        // Nothing moved: a real requirement against it is a total miss, and no
+        // requirement either is nothing to measure.
+        return target > 0 ? 0 : null
+      }
 
       /*
        * How good the sales forecast was, read through this article.
@@ -832,10 +873,13 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
       const c = r.Consumed_Qty
       const known = c !== null && c !== undefined
-      const rescore = (target) =>
-        known && target !== null && target !== undefined && (Number(c) > 0 || Number(target) > 0)
-          ? 1 - Math.abs(Number(c) - Number(target)) / Math.max(Number(c), Number(target))
-          : null
+      // The same formula as `score` above, on a folded row's own totals.
+      const rescore = (target) => {
+        if (!known || target === null || target === undefined) return null
+        const outbound = Number(c)
+        if (outbound > 0) return Math.max(0, 1 - Math.abs(Number(target) - outbound) / outbound)
+        return Number(target) > 0 ? 0 : null
+      }
       return {
         ...r,
         // Same rule as above: a folded row with no demand figure has no demand
@@ -1038,6 +1082,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    */
   const summary = useMemo(() => {
     let forecast = 0
+    let actual = 0
+    const mixArticles = new Set()
     let consumed = 0
     let scored = 0
     /*
@@ -1049,7 +1095,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * component as a total miss — the same mistake as scoring them zero, made
      * one level up. So the headline compares like with like.
      */
-    let matchedForecast = 0
     /*
      * The same pair again, for the warehouse forecast.
      *
@@ -1096,6 +1141,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
       if (recipeRow) {
         forecast += Number(r.Component_Forecast_Qty) || 0
+        actual += Number(r.Component_Actual_Qty) || 0
+        // What the card is measured over, counted once per article.
+        const key = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '')
+        if (key && Number(r.Component_Actual_Qty) > 0) mixArticles.add(key)
         if (c !== null && c !== undefined) consumed += Number(c) || 0
       }
 
@@ -1119,8 +1168,6 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       if (seen.has(a)) continue
       seen.add(a)
       scored += 1
-      // Once per article: the roll-up repeats on every row of it.
-      matchedForecast += Number(r.Article_Forecast_Qty) || 0
     }
 
     /*
@@ -1136,10 +1183,19 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * Divided by what actually moved, and floored at zero, so it reads as a
      * percentage of reality rather than of the forecast's own opinion.
      */
-    const overall =
-      scored && consumed > 0
-        ? Math.max(0, 1 - Math.abs(matchedForecast - consumed) / consumed)
-        : null
+    /*
+     * Forecast qty against Actual qty — the two columns the card sits above.
+     *
+     * It used to compare the recipe requirement against Outbound, which is a
+     * warehouse measure wearing a product-mix name: for packaging the two are
+     * wildly different quantities, so the card read 0.0% while the ACC% column
+     * beside it read 95.8% and both were "right" about different questions.
+     *
+     * Same formula as the column, same totals, so the card is now derivable by
+     * hand from the totals row underneath it. Divided by actual, floored at
+     * zero, matching the report's Variation Percentage MTD.
+     */
+    const overall = actual > 0 ? Math.max(0, 1 - Math.abs(actual - forecast) / actual) : null
 
     const whOverall =
       whScored && whConsumed > 0
@@ -1148,6 +1204,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
 
     return {
       forecast,
+      actual,
+      mixArticles: mixArticles.size,
       consumed,
       measured: scored,
       unmatched: unmatched.size,
@@ -1266,6 +1324,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       <div className="metrics">
         <MetricCard
           label="Outbound"
+          calc="outbound"
           accent="green"
           progress={summary.forecast ? Math.min(1, summary.consumed / summary.forecast) : 0}
           loading={busy}
@@ -1287,15 +1346,17 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         {!future && (
           <MetricCard
             label="Product mix accuracy"
+            calc="card-product-mix,component-forecast,outbound"
             accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
             progress={summary.overall ?? 0}
             loading={busy}
             value={summary.overall === null ? '–' : fmtPct(summary.overall, 1)}
             foot={
               summary.overall === null
-                ? 'Needs outbound to compare against'
-                : `Totals compared · ${fmtInt(summary.measured)} scored` +
-                  (summary.unmatched ? ` · ${fmtInt(summary.unmatched)} unmatched` : '')
+                ? 'Nothing has sold in this window yet'
+                : `${fmtQty(summary.forecast)} forecast vs ${fmtQty(summary.actual)} actual · ${fmtInt(
+                    summary.mixArticles
+                  )} articles`
             }
           />
         )}
@@ -1310,6 +1371,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         {!future && (
           <MetricCard
             label="Warehouse accuracy"
+            calc="card-warehouse,wh-forecast,outbound"
             accent={
               summary.whOverall === null ? 'slate' : summary.whOverall >= 0.9 ? 'green' : 'amber'
             }
@@ -1347,6 +1409,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           Side by side, the table lost a third of its columns to a column of
           cards that is read after it, not with it. */}
       <Panel
+        calc="component-forecast,component-actual,acc-pct,wh-forecast,outbound,wh-acc,sales-acc,supply"
         title="Article detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub="What the forecast implies you need, beside what actually left the warehouse"

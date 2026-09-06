@@ -276,6 +276,8 @@ export const api = {
     users: () => get('/admin/users'),
     analytics: (days) => get(`/admin/analytics${days ? `?days=${days}` : ''}`),
     audit: () => get('/admin/audit'),
+    // The catalogue of every figure and the measure or formula behind it.
+    calculations: () => get('/admin/calculations'),
     createUser: (body) => post('/admin/users', body),
     updateUser: (id, body) => send('PATCH', `/admin/users/${id}`, body),
     deleteUser: (id) => send('DELETE', `/admin/users/${id}`),
