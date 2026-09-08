@@ -1,0 +1,167 @@
+table 'CC Combined Coverage Bucket'
+	lineageTag: 77dabe21-8248-4c8f-9b67-af55adc3f3fe
+
+	measure 'CC Combined Coverage Bucket Article Count' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        )
+			    )
+		formatString: 0
+		lineageTag: ebc8a600-2a7c-44bf-80b7-14f4dde83f57
+
+	measure 'CC Utilization PO Bucket Row Filter' =
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR CurrentCategory =
+			    [CC Utilization PO Control Category]
+			
+			VAR CurrentBaseQty =
+			    [CC Purchase Qty] + [CC Open PO Qty]
+			
+			RETURN
+			    IF (
+			        NOT HasUtilizationBucketFilter
+			            || (
+			                CurrentBaseQty > 0
+			                    && CONTAINSROW (
+			                        SelectedUtilizationBuckets,
+			                        CurrentCategory
+			                    )
+			            ),
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: 5ba781aa-17ac-4f4a-b1f1-4e7d6aa69301
+
+	column 'Combined Coverage Category'
+		lineageTag: 50234c27-4876-4227-a274-41099e01a789
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Combined Coverage Category]
+		sortByColumn: Sort
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sort
+		formatString: 0
+		lineageTag: e3b93e2c-cdc5-40dd-946a-bb6dd7aedc22
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Combined Coverage Bucket' = calculated
+		mode: import
+		source =
+				
+				DATATABLE (
+				    "Combined Coverage Category", STRING,
+				    "Sort", INTEGER,
+				    {
+				        { "7 days", 1 },
+				        { "8-14 days", 2 },
+				        { "15-21 days", 3 },
+				        { "22-28 days", 4 },
+				        { "More than 29 days", 5 },
+				        { "No SOH + No PO", 6 },
+				        { "No Outbound", 7 }
+				    }
+				)
+
+	annotation PBI_Id = 257ea5cfe0de460ebb9126eabbf22469
+

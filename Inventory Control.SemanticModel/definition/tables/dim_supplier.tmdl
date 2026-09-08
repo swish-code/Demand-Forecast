@@ -1,0 +1,34 @@
+table dim_supplier
+	lineageTag: 6a1d5ce4-9063-4b9a-8452-ff69a5096b22
+
+	column Supplier
+		dataType: string
+		lineageTag: e5311205-4638-40bb-ad4d-ec6801bcaf10
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_supplier = m
+		mode: import
+		source =
+				let
+				    Source =
+				        Table.SelectColumns(
+				            bridge_supplier_po_period,
+				            {"Supplier"},
+				            MissingField.Ignore
+				        ),
+				
+				    RemovedDuplicates =
+				        Table.Distinct(Source, {"Supplier"}),
+				
+				    Sorted =
+				        Table.Sort(RemovedDuplicates, {{"Supplier", Order.Ascending}})
+				in
+				    Sorted
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

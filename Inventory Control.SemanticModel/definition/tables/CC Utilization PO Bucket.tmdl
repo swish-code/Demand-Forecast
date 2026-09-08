@@ -1,0 +1,45 @@
+table 'CC Utilization PO Bucket'
+	lineageTag: d0535323-6286-4383-8399-b385cc4a1a0d
+
+	column 'Utilization PO Category'
+		lineageTag: 2a71d520-4cff-4029-a7f9-ba2d771b7d2d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Utilization PO Category]
+		sortByColumn: Sort
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sort
+		formatString: 0
+		lineageTag: 9aa6a3c6-76bc-4516-ac89-4e593ad74f29
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Utilization PO Bucket' = calculated
+		mode: import
+		source =
+				
+				DATATABLE (
+				    "Utilization PO Category", STRING,
+				    "Sort", INTEGER,
+				    {
+				        { "0-10%", 1 },
+				        { "10-20%", 2 },
+				        { "20-30%", 3 },
+				        { "30-40%", 4 },
+				        { "40-50%", 5 },
+				        { "50-60%", 6 },
+				        { "60-70%", 7 },
+				        { "70-80%", 8 },
+				        { "80-90%", 9 },
+				        { "90-100%", 10 },
+				        { "100%+", 11 }
+				    }
+				)
+
+	annotation PBI_Id = f93e205e67da421cb90817ff91ced592
+

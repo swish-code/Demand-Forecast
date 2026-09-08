@@ -1,0 +1,27 @@
+table 'CC Inbound Status'
+	lineageTag: 2e019528-cb54-418c-8a64-26690847ae56
+
+	column 'Inbound Status'
+		lineageTag: d1f43c68-1efd-482d-ba84-4c39bbe76754
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Inbound Status]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Inbound Status' = calculated
+		mode: import
+		source =
+				
+				FILTER (
+				    DISTINCT (
+				        SELECTCOLUMNS (
+				            'fact_grn_allocated_detail',
+				            "Inbound Status", UPPER ( TRIM ( 'fact_grn_allocated_detail'[DN Status] & "" ) )
+				        )
+				    ),
+				    [Inbound Status] <> ""
+				)
+
+	annotation PBI_Id = f3ec2172f3c243b3b3b3b798eea93242
+

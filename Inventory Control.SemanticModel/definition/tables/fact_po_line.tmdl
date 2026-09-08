@@ -1,0 +1,498 @@
+table fact_po_line
+	lineageTag: e0dec704-491d-40da-b01a-cdae094ebf66
+
+	column Article
+		dataType: string
+		lineageTag: ebe8267f-980e-43b9-9402-a9b16fc5f89d
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 7ff240a5-691b-49ff-9801-4e1279917b69
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 00d1bdc8-84c6-4b1a-9499-92f297898861
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: 24264748-7372-4ab5-b626-cad9e0dcc695
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit'
+		dataType: string
+		lineageTag: 989736d5-3ec4-4238-bcf2-95b9bd127a18
+		summarizeBy: none
+		sourceColumn: PO Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Unit'
+		dataType: string
+		lineageTag: 00e247ba-6d90-4210-bfe1-95aa304481f8
+		summarizeBy: none
+		sourceColumn: PO Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO No'
+		dataType: string
+		lineageTag: aa9cfad4-51dc-4b40-9000-5eff0c67dd83
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 71dde11b-3062-4f04-bde1-96cd8fe3ed82
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Qty'
+		dataType: double
+		lineageTag: c1818782-9bfd-494a-af1b-28dd2c61cc96
+		summarizeBy: sum
+		sourceColumn: PO Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Base Qty'
+		dataType: double
+		lineageTag: 8e0bff7f-622e-485f-b36b-d4e15fb119fe
+		summarizeBy: sum
+		sourceColumn: PO Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Price'
+		dataType: double
+		lineageTag: ef940d51-6524-4b99-adba-50d8e78ee286
+		summarizeBy: sum
+		sourceColumn: PO Unit Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Value'
+		dataType: double
+		lineageTag: 14fdd8fc-04e8-4dbf-9f4f-ad6a3e6b43e7
+		summarizeBy: sum
+		sourceColumn: PO Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Multiplier'
+		dataType: double
+		lineageTag: a2db5387-863f-4269-af8e-c46fabf10b96
+		summarizeBy: sum
+		sourceColumn: PO Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Mapping Status'
+		dataType: string
+		lineageTag: 6c308127-a999-46de-8e12-24543d3fe7ab
+		summarizeBy: none
+		sourceColumn: PO Unit Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 32066592-8df3-4acb-ba9d-ddd68f1a3071
+		summarizeBy: none
+		sourceColumn: PO Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 21b14fb3-cd3c-4dcc-a521-bdfd9418dd5b
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 04ca8208-53d4-42ab-bf7b-7807b6180f93
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 18b3617b-4dd5-4247-9834-4367b4efb046
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: acf2b570-4709-46c9-b32f-773b790ef738
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article'
+		dataType: string
+		lineageTag: 5d4d66c3-aa8f-42b9-ace0-164b32524b94
+		summarizeBy: none
+		sourceColumn: Original Purchase Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article Key'
+		dataType: string
+		lineageTag: 79139f15-f8e0-4d3b-bc41-83fb34b098cb
+		summarizeBy: none
+		sourceColumn: Original Purchase Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Oracle Stock Article'
+		dataType: string
+		lineageTag: 045c1318-e542-459a-8044-d469d7d3ae8f
+		summarizeBy: none
+		sourceColumn: Oracle Stock Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article'
+		dataType: string
+		lineageTag: ff3d5502-49f5-43b8-9643-c6d96fac0519
+		summarizeBy: none
+		sourceColumn: Manager Stock Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article No.'
+		dataType: string
+		lineageTag: 27b317fd-1ed8-4c7f-ab40-77eaf2879c7d
+		summarizeBy: none
+		sourceColumn: Manager Stock Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Mapping Status'
+		dataType: string
+		lineageTag: 5a087720-1268-4a4d-a8b7-162b75d21379
+		summarizeBy: none
+		sourceColumn: Article Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Supplier Key'
+		dataType: string
+		lineageTag: 4a42e69e-b3ee-41fb-8bb4-31a94b1169d9
+		summarizeBy: none
+		sourceColumn: Supplier Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Warehouse Key'
+		dataType: string
+		lineageTag: 043c6a0e-ae39-4f6b-8c88-596d9e51f69e
+		summarizeBy: none
+		sourceColumn: Warehouse Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit Key'
+		dataType: string
+		lineageTag: 5890b408-2a5c-4aa7-9afc-923a3bece3c1
+		summarizeBy: none
+		sourceColumn: PO Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'ERP PO Unit Multiplier'
+		dataType: double
+		lineageTag: fd4e338d-8d63-4318-bdf2-ced0be7df0b4
+		summarizeBy: sum
+		sourceColumn: ERP PO Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Mapping Source'
+		dataType: string
+		lineageTag: 7d51f748-44dc-4dc6-92b5-e5f8708bd24d
+		summarizeBy: none
+		sourceColumn: PO Unit Mapping Source
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_po_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Open PO",
+				
+				    FxCleanDisplayText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            try Number.From(x) otherwise null,
+				
+				    #"Clean Text" =
+				        Table.TransformColumns(
+				            Source,
+				            {
+				                {"Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Original Purchase Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Oracle Stock Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Manager Stock Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Manager Stock Article No.", each FxCleanDisplayText(_), type nullable text},
+				                {"Article Mapping Status", each FxCleanDisplayText(_), type nullable text},
+				                {"Supplier", each FxCleanDisplayText(_), type nullable text},
+				                {"Warehouse", each FxCleanDisplayText(_), type nullable text},
+				                {"PO Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"PO Base Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"PO No", each FxCleanDisplayText(_), type nullable text},
+				                {"Sub_Category", each FxCleanDisplayText(_), type nullable text},
+				                {"Item_Group", each FxCleanDisplayText(_), type nullable text},
+				                {"Storage_Type", each FxCleanDisplayText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    #"Changed Types" =
+				        Table.TransformColumnTypes(
+				            #"Clean Text",
+				            {
+				                {"Article", type text},
+				                {"Original Purchase Article", type text},
+				                {"Oracle Stock Article", type text},
+				                {"Manager Stock Article", type text},
+				                {"Manager Stock Article No.", type text},
+				                {"Article Mapping Status", type text},
+				                {"Supplier", type text},
+				                {"Warehouse", type text},
+				                {"PO Unit", type text},
+				                {"PO Base Unit", type text},
+				                {"PO No", type text},
+				                {"PO Qty", type number},
+				                {"PO Unit Price", type number},
+				                {"PO Date", type datetime},
+				                {"PO Delivery Date", type date},
+				                {"ERP PO Unit Multiplier", type number},
+				                {"PO Unit Multiplier", type number},
+				                {"Sub_Category", type text},
+				                {"Item_Group", type text},
+				                {"Storage_Type", type text}
+				            }
+				        ),
+				
+				    #"Filtered Valid PO Rows" =
+				        Table.SelectRows(
+				            #"Changed Types",
+				            each
+				                [Article] <> null
+				                and [Article] <> ""
+				                and [Warehouse] <> null
+				                and [Warehouse] <> ""
+				                and [PO Delivery Date] <> null
+				                and [PO Qty] <> null
+				        ),
+				
+				    #"Added Article Key" =
+				        Table.AddColumn(
+				            #"Filtered Valid PO Rows",
+				            "Article Key",
+				            each fnCleanText([Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Original Purchase Article Key" =
+				        Table.AddColumn(
+				            #"Added Article Key",
+				            "Original Purchase Article Key",
+				            each fnCleanText([Original Purchase Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Warehouse Key" =
+				        Table.AddColumn(
+				            #"Added Original Purchase Article Key",
+				            "Warehouse Key",
+				            each fnCleanText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    #"Added Supplier Key" =
+				        Table.AddColumn(
+				            #"Added Warehouse Key",
+				            "Supplier Key",
+				            each fnCleanText([Supplier]),
+				            type nullable text
+				        ),
+				
+				    #"Added PO Unit Key" =
+				        Table.AddColumn(
+				            #"Added Supplier Key",
+				            "PO Unit Key",
+				            each fnCleanBaseUnit([PO Unit]),
+				            type nullable text
+				        ),
+				
+				    #"Fixed PO Unit Multiplier" =
+				        Table.TransformColumns(
+				            #"Added PO Unit Key",
+				            {
+				                {
+				                    "PO Unit Multiplier",
+				                    each
+				                        let M = FxNum(_)
+				                        in if M <> null and M > 0 then M else 1,
+				                    type number
+				                }
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    #"Added PO Unit Mapping Source" =
+				        Table.AddColumn(
+				            #"Fixed PO Unit Multiplier",
+				            "PO Unit Mapping Source",
+				            each
+				                if [ERP PO Unit Multiplier] <> null and [ERP PO Unit Multiplier] > 0 then
+				                    "Oracle VPK_GRMENGE"
+				                else
+				                    "Default 1",
+				            type text
+				        ),
+				
+				    #"Added PO Unit Mapping Status" =
+				        Table.AddColumn(
+				            #"Added PO Unit Mapping Source",
+				            "PO Unit Mapping Status",
+				            each
+				                if [PO Unit Multiplier] <> null and [PO Unit Multiplier] > 0 then
+				                    "Mapped"
+				                else
+				                    "Missing Unit Mapping",
+				            type text
+				        ),
+				
+				    #"Added PO Base Qty" =
+				        Table.AddColumn(
+				            #"Added PO Unit Mapping Status",
+				            "PO Base Qty",
+				            each
+				                if [PO Unit Multiplier] <> null and [PO Unit Multiplier] > 0 then
+				                    [PO Qty] * [PO Unit Multiplier]
+				                else
+				                    null,
+				            type nullable number
+				        ),
+				
+				    #"Added PO Value" =
+				        Table.AddColumn(
+				            #"Added PO Base Qty",
+				            "PO Value",
+				            each
+				                if [PO Qty] <> null and [PO Unit Price] <> null then
+				                    [PO Qty] * [PO Unit Price]
+				                else
+				                    null,
+				            type nullable number
+				        ),
+				
+				    #"Added Final Cost Center" =
+				        Table.AddColumn(
+				            #"Added PO Value",
+				            "Final Cost Center",
+				            each [Warehouse],
+				            type nullable text
+				        ),
+				
+				    #"Final Column Order" =
+				        Table.ReorderColumns(
+				            #"Added Final Cost Center",
+				            {
+				                "Article",
+				                "Article Key",
+				                "Original Purchase Article",
+				                "Original Purchase Article Key",
+				                "Oracle Stock Article",
+				                "Manager Stock Article",
+				                "Manager Stock Article No.",
+				                "Article Mapping Status",
+				                "Supplier",
+				                "Supplier Key",
+				                "Warehouse",
+				                "Warehouse Key",
+				                "Final Cost Center",
+				                "PO No",
+				                "PO Date",
+				                "PO Delivery Date",
+				                "PO Unit",
+				                "PO Base Unit",
+				                "PO Unit Key",
+				                "PO Qty",
+				                "PO Unit Price",
+				                "ERP PO Unit Multiplier",
+				                "PO Unit Multiplier",
+				                "PO Unit Mapping Source",
+				                "PO Unit Mapping Status",
+				                "PO Base Qty",
+				                "PO Value",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    #"Final Column Order"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+

@@ -1,0 +1,400 @@
+table 'Manager Article'
+	lineageTag: a749a05e-6d92-4871-a6e9-162e4499fef2
+
+	column 'P.Article ID'
+		dataType: int64
+		formatString: 0
+		lineageTag: b7a7323c-00b8-48ab-ba4f-7ac90cc8aaf9
+		summarizeBy: count
+		sourceColumn: P.Article ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'P.Article No.'
+		dataType: string
+		lineageTag: 5c57f751-4cd7-4097-a31d-0360228e2d95
+		summarizeBy: none
+		sourceColumn: P.Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'P.Article'
+		dataType: string
+		lineageTag: f7103926-db68-4df8-83e8-fb1d9e313990
+		summarizeBy: none
+		sourceColumn: P.Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Purchase Article Key'
+		dataType: string
+		lineageTag: 4e7ce40f-2a32-445d-abd1-bd270571a860
+		summarizeBy: none
+		sourceColumn: Purchase Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Purchase Article No Key'
+		dataType: string
+		lineageTag: 6d42f1cb-de99-4cfa-aa0b-ea389246c69d
+		summarizeBy: none
+		sourceColumn: Purchase Article No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article ID'
+		dataType: int64
+		formatString: 0
+		lineageTag: f68810d8-fb40-46d7-848e-507ab1109453
+		summarizeBy: count
+		sourceColumn: Article ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: 050232d5-7f86-45d1-b8a9-0751ec8fb6bb
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 087d3303-75ef-4167-add7-6bd881afd9cd
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Stock Article Key'
+		dataType: string
+		lineageTag: 5f6b4cdf-0da2-4c12-9e79-93253c03604d
+		summarizeBy: none
+		sourceColumn: Stock Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Stock Article No Key'
+		dataType: string
+		lineageTag: a0c19b51-dafd-45af-9425-e4b67da51fda
+		summarizeBy: none
+		sourceColumn: Stock Article No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mapping Status'
+		dataType: string
+		lineageTag: a0919a25-6c15-4c07-ac1e-eba27ea5e7ea
+		summarizeBy: none
+		sourceColumn: Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mapping Row Status'
+		dataType: string
+		lineageTag: 5269c784-063f-42e3-80e8-ed773fd347ad
+		summarizeBy: none
+		sourceColumn: Mapping Row Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mapping Usable Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: e4fd6431-5330-4bd5-9220-1029506fe78c
+		summarizeBy: sum
+		sourceColumn: Mapping Usable Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Code Status'
+		dataType: string
+		lineageTag: 2b3f8318-9bdb-49b1-9a91-525eaa9064d1
+		summarizeBy: none
+		sourceColumn: Article Code Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Lager Type'
+		dataType: int64
+		formatString: 0
+		lineageTag: 35047ec0-e531-47aa-86a9-930d961b6975
+		summarizeBy: sum
+		sourceColumn: Article Lager Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Item Group'
+		dataType: string
+		lineageTag: 2130a7ea-2fca-4103-89c0-7adc1da39f6f
+		summarizeBy: none
+		sourceColumn: Item Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Category
+		dataType: string
+		lineageTag: 4faff670-1057-401e-81bb-8e11c5bd9117
+		summarizeBy: none
+		sourceColumn: Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Category Group'
+		dataType: string
+		lineageTag: c01478a5-be85-4c82-8df0-6c01743b7d66
+		summarizeBy: none
+		sourceColumn: Category Group
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Manager Article' = m
+		mode: import
+		source =
+				let
+				    Source =
+				        Oracle.Database(
+				            "192.168.1.99/mc",
+				            [
+				                HierarchicalNavigation = true,
+				                Query =
+				                    Text.Combine(
+				                        {
+				                            "SELECT",
+				                            "    P.ART_ID AS ""P.Article ID"",",
+				                            "    P.ART_NUMMER AS ""P.Article No."",",
+				                            "    P.ART_NAME AS ""P.Article"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN P.ART_ID",
+				                            "        ELSE S.ART_ID",
+				                            "    END AS ""Article ID"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN P.ART_NUMMER",
+				                            "        ELSE S.ART_NUMMER",
+				                            "    END AS ""Article No."",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN P.ART_NAME",
+				                            "        ELSE S.ART_NAME",
+				                            "    END AS ""Article"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN 'SELF STOCK ARTICLE'",
+				                            "        ELSE 'MAPPED TO STOCK ARTICLE'",
+				                            "    END AS ""Mapping Status"",",
+				
+				                            "    P.ART_LAGER AS ""Article Lager Type"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN PW.WGR_NAME",
+				                            "        ELSE SW.WGR_NAME",
+				                            "    END AS ""Item Group"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN PC.SPA_NAME",
+				                            "        ELSE SC.SPA_NAME",
+				                            "    END AS ""Category"",",
+				
+				                            "    CASE",
+				                            "        WHEN P.ART_LAGER = 3 THEN PG.SGR_NAME",
+				                            "        ELSE SG.SGR_NAME",
+				                            "    END AS ""Category Group""",
+				
+				                            "FROM",
+				                            "    ARTIKEL P",
+				
+				                            "    LEFT OUTER JOIN ARTIKEL S",
+				                            "        ON S.ART_ID = P.ART_NR",
+				
+				                            "    LEFT OUTER JOIN WARENGRUPPE PW",
+				                            "        ON PW.WGR_ID = P.WGR_ID",
+				
+				                            "    LEFT OUTER JOIN SPARTE PC",
+				                            "        ON PC.SPA_ID = PW.SPA_ID",
+				
+				                            "    LEFT OUTER JOIN SPARTEGR PG",
+				                            "        ON PG.SGR_ID = PC.SGR_ID",
+				
+				                            "    LEFT OUTER JOIN WARENGRUPPE SW",
+				                            "        ON SW.WGR_ID = S.WGR_ID",
+				
+				                            "    LEFT OUTER JOIN SPARTE SC",
+				                            "        ON SC.SPA_ID = SW.SPA_ID",
+				
+				                            "    LEFT OUTER JOIN SPARTEGR SG",
+				                            "        ON SG.SGR_ID = SC.SGR_ID",
+				
+				                            "WHERE",
+				                            "       P.ART_LAGER = 3",
+				                            "    OR (",
+				                            "           P.ART_LAGER = 2",
+				                            "       AND P.ART_NR IS NOT NULL",
+				                            "       AND S.ART_ID IS NOT NULL",
+				                            "       )"
+				                        },
+				                        "#(lf)"
+				                    )
+				            ]
+				        ),
+				
+				    FxCleanDisplayText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxArticleNoText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else if Value.Is(x, type number) then Number.ToText(x, "0")
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    #"Changed Type" =
+				        Table.TransformColumnTypes(
+				            Source,
+				            {
+				                {"P.Article ID", Int64.Type},
+				                {"P.Article No.", type text},
+				                {"P.Article", type text},
+				                {"Article ID", Int64.Type},
+				                {"Article No.", type text},
+				                {"Article", type text},
+				                {"Mapping Status", type text},
+				                {"Article Lager Type", Int64.Type},
+				                {"Item Group", type text},
+				                {"Category", type text},
+				                {"Category Group", type text}
+				            }
+				        ),
+				
+				    #"Cleaned Text" =
+				        Table.TransformColumns(
+				            #"Changed Type",
+				            {
+				                {"P.Article No.", each FxArticleNoText(_), type nullable text},
+				                {"P.Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Article No.", each FxArticleNoText(_), type nullable text},
+				                {"Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Mapping Status", each FxCleanDisplayText(_), type nullable text},
+				                {"Item Group", each FxCleanDisplayText(_), type nullable text},
+				                {"Category", each FxCleanDisplayText(_), type nullable text},
+				                {"Category Group", each FxCleanDisplayText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    #"Added Purchase Article Key" =
+				        Table.AddColumn(
+				            #"Cleaned Text",
+				            "Purchase Article Key",
+				            each fnCleanText([#"P.Article"]),
+				            type nullable text
+				        ),
+				
+				    #"Added Stock Article Key" =
+				        Table.AddColumn(
+				            #"Added Purchase Article Key",
+				            "Stock Article Key",
+				            each fnCleanText([Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Purchase Article No Key" =
+				        Table.AddColumn(
+				            #"Added Stock Article Key",
+				            "Purchase Article No Key",
+				            each FxArticleNoText([#"P.Article No."]),
+				            type nullable text
+				        ),
+				
+				    #"Added Stock Article No Key" =
+				        Table.AddColumn(
+				            #"Added Purchase Article No Key",
+				            "Stock Article No Key",
+				            each FxArticleNoText([#"Article No."]),
+				            type nullable text
+				        ),
+				
+				    #"Added Article Code Status" =
+				        Table.AddColumn(
+				            #"Added Stock Article No Key",
+				            "Article Code Status",
+				            each
+				                if [#"Article ID"] = null then
+				                    "Missing Article ID"
+				                else if [#"Article No."] = null or [#"Article No."] = "" then
+				                    "Missing Article No"
+				                else
+				                    "Ready",
+				            type text
+				        ),
+				
+				    #"Added Mapping Row Status" =
+				        Table.AddColumn(
+				            #"Added Article Code Status",
+				            "Mapping Row Status",
+				            each
+				                if [Purchase Article Key] = null or [Purchase Article Key] = "" then
+				                    "Missing Purchase Article"
+				                else if [Stock Article Key] = null or [Stock Article Key] = "" then
+				                    "Missing Stock Article"
+				                else
+				                    "Ready",
+				            type text
+				        ),
+				
+				    #"Added Mapping Usable Flag" =
+				        Table.AddColumn(
+				            #"Added Mapping Row Status",
+				            "Mapping Usable Flag",
+				            each if [Mapping Row Status] = "Ready" then 1 else 0,
+				            Int64.Type
+				        ),
+				
+				    #"Final Column Order" =
+				        Table.ReorderColumns(
+				            #"Added Mapping Usable Flag",
+				            {
+				                "P.Article ID",
+				                "P.Article No.",
+				                "P.Article",
+				                "Purchase Article Key",
+				                "Purchase Article No Key",
+				                "Article ID",
+				                "Article No.",
+				                "Article",
+				                "Stock Article Key",
+				                "Stock Article No Key",
+				                "Mapping Status",
+				                "Mapping Row Status",
+				                "Mapping Usable Flag",
+				                "Article Code Status",
+				                "Article Lager Type",
+				                "Item Group",
+				                "Category",
+				                "Category Group"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    #"Final Column Order"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Exception
+

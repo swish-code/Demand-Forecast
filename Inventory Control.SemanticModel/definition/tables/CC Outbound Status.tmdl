@@ -1,0 +1,27 @@
+table 'CC Outbound Status'
+	lineageTag: 4453ac0a-d0a5-4b80-80d3-b917efdd5338
+
+	column 'Outbound Status'
+		lineageTag: 8234d6e1-9201-4e92-8819-866db61daea0
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Outbound Status]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Outbound Status' = calculated
+		mode: import
+		source =
+				
+				FILTER (
+				    DISTINCT (
+				        SELECTCOLUMNS (
+				            'CC Outbound Core',
+				            "Outbound Status", 'CC Outbound Core'[Status Key]
+				        )
+				    ),
+				    [Outbound Status] <> ""
+				)
+
+	annotation PBI_Id = e1d1c3b54f504f0a8af1f5d248098385
+

@@ -1,0 +1,50 @@
+table dim_warehouse
+	lineageTag: 463e4e65-7eaf-4e79-80d2-73e42adc0690
+
+	column Warehouse
+		dataType: string
+		lineageTag: df9c2348-ff07-4735-bc8a-568e07c30331
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center'
+		dataType: string
+		lineageTag: 884c617b-c6e3-4ef2-b077-941cb04dc781
+		summarizeBy: none
+		sourceColumn: Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Warehouse Key'
+		dataType: string
+		lineageTag: 510c7642-8155-4a05-998f-b9c9e9aebe25
+		summarizeBy: none
+		sourceColumn: Warehouse Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center Key'
+		dataType: string
+		lineageTag: 02d91d07-2ced-4ad2-958c-d5e7ac0ea299
+		summarizeBy: none
+		sourceColumn: Cost Center Key
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_warehouse = m
+		mode: import
+		source =
+				let
+				    Source = #"Warehouse Mapping",
+				    #"Added Custom" = Table.AddColumn(Source, "Warehouse Key", each fnCleanText([Warehouse])),
+				    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Cost Center Key", each fnCleanText([Cost Center])),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom1",{{"Warehouse Key", type text}, {"Cost Center Key", type text}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

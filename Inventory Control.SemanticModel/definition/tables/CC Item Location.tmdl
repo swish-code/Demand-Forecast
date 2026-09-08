@@ -1,0 +1,120 @@
+table 'CC Item Location'
+	lineageTag: 020fe438-4ef2-40d2-8ad4-ed558e7c1f85
+
+	column Location
+		lineageTag: b452622b-cdce-49dd-90f8-53a4e4b25aac
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: cc_daily_inventory[Location]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		lineageTag: abcf31b8-2674-4ad2-a477-14a630b40b6a
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: cc_daily_inventory[Article No.]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		lineageTag: ca4b8ce2-3131-4e85-9967-fa6bfd5b51fa
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: cc_daily_inventory[Article]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		lineageTag: 3fc84d4c-47df-4715-8e21-d2fe99bb6244
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Location Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No Key'
+		lineageTag: 0583c050-94f0-4051-aa72-ec0c7505ff6a
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Article No Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		lineageTag: b4dae8b5-cc74-4cf9-951e-fa959445e134
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Article Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		lineageTag: fc5344f5-6e0c-440a-8acc-793e2166734a
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Base Unit]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'CC Item Location Key'
+		lineageTag: d53ba4d2-50f0-4203-81d3-9d415b19dcd2
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CC Item Location Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Item Location' = calculated
+		mode: import
+		source =
+				
+				VAR BaseRows =
+				    FILTER (
+				        'cc_daily_inventory',
+				        NOT ISBLANK ( 'cc_daily_inventory'[Location] )
+				            && NOT ISBLANK ( 'cc_daily_inventory'[Article] )
+				    )
+				
+				VAR ItemRows =
+				    SUMMARIZE (
+				        BaseRows,
+				        'cc_daily_inventory'[Location],
+				        'cc_daily_inventory'[Article No.],
+				        'cc_daily_inventory'[Article]
+				    )
+				
+				VAR WithCleanColumns =
+				    ADDCOLUMNS (
+				        ItemRows,
+				        "Location Key", UPPER ( TRIM ( [Location] & "" ) ),
+				        "Article No Key", TRIM ( [Article No.] & "" ),
+				        "Article Key", UPPER ( TRIM ( [Article] & "" ) ),
+				        "Base Unit",
+				            VAR RawUnit =
+				                CALCULATE (
+				                    FIRSTNONBLANK ( 'cc_daily_inventory'[Base Unit], 1 )
+				                )
+				            VAR U =
+				                UPPER ( TRIM ( RawUnit & "" ) )
+				            RETURN
+				                SWITCH (
+				                    TRUE (),
+				                    U IN { "KG", "KGS", "KILOGRAM", "KILOGRAMS" }, "KG",
+				                    U IN { "LITER", "LITRE", "LTR", "LITERS", "LITRES", "LTRS" }, "LITER",
+				                    U IN { "EACH", "EA", "PCS", "PC", "PIECE", "PIECES" }, "EACH",
+				                    RawUnit
+				                )
+				    )
+				
+				RETURN
+				    ADDCOLUMNS (
+				        WithCleanColumns,
+				        "CC Item Location Key",
+				            [Location Key]
+				                & "|"
+				                & IF ( [Article No Key] <> "", [Article No Key], [Article Key] )
+				    )
+
+	annotation PBI_Id = ed895d35b16d4988a06866cfcc2608f4
+

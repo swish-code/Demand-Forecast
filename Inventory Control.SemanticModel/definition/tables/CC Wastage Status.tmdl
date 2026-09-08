@@ -1,0 +1,27 @@
+table 'CC Wastage Status'
+	lineageTag: e9135923-f497-4a2b-8108-23ef34d5b621
+
+	column 'Wastage Status'
+		lineageTag: 91b8ab84-5cce-4d1c-b41c-75cbb5ef8beb
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Wastage Status]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Wastage Status' = calculated
+		mode: import
+		source =
+				
+				FILTER (
+				    DISTINCT (
+				        SELECTCOLUMNS (
+				            'fact_wastage_line',
+				            "Wastage Status", UPPER ( TRIM ( 'fact_wastage_line'[Source Status] & "" ) )
+				        )
+				    ),
+				    [Wastage Status] <> ""
+				)
+
+	annotation PBI_Id = 4277c8a8665c4a19851098311a32038c
+

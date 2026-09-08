@@ -200,7 +200,20 @@ export function DataTable({
     return runs
   }, [shown])
 
-  const hasGroupRow = Boolean(groups) && groupRuns.some((r) => r.group && groups[r.group])
+  /*
+   * A group title is either a string or `{ label, help }`.
+   *
+   * The help is a list of `{ term, text }` — what each column in the group
+   * means, in the words somebody reading the table would use. It hangs off the
+   * heading rather than living in a page-level legend because that is where the
+   * question gets asked: at the column, while looking at a number.
+   */
+  const titleOf = (key) => {
+    const g = groups?.[key]
+    return typeof g === 'string' ? { label: g, help: null } : (g ?? { label: '', help: null })
+  }
+
+  const hasGroupRow = Boolean(groups) && groupRuns.some((r) => r.group && titleOf(r.group).label)
 
   const groupClass = (c) => {
     if (!c.group) return ''
@@ -723,7 +736,63 @@ export function DataTable({
                           : 'dt__grouphead'
                       }
                     >
-                      {r.group ? groups[r.group] : ''}
+                      {r.group ? (
+                        <span className="dt__grouptitle">
+                          {titleOf(r.group).label}
+                          {titleOf(r.group).help ? (
+                            <Popover
+                              align="left"
+                              panelClassName="pop--help"
+                              trigger={({ toggle }) => (
+                                <button
+                                  type="button"
+                                  className="dt__help"
+                                  onClick={(e) => {
+                                    // The heading is not a sort target, but the
+                                    // cell around it still swallows clicks.
+                                    e.stopPropagation()
+                                    toggle()
+                                  }}
+                                  aria-label={`How ${titleOf(r.group).label} is calculated`}
+                                  title={`How ${titleOf(r.group).label} is calculated`}
+                                >
+                                  !
+                                </button>
+                              )}
+                              render={() => (
+                                <div className="help">
+                                  <h3 className="help__title">{titleOf(r.group).label}</h3>
+                                  <dl className="help__list">
+                                    {titleOf(r.group).help.map((h) => (
+                                      <Fragment key={h.term}>
+                                        <dt>{h.term}</dt>
+                                        <dd>
+                                          {h.text}
+                                          {/*
+                                            * The sum itself, written the way
+                                            * somebody would say it. A reader
+                                            * asking how a number was reached
+                                            * wants the arithmetic, not a
+                                            * paraphrase of it.
+                                            */}
+                                          {h.formula ? <span className="help__sum">{h.formula}</span> : null}
+                                          {h.example ? (
+                                            <span className="help__eg">
+                                              <b>Example</b> {h.example}
+                                            </span>
+                                          ) : null}
+                                        </dd>
+                                      </Fragment>
+                                    ))}
+                                  </dl>
+                                </div>
+                              )}
+                            />
+                          ) : null}
+                        </span>
+                      ) : (
+                        ''
+                      )}
                     </th>
                   ))}
                 </tr>

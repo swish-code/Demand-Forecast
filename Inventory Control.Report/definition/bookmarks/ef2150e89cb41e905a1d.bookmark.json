@@ -1,0 +1,3298 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/bookmark/2.1.0/schema.json",
+  "displayName": "Supplier",
+  "name": "ef2150e89cb41e905a1d",
+  "options": {
+    "targetVisualNames": [],
+    "suppressData": true
+  },
+  "explorationState": {
+    "version": "1.3",
+    "activeSection": "9b2eab2cc0caca72f2d6",
+    "sections": {
+      "9b2eab2cc0caca72f2d6": {
+        "filters": {
+          "byExpr": [
+            {
+              "name": "465da615b7d6f353fe6e",
+              "type": "Categorical",
+              "expression": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_po_period_lifecycle"
+                    }
+                  },
+                  "Property": "Article"
+                }
+              },
+              "howCreated": 1
+            },
+            {
+              "name": "5eb6a8cfd0bfcf767389",
+              "type": "Advanced",
+              "expression": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_po_period_lifecycle"
+                    }
+                  },
+                  "Property": "Pending Qty"
+                }
+              },
+              "howCreated": 1
+            },
+            {
+              "name": "19b5869510c18b25601b",
+              "type": "Categorical",
+              "expression": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_po_period_lifecycle"
+                    }
+                  },
+                  "Property": "Storage_Type"
+                }
+              },
+              "howCreated": 1
+            },
+            {
+              "name": "cc4925ec008068eb2a8d",
+              "type": "Categorical",
+              "expression": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_po_period_lifecycle"
+                    }
+                  },
+                  "Property": "Fulfillment Status"
+                }
+              },
+              "howCreated": 1
+            },
+            {
+              "name": "e98c31dc9bdc0a440486",
+              "type": "Advanced",
+              "expression": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_po_period_lifecycle"
+                    }
+                  },
+                  "Property": "Allocated GRN Base Qty"
+                }
+              },
+              "howCreated": 1
+            }
+          ]
+        },
+        "visualContainers": {
+          "5c2a6fe048cbef6ea3ec": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "6e4d984027197b65d6ce": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "46e4a6dba3c76621094a": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "e683663812260d119547": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "0b61b971ed173afad9e6",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "slicer",
+              "objects": {
+                "merge": {
+                  "general": [
+                    {
+                      "properties": {
+                        "filter": {
+                          "filter": {
+                            "Version": 2,
+                            "From": [
+                              {
+                                "Name": "d",
+                                "Entity": "dim_date",
+                                "Type": 0
+                              }
+                            ],
+                            "Where": [
+                              {
+                                "Condition": {
+                                  "And": {
+                                    "Left": {
+                                      "Comparison": {
+                                        "ComparisonKind": 2,
+                                        "Left": {
+                                          "Column": {
+                                            "Expression": {
+                                              "SourceRef": {
+                                                "Source": "d"
+                                              }
+                                            },
+                                            "Property": "Date"
+                                          }
+                                        },
+                                        "Right": {
+                                          "Literal": {
+                                            "Value": "datetime'2026-01-01T00:00:00'"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "Right": {
+                                      "Comparison": {
+                                        "ComparisonKind": 3,
+                                        "Left": {
+                                          "Column": {
+                                            "Expression": {
+                                              "SourceRef": {
+                                                "Source": "d"
+                                              }
+                                            },
+                                            "Property": "Date"
+                                          }
+                                        },
+                                        "Right": {
+                                          "Literal": {
+                                            "Value": "datetime'2026-04-01T00:00:00'"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "data": [
+                    {
+                      "properties": {
+                        "startDate": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "datetime'2026-01-01T00:00:00'"
+                            }
+                          }
+                        },
+                        "endDate": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "datetime'2026-03-31T00:00:00'"
+                            }
+                          }
+                        },
+                        "mode": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "'Between'"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "21b94dbb0862ae6a1035": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "f537366576ac465165ea",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "slicer",
+              "objects": {
+                "merge": {
+                  "data": [
+                    {
+                      "properties": {
+                        "mode": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "'Dropdown'"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "efa384f0c47c2317b0c7": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "66874d10615f2f4cf240",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Supplier"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "slicer",
+              "objects": {
+                "merge": {
+                  "data": [
+                    {
+                      "properties": {
+                        "mode": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "'Dropdown'"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Supplier"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "bf51340e4d2fd12d351d": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "a326cfff15289ddf1c95",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Cost Center"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "slicer",
+              "objects": {
+                "merge": {
+                  "data": [
+                    {
+                      "properties": {
+                        "mode": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "'Dropdown'"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Cost Center"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "940d7acd631073de2d41": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "6965bf3c3344e5cfcb04",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "c4a49d99aa42a10ca805",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Warehouse"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "4531badb9e46063f73d4",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Start Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e436b4eda63471b11fc4",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO End Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "454956877a61db4b7402",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_po_period_lifecycle"
+                            }
+                          },
+                          "Property": "Allocated GRN Base Qty"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "bee332f4238f22a57c1a",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_po_period_lifecycle"
+                            }
+                          },
+                          "Property": "Same Day GRN Base Qty"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "8c09a14c227a7d3d4159",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_po_period_lifecycle"
+                            }
+                          },
+                          "Property": "Late GRN Base Qty"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "54506b7fc53c91ee9735",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_po_period_lifecycle"
+                            }
+                          },
+                          "Property": "Pending Qty"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "199dd402523c3ab1d4b6",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Fulfillment Status"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "f5e377e46c5e3f4ffe8c",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "d2f9bb8fec000fba3d81",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e09a345c2e0fec2453a4",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "tableEx",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "75df4f78864b24252019": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "caa689cc290b3850b7b3",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "f842627abd9f818c55fe",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "PO Period ID"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "a23b10682b79de768ce8",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "PO Start Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e9cad20576794b8a0a77",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "PO End Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "0a1fd170e3baf8770aeb",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "GRN Delivery Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "0286afe67cde9d8dc49f",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_grn_allocated_detail"
+                            }
+                          },
+                          "Property": "GRN Base Qty"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "a6cdb8b388ab9e065899",
+                  "type": "Advanced",
+                  "expression": {
+                    "Aggregation": {
+                      "Expression": {
+                        "Column": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "fact_grn_allocated_detail"
+                            }
+                          },
+                          "Property": "Days After PO"
+                        }
+                      },
+                      "Function": 0
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "cad5daefb56c4e153698",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "GRN Timing Status"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "tableEx",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_grn_allocated_detail"
+                        }
+                      },
+                      "Property": "PO End Date"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "9c08443e50aba27db368": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "ee05f5dcd65413d65995": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "a48e426c2b441c8cc8ee": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "a0c450cf4da1a648c971",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "f68c014aa04c46d18bba",
+                  "type": "TopN",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "a2fac8c0e73a1cd6482e",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "d",
+                        "Entity": "dim_date",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "In": {
+                            "Expressions": [
+                              {
+                                "Column": {
+                                  "Expression": {
+                                    "SourceRef": {
+                                      "Source": "d"
+                                    }
+                                  },
+                                  "Property": "Year"
+                                }
+                              }
+                            ],
+                            "Values": [
+                              [
+                                {
+                                  "Literal": {
+                                    "Value": "2026L"
+                                  }
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year"
+                    }
+                  },
+                  "howCreated": 1
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "lineChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ac481a29d1a08241a7a6": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "184cf47d647d51a74d63": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "7d13e00938514e304319",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "192761530ffc1ebd081f": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "2d0798f0638495a0cb14",
+                  "type": "TopN",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "subquery",
+                        "Expression": {
+                          "Subquery": {
+                            "Query": {
+                              "Version": 2,
+                              "From": [
+                                {
+                                  "Name": "f",
+                                  "Entity": "fact_po_period_lifecycle",
+                                  "Type": 0
+                                },
+                                {
+                                  "Name": "_",
+                                  "Entity": "_Measures Inbound",
+                                  "Type": 0
+                                }
+                              ],
+                              "Select": [
+                                {
+                                  "Column": {
+                                    "Expression": {
+                                      "SourceRef": {
+                                        "Source": "f"
+                                      }
+                                    },
+                                    "Property": "PO Supplier List"
+                                  },
+                                  "Name": "field"
+                                }
+                              ],
+                              "OrderBy": [
+                                {
+                                  "Direction": 2,
+                                  "Expression": {
+                                    "Measure": {
+                                      "Expression": {
+                                        "SourceRef": {
+                                          "Source": "_"
+                                        }
+                                      },
+                                      "Property": "Inbound Pending Qty"
+                                    }
+                                  }
+                                }
+                              ],
+                              "Top": 20
+                            }
+                          }
+                        },
+                        "Type": 2
+                      },
+                      {
+                        "Name": "f",
+                        "Entity": "fact_po_period_lifecycle",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "In": {
+                            "Expressions": [
+                              {
+                                "Column": {
+                                  "Expression": {
+                                    "SourceRef": {
+                                      "Source": "f"
+                                    }
+                                  },
+                                  "Property": "PO Supplier List"
+                                }
+                              }
+                            ],
+                            "Table": {
+                              "SourceRef": {
+                                "Source": "subquery"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Supplier List"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "acf24929b515281b39ce",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "0d83138e92a5bc5171de",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "2a408997d5ee88ccac24",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "da284eaaf247abc5d379",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "c6946da9e704480e2f12",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "c090c414adcb4edf7787",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Avg First Receipt Delay Days"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e435f3dd903669378d33",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "b7646e6d0df9c1fa890b",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound In Full %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "9c3e7f34221ca3132c83",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "tableEx",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "94d057c85f034a763e79": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "15e29847a646bb4d6cd8",
+                  "type": "Advanced",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Week No"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "823b8086531c61dc69b8",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "c38cb4f6c04374b3f671",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "lineChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Week No"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "84d397c3ec6f34523875": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "dc8097d9f55b2138e87a",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "6b792483addb5423fd09",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "7e2f5ad051666d53c458",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e179fd844714c9e11d0a",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "lineChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Date"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "2fff03947926a123589d": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {}
+            }
+          },
+          "ccb7489ccf0d55ed27f2": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {}
+            }
+          },
+          "0c4d96007eadac5d37fc": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {},
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "47d3d82c12af594f8920": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {},
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "88ef06f1600b13c05d14": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "2851489b3183b2034b5d": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "496f2a50400081a73d70": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "2250025a3313297a793a",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate % (Text)"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "0f259326044e5d18ae9c": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "8901c13e1750d73beddd": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "bdaa23d24330d57a6716",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "f9230dd60856a198a77b": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "08bdb620c05509274c7a": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "79fa07465308060238b2": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5298b584e9be0fab8984",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending % (Text)"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending %"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "642f4b1f08deea025300": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "a0c450cf4da1a648c971",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "f68c014aa04c46d18bba",
+                  "type": "TopN",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "a2fac8c0e73a1cd6482e",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "d",
+                        "Entity": "dim_date",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "In": {
+                            "Expressions": [
+                              {
+                                "Column": {
+                                  "Expression": {
+                                    "SourceRef": {
+                                      "Source": "d"
+                                    }
+                                  },
+                                  "Property": "Year"
+                                }
+                              }
+                            ],
+                            "Values": [
+                              [
+                                {
+                                  "Literal": {
+                                    "Value": "2026L"
+                                  }
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "bc96ebc6f3370ab68390",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "lineChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "d94e5b11a91ae1068814": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "846e0b7084349634e550": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "e548d27bccba87d4b5e8",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "37d36e0ad43b01590880": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "563e1595e3d63c3d202a": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "8ee05a9edcab9828a435": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "a527af7a066288a569ac",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Same Day GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Same Day GRN Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "0837e086e6328951ce83": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "4e0b9ed30a3152ce0077": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "9e25e6867a6ccd0b1862",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF Count (Text)"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF Count"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "e954e4f0e557d03a104d": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "a657681679d84c2e478e": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "e7e38115a693248580c6",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF %"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "857a5c5fbdb9e3078435": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "f9514a78383926842532": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "b2f671cea559b72c0567": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "af6573e8c14a06d8bded": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "f389c4e10b65132b9047",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Avg First Receipt Delay Days (Text)"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Avg First Receipt Delay Days"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "4a67d45d34ced2adb619": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "349a17c09ca9da97e139": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "fce372da1c8739afa2ba",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Value"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Value"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "3394cf08e00cd77e81d8": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "a146bdfdbd3b0ab81440": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "66a6fe73b617a611a4f2",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Value Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "gauge",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Value Fill Rate %"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "b9fdef231c7e82e2a828": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "ab88f0b17dd9726212b3": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5f02fc47d19c5f203f27",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Value"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Value"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "b4aa8bdf76e3cb7e707b": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5bf999b2732c1139592b",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "f",
+                        "Entity": "fact_po_period_lifecycle",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "Not": {
+                            "Expression": {
+                              "In": {
+                                "Expressions": [
+                                  {
+                                    "Column": {
+                                      "Expression": {
+                                        "SourceRef": {
+                                          "Source": "f"
+                                        }
+                                      },
+                                      "Property": "Storage_Type"
+                                    }
+                                  }
+                                ],
+                                "Values": [
+                                  [
+                                    {
+                                      "Literal": {
+                                        "Value": "null"
+                                      }
+                                    }
+                                  ]
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Storage_Type"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e333f0fced7c9d611c18",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "03a2e4bdf54cee404afb",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "clusteredBarChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Storage_Type"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "f292b4ff9a7d37863c76": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "f8ba6ce994e87e0e507b": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "f9bc0656e747ac33dba0": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "1f72d5f9877dbc1da129",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Full Received PO Periods"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Full Received PO Periods"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "4148f5654c0aa4780c69": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "505f232c9ec5626902bc": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "7bd2e39fb59a4018ad23": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "a31bd8a90805ce83e912": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "3ea062c4a272344eef37",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Late GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Late GRN Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "f729ab15a60b6d16e590": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "77129f08c872482aa101": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "54dd55e518491081100a": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "60639374eff1f3a680aa",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Value"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Value"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "206e82bc3190bdc54c25": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "cb0baf6746ae3c6aedeb": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "eafb922c4a4fe8a6b83c",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Line Count"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Line Count"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "15e705fdbe76ca0bab00": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "641b836a5ba5c8ec7dbe": {
+            "singleVisual": {
+              "visualType": "textbox",
+              "objects": {}
+            }
+          },
+          "176df7996524054c2b2e": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "c6e8c40adddbc13acae1",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Period Count"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound PO Period Count"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "7ae7dc194a7025dda640": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5bf999b2732c1139592b",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Storage_Type"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "9cf7ea946377c31d81f6",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Fulfillment Status"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "b8ae4e1b5915330951f9",
+                  "type": "Advanced",
+                  "expression": {
+                    "Arithmetic": {
+                      "Left": {
+                        "Measure": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "_Measures Inbound"
+                            }
+                          },
+                          "Property": "Inbound Requested Qty"
+                        }
+                      },
+                      "Right": {
+                        "ScopedEval": {
+                          "Expression": {
+                            "Measure": {
+                              "Expression": {
+                                "SourceRef": {
+                                  "Entity": "_Measures Inbound"
+                                }
+                              },
+                              "Property": "Inbound Requested Qty"
+                            }
+                          },
+                          "Scope": []
+                        }
+                      },
+                      "Operator": 3
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "2a040607dfcffe76dd62",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Line Count"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "clusteredBarChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Arithmetic": {
+                      "Left": {
+                        "Measure": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "_Measures Inbound"
+                            }
+                          },
+                          "Property": "Inbound Requested Qty"
+                        }
+                      },
+                      "Right": {
+                        "ScopedEval": {
+                          "Expression": {
+                            "Measure": {
+                              "Expression": {
+                                "SourceRef": {
+                                  "Entity": "_Measures Inbound"
+                                }
+                              },
+                              "Property": "Inbound Requested Qty"
+                            }
+                          },
+                          "Scope": []
+                        }
+                      },
+                      "Operator": 3
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Fulfillment Status"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "566707b4d14a65572814": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5bf999b2732c1139592b",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Storage_Type"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "141d21d25c5fefa4bc42",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Line Count"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "736886f4571115df5a92",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Cost Center"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e23af7266d45f1d6fcf7",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "clusteredBarChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Cost Center"
+                    }
+                  }
+                ]
+              },
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "72f15d3f0907b0a63ad0": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "269577aa8fbbe6268b84",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e367cabfda5b896d4c57",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "9561a43355d03668ec2a",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e26a4b4405a84c06f92f",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "lineClusteredColumnComboChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 1,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "dim_date"
+                        }
+                      },
+                      "Property": "Year Month"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "369ee7861cd90494cb30": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "0b87ce631871dcfde5e5",
+                  "type": "TopN",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "subquery",
+                        "Expression": {
+                          "Subquery": {
+                            "Query": {
+                              "Version": 2,
+                              "From": [
+                                {
+                                  "Name": "f",
+                                  "Entity": "fact_po_period_lifecycle",
+                                  "Type": 0
+                                },
+                                {
+                                  "Name": "_",
+                                  "Entity": "_Measures Inbound",
+                                  "Type": 0
+                                }
+                              ],
+                              "Select": [
+                                {
+                                  "Column": {
+                                    "Expression": {
+                                      "SourceRef": {
+                                        "Source": "f"
+                                      }
+                                    },
+                                    "Property": "Article"
+                                  },
+                                  "Name": "field"
+                                }
+                              ],
+                              "OrderBy": [
+                                {
+                                  "Direction": 2,
+                                  "Expression": {
+                                    "Measure": {
+                                      "Expression": {
+                                        "SourceRef": {
+                                          "Source": "_"
+                                        }
+                                      },
+                                      "Property": "Inbound Pending Qty"
+                                    }
+                                  }
+                                }
+                              ],
+                              "Top": 20
+                            }
+                          }
+                        },
+                        "Type": 2
+                      },
+                      {
+                        "Name": "f",
+                        "Entity": "fact_po_period_lifecycle",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "In": {
+                            "Expressions": [
+                              {
+                                "Column": {
+                                  "Expression": {
+                                    "SourceRef": {
+                                      "Source": "f"
+                                    }
+                                  },
+                                  "Property": "Article"
+                                }
+                              }
+                            ],
+                            "Table": {
+                              "SourceRef": {
+                                "Source": "subquery"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Article"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "411ecfa4dda3f3b7cedd",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Requested Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "bbe1bd0bcf6fb7c30cb6",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "65cf180e56c6852b374b",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "b3c970ebca221a2eb9fe",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "5212f0ba76ca4b205ad0",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound OTIF %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "d4a97395d78b9220a307",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Avg First Receipt Delay Days"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "fa8279b58a6bd624c8d2",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Capped Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "f6b7f3833e57ca59ec73",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound In Full %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "ce56938156dede8fba54",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending %"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "tableEx",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Pending Qty"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "3e53f346a2c571331ed4": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "763470252b85b9950126",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Full Received PO Periods % (Text)"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "card",
+              "objects": {}
+            }
+          },
+          "b6b616af30077266790d": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "5bf999b2732c1139592b",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "Storage_Type"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "0f484503e8ca96ad67d2",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound GRN Line Count"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "ed7e51b282a805a5c7d8",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "d41de594ae1bdf8200bc",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Supplier"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "clusteredBarChart",
+              "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Inbound"
+                        }
+                      },
+                      "Property": "Inbound Fill Rate %"
+                    }
+                  }
+                }
+              ],
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "fact_po_period_lifecycle"
+                        }
+                      },
+                      "Property": "PO Supplier"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "763ae82de67ecc784008": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {}
+            }
+          },
+          "75c230d8dcac491b472c": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {}
+            }
+          },
+          "9b04367c71e210d0b464": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {},
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "47799b2c00224d707e60": {
+            "singleVisual": {
+              "visualType": "actionButton",
+              "objects": {}
+            }
+          }
+        }
+      }
+    },
+    "objects": {
+      "merge": {
+        "outspacePane": [
+          {
+            "properties": {
+              "expanded": {
+                "expr": {
+                  "Literal": {
+                    "Value": "false"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

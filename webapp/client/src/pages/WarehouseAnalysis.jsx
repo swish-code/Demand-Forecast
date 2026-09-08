@@ -155,6 +155,83 @@ const FINDINGS = [
 ]
 
 /**
+ * The route to 90%, in the order the measurements say to do it.
+ *
+ * Separate from the findings above, which each describe one fault. This is the
+ * plan: what to do first, what it is worth, and what it costs to try. Ordered
+ * by measured impact rather than by how hard each one is.
+ *
+ * `gain` is deliberately worded as an expectation rather than a promise. Two of
+ * these have been measured directly (the window, and the articles that stopped
+ * shipping); the rest are reasoned from the segment data and say so.
+ */
+const ROUTE = [
+  {
+    step: 1,
+    title: 'Judge accuracy over a full month, not a few days',
+    do: 'Default the warehouse pages to a whole month, and do not read accuracy on any window shorter than about three weeks.',
+    why:
+      'The warehouse ships in bulk cases on an ordering cycle — 5,000, 10,000, 30,000 units at a time, roughly a week of supply each. A short window catches one delivery or none.',
+    gain: 'Measured: the same articles read 30% on a month-to-date window and 74% at monthly grain. Nothing about the forecast changes.',
+    effort: 'No code change. Do this first.',
+  },
+  {
+    step: 2,
+    title: 'Apply the stopped-shipping rule to recipe articles too',
+    do: 'Extend the two-month activity test to articles a recipe uses, not just to the rest.',
+    why:
+      'The rule currently exempts recipe articles, because the menu item still exists. But the canned drinks range stopped shipping in July while the drinks stayed on the menu, so the forecast keeps asking for them.',
+    gain:
+      'Measured: 25 articles slip through. Pepsi Cola Can alone is forecast at 42,794 against 4 issued — one article scoring -1,008,417%, enough to outweigh a thousand good ones.',
+    effort: 'Small. The rule already exists; it needs its exemption removed.',
+  },
+  {
+    step: 3,
+    title: 'Stop scoring articles too small to score',
+    do: 'Below about a hundred units, show how many units out we were and no percentage. Report those separately.',
+    why: 'Two units out of four is a "50% error". It is arithmetically true and tells nobody anything.',
+    gain: 'Around 330 articles. They produce most of the extreme scores and none of the insight.',
+    effort: 'Small, and it only changes what is displayed.',
+  },
+  {
+    step: 4,
+    title: 'Give recent months more weight',
+    do: 'Weight the six months roughly 3 / 2.5 / 2 / 1.5 / 1 / 1 instead of equally.',
+    why:
+      'The error is persistent rather than random — consecutive months miss in the same direction 54.5% of the time. A flat average cannot follow a trend either way.',
+    gain: 'Targets the overall lean, which affects every article rather than a group of them.',
+    effort: 'Backtest before switching: build the rate from March to July, forecast August, compare against the current method.',
+  },
+  {
+    step: 5,
+    title: 'Use the middle month for volatile articles only',
+    do: 'Where the monthly rate swings by more than ±60%, take the median month rather than the average.',
+    why: 'One unusual month enters an average at full weight and keeps inflating the figure for six months.',
+    gain: 'Steady articles already reach 60% accuracy 87% of the time; the most erratic manage 30%. This targets the second group.',
+    effort: 'Scope it to volatile articles. The 497 steady ones already work and must not be touched.',
+  },
+]
+
+/**
+ * What 90% would actually require.
+ *
+ * Kept beside the route rather than buried in it, because it is the part that
+ * changes what somebody should expect: the first five steps improve the number,
+ * and none of them can reach 90% on the thing currently being measured.
+ */
+const CEILING = {
+  title: 'Why the first five steps stop short of 90%',
+  body:
+    'What is measured today is how well we predict a purchasing decision, not demand. Somebody orders a full case, on a cycle, subject to a minimum quantity. Predicting that to 90% would mean predicting the buyer rather than the business.',
+  target:
+    'Steps 1 to 5 should reach roughly 75–80% on average and 85% or better for the typical article. The largest articles, already at 84%, should clear 90%.',
+  next:
+    'Getting the headline number to 90% needs a different target: forecast what stores actually consume, then convert that into a replenishment — order = forecast demand − stock on hand + safety stock. Two separable numbers, each checkable on its own.',
+  data:
+    'That needs stock on hand at store level, with opening + receipts − issues = closing. Not because stock explains the current gap — that was tested, and the month-to-month errors do not reverse the way buffering would require — but because it is the only way to measure demand rather than a decision about demand.',
+}
+
+/**
  * What has already been changed.
  *
  * Fixed entries, as opposed to the findings above which retire themselves. Both
@@ -240,6 +317,29 @@ function Insight({ figure, title, children, tone = 'slate' }) {
       <span className="ins__figure">{figure}</span>
       <h3 className="ins__title">{title}</h3>
       <p className="ins__body">{children}</p>
+    </article>
+  )
+}
+
+/** One step on the route: what to do, why, what it is worth, what it costs. */
+function Step({ entry }) {
+  return (
+    <article className="step">
+      <span className="step__num" aria-hidden="true">
+        {entry.step}
+      </span>
+      <div className="step__body">
+        <h3 className="step__title">{entry.title}</h3>
+        <p className="step__do">{entry.do}</p>
+        <dl className="step__fields">
+          <dt>Why</dt>
+          <dd>{entry.why}</dd>
+          <dt>Worth</dt>
+          <dd>{entry.gain}</dd>
+          <dt>Cost</dt>
+          <dd>{entry.effort}</dd>
+        </dl>
+      </div>
     </article>
   )
 }
@@ -714,6 +814,26 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             Every problem this page checks for has been resolved for the current selection.
           </Empty>
         )}
+      </Panel>
+
+      <Panel
+        title="Getting to 90%"
+        count={ROUTE.length}
+        sub="The steps that move the number most, in the order the measurements say to do them"
+      >
+        <ol className="steps">
+          {ROUTE.map((r) => (
+            <Step key={r.step} entry={r} />
+          ))}
+        </ol>
+
+        <section className="ceiling">
+          <h3>{CEILING.title}</h3>
+          <p>{CEILING.body}</p>
+          <p className="ceiling__target">{CEILING.target}</p>
+          <p>{CEILING.next}</p>
+          <p className="ceiling__note">{CEILING.data}</p>
+        </section>
       </Panel>
 
       <Panel title="What has changed" sub="Fixes already made, and problems that have since cleared">

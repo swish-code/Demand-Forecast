@@ -1,0 +1,221 @@
+table bridge_supplier_po_period
+	lineageTag: e1f72757-a2c0-4297-9560-ebfd4e29e746
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: df415b9d-3854-465f-b0f9-63c97cf0c5dc
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 7087bff7-f9ba-4601-993b-fa31525bd754
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Supplier Role'
+		dataType: string
+		lineageTag: b6f328c0-ed74-473d-a6de-103b03f060eb
+		summarizeBy: none
+		sourceColumn: Supplier Role
+
+		annotation SummarizationSetBy = Automatic
+
+	partition bridge_supplier_po_period = m
+		mode: import
+		source =
+				let
+				    Source = fact_po_period_lifecycle,
+				
+				    FxCleanDisplayText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxSupplierList =
+				        (ListText as any, FallbackSupplier as any) as list =>
+				            let
+				                ListTextClean = FxCleanDisplayText(ListText),
+				                FallbackClean = FxCleanDisplayText(FallbackSupplier),
+				
+				                RawList =
+				                    if ListTextClean <> null and ListTextClean <> "" then
+				                        Text.Split(ListTextClean, ",")
+				                    else if FallbackClean <> null and FallbackClean <> "" and Text.Upper(FallbackClean) <> "MULTIPLE" then
+				                        {FallbackClean}
+				                    else
+				                        {},
+				
+				                CleanList =
+				                    List.Sort(
+				                        List.Distinct(
+				                            List.Select(
+				                                List.Transform(
+				                                    RawList,
+				                                    each FxCleanDisplayText(_)
+				                                ),
+				                                each _ <> null and _ <> "" and Text.Upper(_) <> "MULTIPLE"
+				                            )
+				                        )
+				                    )
+				            in
+				                CleanList,
+				
+				    BaseColumns =
+				        Table.SelectColumns(
+				            Source,
+				            {
+				                "PO Period ID",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    FilteredBase =
+				        Table.SelectRows(
+				            BaseColumns,
+				            each
+				                [PO Period ID] <> null
+				                and [PO Period ID] <> ""
+				        ),
+				
+				    AddedExpectedSupplierList =
+				        Table.AddColumn(
+				            FilteredBase,
+				            "__Supplier List",
+				            each FxSupplierList([PO Supplier List], [PO Supplier]),
+				            type list
+				        ),
+				
+				    ExpandedExpectedSupplier =
+				        Table.ExpandListColumn(
+				            AddedExpectedSupplierList,
+				            "__Supplier List"
+				        ),
+				
+				    ExpectedSupplierRows =
+				        Table.SelectColumns(
+				            ExpandedExpectedSupplier,
+				            {"PO Period ID", "__Supplier List"},
+				            MissingField.Ignore
+				        ),
+				
+				    RenamedExpectedSupplier =
+				        Table.RenameColumns(
+				            ExpectedSupplierRows,
+				            {{"__Supplier List", "Supplier"}},
+				            MissingField.Ignore
+				        ),
+				
+				    AddedExpectedRole =
+				        Table.AddColumn(
+				            RenamedExpectedSupplier,
+				            "Supplier Role",
+				            each "Expected PO Supplier",
+				            type text
+				        ),
+				
+				    AddedActualSupplierList =
+				        Table.AddColumn(
+				            FilteredBase,
+				            "__Supplier List",
+				            each FxSupplierList([Actual GRN Supplier List], [Actual GRN Supplier]),
+				            type list
+				        ),
+				
+				    ExpandedActualSupplier =
+				        Table.ExpandListColumn(
+				            AddedActualSupplierList,
+				            "__Supplier List"
+				        ),
+				
+				    ActualSupplierRows =
+				        Table.SelectColumns(
+				            ExpandedActualSupplier,
+				            {"PO Period ID", "__Supplier List"},
+				            MissingField.Ignore
+				        ),
+				
+				    RenamedActualSupplier =
+				        Table.RenameColumns(
+				            ActualSupplierRows,
+				            {{"__Supplier List", "Supplier"}},
+				            MissingField.Ignore
+				        ),
+				
+				    AddedActualRole =
+				        Table.AddColumn(
+				            RenamedActualSupplier,
+				            "Supplier Role",
+				            each "Actual GRN Supplier",
+				            type text
+				        ),
+				
+				    Combined =
+				        Table.Combine(
+				            {
+				                AddedExpectedRole,
+				                AddedActualRole
+				            }
+				        ),
+				
+				    Cleaned =
+				        Table.TransformColumns(
+				            Combined,
+				            {
+				                {"PO Period ID", each FxCleanDisplayText(_), type nullable text},
+				                {"Supplier", each fnCleanText(_), type nullable text},
+				                {"Supplier Role", each FxCleanDisplayText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    Filtered =
+				        Table.SelectRows(
+				            Cleaned,
+				            each
+				                [PO Period ID] <> null
+				                and [PO Period ID] <> ""
+				                and [Supplier] <> null
+				                and [Supplier] <> ""
+				                and [Supplier Role] <> null
+				                and [Supplier Role] <> ""
+				        ),
+				
+				    RemovedDuplicates =
+				        Table.Distinct(
+				            Filtered,
+				            {"PO Period ID", "Supplier", "Supplier Role"}
+				        ),
+				
+				    ReorderedColumns =
+				        Table.ReorderColumns(
+				            RemovedDuplicates,
+				            {
+				                "PO Period ID",
+				                "Supplier",
+				                "Supplier Role"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderedColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

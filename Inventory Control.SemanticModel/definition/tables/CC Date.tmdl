@@ -1,0 +1,30 @@
+table 'CC Date'
+	lineageTag: 314e0c28-10c4-4a62-85e5-a8b2b66863e0
+
+	column 'Movement Date'
+		formatString: mm/dd/yy
+		lineageTag: 3aecedee-7c7d-413e-b8fc-0136bc7305e0
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Movement Date]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	partition 'CC Date' = calculated
+		mode: import
+		source =
+				
+				DISTINCT (
+				    SELECTCOLUMNS (
+				        FILTER (
+				            'cc_daily_inventory',
+				            NOT ISBLANK ( 'cc_daily_inventory'[Movement Date] )
+				        ),
+				        "Movement Date", 'cc_daily_inventory'[Movement Date]
+				    )
+				)
+
+	annotation PBI_Id = 92e6af213cc546ecbee0697beacbb876
+

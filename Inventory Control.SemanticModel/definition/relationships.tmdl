@@ -1,0 +1,79 @@
+relationship 9e12f63b-732b-0f87-2570-4fe63ac696eb
+	fromColumn: fact_po_period_lifecycle.'PO Start Date'
+	toColumn: dim_date.Date
+
+relationship cc05ecc9-8ebd-287c-59cc-d58ecf3de1b9
+	fromColumn: fact_grn_allocated_detail.'PO Period ID'
+	toColumn: fact_po_period_lifecycle.'PO Period ID'
+
+relationship a1e72141-28e2-fc43-f437-f4db19f92601
+	fromColumn: fact_po_period_lifecycle.Article
+	toColumn: dim_item.Article
+
+relationship 262aa893-4c60-20ce-bae9-b3081b3fbce9
+	fromColumn: fact_po_period_lifecycle.Warehouse
+	toColumn: dim_warehouse.Warehouse
+
+relationship AutoDetected_bc55b209-4a43-450f-b43d-9a4dcc96a10f
+	fromColumn: bridge_supplier_po_period.Supplier
+	toColumn: dim_supplier.Supplier
+
+relationship 86b9fef2-a839-5270-969f-ade74397480b
+	crossFilteringBehavior: bothDirections
+	fromColumn: bridge_supplier_po_period.'PO Period ID'
+	toColumn: fact_po_period_lifecycle.'PO Period ID'
+
+relationship 162e3a21-56a5-112d-6018-fc511b51e4df
+	fromColumn: fact_outbound_line.'Requested Delivery Date'
+	toColumn: dim_date.Date
+
+relationship 91938944-405e-9a94-7ed3-128836c2461a
+	fromColumn: fact_outbound_line.Article
+	toColumn: dim_item.Article
+
+relationship AutoDetected_1f67b336-f990-4fa6-a1bf-f000a3dd3646
+	fromColumn: fact_po_line.'Article Key'
+	toColumn: dim_item.Article
+
+relationship AutoDetected_5885c497-535e-4398-bb2c-b4d7880e6e7d
+	isActive: false
+	fromColumn: fact_grn_allocated_detail.'Article Key'
+	toColumn: dim_item.Article
+
+relationship AutoDetected_efb62ee1-1925-4e45-9684-e6b6fbec87c6
+	fromColumn: fact_po_line.'Supplier Key'
+	toColumn: dim_supplier.Supplier
+
+relationship AutoDetected_ef15ad88-38f9-4cf7-9440-fb21abc4746b
+	fromColumn: fact_grn_line.'Supplier Key'
+	toColumn: dim_supplier.Supplier
+
+relationship AutoDetected_682dc441-93dd-4a0a-8240-c1d1e02d06df
+	fromColumn: fact_grn_allocated_detail.'Supplier Key'
+	toColumn: dim_supplier.Supplier
+
+relationship AutoDetected_314f95b6-cf1d-4db5-a635-af19cf495f4b
+	fromColumn: fact_po_line.'Warehouse Key'
+	toColumn: dim_warehouse.Warehouse
+
+relationship AutoDetected_9848b755-8e62-4a4e-8af1-e3a4104dc492
+	fromColumn: fact_grn_line.'Warehouse Key'
+	toColumn: dim_warehouse.Warehouse
+
+relationship AutoDetected_5a69fdd2-44be-40ab-a5a6-6466d167ccd9
+	isActive: false
+	fromColumn: fact_grn_allocated_detail.'Warehouse Key'
+	toColumn: dim_warehouse.Warehouse
+
+relationship AutoDetected_dfc236ae-06c3-4b8a-9eb3-8b884105f526
+	fromColumn: 'CC Open PO Core'.Article
+	toColumn: dim_item.Article
+
+relationship AutoDetected_2a79bbed-0d99-4952-b15a-3f390cc1b276
+	fromColumn: 'CC PO Receipt Core'.Article
+	toColumn: dim_item.Article
+
+relationship AutoDetected_08066610-fb26-4aa6-8234-5722982f601f
+	fromColumn: 'CC Open PO Core'.Supplier
+	toColumn: dim_supplier.Supplier
+

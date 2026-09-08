@@ -1,0 +1,191 @@
+table 'CC Outbound Core'
+	lineageTag: 10b6544c-c8e8-4124-9f17-332d0c74fbca
+
+	column 'Movement Date'
+		formatString: General Date
+		lineageTag: 26c8913d-f974-4883-99fd-8a9f11dece93
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Movement Date]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No Key'
+		lineageTag: a3df2259-6b9c-4c60-b8d9-e951fe28d6f0
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Article No Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		lineageTag: a021fff6-0d73-4a78-b397-414194afd217
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Article Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Status Key'
+		lineageTag: a80dfb8b-0b0f-434f-ab87-cc2461272c4f
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Status Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		lineageTag: b3a8a631-078d-4b15-b6f7-ae1d8a21d468
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Location Key]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Movement Type'
+		lineageTag: 65104291-510a-4728-8f0f-dc2f474b0dcc
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Movement Type]
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outbound Base Qty'
+		lineageTag: 6c2d781e-40c2-4e3a-8509-971c39684339
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Outbound Base Qty]
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'CC Outbound Core' = calculated
+		mode: import
+		source =
+				
+				VAR BaseRows =
+				    SELECTCOLUMNS (
+				        FILTER (
+				            'fact_outbound_line',
+				            NOT ISBLANK ( 'fact_outbound_line'[Requested Delivery Date] )
+				                && COALESCE ( 'fact_outbound_line'[Action Base Qty], 0 ) <> 0
+				                && NOT ISBLANK ( 'fact_outbound_line'[Article No.] )
+				                && NOT ISBLANK ( 'fact_outbound_line'[Article] )
+				        ),
+				        "Movement Date",
+				            DATE (
+				                YEAR ( 'fact_outbound_line'[Requested Delivery Date] ),
+				                MONTH ( 'fact_outbound_line'[Requested Delivery Date] ),
+				                DAY ( 'fact_outbound_line'[Requested Delivery Date] )
+				            ),
+				
+				        "Source Location Key",
+				            VAR RawKey =
+				                UPPER ( TRIM ( 'fact_outbound_line'[Cost Center/Store] & "" ) )
+				            VAR MappedKey =
+				                UPPER ( TRIM ( 'fact_outbound_line'[Mapped Cost Center/Store] & "" ) )
+				            RETURN
+				                IF (
+				                    CONTAINS (
+				                        'CC Item Location',
+				                        'CC Item Location'[Location Key], MappedKey
+				                    ),
+				                    MappedKey,
+				                    IF (
+				                        CONTAINS (
+				                            'CC Item Location',
+				                            'CC Item Location'[Location Key], RawKey
+				                        ),
+				                        RawKey,
+				                        MappedKey
+				                    )
+				                ),
+				
+				        "Target Location Key",
+				            VAR RawKey =
+				                UPPER ( TRIM ( 'fact_outbound_line'[Transfer To] & "" ) )
+				            VAR MappedKey =
+				                UPPER ( TRIM ( 'fact_outbound_line'[Mapped Transfer To] & "" ) )
+				            RETURN
+				                IF (
+				                    CONTAINS (
+				                        'CC Item Location',
+				                        'CC Item Location'[Location Key], MappedKey
+				                    ),
+				                    MappedKey,
+				                    IF (
+				                        CONTAINS (
+				                            'CC Item Location',
+				                            'CC Item Location'[Location Key], RawKey
+				                        ),
+				                        RawKey,
+				                        MappedKey
+				                    )
+				                ),
+				
+				        "Article No Key",
+				            TRIM ( 'fact_outbound_line'[Article No.] & "" ),
+				
+				        "Article Key",
+				            UPPER ( TRIM ( 'fact_outbound_line'[Article] & "" ) ),
+				
+				        "Status Key",
+				            UPPER ( TRIM ( 'fact_outbound_line'[Status Group] & "" ) ),
+				
+				        "Action Base Qty",
+				            COALESCE ( 'fact_outbound_line'[Action Base Qty], 0 )
+				    )
+				
+				VAR TransferOutRows =
+				    SELECTCOLUMNS (
+				        BaseRows,
+				        "Movement Date", [Movement Date],
+				        "Location Key", [Source Location Key],
+				        "Article No Key", [Article No Key],
+				        "Article Key", [Article Key],
+				        "Movement Type", "Transfer Out",
+				        "Status Key", [Status Key],
+				        "Outbound Base Qty", [Action Base Qty]
+				    )
+				
+				VAR TransferInRows =
+				    SELECTCOLUMNS (
+				        BaseRows,
+				        "Movement Date", [Movement Date],
+				        "Location Key", [Target Location Key],
+				        "Article No Key", [Article No Key],
+				        "Article Key", [Article Key],
+				        "Movement Type", "Transfer In",
+				        "Status Key", [Status Key],
+				        "Outbound Base Qty", [Action Base Qty]
+				    )
+				
+				VAR CombinedRows =
+				    UNION ( TransferOutRows, TransferInRows )
+				
+				RETURN
+				    GROUPBY (
+				        FILTER (
+				            CombinedRows,
+				            [Movement Date] <> BLANK ()
+				                && [Location Key] <> ""
+				                && [Article No Key] <> ""
+				                && [Article Key] <> ""
+				                && [Outbound Base Qty] <> 0
+				        ),
+				        [Movement Date],
+				        [Location Key],
+				        [Article No Key],
+				        [Article Key],
+				        [Movement Type],
+				        [Status Key],
+				        "Outbound Base Qty",
+				            SUMX (
+				                CURRENTGROUP (),
+				                [Outbound Base Qty]
+				            )
+				    )
+
+	annotation PBI_Id = 199868296eb845869e3881a8e3d5a185
+

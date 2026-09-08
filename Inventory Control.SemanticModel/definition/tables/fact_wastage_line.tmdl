@@ -1,0 +1,396 @@
+table fact_wastage_line
+	lineageTag: 2e1c509c-b8d9-4bfb-9ae2-3634ec75183a
+
+	column 'Movement Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 9958c919-dff4-4112-8d76-5ae90038d348
+		summarizeBy: none
+		sourceColumn: Movement Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Location
+		dataType: string
+		lineageTag: aa7ab996-f1f7-40e2-aff9-ee9b335b277a
+		summarizeBy: none
+		sourceColumn: Location
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		dataType: string
+		lineageTag: 17808fbf-ad33-4bc4-988f-f49e197d8f5d
+		summarizeBy: none
+		sourceColumn: Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: fd2e5dcc-f51e-4726-a101-11a58318a82a
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No Key'
+		dataType: string
+		lineageTag: 9d704fed-d270-414c-b9e2-bf45ed65643e
+		summarizeBy: none
+		sourceColumn: Article No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: bcc20b86-8d77-431d-b9fe-8c9e408c9029
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: 59b777fa-db5b-4653-9ce7-a9c0b0480f87
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: c7b047ba-1793-4ec4-aea9-56cc3cbdc1b6
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column Qty
+		dataType: double
+		lineageTag: 1b2625ab-80bc-4645-983a-e9fa47b8060e
+		summarizeBy: sum
+		sourceColumn: Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Source Status'
+		dataType: string
+		lineageTag: 0fc40e03-3b22-4390-a784-9feb44889973
+		summarizeBy: none
+		sourceColumn: Source Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Document No'
+		dataType: string
+		lineageTag: 4cada43a-5437-4350-aeed-fbcd9d404837
+		summarizeBy: none
+		sourceColumn: Document No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Selling Price'
+		dataType: double
+		lineageTag: 322ee897-3804-4e4d-8cfb-fc568def94ea
+		summarizeBy: sum
+		sourceColumn: Selling Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Wastage Value'
+		dataType: double
+		lineageTag: de1a3fac-fde8-4798-bd8f-ff6d1160304c
+		summarizeBy: sum
+		sourceColumn: Wastage Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_wastage_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Wastage",
+				
+				    CC_FromDate =
+				        try Date.From(p_FromDate)
+				        otherwise #date(2026, 8, 1),
+				
+				    FxText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then
+				                            null
+				                        else
+				                            let
+				                                T0 = Text.From(x),
+				                                T1 = Text.Replace(T0, Character.FromNumber(160), " "),
+				                                T2 = Text.Trim(Text.Clean(T1)),
+				                                T3 = Text.Combine(List.Select(Text.Split(T2, " "), each _ <> ""), " ")
+				                            in
+				                                if T3 = "" then null else T3
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxCleanKey =
+				        (x as any) as nullable text =>
+				            let
+				                T = FxText(x)
+				            in
+				                if T = null then null else Text.Upper(T),
+				
+				    FxArticleNoText =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then
+				                    null
+				                else if Value.Is(x, type number) then
+				                    Number.ToText(x, "0")
+				                else
+				                    FxText(x)
+				            otherwise null,
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            if x = null then
+				                null
+				            else if Value.Is(x, type date) then
+				                x
+				            else if Value.Is(x, type datetime) then
+				                Date.From(x)
+				            else if Value.Is(x, type datetimezone) then
+				                Date.From(x)
+				            else
+				                try Date.FromText(Text.From(x), [Culture = "en-GB"])
+				                otherwise try Date.FromText(Text.From(x), [Culture = "en-US"])
+				                otherwise null,
+				
+				    FxNumber =
+				        (x as any) as nullable number =>
+				            try Number.From(x) otherwise null,
+				
+				    FxBaseUnit =
+				        (x as any) as nullable text =>
+				            let
+				                U = FxCleanKey(x)
+				            in
+				                if U = null then null
+				                else if List.Contains({"KG", "KGS", "KILOGRAM", "KILOGRAMS"}, U) then "KG"
+				                else if List.Contains({"LITER", "LITRE", "LTR", "LITERS", "LITRES", "LTRS"}, U) then "LITER"
+				                else if List.Contains({"EACH", "EA", "PCS", "PC", "PIECE", "PIECES"}, U) then "EACH"
+				                else U,
+				
+				    KeepColumns =
+				        Table.SelectColumns(
+				            Source,
+				            {
+				                "VBRDATUM",
+				                "KSTNAME",
+				                "ARTNUMMER",
+				                "ARTNAME",
+				                "VPKNAME",
+				                "VBTMENGE",
+				                "VBTMENGEGE",
+				                "VBTWES",
+				                "STATUS",
+				                "BELEGNR"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    AddMovementDate =
+				        Table.AddColumn(
+				            KeepColumns,
+				            "Movement Date",
+				            each FxDate([VBRDATUM]),
+				            type nullable date
+				        ),
+				
+				    FilterDate =
+				        Table.SelectRows(
+				            AddMovementDate,
+				            each
+				                [Movement Date] <> null
+				                and [Movement Date] >= CC_FromDate
+				        ),
+				
+				    AddLocation =
+				        Table.AddColumn(
+				            FilterDate,
+				            "Location",
+				            each FxText([KSTNAME]),
+				            type nullable text
+				        ),
+				
+				    AddArticleNo =
+				        Table.AddColumn(
+				            AddLocation,
+				            "Article No.",
+				            each FxArticleNoText([ARTNUMMER]),
+				            type nullable text
+				        ),
+				
+				    AddArticle =
+				        Table.AddColumn(
+				            AddArticleNo,
+				            "Article",
+				            each FxText([ARTNAME]),
+				            type nullable text
+				        ),
+				
+				    AddBaseUnit =
+				        Table.AddColumn(
+				            AddArticle,
+				            "Base Unit",
+				            each FxBaseUnit([VPKNAME]),
+				            type nullable text
+				        ),
+				
+				    AddQty =
+				        Table.AddColumn(
+				            AddBaseUnit,
+				            "Qty",
+				            each
+				                let
+				                    BaseQty = FxNumber([VBTMENGEGE]),
+				                    NormalQty = FxNumber([VBTMENGE])
+				                in
+				                    if BaseQty <> null and BaseQty <> 0 then Number.Abs(BaseQty)
+				                    else if NormalQty <> null and NormalQty <> 0 then Number.Abs(NormalQty)
+				                    else null,
+				            type nullable number
+				        ),
+				
+				    AddSellingPrice =
+				        Table.AddColumn(
+				            AddQty,
+				            "Selling Price",
+				            each FxNumber([VBTWES]),
+				            type nullable number
+				        ),
+				
+				    AddWastageValue =
+				        Table.AddColumn(
+				            AddSellingPrice,
+				            "Wastage Value",
+				            each
+				                let
+				                    NormalQty = FxNumber([VBTMENGE]),
+				                    Price = FxNumber([VBTWES])
+				                in
+				                    if NormalQty = null or Price = null then null
+				                    else Number.Abs(NormalQty) * Price,
+				            type nullable number
+				        ),
+				
+				    AddStatus =
+				        Table.AddColumn(
+				            AddWastageValue,
+				            "Source Status",
+				            each FxCleanKey([STATUS]),
+				            type nullable text
+				        ),
+				
+				    AddDocument =
+				        Table.AddColumn(
+				            AddStatus,
+				            "Document No",
+				            each FxText([BELEGNR]),
+				            type nullable text
+				        ),
+				
+				    AddLocationKey =
+				        Table.AddColumn(
+				            AddDocument,
+				            "Location Key",
+				            each FxCleanKey([Location]),
+				            type nullable text
+				        ),
+				
+				    AddArticleKey =
+				        Table.AddColumn(
+				            AddLocationKey,
+				            "Article Key",
+				            each FxCleanKey([Article]),
+				            type nullable text
+				        ),
+				
+				    AddArticleNoKey =
+				        Table.AddColumn(
+				            AddArticleKey,
+				            "Article No Key",
+				            each FxArticleNoText([#"Article No."]),
+				            type nullable text
+				        ),
+				
+				    FilterRows =
+				        Table.SelectRows(
+				            AddArticleNoKey,
+				            each
+				                [Movement Date] <> null
+				                and [Location Key] <> null
+				                and [Location Key] <> ""
+				                and [Article Key] <> null
+				                and [Article Key] <> ""
+				                and [Qty] <> null
+				                and [Qty] <> 0
+				        ),
+				
+				    Final =
+				        Table.SelectColumns(
+				            FilterRows,
+				            {
+				                "Movement Date",
+				                "Location",
+				                "Location Key",
+				                "Article No.",
+				                "Article No Key",
+				                "Article",
+				                "Article Key",
+				                "Base Unit",
+				                "Qty",
+				                "Selling Price",
+				                "Wastage Value",
+				                "Source Status",
+				                "Document No"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    FinalTypes =
+				        Table.TransformColumnTypes(
+				            Final,
+				            {
+				                {"Movement Date", type date},
+				                {"Location", type text},
+				                {"Location Key", type text},
+				                {"Article No.", type text},
+				                {"Article No Key", type text},
+				                {"Article", type text},
+				                {"Article Key", type text},
+				                {"Base Unit", type text},
+				                {"Qty", type number},
+				                {"Selling Price", type number},
+				                {"Wastage Value", type number},
+				                {"Source Status", type text},
+				                {"Document No", type text}
+				            }
+				        )
+				in
+				    FinalTypes
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

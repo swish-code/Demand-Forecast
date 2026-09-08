@@ -1,0 +1,1500 @@
+table cc_daily_inventory
+	lineageTag: f94acadc-8215-46c0-b3e1-812ca379059e
+
+	measure 'CC Open PO Qty' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR OpenPOGrain =
+			    SELECTCOLUMNS (
+			        CALCULATETABLE (
+			            SUMMARIZE (
+			                'CC Open PO Core',
+			                'CC Open PO Core'[PO No],
+			                'CC Open PO Core'[PO Date],
+			                'CC Open PO Core'[Location],
+			                'CC Open PO Core'[Article]
+			            ),
+			            REMOVEFILTERS ( 'CC Open PO Core' ),
+			            'CC Open PO Core'[PO Date] <= EndDate,
+			            TREATAS (
+			                SelectedLocationKeys,
+			                'CC Open PO Core'[Location Key]
+			            ),
+			            TREATAS (
+			                SelectedArticleKeys,
+			                'CC Open PO Core'[Article Key]
+			            )
+			        ),
+			        "__PO No", 'CC Open PO Core'[PO No],
+			        "__PO Date", 'CC Open PO Core'[PO Date],
+			        "__Location", 'CC Open PO Core'[Location],
+			        "__Article", 'CC Open PO Core'[Article]
+			    )
+			
+			VAR PendingQty =
+			    SUMX (
+			        OpenPOGrain,
+			        VAR CurrentPONo =
+			            [__PO No]
+			
+			        VAR CurrentPODate =
+			            [__PO Date]
+			
+			        VAR CurrentLocation =
+			            [__Location]
+			
+			        VAR CurrentArticle =
+			            [__Article]
+			
+			        VAR LifecycleRows =
+			            FILTER (
+			                ALL ( 'fact_po_period_lifecycle' ),
+			                'fact_po_period_lifecycle'[Inbound Match Status] = "Matched"
+			                    && 'fact_po_period_lifecycle'[PO No] = CurrentPONo
+			                    && 'fact_po_period_lifecycle'[PO Date] = CurrentPODate
+			                    && 'fact_po_period_lifecycle'[Warehouse] = CurrentLocation
+			                    && 'fact_po_period_lifecycle'[Article] = CurrentArticle
+			            )
+			
+			        VAR ReqQty =
+			            MAXX (
+			                LifecycleRows,
+			                COALESCE ( 'fact_po_period_lifecycle'[PO Base Qty], 0 )
+			            )
+			
+			        VAR GRNQty =
+			            SUMX (
+			                LifecycleRows,
+			                COALESCE ( 'fact_po_period_lifecycle'[Allocated GRN Base Qty], 0 )
+			            )
+			
+			        RETURN
+			            MAX ( ReqQty - GRNQty, 0 )
+			    )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ),
+			        0,
+			        PendingQty
+			    )
+		lineageTag: 9c92b379-63f3-4a70-baf1-e9f238409d87
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Open PO Received Qty' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR OpenPOKeys =
+			    CALCULATETABLE (
+			        VALUES ( 'CC Open PO Core'[PO Article Location Key] ),
+			        REMOVEFILTERS ( 'CC Open PO Core' ),
+			        'CC Open PO Core'[PO Date] <= EndDate,
+			        TREATAS (
+			            SelectedLocationKeys,
+			            'CC Open PO Core'[Location Key]
+			        ),
+			        TREATAS (
+			            SelectedArticleKeys,
+			            'CC Open PO Core'[Article Key]
+			        )
+			    )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ),
+			        0,
+			        COALESCE (
+			            CALCULATE (
+			                SUM ( 'CC PO Receipt Core'[Received Base Qty] ),
+			                REMOVEFILTERS ( 'CC PO Receipt Core' ),
+			                'CC PO Receipt Core'[Receipt Date] <= EndDate,
+			                TREATAS (
+			                    OpenPOKeys,
+			                    'CC PO Receipt Core'[PO Article Location Key]
+			                )
+			            ),
+			            0
+			        )
+			    )
+		lineageTag: af227d67-3e3e-4e3b-9ba2-ae8decce64f6
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Open PO Remaining Qty' =
+			
+			VAR OpenQty =
+			    [CC Open PO Qty]
+			
+			VAR ReceivedQty =
+			    [CC Open PO Received Qty]
+			
+			VAR RemainingQty =
+			    OpenQty - ReceivedQty
+			
+			RETURN
+			    IF (
+			        RemainingQty > 0,
+			        RemainingQty,
+			        0
+			    )
+		lineageTag: 710b68c5-755d-44d2-89e7-513965f28add
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Supplier Coverage Days' =
+			
+			VAR RemainingPOQty =
+			    [CC Open PO Remaining Qty]
+			
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			
+			RETURN
+			    IF (
+			        RemainingPOQty <= 0 || AvgTransferOut <= 0,
+			        BLANK (),
+			        DIVIDE (
+			            RemainingPOQty,
+			            AvgTransferOut
+			        )
+			    )
+		lineageTag: 0223ea4f-1347-4353-9b6c-fb8598e5d645
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Supplier Coverage Category' =
+			
+			VAR RemainingPOQty =
+			    [CC Open PO Remaining Qty]
+			
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			
+			VAR SupplierDays =
+			    [CC Supplier Coverage Days]
+			
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        RemainingPOQty <= 0, "No Open PO",
+			        AvgTransferOut <= 0, "No Outbound",
+			        SupplierDays <= 7, "7 days",
+			        SupplierDays <= 14, "8-14 days",
+			        SupplierDays <= 21, "15-21 days",
+			        SupplierDays <= 28, "22-28 days",
+			        "More than 29 days"
+			    )
+		lineageTag: 7b59f518-96ce-465d-a667-5f2e758a2408
+
+	measure 'CC Combined Coverage Days' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			
+			VAR RemainingPOQty =
+			    [CC Open PO Remaining Qty]
+			
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			
+			VAR TotalAvailableQty =
+			    ClosingQty + RemainingPOQty
+			
+			RETURN
+			    IF (
+			        TotalAvailableQty <= 0 || AvgTransferOut <= 0,
+			        BLANK (),
+			        DIVIDE (
+			            TotalAvailableQty,
+			            AvgTransferOut
+			        )
+			    )
+		lineageTag: b3c43174-4f57-4e3f-ad2d-2936ea14bfce
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Measure 8'
+		lineageTag: b7b598c9-70bc-426c-a7ba-84c1aa65f6ec
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'CC Combined Coverage Category' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			
+			VAR RemainingPOQty =
+			    [CC Open PO Remaining Qty]
+			
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			
+			VAR CombinedDays =
+			    [CC Combined Coverage Days]
+			
+			VAR TotalAvailableQty =
+			    ClosingQty + RemainingPOQty
+			
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        TotalAvailableQty <= 0, "No SOH + No PO",
+			        AvgTransferOut <= 0, "No Outbound",
+			        CombinedDays <= 7, "7 days",
+			        CombinedDays <= 14, "8-14 days",
+			        CombinedDays <= 21, "15-21 days",
+			        CombinedDays <= 28, "22-28 days",
+			        "More than 29 days"
+			    )
+		lineageTag: bf04efef-3303-4137-9d0f-4674a711851b
+
+	measure 'Measure 9'
+		lineageTag: a20038f3-7f07-4afe-9d70-d7eb83612863
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'CC Open PO Gross Qty' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ),
+			        0,
+			        COALESCE (
+			            CALCULATE (
+			                SUM ( 'CC Open PO Core'[Open PO Base Qty] ),
+			                REMOVEFILTERS ( 'CC Open PO Core' ),
+			                'CC Open PO Core'[PO Date] <= EndDate,
+			                TREATAS (
+			                    SelectedLocationKeys,
+			                    'CC Open PO Core'[Location Key]
+			                ),
+			                TREATAS (
+			                    SelectedArticleKeys,
+			                    'CC Open PO Core'[Article Key]
+			                )
+			            ),
+			            0
+			        )
+			    )
+		lineageTag: db01ceb0-6905-48f0-93d7-da22022ffcd7
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Open PO Pending Value' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR CurrentOpenPOQty =
+			    [CC Open PO Qty]
+			
+			VAR OpenPOGrain =
+			    SELECTCOLUMNS (
+			        CALCULATETABLE (
+			            ADDCOLUMNS (
+			                SUMMARIZE (
+			                    'CC Open PO Core',
+			                    'CC Open PO Core'[PO No],
+			                    'CC Open PO Core'[PO Date],
+			                    'CC Open PO Core'[Location],
+			                    'CC Open PO Core'[Article]
+			                ),
+			                "__BaseUnitPOPrice",
+			                    DIVIDE (
+			                        CALCULATE ( SUM ( 'CC Open PO Core'[Open PO Value] ) ),
+			                        CALCULATE ( SUM ( 'CC Open PO Core'[Open PO Base Qty] ) ),
+			                        0
+			                    )
+			            ),
+			            REMOVEFILTERS ( 'CC Open PO Core' ),
+			            'CC Open PO Core'[PO Date] <= EndDate,
+			            TREATAS (
+			                SelectedLocationKeys,
+			                'CC Open PO Core'[Location Key]
+			            ),
+			            TREATAS (
+			                SelectedArticleKeys,
+			                'CC Open PO Core'[Article Key]
+			            )
+			        ),
+			        "__PO No", 'CC Open PO Core'[PO No],
+			        "__PO Date", 'CC Open PO Core'[PO Date],
+			        "__Location", 'CC Open PO Core'[Location],
+			        "__Article", 'CC Open PO Core'[Article],
+			        "__BaseUnitPOPrice", [__BaseUnitPOPrice]
+			    )
+			
+			VAR ResultValue =
+			    SUMX (
+			        OpenPOGrain,
+			        VAR CurrentPONo =
+			            [__PO No]
+			
+			        VAR CurrentPODate =
+			            [__PO Date]
+			
+			        VAR CurrentLocation =
+			            [__Location]
+			
+			        VAR CurrentArticle =
+			            [__Article]
+			
+			        VAR BaseUnitPrice =
+			            [__BaseUnitPOPrice]
+			
+			        VAR LifecycleRows =
+			            FILTER (
+			                ALL ( 'fact_po_period_lifecycle' ),
+			                'fact_po_period_lifecycle'[Inbound Match Status] = "Matched"
+			                    && 'fact_po_period_lifecycle'[PO No] = CurrentPONo
+			                    && 'fact_po_period_lifecycle'[PO Date] = CurrentPODate
+			                    && 'fact_po_period_lifecycle'[Warehouse] = CurrentLocation
+			                    && 'fact_po_period_lifecycle'[Article] = CurrentArticle
+			            )
+			
+			        VAR ReqQty =
+			            MAXX (
+			                LifecycleRows,
+			                COALESCE ( 'fact_po_period_lifecycle'[PO Base Qty], 0 )
+			            )
+			
+			        VAR GRNQty =
+			            SUMX (
+			                LifecycleRows,
+			                COALESCE ( 'fact_po_period_lifecycle'[Allocated GRN Base Qty], 0 )
+			            )
+			
+			        VAR PendingQty =
+			            MAX ( ReqQty - GRNQty, 0 )
+			
+			        RETURN
+			            PendingQty * BaseUnitPrice
+			    )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ) || CurrentOpenPOQty <= 0,
+			        BLANK (),
+			        ResultValue
+			    )
+		formatString: #,0.0
+		lineageTag: 6db17efe-d051-4628-945e-dd144b816632
+
+	measure 'CC Utilization PO Bucket Open PO Value' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] ),
+			        "__OpenPOValue", CALCULATE ( [CC Open PO Pending Value] )
+			    )
+			
+			RETURN
+			    SUMX (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && [__UtilizationBaseQty] > 0
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || CONTAINSROW (
+			                            SelectedUtilizationBuckets,
+			                            [__UtilizationCategory]
+			                        )
+			                )
+			        ),
+			        [__OpenPOValue]
+			    )
+		formatString: #,0.0
+		lineageTag: 4244e3a0-3ae9-4ca4-a78b-f57116bcae1b
+
+	measure 'CC Open PO Qty Visual' =
+			
+			VAR Qty =
+			    [CC Open PO Qty]
+			RETURN
+			    IF (
+			        Qty <= 0,
+			        BLANK (),
+			        Qty
+			    )
+		formatString: #,0.0
+		lineageTag: 5843d945-1637-4a2b-930e-4b564c5b9af6
+
+	measure 'CC Open PO No Tooltip List' = ```
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit],
+			            'CC Item Location'[Article Key]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			VAR AllowedArticles =
+			    SELECTCOLUMNS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        ),
+			        "__ArticleKey", 'CC Item Location'[Article Key]
+			    )
+			
+			VAR OpenPOGrain =
+			    SELECTCOLUMNS (
+			        CALCULATETABLE (
+			            SUMMARIZE (
+			                'CC Open PO Core',
+			                'CC Open PO Core'[PO No],
+			                'CC Open PO Core'[PO Date],
+			                'CC Open PO Core'[Location],
+			                'CC Open PO Core'[Article]
+			            ),
+			            REMOVEFILTERS ( 'CC Open PO Core' ),
+			            'CC Open PO Core'[PO Date] <= EndDate,
+			            TREATAS (
+			                SelectedLocationKeys,
+			                'CC Open PO Core'[Location Key]
+			            ),
+			            TREATAS (
+			                AllowedArticles,
+			                'CC Open PO Core'[Article Key]
+			            )
+			        ),
+			        "__PO No", 'CC Open PO Core'[PO No],
+			        "__PO Date", 'CC Open PO Core'[PO Date],
+			        "__Location", 'CC Open PO Core'[Location],
+			        "__Article", 'CC Open PO Core'[Article]
+			    )
+			
+			VAR OpenPOWithPending =
+			    ADDCOLUMNS (
+			        OpenPOGrain,
+			        "__PendingQty",
+			            VAR CurrentPONo =
+			                [__PO No]
+			            VAR CurrentPODate =
+			                [__PO Date]
+			            VAR CurrentLocation =
+			                [__Location]
+			            VAR CurrentArticle =
+			                [__Article]
+			            VAR LifecycleRows =
+			                FILTER (
+			                    ALL ( 'fact_po_period_lifecycle' ),
+			                    'fact_po_period_lifecycle'[Inbound Match Status] = "Matched"
+			                        && 'fact_po_period_lifecycle'[PO No] = CurrentPONo
+			                        && 'fact_po_period_lifecycle'[PO Date] = CurrentPODate
+			                        && 'fact_po_period_lifecycle'[Warehouse] = CurrentLocation
+			                        && 'fact_po_period_lifecycle'[Article] = CurrentArticle
+			                )
+			            RETURN
+			                SUMX (
+			                    LifecycleRows,
+			                    VAR ReqQty =
+			                        COALESCE (
+			                            'fact_po_period_lifecycle'[PO Base Qty],
+			                            0
+			                        )
+			                    VAR GRNQty =
+			                        COALESCE (
+			                            'fact_po_period_lifecycle'[Allocated GRN Base Qty],
+			                            0
+			                        )
+			                    RETURN
+			                        MAX ( ReqQty - GRNQty, 0 )
+			                )
+			    )
+			
+			VAR POList =
+			    DISTINCT (
+			        SELECTCOLUMNS (
+			            FILTER (
+			                OpenPOWithPending,
+			                [__PendingQty] > 0
+			            ),
+			            "PO No", [__PO No]
+			        )
+			    )
+			
+			VAR POCount =
+			    COUNTROWS ( POList )
+			
+			VAR MaxShown =
+			    10
+			
+			VAR TopPOList =
+			    TOPN (
+			        MaxShown,
+			        POList,
+			        [PO No],
+			        ASC
+			    )
+			
+			VAR POText =
+			    CONCATENATEX (
+			        TopPOList,
+			        "• " & [PO No],
+			        UNICHAR ( 10 ),
+			        [PO No],
+			        ASC
+			    )
+			
+			VAR MoreText =
+			    IF (
+			        POCount > MaxShown,
+			        UNICHAR ( 10 )
+			            & "+ "
+			            & FORMAT ( POCount - MaxShown, "#,##0" )
+			            & " more",
+			        ""
+			    )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ) || POCount = 0,
+			        BLANK (),
+			        POText & MoreText
+			    )
+			
+			```
+		lineageTag: e3161fb7-8311-4057-8a21-ce3d4336f5d9
+
+	measure 'CC Open PO Count Tooltip' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit],
+			            'CC Item Location'[Article Key]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			VAR AllowedArticles =
+			    SELECTCOLUMNS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        ),
+			        "__ArticleKey", 'CC Item Location'[Article Key]
+			    )
+			
+			VAR OpenPOGrain =
+			    SELECTCOLUMNS (
+			        CALCULATETABLE (
+			            SUMMARIZE (
+			                'CC Open PO Core',
+			                'CC Open PO Core'[PO No],
+			                'CC Open PO Core'[PO Date],
+			                'CC Open PO Core'[Location],
+			                'CC Open PO Core'[Article]
+			            ),
+			            REMOVEFILTERS ( 'CC Open PO Core' ),
+			            'CC Open PO Core'[PO Date] <= EndDate,
+			            TREATAS (
+			                SelectedLocationKeys,
+			                'CC Open PO Core'[Location Key]
+			            ),
+			            TREATAS (
+			                AllowedArticles,
+			                'CC Open PO Core'[Article Key]
+			            )
+			        ),
+			        "__PO No", 'CC Open PO Core'[PO No],
+			        "__PO Date", 'CC Open PO Core'[PO Date],
+			        "__Location", 'CC Open PO Core'[Location],
+			        "__Article", 'CC Open PO Core'[Article]
+			    )
+			
+			VAR OpenPOWithPending =
+			    ADDCOLUMNS (
+			        OpenPOGrain,
+			        "__PendingQty",
+			            VAR CurrentPONo =
+			                [__PO No]
+			            VAR CurrentPODate =
+			                [__PO Date]
+			            VAR CurrentLocation =
+			                [__Location]
+			            VAR CurrentArticle =
+			                [__Article]
+			            VAR LifecycleRows =
+			                FILTER (
+			                    ALL ( 'fact_po_period_lifecycle' ),
+			                    'fact_po_period_lifecycle'[Inbound Match Status] = "Matched"
+			                        && 'fact_po_period_lifecycle'[PO No] = CurrentPONo
+			                        && 'fact_po_period_lifecycle'[PO Date] = CurrentPODate
+			                        && 'fact_po_period_lifecycle'[Warehouse] = CurrentLocation
+			                        && 'fact_po_period_lifecycle'[Article] = CurrentArticle
+			                )
+			            RETURN
+			                SUMX (
+			                    LifecycleRows,
+			                    VAR ReqQty =
+			                        COALESCE ( 'fact_po_period_lifecycle'[PO Base Qty], 0 )
+			                    VAR GRNQty =
+			                        COALESCE ( 'fact_po_period_lifecycle'[Allocated GRN Base Qty], 0 )
+			                    RETURN
+			                        MAX ( ReqQty - GRNQty, 0 )
+			                )
+			    )
+			
+			VAR POList =
+			    DISTINCT (
+			        SELECTCOLUMNS (
+			            FILTER (
+			                OpenPOWithPending,
+			                [__PendingQty] > 0
+			            ),
+			            "PO No", [__PO No]
+			        )
+			    )
+			
+			RETURN
+			    IF (
+			        ISBLANK ( EndDate ),
+			        BLANK (),
+			        COUNTROWS ( POList )
+			    )
+		formatString: 0
+		lineageTag: 27be960e-257f-4c2b-b168-0340581cca22
+
+	column 'Movement Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 305ab0fe-3ec9-41cb-a88a-a730569380b3
+		summarizeBy: none
+		sourceColumn: Movement Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column KST_ID
+		dataType: int64
+		formatString: 0
+		lineageTag: bf5cb09f-cbe7-4aa0-85f4-89e15f4e9f94
+		summarizeBy: count
+		sourceColumn: KST_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Location
+		dataType: string
+		lineageTag: 1855a41a-902e-4188-b0a1-157792e8616d
+		summarizeBy: none
+		sourceColumn: Location
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		dataType: string
+		lineageTag: 6a907b3a-0a2c-4035-8ceb-581ed208433f
+		summarizeBy: none
+		sourceColumn: Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column ART_ID
+		dataType: int64
+		formatString: 0
+		lineageTag: 1798a480-1f2f-46f1-ac21-b76f99182f7f
+		summarizeBy: count
+		sourceColumn: ART_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: 85650c27-10a9-4743-8b58-0661b7eb8846
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No Key'
+		dataType: string
+		lineageTag: 1223c05c-4940-4bb5-b73a-a0b12db7d6d8
+		summarizeBy: none
+		sourceColumn: Article No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 5ed8d180-7af6-476d-9fc2-2755a785b457
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: 47b4892f-509f-459a-bedc-05acb4780c85
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: 8e09df63-2fcb-4e0b-9b76-6223332d30f2
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Opening Stock Qty'
+		dataType: double
+		lineageTag: dcd6c7fb-ab8a-47a2-9348-e90066cb6b26
+		summarizeBy: sum
+		sourceColumn: Opening Stock Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Closing Stock Qty'
+		dataType: double
+		lineageTag: 7efe3577-3dfd-4d75-aa6c-40f0fe6560a0
+		summarizeBy: sum
+		sourceColumn: Closing Stock Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Purchase Qty'
+		dataType: double
+		lineageTag: 0201eeb5-6cdf-427d-825b-4811c12644f2
+		summarizeBy: sum
+		sourceColumn: Purchase Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Transfer In Qty'
+		dataType: double
+		lineageTag: b6d09745-d4cb-4553-aa61-379a24307168
+		summarizeBy: sum
+		sourceColumn: Transfer In Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Transfer Out Qty'
+		dataType: double
+		lineageTag: 46d615e7-e3df-4117-b33b-de23ce6efe92
+		summarizeBy: sum
+		sourceColumn: Transfer Out Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Usage Qty'
+		dataType: double
+		lineageTag: 9f9d2b80-f82b-48a5-b43a-8c4cc66db7bb
+		summarizeBy: sum
+		sourceColumn: Usage Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Sold Qty'
+		dataType: double
+		lineageTag: 39e72cfe-5c19-4254-98e4-6a91f10101f2
+		summarizeBy: sum
+		sourceColumn: Sold Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Production Usage Qty'
+		dataType: double
+		lineageTag: a12a06b3-d5bc-40ff-b50b-d75833a4c0b7
+		summarizeBy: sum
+		sourceColumn: Production Usage Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Production Qty'
+		dataType: double
+		lineageTag: c266ef2e-bb70-4c4f-9c07-0bed3c0b6a61
+		summarizeBy: sum
+		sourceColumn: Production Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Inventory Qty'
+		dataType: double
+		lineageTag: 1aae3c5f-4d1c-44b1-88b1-fe2f8805287f
+		summarizeBy: sum
+		sourceColumn: Inventory Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Inventory SOH Qty'
+		dataType: double
+		lineageTag: 9d51af66-0bc0-4ca8-9606-ac753696cf3a
+		summarizeBy: sum
+		sourceColumn: Inventory SOH Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Inventory Begin Qty'
+		dataType: double
+		lineageTag: bf66aebd-3a22-4a37-8a33-7b0f4379f2f8
+		summarizeBy: sum
+		sourceColumn: Inventory Begin Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Expense Qty'
+		dataType: double
+		lineageTag: 90be6102-ea7c-4c70-b901-9411c3aedbfa
+		summarizeBy: sum
+		sourceColumn: Expense Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Yield In Qty'
+		dataType: double
+		lineageTag: a2fcf3f4-2bb2-44f7-a9d8-0cf1bf438b11
+		summarizeBy: sum
+		sourceColumn: Yield In Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Min SOH'
+		dataType: double
+		lineageTag: 675b3205-289f-4133-b6c6-8d94bd3f9369
+		summarizeBy: sum
+		sourceColumn: Min SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'POT SOH'
+		dataType: double
+		lineageTag: 6175d4f8-84a0-4935-9a7f-bc082028a669
+		summarizeBy: sum
+		sourceColumn: POT SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'P. Price'
+		dataType: double
+		lineageTag: 20f7f1e7-06ae-4a20-b121-5c5db964e96e
+		summarizeBy: sum
+		sourceColumn: P. Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column AVE
+		dataType: double
+		lineageTag: 2518ed10-7776-421f-bef4-430512cd1967
+		summarizeBy: sum
+		sourceColumn: AVE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Oracle Avg Price'
+		dataType: double
+		lineageTag: ea79d48c-4522-4a3c-bffa-93af706259bb
+		summarizeBy: sum
+		sourceColumn: Oracle Avg Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Total per AVE'
+		dataType: double
+		lineageTag: 653619d8-c5f7-4ac7-9547-d38a609ca1c0
+		summarizeBy: sum
+		sourceColumn: Total per AVE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'S.Price'
+		dataType: double
+		lineageTag: e671a822-b579-44d7-b2bf-c6748dfa9c95
+		summarizeBy: sum
+		sourceColumn: S.Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Total S.Price/BU'
+		dataType: double
+		lineageTag: edca4582-afc6-4d80-80e9-de4c4751cea9
+		summarizeBy: sum
+		sourceColumn: Total S.Price/BU
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition cc_daily_inventory = m
+		mode: import
+		source =
+				let
+				    FromDateText =
+				        Date.ToText(
+				            Date.From(p_FromDate),
+				            "yyyy-MM-dd"
+				        ),
+				
+				    Source =
+				        Oracle.Database(
+				            "192.168.1.99/mc",
+				            [
+				                HierarchicalNavigation = true,
+				                Query =
+				"
+				WITH lager_agg AS (
+				    SELECT
+				        l.KST_ID,
+				        l.ART_NR AS ART_ID,
+				        MAX(l.LA_MINDESTBESTAND) AS MIN_SOH,
+				        MAX(l.LA_SOLLBESTAND) AS POT_SOH,
+				        MAX(l.LA_VKP) AS S_PRICE
+				    FROM LAGER l
+				    WHERE l.AKTIV = ' '
+				    GROUP BY
+				        l.KST_ID,
+				        l.ART_NR
+				)
+				
+				SELECT
+				    TRUNC(d.DAY_DATE) AS ""Movement Date"",
+				
+				    k.KST_ID AS ""KST_ID"",
+				    k.KST_NAME AS ""Location"",
+				
+				    a.ART_ID AS ""ART_ID"",
+				    a.ART_NUMMER AS ""Article No."",
+				    a.ART_NAME AS ""Article"",
+				    v.VPK_NAME AS ""Base Unit"",
+				
+				    NVL(d.DAY_SOHBEG, 0) AS ""Opening Stock Qty"",
+				    NVL(d.DAY_SOHEND, 0) AS ""Closing Stock Qty"",
+				
+				    NVL(d.DAY_QTYPURCH, 0) AS ""Purchase Qty"",
+				    NVL(d.DAY_QTYTRSFIN, 0) AS ""Transfer In Qty"",
+				    ABS(NVL(d.DAY_QTYTRSFOUT, 0)) AS ""Transfer Out Qty"",
+				    ABS(NVL(d.DAY_QTYUSAGE, 0)) AS ""Usage Qty"",
+				
+				    NVL(d.DAY_QTYSOLD, 0) AS ""Sold Qty"",
+				    NVL(d.DAY_QTYPRODUSE, 0) AS ""Production Usage Qty"",
+				    NVL(d.DAY_QTYPROD, 0) AS ""Production Qty"",
+				    NVL(d.DAY_QTYINV, 0) AS ""Inventory Qty"",
+				    NVL(d.DAY_SOHINV, 0) AS ""Inventory SOH Qty"",
+				    NVL(d.DAY_QTYINVBEG, 0) AS ""Inventory Begin Qty"",
+				    NVL(d.DAY_QTYEXPENSE, 0) AS ""Expense Qty"",
+				    NVL(d.DAY_QTYYIELDIN, 0) AS ""Yield In Qty"",
+				
+				    la.MIN_SOH AS ""Min SOH"",
+				    la.POT_SOH AS ""POT SOH"",
+				
+				    d.DAY_PRICELAST AS ""P. Price"",
+				    d.DAY_PRICE AS ""AVE"",
+				    d.DAY_PRICEAVG AS ""Oracle Avg Price"",
+				
+				    d.DAY_SOHEND * d.DAY_PRICE AS ""Total per AVE"",
+				    la.S_PRICE AS ""S.Price"",
+				    d.DAY_SOHEND * la.S_PRICE AS ""Total S.Price/BU""
+				
+				FROM DAILYTOTALS d
+				
+				    JOIN KOSTST k
+				        ON k.KST_ID = d.KST_ID
+				
+				    JOIN ARTIKEL a
+				        ON a.ART_ID = d.ART_ID
+				
+				    LEFT JOIN VPCKEINH v
+				        ON v.VPK_ID = a.VPK_NR
+				
+				    LEFT JOIN lager_agg la
+				        ON la.KST_ID = d.KST_ID
+				        AND la.ART_ID = d.ART_ID
+				
+				WHERE
+				    d.DAY_DATE >= TO_DATE('" & FromDateText & "', 'YYYY-MM-DD')
+				    AND d.DAY_DATE <= TRUNC(SYSDATE)
+				    AND a.ART_NOTINV = 0
+				    AND (
+				        NVL(d.DAY_SOHBEG, 0) <> 0
+				        OR NVL(d.DAY_SOHEND, 0) <> 0
+				        OR NVL(d.DAY_QTYPURCH, 0) <> 0
+				        OR NVL(d.DAY_QTYTRSFIN, 0) <> 0
+				        OR NVL(d.DAY_QTYTRSFOUT, 0) <> 0
+				        OR NVL(d.DAY_QTYUSAGE, 0) <> 0
+				        OR NVL(d.DAY_QTYSOLD, 0) <> 0
+				        OR NVL(d.DAY_QTYPRODUSE, 0) <> 0
+				        OR NVL(d.DAY_QTYPROD, 0) <> 0
+				        OR NVL(d.DAY_QTYINV, 0) <> 0
+				        OR NVL(d.DAY_QTYINVBEG, 0) <> 0
+				        OR NVL(d.DAY_QTYEXPENSE, 0) <> 0
+				        OR NVL(d.DAY_QTYYIELDIN, 0) <> 0
+				    )
+				"
+				            ]
+				        ),
+				
+				    FxText =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then null else Text.Trim(Text.Clean(Text.From(x)))
+				            otherwise null,
+				
+				    FxArticleNoText =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then null
+				                else if Value.Is(x, type number) then Number.ToText(x, "0")
+				                else Text.Trim(Text.Clean(Text.From(x)))
+				            otherwise null,
+				
+				    #"Changed Type" =
+				        Table.TransformColumnTypes(
+				            Source,
+				            {
+				                {"Movement Date", type date},
+				
+				                {"KST_ID", Int64.Type},
+				                {"Location", type text},
+				
+				                {"ART_ID", Int64.Type},
+				                {"Article No.", type text},
+				                {"Article", type text},
+				                {"Base Unit", type text},
+				
+				                {"Opening Stock Qty", type number},
+				                {"Closing Stock Qty", type number},
+				
+				                {"Purchase Qty", type number},
+				                {"Transfer In Qty", type number},
+				                {"Transfer Out Qty", type number},
+				                {"Usage Qty", type number},
+				
+				                {"Sold Qty", type number},
+				                {"Production Usage Qty", type number},
+				                {"Production Qty", type number},
+				                {"Inventory Qty", type number},
+				                {"Inventory SOH Qty", type number},
+				                {"Inventory Begin Qty", type number},
+				                {"Expense Qty", type number},
+				                {"Yield In Qty", type number},
+				
+				                {"Min SOH", type number},
+				                {"POT SOH", type number},
+				
+				                {"P. Price", type number},
+				                {"AVE", type number},
+				                {"Oracle Avg Price", type number},
+				                {"Total per AVE", type number},
+				                {"S.Price", type number},
+				                {"Total S.Price/BU", type number}
+				            },
+				            "en-US"
+				        ),
+				
+				    #"Cleaned Text Columns" =
+				        Table.TransformColumns(
+				            #"Changed Type",
+				            {
+				                {"Location", each FxText(_), type nullable text},
+				                {"Article No.", each FxArticleNoText(_), type nullable text},
+				                {"Article", each FxText(_), type nullable text},
+				                {"Base Unit", each try fnCleanBaseUnit(_) otherwise FxText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    #"Added Location Key" =
+				        Table.AddColumn(
+				            #"Cleaned Text Columns",
+				            "Location Key",
+				            each fnCleanText([Location]),
+				            type nullable text
+				        ),
+				
+				    #"Added Article Key" =
+				        Table.AddColumn(
+				            #"Added Location Key",
+				            "Article Key",
+				            each fnCleanText([Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Article No Key" =
+				        Table.AddColumn(
+				            #"Added Article Key",
+				            "Article No Key",
+				            each FxArticleNoText([#"Article No."]),
+				            type nullable text
+				        ),
+				
+				    #"Filtered Valid Rows" =
+				        Table.SelectRows(
+				            #"Added Article No Key",
+				            each
+				                [Movement Date] <> null
+				                and [Location Key] <> null
+				                and [Location Key] <> ""
+				                and [Article Key] <> null
+				                and [Article Key] <> ""
+				        ),
+				
+				    #"Selected Columns" =
+				        Table.SelectColumns(
+				            #"Filtered Valid Rows",
+				            {
+				                "Movement Date",
+				
+				                "KST_ID",
+				                "Location",
+				                "Location Key",
+				
+				                "ART_ID",
+				                "Article No.",
+				                "Article No Key",
+				                "Article",
+				                "Article Key",
+				                "Base Unit",
+				
+				                "Opening Stock Qty",
+				                "Closing Stock Qty",
+				
+				                "Purchase Qty",
+				                "Transfer In Qty",
+				                "Transfer Out Qty",
+				                "Usage Qty",
+				
+				                "Sold Qty",
+				                "Production Usage Qty",
+				                "Production Qty",
+				                "Inventory Qty",
+				                "Inventory SOH Qty",
+				                "Inventory Begin Qty",
+				                "Expense Qty",
+				                "Yield In Qty",
+				
+				                "Min SOH",
+				                "POT SOH",
+				
+				                "P. Price",
+				                "AVE",
+				                "Oracle Avg Price",
+				                "Total per AVE",
+				                "S.Price",
+				                "Total S.Price/BU"
+				            },
+				            MissingField.Ignore
+				        ),
+				    #"Filtered Rows" = Table.SelectRows(#"Selected Columns", each [Movement Date] >= #date(2026, 1, 1))
+				in
+				    #"Filtered Rows"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

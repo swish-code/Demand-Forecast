@@ -1,0 +1,410 @@
+table 'CC SOH Bucket'
+	lineageTag: 81895b41-64dc-442b-b27c-f4e3d2e22955
+
+	measure 'CC SOH Control Category' =
+			
+			VAR SOHPct =
+			    [CC SOH%]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        SOHPct <= 0.10, "0-10%",
+			        SOHPct <= 0.20, "10-20%",
+			        SOHPct <= 0.30, "20-30%",
+			        SOHPct <= 0.40, "30-40%",
+			        SOHPct <= 0.50, "40-50%",
+			        SOHPct <= 0.60, "50-60%",
+			        SOHPct <= 0.70, "60-70%",
+			        SOHPct <= 0.80, "70-80%",
+			        SOHPct <= 0.90, "80-90%",
+			        SOHPct <= 1.00, "90-100%",
+			        "100%+"
+			    )
+		lineageTag: e9840c91-f513-44fa-9bd3-cad9229d5dc1
+
+	measure 'CC SOH Bucket Article Count' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        )
+			    )
+		formatString: 0
+		lineageTag: e23f6739-1929-4523-a49a-216bbf58a22c
+
+	measure 'CC SOH Bucket Row Filter' =
+			
+			VAR SelectedBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR CurrentRowCategory =
+			    [CC SOH Control Category]
+			
+			RETURN
+			    IF (
+			        NOT HasBucketFilter
+			            || CONTAINSROW ( SelectedBuckets, CurrentRowCategory ),
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: 6f7ca254-0a10-498d-ae88-088fb16edbcf
+
+	measure 'CC Visible Table Row Count' =
+			
+			VAR VisibleTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[CC Item Location Key],
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] )
+			    )
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            VisibleTableRows,
+			            [__ShowRow] = 1
+			        )
+			    )
+		formatString: 0
+		lineageTag: d47e552c-12f9-4329-81c0-c2640b52c02d
+
+	measure 'CC SOH Value' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleNoKeys =
+			    VALUES ( 'CC Item Location'[Article No Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR ValueByArticleNo =
+			    CALCULATE (
+			        SUMX (
+			            'cc_daily_inventory',
+			            COALESCE ( 'cc_daily_inventory'[Closing Stock Qty], 0 )
+			                * COALESCE ( 'cc_daily_inventory'[P. Price], 0 )
+			        ),
+			        TREATAS ( { EndDate }, 'cc_daily_inventory'[Movement Date] ),
+			        TREATAS ( SelectedLocationKeys, 'cc_daily_inventory'[Location Key] ),
+			        TREATAS ( SelectedArticleNoKeys, 'cc_daily_inventory'[Article No Key] )
+			    )
+			
+			VAR ValueByArticleName =
+			    CALCULATE (
+			        SUMX (
+			            'cc_daily_inventory',
+			            COALESCE ( 'cc_daily_inventory'[Closing Stock Qty], 0 )
+			                * COALESCE ( 'cc_daily_inventory'[P. Price], 0 )
+			        ),
+			        TREATAS ( { EndDate }, 'cc_daily_inventory'[Movement Date] ),
+			        TREATAS ( SelectedLocationKeys, 'cc_daily_inventory'[Location Key] ),
+			        TREATAS ( SelectedArticleKeys, 'cc_daily_inventory'[Article Key] )
+			    )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            COALESCE ( ValueByArticleNo, 0 ) <> 0,
+			            ValueByArticleNo,
+			            ValueByArticleName
+			        ),
+			        0
+			    )
+		lineageTag: 9da0cde7-8506-41ec-9b5c-752d4dd91a73
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC SOH Bucket SOH Value' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedCoverageBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasCoverageBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__CoverageCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__SOHValue", CALCULATE ( [CC SOH Value] )
+			    )
+			
+			RETURN
+			    SUMX (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasCoverageBucketFilter
+			                        || CONTAINSROW ( SelectedCoverageBuckets, [__CoverageCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			        ),
+			        [__SOHValue]
+			    )
+		formatString: #,0.0
+		lineageTag: 7c81a068-5f7c-4175-bc42-9c9a3bbc1a5a
+
+	measure 'CC SOH Value Visual' =
+			
+			VAR IsDetailRow =
+			    ISINSCOPE ( 'CC Item Location'[Article No.] )
+			        || ISINSCOPE ( 'CC Item Location'[Article] )
+			        || ISINSCOPE ( 'CC Item Location'[Base Unit] )
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedCoverageBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasCoverageBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR CurrentSOHCategory =
+			    [CC SOH Control Category]
+			
+			VAR CurrentCoverageCategory =
+			    [CC Coverage Category]
+			
+			VAR CurrentOutboundCategory =
+			    [CC Outbound Consumption Category]
+			
+			VAR CurrentRowAllowed =
+			    [CC Show Row] = 1
+			        && (
+			            NOT HasSOHBucketFilter
+			                || CONTAINSROW ( SelectedSOHBuckets, CurrentSOHCategory )
+			        )
+			        && (
+			            NOT HasCoverageBucketFilter
+			                || CONTAINSROW ( SelectedCoverageBuckets, CurrentCoverageCategory )
+			        )
+			        && (
+			            NOT HasOutboundBucketFilter
+			                || CONTAINSROW ( SelectedOutboundBuckets, CurrentOutboundCategory )
+			        )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__CoverageCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__SOHValue", CALCULATE ( [CC SOH Value] )
+			    )
+			
+			VAR TotalValue =
+			    SUMX (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasCoverageBucketFilter
+			                        || CONTAINSROW ( SelectedCoverageBuckets, [__CoverageCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			        ),
+			        [__SOHValue]
+			    )
+			
+			RETURN
+			    IF (
+			        IsDetailRow,
+			        IF ( CurrentRowAllowed, [CC SOH Value], BLANK () ),
+			        TotalValue
+			    )
+		lineageTag: 7e20d9ec-7af9-4489-ba57-d77ddec9e71f
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'SOH Control Category'
+		lineageTag: 0cc7aad0-d7d9-40f1-9b46-e629172845c9
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [SOH Control Category]
+		sortByColumn: Sort
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sort
+		formatString: 0
+		lineageTag: 8cc916fa-8749-4868-bee3-a9f4b972b5cd
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC SOH Bucket' = calculated
+		mode: import
+		source =
+				
+				DATATABLE (
+				    "SOH Control Category", STRING,
+				    "Sort", INTEGER,
+				    {
+				        { "0-10%", 1 },
+				        { "10-20%", 2 },
+				        { "20-30%", 3 },
+				        { "30-40%", 4 },
+				        { "40-50%", 5 },
+				        { "50-60%", 6 },
+				        { "60-70%", 7 },
+				        { "70-80%", 8 },
+				        { "80-90%", 9 },
+				        { "90-100%", 10 },
+				        { "100%+", 11 }
+				    }
+				)
+
+	annotation PBI_Id = 5330fb33e1bd411ab3c6ceac32dd4ce1
+

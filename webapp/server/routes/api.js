@@ -1075,10 +1075,13 @@ api.all('/warehouse-trend', handle(async (req, res) => {
      * compare. A day the warehouse issued nothing and forecast nothing is not
      * a day it got wrong.
      */
-    // Signed, like the column: a day the warehouse issued far less than the
-    // rate expected reads as the size of that miss, not as a floor.
-    r.WH_Accuracy =
-      r.measured && r.Outbound > 0 ? 1 - Math.abs(r.WH_Forecast - r.Outbound) / r.Outbound : null
+    /*
+     * The same formula the column uses:
+     *   1 − |Forecast − Actual| / MAX(Forecast, Actual)
+     * so a day on the trend and an article in the table are scored alike.
+     */
+    const bigger = Math.max(r.Outbound, r.WH_Forecast)
+    r.WH_Accuracy = r.measured && bigger > 0 ? 1 - Math.abs(r.WH_Forecast - r.Outbound) / bigger : null
   }
 
   res.json({ rows })

@@ -8,6 +8,7 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
   const [open, setOpen] = useState(false)
   const [box, setBox] = useState(null)
   const root = useRef(null)
+  const panel = useRef(null)
 
   /*
    * Positioned against the viewport, not the trigger's parent.
@@ -30,11 +31,42 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
       // Flip above the trigger when there is more room there — near the bottom
       // of a long page, dropping downwards would open into nothing.
       const drop = below >= 260 || below >= above
+      /*
+       * Kept on screen sideways as well as vertically.
+       *
+       * The panel was pinned to the trigger's left edge and nothing stopped it
+       * running off the right of the window — which is exactly what a wide
+       * explainer opened from the last column of a table does. Measuring the
+       * panel and clamping is the only reliable way: its width depends on its
+       * content, so it cannot be known before it renders.
+       *
+       * The first pass runs with the panel hidden, so this measurement happens
+       * before anybody sees it in the wrong place.
+       */
+      const width = panel.current?.offsetWidth ?? 0
+      const maxWidth = Math.round(window.innerWidth - margin * 2)
+
+      let left
+      let right
+      if (align === 'right') {
+        right = Math.round(window.innerWidth - r.right)
+        // Clamp so the far edge cannot leave the window on the other side.
+        if (width && width + right > window.innerWidth - margin) {
+          right = Math.max(margin, window.innerWidth - margin - width)
+        }
+      } else {
+        left = Math.round(r.left)
+        if (width && left + width > window.innerWidth - margin) {
+          left = Math.max(margin, window.innerWidth - margin - width)
+        }
+      }
+
       setBox({
         top: drop ? Math.round(r.bottom + 4) : undefined,
         bottom: drop ? undefined : Math.round(window.innerHeight - r.top + 4),
-        left: align === 'right' ? undefined : Math.round(r.left),
-        right: align === 'right' ? Math.round(window.innerWidth - r.right) : undefined,
+        left,
+        right,
+        maxWidth,
         maxHeight: Math.round((drop ? below : above) - 4),
       })
     }
@@ -81,6 +113,7 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
       })}
       {open && (
         <div
+          ref={panel}
           className={`pop__panel pop__panel--fixed ${panelClassName}`}
           style={
             box
@@ -89,6 +122,7 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
                   bottom: box.bottom,
                   left: box.left,
                   right: box.right,
+                  maxWidth: box.maxWidth,
                   maxHeight: box.maxHeight,
                 }
               : { visibility: 'hidden' }

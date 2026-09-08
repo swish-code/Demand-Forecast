@@ -1,0 +1,649 @@
+table 'CC Open PO Core'
+	lineageTag: edaef0fd-ebc6-4ac0-93de-953c6be8c4ca
+
+	column 'PO Article Location Key'
+		dataType: string
+		lineageTag: 0f9b85e3-1a37-4e34-99da-4a9b6bb574dd
+		summarizeBy: none
+		sourceColumn: PO Article Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO No'
+		dataType: string
+		lineageTag: 9ff8b25b-fcc6-4713-a973-27f16f766c00
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: d49f9c39-facb-490f-83e0-d343ba263af7
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'PO Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 652e69d3-ff84-4529-8833-6ada49b8a538
+		summarizeBy: none
+		sourceColumn: PO Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Supplier
+		dataType: string
+		lineageTag: b10e2c08-69e7-4dd3-bd6e-96969091d0c0
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Location
+		dataType: string
+		lineageTag: 0cd567a2-a785-4f80-9160-1ae66e2a4946
+		summarizeBy: none
+		sourceColumn: Location
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		dataType: string
+		lineageTag: 8d5b8026-b4be-4449-97a5-1a9751830e57
+		summarizeBy: none
+		sourceColumn: Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: 118374f8-ede6-43a8-968a-e3200d8787f5
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No Key'
+		dataType: string
+		lineageTag: f17f77f7-9af5-4d51-add6-7448b53fd899
+		summarizeBy: none
+		sourceColumn: Article No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 7663d865-7896-496e-b91c-84e04be5153d
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: 5874d3be-7009-440b-826e-2e5f5679e35e
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: c4cd9264-c5e9-455b-a4c6-03c570e5b6e6
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit'
+		dataType: string
+		lineageTag: ca90d770-55fc-4308-8f62-60dc66e173d3
+		summarizeBy: none
+		sourceColumn: PO Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit Multiplier'
+		dataType: double
+		lineageTag: a34b42ff-17df-4c54-81e7-cf46b3b46266
+		summarizeBy: sum
+		sourceColumn: PO Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Qty'
+		dataType: double
+		lineageTag: 21c97cb7-1fe2-4fa0-80e0-8252114c1387
+		summarizeBy: sum
+		sourceColumn: PO Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Open PO Base Qty'
+		dataType: double
+		lineageTag: 9212c443-96f0-4289-8e5a-38c22fa15ce4
+		summarizeBy: sum
+		sourceColumn: Open PO Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Unit Price'
+		dataType: double
+		lineageTag: dc42d17e-c0f7-460a-8663-c44406b77264
+		summarizeBy: sum
+		sourceColumn: PO Unit Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Open PO Value'
+		dataType: double
+		lineageTag: f9d1964c-2a1f-4bb9-8318-f0f3ccbb3ad6
+		summarizeBy: sum
+		sourceColumn: Open PO Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 869a595a-b957-4e76-9d72-83c7c6bea53c
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 2cb1553c-40e9-4dd9-86cd-3cc7d898463c
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 41a02c08-a801-43c7-807a-1f9b5b1bad0d
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Source Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: ad67245b-7498-4718-ab2f-abe850de3655
+		summarizeBy: sum
+		sourceColumn: Source Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Open PO Core' = m
+		mode: import
+		source =
+				let
+				    SourceRaw = #"Open PO",
+				
+				    KeepColumnsRaw =
+				        Table.SelectColumns(
+				            SourceRaw,
+				            {
+				                "Article",
+				                "Original Purchase Article",
+				                "Oracle Stock Article",
+				                "Manager Stock Article",
+				                "Manager Stock Article No.",
+				                "Article Mapping Status",
+				                "Supplier",
+				                "Warehouse",
+				                "PO Unit",
+				                "PO Base Unit",
+				                "ERP PO Unit Multiplier",
+				                "PO Unit Multiplier",
+				                "PO No",
+				                "PO Qty",
+				                "PO Unit Price",
+				                "PO Date",
+				                "PO Delivery Date",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    Source =
+				        Table.ReplaceErrorValues(
+				            KeepColumnsRaw,
+				            List.Transform(
+				                Table.ColumnNames(KeepColumnsRaw),
+				                each {_, null}
+				            )
+				        ),
+				
+				    FxText =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then
+				                    null
+				                else
+				                    let
+				                        T0 = Text.From(x),
+				                        T1 = Text.Replace(T0, Character.FromNumber(160), " "),
+				                        T2 = Text.Trim(Text.Clean(T1)),
+				                        T3 = Text.Combine(List.Select(Text.Split(T2, " "), each _ <> ""), " "),
+				                        T4 = Text.Upper(T3)
+				                    in
+				                        if T3 = ""
+				                            or T4 = "#N/A"
+				                            or T4 = "N/A"
+				                            or T4 = "NA"
+				                            or T4 = "NULL"
+				                        then
+				                            null
+				                        else
+				                            T3
+				            otherwise null,
+				
+				    FxKey =
+				        (x as any) as nullable text =>
+				            let
+				                T = FxText(x)
+				            in
+				                if T = null then null else Text.Upper(T),
+				
+				    FxArticleNo =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then
+				                    null
+				                else if Value.Is(x, type number) then
+				                    Number.ToText(x, "0")
+				                else
+				                    FxText(x)
+				            otherwise null,
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            if x = null then
+				                null
+				            else if Value.Is(x, type date) then
+				                x
+				            else if Value.Is(x, type datetime) then
+				                Date.From(x)
+				            else if Value.Is(x, type datetimezone) then
+				                Date.From(x)
+				            else
+				                try Date.FromText(Text.From(x), [Culture = "en-GB"])
+				                otherwise try Date.FromText(Text.From(x), [Culture = "en-US"])
+				                otherwise null,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            let
+				                T = FxText(x),
+				                Result =
+				                    if x = null then
+				                        null
+				                    else
+				                        try Number.From(x)
+				                        otherwise try Number.FromText(T, "en-US")
+				                        otherwise try Number.FromText(Text.Replace(T, ",", ""), "en-US")
+				                        otherwise null
+				            in
+				                Result,
+				
+				    FxBaseUnit =
+				        (x as any) as nullable text =>
+				            let
+				                U = FxKey(x)
+				            in
+				                if U = null then null
+				                else if List.Contains({"KG", "KGS", "KILOGRAM", "KILOGRAMS"}, U) then "KG"
+				                else if List.Contains({"LITER", "LITRE", "LTR", "LITERS", "LITRES", "LTRS"}, U) then "LITER"
+				                else if List.Contains({"EACH", "EA", "PCS", "PC", "PIECE", "PIECES"}, U) then "EACH"
+				                else U,
+				
+				    AddPONo =
+				        Table.AddColumn(
+				            Source,
+				            "PO No Clean",
+				            each FxText([PO No]),
+				            type nullable text
+				        ),
+				
+				    AddPODate =
+				        Table.AddColumn(
+				            AddPONo,
+				            "PO Date Clean",
+				            each FxDate([PO Date]),
+				            type nullable date
+				        ),
+				
+				    AddPODeliveryDate =
+				        Table.AddColumn(
+				            AddPODate,
+				            "PO Delivery Date Clean",
+				            each FxDate([PO Delivery Date]),
+				            type nullable date
+				        ),
+				
+				    AddSupplier =
+				        Table.AddColumn(
+				            AddPODeliveryDate,
+				            "Supplier Clean",
+				            each FxText([Supplier]),
+				            type nullable text
+				        ),
+				
+				    AddLocation =
+				        Table.AddColumn(
+				            AddSupplier,
+				            "Location",
+				            each FxText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    AddLocationKey =
+				        Table.AddColumn(
+				            AddLocation,
+				            "Location Key",
+				            each FxKey([Location]),
+				            type nullable text
+				        ),
+				
+				    AddArticleNo =
+				        Table.AddColumn(
+				            AddLocationKey,
+				            "Article No.",
+				            each FxArticleNo([#"Manager Stock Article No."]),
+				            type nullable text
+				        ),
+				
+				    AddArticleNoKey =
+				        Table.AddColumn(
+				            AddArticleNo,
+				            "Article No Key",
+				            each FxArticleNo([#"Article No."]),
+				            type nullable text
+				        ),
+				
+				    AddArticle =
+				        Table.AddColumn(
+				            AddArticleNoKey,
+				            "Article Clean",
+				            each
+				                let
+				                    A1 = FxText([Article]),
+				                    A2 = FxText([Manager Stock Article]),
+				                    A3 = FxText([Oracle Stock Article])
+				                in
+				                    if A1 <> null then A1
+				                    else if A2 <> null then A2
+				                    else A3,
+				            type nullable text
+				        ),
+				
+				    AddArticleKey =
+				        Table.AddColumn(
+				            AddArticle,
+				            "Article Key",
+				            each FxKey([Article Clean]),
+				            type nullable text
+				        ),
+				
+				    AddPOUnit =
+				        Table.AddColumn(
+				            AddArticleKey,
+				            "PO Unit Clean",
+				            each FxText([PO Unit]),
+				            type nullable text
+				        ),
+				
+				    AddBaseUnit =
+				        Table.AddColumn(
+				            AddPOUnit,
+				            "Base Unit",
+				            each FxBaseUnit([PO Base Unit]),
+				            type nullable text
+				        ),
+				
+				    AddPOQty =
+				        Table.AddColumn(
+				            AddBaseUnit,
+				            "PO Qty Clean",
+				            each FxNum([PO Qty]),
+				            type nullable number
+				        ),
+				
+				    AddMultiplier =
+				        Table.AddColumn(
+				            AddPOQty,
+				            "PO Unit Multiplier Clean",
+				            each
+				                let
+				                    M1 = FxNum([PO Unit Multiplier]),
+				                    M2 = FxNum([ERP PO Unit Multiplier])
+				                in
+				                    if M1 <> null and M1 > 0 then M1
+				                    else if M2 <> null and M2 > 0 then M2
+				                    else 1,
+				            type nullable number
+				        ),
+				
+				    AddPOUnitPrice =
+				        Table.AddColumn(
+				            AddMultiplier,
+				            "PO Unit Price Clean",
+				            each FxNum([PO Unit Price]),
+				            type nullable number
+				        ),
+				
+				    AddLineOpenPOBaseQty =
+				        Table.AddColumn(
+				            AddPOUnitPrice,
+				            "Line Open PO Base Qty",
+				            each
+				                let
+				                    Qty = [PO Qty Clean],
+				                    Multiplier = [PO Unit Multiplier Clean]
+				                in
+				                    if Qty = null or Multiplier = null then null else Qty * Multiplier,
+				            type nullable number
+				        ),
+				
+				    AddLineOpenPOValue =
+				        Table.AddColumn(
+				            AddLineOpenPOBaseQty,
+				            "Line Open PO Value",
+				            each
+				                let
+				                    Qty = [PO Qty Clean],
+				                    Price = [PO Unit Price Clean]
+				                in
+				                    if Qty = null or Price = null then null else Qty * Price,
+				            type nullable number
+				        ),
+				
+				    AddSubCategory =
+				        Table.AddColumn(
+				            AddLineOpenPOValue,
+				            "Sub Category Clean",
+				            each FxText([Sub_Category]),
+				            type nullable text
+				        ),
+				
+				    AddItemGroup =
+				        Table.AddColumn(
+				            AddSubCategory,
+				            "Item Group Clean",
+				            each FxText([Item_Group]),
+				            type nullable text
+				        ),
+				
+				    AddStorageType =
+				        Table.AddColumn(
+				            AddItemGroup,
+				            "Storage Type Clean",
+				            each FxText([Storage_Type]),
+				            type nullable text
+				        ),
+				
+				    FilterRows =
+				        Table.SelectRows(
+				            AddStorageType,
+				            each
+				                [PO No Clean] <> null
+				                and [PO No Clean] <> ""
+				                and [PO Date Clean] <> null
+				                and [Location Key] <> null
+				                and [Location Key] <> ""
+				                and [Article Key] <> null
+				                and [Article Key] <> ""
+				                and [Line Open PO Base Qty] <> null
+				                and [Line Open PO Base Qty] > 0
+				        ),
+				
+				    GroupedRows =
+				        Table.Group(
+				            FilterRows,
+				            {
+				                "PO No Clean",
+				                "PO Date Clean",
+				                "PO Delivery Date Clean",
+				                "Supplier Clean",
+				                "Location",
+				                "Location Key",
+				                "Article No.",
+				                "Article No Key",
+				                "Article Clean",
+				                "Article Key",
+				                "Base Unit",
+				                "PO Unit Clean",
+				                "PO Unit Multiplier Clean",
+				                "PO Unit Price Clean",
+				                "Sub Category Clean",
+				                "Item Group Clean",
+				                "Storage Type Clean"
+				            },
+				            {
+				                {"PO Qty", each List.Sum(List.RemoveNulls([PO Qty Clean])), type nullable number},
+				                {"Open PO Base Qty", each List.Sum(List.RemoveNulls([Line Open PO Base Qty])), type nullable number},
+				                {"Open PO Value", each List.Sum(List.RemoveNulls([Line Open PO Value])), type nullable number},
+				                {"Source Row Count", each Table.RowCount(_), Int64.Type}
+				            }
+				        ),
+				
+				    RenameColumns =
+				        Table.RenameColumns(
+				            GroupedRows,
+				            {
+				                {"PO No Clean", "PO No"},
+				                {"PO Date Clean", "PO Date"},
+				                {"PO Delivery Date Clean", "PO Delivery Date"},
+				                {"Supplier Clean", "Supplier"},
+				                {"Article Clean", "Article"},
+				                {"PO Unit Clean", "PO Unit"},
+				                {"PO Unit Multiplier Clean", "PO Unit Multiplier"},
+				                {"PO Unit Price Clean", "PO Unit Price"},
+				                {"Sub Category Clean", "Sub_Category"},
+				                {"Item Group Clean", "Item_Group"},
+				                {"Storage Type Clean", "Storage_Type"}
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    AddPOArticleLocationKey =
+				        Table.AddColumn(
+				            RenameColumns,
+				            "PO Article Location Key",
+				            each
+				                FxText([PO No])
+				                    & "|"
+				                    & FxText([Location Key])
+				                    & "|"
+				                    & FxText([Article Key]),
+				            type text
+				        ),
+				
+				    Final =
+				        Table.SelectColumns(
+				            AddPOArticleLocationKey,
+				            {
+				                "PO Article Location Key",
+				                "PO No",
+				                "PO Date",
+				                "PO Delivery Date",
+				                "Supplier",
+				                "Location",
+				                "Location Key",
+				                "Article No.",
+				                "Article No Key",
+				                "Article",
+				                "Article Key",
+				                "Base Unit",
+				                "PO Unit",
+				                "PO Unit Multiplier",
+				                "PO Qty",
+				                "Open PO Base Qty",
+				                "PO Unit Price",
+				                "Open PO Value",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type",
+				                "Source Row Count"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    FinalTypes =
+				        Table.TransformColumnTypes(
+				            Final,
+				            {
+				                {"PO Article Location Key", type text},
+				                {"PO No", type text},
+				                {"PO Date", type date},
+				                {"PO Delivery Date", type date},
+				                {"Supplier", type text},
+				                {"Location", type text},
+				                {"Location Key", type text},
+				                {"Article No.", type text},
+				                {"Article No Key", type text},
+				                {"Article", type text},
+				                {"Article Key", type text},
+				                {"Base Unit", type text},
+				                {"PO Unit", type text},
+				                {"PO Unit Multiplier", type number},
+				                {"PO Qty", type number},
+				                {"Open PO Base Qty", type number},
+				                {"PO Unit Price", type number},
+				                {"Open PO Value", type number},
+				                {"Sub_Category", type text},
+				                {"Item_Group", type text},
+				                {"Storage_Type", type text},
+				                {"Source Row Count", Int64.Type}
+				            }
+				        )
+				in
+				    FinalTypes
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

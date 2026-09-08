@@ -1,0 +1,1449 @@
+table fact_outbound_line
+	lineageTag: 40d086f7-a40c-418e-b9d9-0b9aaf7587d6
+
+	column 'Document Line ID'
+		dataType: string
+		lineageTag: f4776f77-47d4-4aed-b79c-97b38607fae9
+		summarizeBy: none
+		sourceColumn: Document Line ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Document Article Key'
+		dataType: string
+		lineageTag: ebf4f223-b0c8-4846-aa35-34a14419048a
+		summarizeBy: none
+		sourceColumn: Document Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column Document
+		dataType: string
+		lineageTag: fafc36cb-11eb-42b0-a58a-daa0da50c91c
+		summarizeBy: none
+		sourceColumn: Document
+
+		annotation SummarizationSetBy = Automatic
+
+	column Pos
+		dataType: int64
+		formatString: 0
+		lineageTag: cbe56278-ef3b-412e-9bd5-09aa14e255a0
+		summarizeBy: sum
+		sourceColumn: Pos
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: b412f929-af0b-4d77-9b86-14e99ba849b0
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 57246fa0-98f7-4e92-93ef-fa48831bf373
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: bb5851ff-807d-4189-95e2-3c2b271ad071
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 05013099-c466-4222-afde-c92e5d62b34f
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 8dde5b84-6b95-47e1-b470-0118843c7597
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column Status
+		dataType: string
+		lineageTag: 4b46f500-8039-45e8-b748-e402d3d84473
+		summarizeBy: none
+		sourceColumn: Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Status Group'
+		dataType: string
+		lineageTag: 0f9e02c2-92eb-4f89-9d0b-023b84c87dd2
+		summarizeBy: none
+		sourceColumn: Status Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column SOH
+		dataType: double
+		lineageTag: ad43c2ef-d9e2-44fd-81fb-c7c4309e8c0b
+		summarizeBy: sum
+		sourceColumn: SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Unit
+		dataType: string
+		lineageTag: 29473c47-ae92-40f9-b480-cf9491428f1f
+		summarizeBy: none
+		sourceColumn: Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: cbd7607a-4310-4a8a-a727-f2e465516d43
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Unit Multiplier'
+		dataType: double
+		lineageTag: 71c9ba3a-3aaf-4241-b452-e7df8d33a6d4
+		summarizeBy: sum
+		sourceColumn: Unit Multiplier
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Unit Mapping Status'
+		dataType: string
+		lineageTag: b47d4d20-fbb0-478c-aaa2-9d56b145c2f5
+		summarizeBy: none
+		sourceColumn: Unit Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty'
+		dataType: double
+		lineageTag: bc40626a-3c2f-4393-b7be-1af7ca8925b4
+		summarizeBy: sum
+		sourceColumn: Requested Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Requested Base Qty'
+		dataType: double
+		lineageTag: b308272f-1b1d-4285-ac8e-39c70bd4ae1e
+		summarizeBy: sum
+		sourceColumn: Requested Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Action Qty'
+		dataType: double
+		lineageTag: f26c2ed3-a892-4cef-ab01-0e7799234ce5
+		summarizeBy: sum
+		sourceColumn: Action Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Action Base Qty'
+		dataType: double
+		lineageTag: 1ea04bff-8289-4758-b369-fca71a8e7f01
+		summarizeBy: sum
+		sourceColumn: Action Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'OOS Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: e494428e-1962-43e2-8f53-67fad04e48ee
+		summarizeBy: sum
+		sourceColumn: OOS Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Purchase Price'
+		dataType: double
+		lineageTag: 69a08688-1c49-4ecf-8510-5a179d61fb89
+		summarizeBy: sum
+		sourceColumn: Purchase Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Line Value'
+		dataType: double
+		lineageTag: d1da0e10-d395-4319-aca7-7dc0ce8be4ee
+		summarizeBy: sum
+		sourceColumn: Line Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Requested Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 15524cdb-c3a4-41bb-92c1-6debb8f4dd08
+		summarizeBy: none
+		sourceColumn: Requested Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Request Created DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: df1114f3-4765-4aa5-8a38-16834dba7d4d
+		summarizeBy: none
+		sourceColumn: Request Created DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Request Created Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 58d8f002-c904-4bb8-a4ce-c776f95338dd
+		summarizeBy: none
+		sourceColumn: Request Created Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Request Created Time'
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: 91193bc6-d1c6-4ab4-afae-8c3707c7dc5e
+		summarizeBy: none
+		sourceColumn: Request Created Time
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column 'Request Cutoff Bucket'
+		dataType: string
+		lineageTag: 898779aa-0850-4283-9e07-99f8ce0916fa
+		summarizeBy: none
+		sourceColumn: Request Cutoff Bucket
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Within Cutoff Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 68987d3e-9928-40c2-84d6-eec0a08ff28c
+		summarizeBy: sum
+		sourceColumn: Within Cutoff Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Created By'
+		dataType: string
+		lineageTag: d73dee40-2a55-4215-922b-0c4c90dc394c
+		summarizeBy: none
+		sourceColumn: Created By
+
+		annotation SummarizationSetBy = Automatic
+
+	column Info
+		dataType: string
+		lineageTag: 637cdb47-9099-42bd-86b1-9464bce46f2c
+		summarizeBy: none
+		sourceColumn: Info
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center/Store'
+		dataType: string
+		lineageTag: aa12f14e-c82b-4ccf-aa4a-9a1c45679e64
+		summarizeBy: none
+		sourceColumn: Cost Center/Store
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mapped Cost Center/Store'
+		dataType: string
+		lineageTag: 1e24ae7b-f9d1-4a8d-851e-68d7c278ed1a
+		summarizeBy: none
+		sourceColumn: Mapped Cost Center/Store
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Transfer To'
+		dataType: string
+		lineageTag: ae5c6548-e7ba-4f5b-b786-338b2eaba548
+		summarizeBy: none
+		sourceColumn: Transfer To
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Mapped Transfer To'
+		dataType: string
+		lineageTag: c318d284-cc03-4e01-9ea5-a3e941f1cea0
+		summarizeBy: none
+		sourceColumn: Mapped Transfer To
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Article No.'
+		dataType: string
+		lineageTag: 8ba705af-8f57-4fb4-94e8-0bddb3d8a92e
+		summarizeBy: none
+		sourceColumn: SOH Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Article'
+		dataType: string
+		lineageTag: 0ead8170-9d08-440e-88f6-51673f47f60b
+		summarizeBy: none
+		sourceColumn: SOH Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Base Unit'
+		dataType: string
+		lineageTag: 0336919d-1c7a-4c05-9fd4-56f295940ac5
+		summarizeBy: none
+		sourceColumn: SOH Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Total ACT SOH'
+		dataType: double
+		lineageTag: 67b359cf-1e3a-4dd9-8ee8-863da44d02f8
+		summarizeBy: sum
+		sourceColumn: Article Total ACT SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Article Max ACT SOH'
+		dataType: double
+		lineageTag: 94846426-09a1-41ae-a82c-f3a302bcb474
+		summarizeBy: sum
+		sourceColumn: Article Max ACT SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Article Min ACT SOH'
+		dataType: double
+		lineageTag: 80a73cb5-e312-4111-8ef9-cf325487cb83
+		summarizeBy: sum
+		sourceColumn: Article Min ACT SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'SOH Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: e9786444-6895-4894-87fc-c9253dbbe409
+		summarizeBy: sum
+		sourceColumn: SOH Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Valid Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 550e9227-b8ed-4bf4-a36b-5d5f90941b75
+		summarizeBy: sum
+		sourceColumn: SOH Valid Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Negative/Zero Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 1a1748f4-4c5f-439c-8c8d-5de143b91533
+		summarizeBy: sum
+		sourceColumn: SOH Negative/Zero Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Global Negative Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: b6310dfb-b75f-41cb-9444-3d9d7a4fa6ea
+		summarizeBy: sum
+		sourceColumn: Article Global Negative Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Global Negative Status'
+		dataType: string
+		lineageTag: 080711df-e925-4a3e-92e7-e3d741525b58
+		summarizeBy: none
+		sourceColumn: Article Global Negative Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Article Match Status'
+		dataType: string
+		lineageTag: 913c689c-92ec-4e87-ace3-dadfdfe45be8
+		summarizeBy: none
+		sourceColumn: SOH Article Match Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Negative Transfer Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: abf537ff-07be-4e71-a646-be9e8e6d39ec
+		summarizeBy: sum
+		sourceColumn: Negative Transfer Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Negative Transfer Status'
+		dataType: string
+		lineageTag: 12ec2750-46a3-487b-b842-ca862dea0a46
+		summarizeBy: none
+		sourceColumn: Negative Transfer Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SOH Avg P. Price'
+		dataType: double
+		lineageTag: 5c341603-16ff-48e9-91be-e61bfd2e8a10
+		summarizeBy: sum
+		sourceColumn: SOH Avg P. Price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'SOH Avg AVE'
+		dataType: double
+		lineageTag: cfd08c7d-fa65-4143-9159-6903e23fed7e
+		summarizeBy: sum
+		sourceColumn: SOH Avg AVE
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outbound Group ID'
+		dataType: string
+		lineageTag: 0fbd05db-983f-49e4-a5f1-d0c036781797
+		summarizeBy: none
+		sourceColumn: Outbound Group ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Source Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 1abe07ac-bb7f-4da0-9062-332bbc66ab60
+		summarizeBy: sum
+		sourceColumn: Source Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_outbound_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Issue Requests & Transfer Grouped",
+				
+				    FxArticleNoText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else if Value.Is(x, type number) then Number.ToText(x, "0")
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxCleanKey =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else fnCleanText(x)
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxCleanDisplayText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxMultiplierFromUnit =
+				        (UnitText as any, BaseUnitText as any) as nullable number =>
+				            let
+				                U = fnCleanText(UnitText),
+				                B = fnCleanBaseUnit(BaseUnitText),
+				
+				                Tokens =
+				                    if U = null
+				                    then {}
+				                    else Text.SplitAny(U, " -_/()[]{}"),
+				
+				                Numbers =
+				                    List.RemoveNulls(
+				                        List.Transform(
+				                            Tokens,
+				                            each try Number.FromText(_, "en-US") otherwise null
+				                        )
+				                    ),
+				
+				                ProductNumber =
+				                    if List.Count(Numbers) > 0
+				                    then List.Product(Numbers)
+				                    else null,
+				
+				                Result =
+				                    if U = null then null
+				
+				                    else if B = "KG"
+				                        and (
+				                            Text.Contains(U, "GM")
+				                            or Text.Contains(U, "GMS")
+				                            or Text.Contains(U, "GRAM")
+				                        )
+				                        and ProductNumber <> null
+				                    then ProductNumber / 1000
+				
+				                    else if B = "LITER"
+				                        and (
+				                            Text.Contains(U, "ML")
+				                            or Text.Contains(U, "MILLI")
+				                        )
+				                        and ProductNumber <> null
+				                    then ProductNumber / 1000
+				
+				                    else if ProductNumber <> null then ProductNumber
+				
+				                    else if U <> null and B <> null and U = B then 1
+				
+				                    else if B = "KG" and Text.Contains(U, "KG") then 1
+				
+				                    else if B = "LITER"
+				                        and (
+				                            Text.Contains(U, "LITER")
+				                            or Text.Contains(U, "LITRE")
+				                            or Text.Contains(U, "LTR")
+				                        )
+				                    then 1
+				
+				                    else if B = "EACH"
+				                        and (
+				                            Text.Contains(U, "EACH")
+				                            or Text.Contains(U, "PCS")
+				                            or Text.Contains(U, "PC")
+				                        )
+				                    then 1
+				
+				                    else null
+				            in
+				                Result,
+				
+				    RenameColumns =
+				        Table.RenameColumns(
+				            Source,
+				            {
+				                {"QTY", "Action Qty"},
+				                {"Req QTY", "Requested Qty"},
+				                {"QTY/BU", "Action Base Qty"},
+				                {"P.Price", "Purchase Price"},
+				                {"Total", "Line Value"},
+				                {"Date", "Requested Delivery Date"},
+				                {"Created At", "Request Created DateTime"},
+				                {"Created by", "Created By"}
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    KeepColumns =
+				        Table.SelectColumns(
+				            RenameColumns,
+				            {
+				                "Pos",
+				                "Source Row Count",
+				                "SOH",
+				                "Article No.",
+				                "Article",
+				                "Action Qty",
+				                "Requested Qty",
+				                "Unit",
+				                "Base Unit",
+				                "Action Base Qty",
+				                "Purchase Price",
+				                "Line Value",
+				                "Cost Center/Store",
+				                "Transfer To",
+				                "Document",
+				                "Requested Delivery Date",
+				                "Created By",
+				                "Request Created DateTime",
+				                "Status",
+				                "Info"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    BasicClean =
+				        Table.TransformColumns(
+				            KeepColumns,
+				            {
+				                {"Article No.", each FxArticleNoText(_), type nullable text},
+				                {"Article", each fnCleanText(_), type nullable text},
+				                {"Document", each FxCleanDisplayText(_), type nullable text},
+				                {"Cost Center/Store", each FxCleanDisplayText(_), type nullable text},
+				                {"Transfer To", each FxCleanDisplayText(_), type nullable text},
+				                {"Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"Base Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"Created By", each fnCleanText(_), type nullable text},
+				                {"Status", each fnCleanText(_), type nullable text},
+				                {"Info", each if _ = null then null else Text.From(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    FilterStatus =
+				        Table.SelectRows(
+				            BasicClean,
+				            each
+				                [Status] <> null
+				                and [Status] <> ""
+				                and [Status] <> "N/A"
+				                and [Status] <> "NA"
+				        ),
+				
+				    AddStatusGroup =
+				        Table.AddColumn(
+				            FilterStatus,
+				            "Status Group",
+				            each
+				                if [Status] = "REQUESTED" then "REQUESTED"
+				                else if [Status] = "REQUESTED IN PROGRESS" then "REQUESTED"
+				                else if [Status] = "BOOKED" then "BOOKED"
+				                else if [Status] = "DELIVERED" then "DELIVERED"
+				                else if [Status] = "DECLINED" then "DECLINED"
+				                else if [Status] = "SUSPENDED TRANSFER TO" then "SUSPENDED TRANSFER TO"
+				                else "OTHER",
+				            type text
+				        ),
+				
+				    CleanDates =
+				        Table.TransformColumns(
+				            AddStatusGroup,
+				            {
+				                {"Requested Delivery Date", each fnDateOnly(_), type nullable date},
+				                {"Request Created DateTime", each try DateTime.From(_) otherwise null, type nullable datetime}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    AddRequestCreatedDate =
+				        Table.AddColumn(
+				            CleanDates,
+				            "Request Created Date",
+				            each fnDateOnly([Request Created DateTime]),
+				            type nullable date
+				        ),
+				
+				    AddRequestCreatedTime =
+				        Table.AddColumn(
+				            AddRequestCreatedDate,
+				            "Request Created Time",
+				            each if [Request Created DateTime] = null then null else Time.From([Request Created DateTime]),
+				            type nullable time
+				        ),
+				
+				    AddCutoffBucket =
+				        Table.AddColumn(
+				            AddRequestCreatedTime,
+				            "Request Cutoff Bucket",
+				            each
+				                if [Request Created Time] = null then "UNKNOWN"
+				                else if [Request Created Time] <= #time(15, 0, 0) then "<=3PM"
+				                else ">3PM",
+				            type text
+				        ),
+				
+				    AddWithinCutoffFlag =
+				        Table.AddColumn(
+				            AddCutoffBucket,
+				            "Within Cutoff Flag",
+				            each if [Request Cutoff Bucket] = "<=3PM" then 1 else 0,
+				            Int64.Type
+				        ),
+				
+				    ChangeTypes =
+				        Table.TransformColumnTypes(
+				            AddWithinCutoffFlag,
+				            {
+				                {"Pos", Int64.Type},
+				                {"Source Row Count", Int64.Type},
+				                {"SOH", type number},
+				                {"Article No.", type text},
+				                {"Action Qty", type number},
+				                {"Requested Qty", type number},
+				                {"Action Base Qty", type number},
+				                {"Purchase Price", type number},
+				                {"Line Value", type number},
+				                {"Requested Delivery Date", type date},
+				                {"Request Created Date", type date},
+				                {"Request Created Time", type time}
+				            },
+				            "en-US"
+				        ),
+				
+				    AddOutboundGroupID =
+				        Table.AddColumn(
+				            ChangeTypes,
+				            "Outbound Group ID",
+				            each
+				                let
+				                    Doc = if [Document] = null then "" else Text.From([Document]),
+				                    CC = if [#"Cost Center/Store"] = null then "" else Text.From([#"Cost Center/Store"]),
+				                    ToLoc = if [#"Transfer To"] = null then "" else Text.From([#"Transfer To"]),
+				                    DateKey = if [Requested Delivery Date] = null then "" else Date.ToText([Requested Delivery Date], "yyyyMMdd"),
+				                    Art = if [Article] = null then "" else Text.From([Article])
+				                in
+				                    Doc & "|" & CC & "|" & ToLoc & "|" & DateKey & "|" & Art,
+				            type text
+				        ),
+				
+				    AddArticleKey =
+				        Table.AddColumn(
+				            AddOutboundGroupID,
+				            "__Article Key",
+				            each fnCleanText([Article]),
+				            type nullable text
+				        ),
+				
+				    AddUnitKey =
+				        Table.AddColumn(
+				            AddArticleKey,
+				            "__Unit Key",
+				            each fnCleanText([Unit]),
+				            type nullable text
+				        ),
+				
+				    UnitDim =
+				        let
+				            U0 = dim_unit_conversion,
+				
+				            U1 =
+				                if List.Contains(Table.ColumnNames(U0), "Unitkey")
+				                then Table.RenameColumns(U0, {{"Unitkey", "Unit Key"}}, MissingField.Ignore)
+				                else U0,
+				
+				            U2 =
+				                if List.Contains(Table.ColumnNames(U1), "Unit Key")
+				                then U1
+				                else Table.AddColumn(U1, "Unit Key", each fnCleanText([Unit String]), type nullable text),
+				
+				            U3 =
+				                Table.TransformColumns(
+				                    U2,
+				                    {
+				                        {"Unit Key", each fnCleanText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            U4 =
+				                Table.SelectRows(
+				                    U3,
+				                    each [Unit Key] <> null and [Unit Key] <> ""
+				                ),
+				
+				            U5 =
+				                Table.Distinct(
+				                    U4,
+				                    {"Unit Key"}
+				                ),
+				
+				            U6 =
+				                Table.Buffer(U5)
+				        in
+				            U6,
+				
+				    MergeUnit =
+				        Table.NestedJoin(
+				            AddUnitKey,
+				            {"__Unit Key"},
+				            UnitDim,
+				            {"Unit Key"},
+				            "Unit Conversion",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandUnit =
+				        Table.ExpandTableColumn(
+				            MergeUnit,
+				            "Unit Conversion",
+				            {"Unit Multiplier"},
+				            {"Mapped Unit Multiplier"}
+				        ),
+				
+				    AddFallbackUnitMultiplier =
+				        Table.AddColumn(
+				            ExpandUnit,
+				            "Fallback Unit Multiplier",
+				            each
+				                if [Action Qty] <> null and [Action Qty] <> 0 and [Action Base Qty] <> null
+				                then [Action Base Qty] / [Action Qty]
+				                else FxMultiplierFromUnit([Unit], [Base Unit]),
+				            type nullable number
+				        ),
+				
+				    AddFinalUnitMultiplier =
+				        Table.AddColumn(
+				            AddFallbackUnitMultiplier,
+				            "Unit Multiplier",
+				            each
+				                if [Mapped Unit Multiplier] <> null then [Mapped Unit Multiplier]
+				                else [Fallback Unit Multiplier],
+				            type nullable number
+				        ),
+				
+				    AddRequestedBaseQty =
+				        Table.AddColumn(
+				            AddFinalUnitMultiplier,
+				            "Requested Base Qty",
+				            each
+				                if [Requested Qty] = null then null
+				                else if [Unit Multiplier] = null then null
+				                else [Requested Qty] * [Unit Multiplier],
+				            type nullable number
+				        ),
+				
+				    AddFinalActionBaseQty =
+				        Table.AddColumn(
+				            AddRequestedBaseQty,
+				            "Final Action Base Qty",
+				            each
+				                if [Action Base Qty] <> null then [Action Base Qty]
+				                else if [Action Qty] <> null and [Unit Multiplier] <> null then [Action Qty] * [Unit Multiplier]
+				                else null,
+				            type nullable number
+				        ),
+				
+				    RemoveOldActionBaseQty =
+				        Table.RemoveColumns(
+				            AddFinalActionBaseQty,
+				            {"Action Base Qty"},
+				            MissingField.Ignore
+				        ),
+				
+				    RenameFinalActionBaseQty =
+				        Table.RenameColumns(
+				            RemoveOldActionBaseQty,
+				            {{"Final Action Base Qty", "Action Base Qty"}},
+				            MissingField.Ignore
+				        ),
+				
+				    AddUnitMappingStatus =
+				        Table.AddColumn(
+				            RenameFinalActionBaseQty,
+				            "Unit Mapping Status",
+				            each if [Unit Multiplier] = null then "Missing Unit Mapping" else "Mapped",
+				            type text
+				        ),
+				
+				    AddOOSFlag =
+				        Table.AddColumn(
+				            AddUnitMappingStatus,
+				            "OOS Flag",
+				            each
+				                let
+				                    StatusClean = FxCleanKey([Status Group]),
+				                    ReqBase = if [Requested Base Qty] = null then 0 else [Requested Base Qty],
+				                    ActBase = if [Action Base Qty] = null then 0 else [Action Base Qty]
+				                in
+				                    if List.Contains({"BOOKED", "DELIVERED"}, StatusClean)
+				                        and ReqBase > 0
+				                        and ActBase = 0
+				                    then 1
+				                    else 0,
+				            Int64.Type
+				        ),
+				
+				    AddDocumentArticleKey =
+				        Table.AddColumn(
+				            AddOOSFlag,
+				            "Document Article Key",
+				            each
+				                let
+				                    Doc = if [Document] = null then "" else Text.From([Document]),
+				                    Art = if [Article] = null then "" else Text.From([Article])
+				                in
+				                    Doc & "|" & Art,
+				            type text
+				        ),
+				
+				    AddDocumentLineID =
+				        Table.AddColumn(
+				            AddDocumentArticleKey,
+				            "Document Line ID",
+				            each [Outbound Group ID],
+				            type text
+				        ),
+				
+				    CategoryByArticleNo =
+				        let
+				            C0 =
+				                Table.SelectColumns(
+				                    CategoryLookup,
+				                    {"Article_No", "Sub_Category", "Item_Group", "Storage_Type"},
+				                    MissingField.Ignore
+				                ),
+				
+				            C1 =
+				                Table.TransformColumns(
+				                    C0,
+				                    {
+				                        {"Article_No", each FxArticleNoText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            C2 =
+				                Table.SelectRows(
+				                    C1,
+				                    each [Article_No] <> null and [Article_No] <> ""
+				                ),
+				
+				            C3 =
+				                Table.Distinct(
+				                    C2,
+				                    {"Article_No"}
+				                ),
+				
+				            C4 =
+				                Table.Buffer(C3)
+				        in
+				            C4,
+				
+				    MergeCategoryByArticleNo =
+				        Table.NestedJoin(
+				            AddDocumentLineID,
+				            {"Article No."},
+				            CategoryByArticleNo,
+				            {"Article_No"},
+				            "Category By Article No",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandCategoryByArticleNo =
+				        Table.ExpandTableColumn(
+				            MergeCategoryByArticleNo,
+				            "Category By Article No",
+				            {"Sub_Category", "Item_Group", "Storage_Type"},
+				            {"Sub_Category_ByNo", "Item_Group_ByNo", "Storage_Type_ByNo"}
+				        ),
+				
+				    CategoryByArticleName =
+				        let
+				            C0 =
+				                Table.SelectColumns(
+				                    CategoryLookup,
+				                    {"Article", "Sub_Category", "Item_Group", "Storage_Type"},
+				                    MissingField.Ignore
+				                ),
+				
+				            C1 =
+				                Table.TransformColumns(
+				                    C0,
+				                    {
+				                        {"Article", each fnCleanText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            C2 =
+				                Table.RenameColumns(
+				                    C1,
+				                    {{"Article", "Article Key"}},
+				                    MissingField.Ignore
+				                ),
+				
+				            C3 =
+				                Table.SelectRows(
+				                    C2,
+				                    each [Article Key] <> null and [Article Key] <> ""
+				                ),
+				
+				            C4 =
+				                Table.Distinct(
+				                    C3,
+				                    {"Article Key"}
+				                ),
+				
+				            C5 =
+				                Table.Buffer(C4)
+				        in
+				            C5,
+				
+				    MergeCategoryByArticleName =
+				        Table.NestedJoin(
+				            ExpandCategoryByArticleNo,
+				            {"__Article Key"},
+				            CategoryByArticleName,
+				            {"Article Key"},
+				            "Category By Article Name",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandCategoryByArticleName =
+				        Table.ExpandTableColumn(
+				            MergeCategoryByArticleName,
+				            "Category By Article Name",
+				            {"Sub_Category", "Item_Group", "Storage_Type"},
+				            {"Sub_Category_ByName", "Item_Group_ByName", "Storage_Type_ByName"}
+				        ),
+				
+				    AddSubCategory =
+				        Table.AddColumn(
+				            ExpandCategoryByArticleName,
+				            "Sub_Category",
+				            each if [Sub_Category_ByNo] <> null then [Sub_Category_ByNo] else [Sub_Category_ByName],
+				            type nullable text
+				        ),
+				
+				    AddItemGroup =
+				        Table.AddColumn(
+				            AddSubCategory,
+				            "Item_Group",
+				            each if [Item_Group_ByNo] <> null then [Item_Group_ByNo] else [Item_Group_ByName],
+				            type nullable text
+				        ),
+				
+				    AddStorageType =
+				        Table.AddColumn(
+				            AddItemGroup,
+				            "Storage_Type",
+				            each if [Storage_Type_ByNo] <> null then [Storage_Type_ByNo] else [Storage_Type_ByName],
+				            type nullable text
+				        ),
+				
+				    AddFromLocationKey =
+				        Table.AddColumn(
+				            AddStorageType,
+				            "__Cost Center Store Key",
+				            each FxCleanKey([#"Cost Center/Store"]),
+				            type nullable text
+				        ),
+				
+				    AddToLocationKey =
+				        Table.AddColumn(
+				            AddFromLocationKey,
+				            "__Transfer To Key",
+				            each FxCleanKey([#"Transfer To"]),
+				            type nullable text
+				        ),
+				
+				    OutboundWHDim =
+				        let
+				            O0 = OutboundWH,
+				
+				            O1 =
+				                Table.SelectColumns(
+				                    O0,
+				                    {"Outbound req,cc Name", "Final Name"},
+				                    MissingField.Ignore
+				                ),
+				
+				            O2 =
+				                Table.TransformColumns(
+				                    O1,
+				                    {
+				                        {"Outbound req,cc Name", each FxCleanKey(_), type nullable text},
+				                        {"Final Name", each FxCleanDisplayText(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            O3 =
+				                Table.RenameColumns(
+				                    O2,
+				                    {{"Outbound req,cc Name", "Outbound Location Key"}},
+				                    MissingField.Ignore
+				                ),
+				
+				            O4 =
+				                Table.SelectRows(
+				                    O3,
+				                    each [Outbound Location Key] <> null and [Outbound Location Key] <> ""
+				                ),
+				
+				            O5 =
+				                Table.Distinct(
+				                    O4,
+				                    {"Outbound Location Key"}
+				                ),
+				
+				            O6 =
+				                Table.Buffer(O5)
+				        in
+				            O6,
+				
+				    MergeFromOutboundWH =
+				        Table.NestedJoin(
+				            AddToLocationKey,
+				            {"__Cost Center Store Key"},
+				            OutboundWHDim,
+				            {"Outbound Location Key"},
+				            "From Outbound Mapping",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandFromOutboundWH =
+				        Table.ExpandTableColumn(
+				            MergeFromOutboundWH,
+				            "From Outbound Mapping",
+				            {"Final Name"},
+				            {"Final Cost Center/Store"}
+				        ),
+				
+				    MergeToOutboundWH =
+				        Table.NestedJoin(
+				            ExpandFromOutboundWH,
+				            {"__Transfer To Key"},
+				            OutboundWHDim,
+				            {"Outbound Location Key"},
+				            "To Outbound Mapping",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandToOutboundWH =
+				        Table.ExpandTableColumn(
+				            MergeToOutboundWH,
+				            "To Outbound Mapping",
+				            {"Final Name"},
+				            {"Final Transfer To"}
+				        ),
+				
+				    AddFinalCostCenterStore =
+				        Table.AddColumn(
+				            ExpandToOutboundWH,
+				            "Mapped Cost Center/Store",
+				            each if [#"Final Cost Center/Store"] = null then [#"Cost Center/Store"] else [#"Final Cost Center/Store"],
+				            type nullable text
+				        ),
+				
+				    AddFinalTransferTo =
+				        Table.AddColumn(
+				            AddFinalCostCenterStore,
+				            "Mapped Transfer To",
+				            each if [#"Final Transfer To"] = null then [#"Transfer To"] else [#"Final Transfer To"],
+				            type nullable text
+				        ),
+				
+				    AddGlobalSOHArticleKey =
+				        Table.AddColumn(
+				            AddFinalTransferTo,
+				            "__Global SOH Article Key",
+				            each
+				                let
+				                    StatusClean = FxCleanKey([Status Group]),
+				                    ActionBaseQty = if [Action Base Qty] = null then 0 else [Action Base Qty],
+				                    ArticleNameKey = FxCleanKey([Article])
+				                in
+				                    if StatusClean <> "DELIVERED" then
+				                        null
+				                    else if ActionBaseQty <= 0 then
+				                        null
+				                    else if ArticleNameKey <> null and ArticleNameKey <> "" then
+				                        "NAME|" & ArticleNameKey
+				                    else
+				                        null,
+				            type nullable text
+				        ),
+				
+				    SOHArticleGlobalLookup =
+				        let
+				            S0 = ref_soh_article_global_status,
+				
+				            S1 =
+				                Table.TransformColumns(
+				                    S0,
+				                    {
+				                        {"SOH Article", each FxCleanKey(_), type nullable text}
+				                    },
+				                    null,
+				                    MissingField.Ignore
+				                ),
+				
+				            S2 =
+				                Table.AddColumn(
+				                    S1,
+				                    "Lookup Key",
+				                    each
+				                        if [SOH Article] = null or [SOH Article] = ""
+				                        then null
+				                        else "NAME|" & [SOH Article],
+				                    type nullable text
+				                ),
+				
+				            S3 =
+				                Table.SelectRows(
+				                    S2,
+				                    each [Lookup Key] <> null and [Lookup Key] <> ""
+				                ),
+				
+				            S4 =
+				                Table.Distinct(
+				                    S3,
+				                    {"Lookup Key"}
+				                ),
+				
+				            S5 =
+				                Table.Buffer(S4)
+				        in
+				            S5,
+				
+				    MergeGlobalSOH =
+				        Table.NestedJoin(
+				            AddGlobalSOHArticleKey,
+				            {"__Global SOH Article Key"},
+				            SOHArticleGlobalLookup,
+				            {"Lookup Key"},
+				            "Global SOH",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandGlobalSOH =
+				        Table.ExpandTableColumn(
+				            MergeGlobalSOH,
+				            "Global SOH",
+				            {
+				                "SOH Article No.",
+				                "SOH Article",
+				                "SOH Base Unit",
+				                "Article Total ACT SOH",
+				                "Article Max ACT SOH",
+				                "Article Min ACT SOH",
+				                "SOH Row Count",
+				                "SOH Valid Row Count",
+				                "SOH Negative/Zero Row Count",
+				                "Article Global Negative Flag",
+				                "Article Global Negative Status",
+				                "SOH Avg P. Price",
+				                "SOH Avg AVE"
+				            },
+				            {
+				                "SOH Article No.",
+				                "SOH Article",
+				                "SOH Base Unit",
+				                "Article Total ACT SOH",
+				                "Article Max ACT SOH",
+				                "Article Min ACT SOH",
+				                "SOH Row Count",
+				                "SOH Valid Row Count",
+				                "SOH Negative/Zero Row Count",
+				                "Article Global Negative Flag",
+				                "Article Global Negative Status",
+				                "SOH Avg P. Price",
+				                "SOH Avg AVE"
+				            }
+				        ),
+				
+				    AddSOHArticleMatchStatus =
+				        Table.AddColumn(
+				            ExpandGlobalSOH,
+				            "SOH Article Match Status",
+				            each
+				                let
+				                    StatusClean = FxCleanKey([Status Group]),
+				                    ActionBaseQty = if [Action Base Qty] = null then 0 else [Action Base Qty]
+				                in
+				                    if StatusClean <> "DELIVERED" then
+				                        "Not Delivered - Not Checked"
+				                    else if ActionBaseQty <= 0 then
+				                        "Delivered - No Fulfilled Qty - Not Checked"
+				                    else if ([#"SOH Article No."] = null or [#"SOH Article No."] = "")
+				                        and ([SOH Article] = null or [SOH Article] = "")
+				                    then
+				                        "Missing SOH Article Match"
+				                    else
+				                        "Matched",
+				            type text
+				        ),
+				
+				    AddNegativeTransferFlag =
+				        Table.AddColumn(
+				            AddSOHArticleMatchStatus,
+				            "Negative Transfer Flag",
+				            each
+				                let
+				                    StatusClean = FxCleanKey([Status Group]),
+				                    ActionBaseQty = if [Action Base Qty] = null then 0 else [Action Base Qty],
+				                    GlobalNegativeFlag =
+				                        if [Article Global Negative Flag] = null then 0 else [Article Global Negative Flag]
+				                in
+				                    if StatusClean = "DELIVERED"
+				                        and ActionBaseQty > 0
+				                        and GlobalNegativeFlag = 1
+				                    then 1
+				                    else 0,
+				            Int64.Type
+				        ),
+				
+				    AddNegativeTransferStatus =
+				        Table.AddColumn(
+				            AddNegativeTransferFlag,
+				            "Negative Transfer Status",
+				            each
+				                let
+				                    StatusClean = FxCleanKey([Status Group]),
+				                    ActionBaseQty = if [Action Base Qty] = null then 0 else [Action Base Qty],
+				                    GlobalNegativeFlag =
+				                        if [Article Global Negative Flag] = null then 0 else [Article Global Negative Flag]
+				                in
+				                    if StatusClean <> "DELIVERED" then
+				                        "Not Delivered - Not Checked"
+				                    else if ActionBaseQty <= 0 then
+				                        "Delivered - No Fulfilled Qty"
+				                    else if [SOH Article Match Status] = "Missing SOH Article Match" then
+				                        "Missing SOH Article Match"
+				                    else if GlobalNegativeFlag = 1 then
+				                        "Negative Transfer"
+				                    else
+				                        "Delivered - Positive SOH Exists",
+				            type text
+				        ),
+				
+				    RemoveTempColumns =
+				        Table.RemoveColumns(
+				            AddNegativeTransferStatus,
+				            {
+				                "__Article Key",
+				                "__Unit Key",
+				                "__Global SOH Article Key",
+				                "Mapped Unit Multiplier",
+				                "Fallback Unit Multiplier",
+				                "Sub_Category_ByNo",
+				                "Item_Group_ByNo",
+				                "Storage_Type_ByNo",
+				                "Sub_Category_ByName",
+				                "Item_Group_ByName",
+				                "Storage_Type_ByName",
+				                "__Cost Center Store Key",
+				                "__Transfer To Key",
+				                "Final Cost Center/Store",
+				                "Final Transfer To",
+				                "Lookup Key"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    ReorderColumns =
+				        Table.ReorderColumns(
+				            RemoveTempColumns,
+				            {
+				                "Document Line ID",
+				                "Document Article Key",
+				                "Outbound Group ID",
+				                "Source Row Count",
+				                "Document",
+				                "Pos",
+				                "Article No.",
+				                "Article",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type",
+				                "Cost Center/Store",
+				                "Mapped Cost Center/Store",
+				                "Transfer To",
+				                "Mapped Transfer To",
+				                "Status",
+				                "Status Group",
+				                "SOH",
+				                "Unit",
+				                "Base Unit",
+				                "Unit Multiplier",
+				                "Unit Mapping Status",
+				                "Requested Qty",
+				                "Requested Base Qty",
+				                "Action Qty",
+				                "Action Base Qty",
+				                "SOH Article No.",
+				                "SOH Article",
+				                "SOH Base Unit",
+				                "Article Total ACT SOH",
+				                "Article Max ACT SOH",
+				                "Article Min ACT SOH",
+				                "SOH Row Count",
+				                "SOH Valid Row Count",
+				                "SOH Negative/Zero Row Count",
+				                "Article Global Negative Flag",
+				                "Article Global Negative Status",
+				                "SOH Article Match Status",
+				                "Negative Transfer Flag",
+				                "Negative Transfer Status",
+				                "SOH Avg P. Price",
+				                "SOH Avg AVE",
+				                "OOS Flag",
+				                "Purchase Price",
+				                "Line Value",
+				                "Requested Delivery Date",
+				                "Request Created DateTime",
+				                "Request Created Date",
+				                "Request Created Time",
+				                "Request Cutoff Bucket",
+				                "Within Cutoff Flag",
+				                "Created By",
+				                "Info"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    ReorderColumns
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

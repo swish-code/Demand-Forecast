@@ -199,7 +199,11 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
   for (const r of merged.values()) {
     const o = r.outbound
     const measured = o !== null && o > 0
-    const accuracy = measured ? 1 - Math.abs(r.forecast - o) / o : null
+    // 1 − |Forecast − Actual| / MAX(Forecast, Actual) — the same expression the
+    // pages use, so a diagnosis cannot disagree with the score it explains.
+    const accuracy = measured && Math.max(o, r.forecast) > 0
+      ? 1 - Math.abs(r.forecast - o) / Math.max(o, r.forecast)
+      : null
     const known = names.get(r.article)
     const row = {
       ...r,

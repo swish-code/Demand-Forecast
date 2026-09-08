@@ -1,0 +1,80 @@
+table dim_item
+	lineageTag: 24bf0932-fc9e-4d8e-a582-5a209e1b9c4b
+
+	column Article
+		dataType: string
+		lineageTag: 467deb4c-da2f-4cf3-9f18-513406f6a8b3
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 10c3089d-8423-4661-bef4-e1a32ea1527e
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 2d292ce8-a76f-4521-9e3e-7edb7af52ba1
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 54338b0d-9158-4a65-8afe-2e14592b17d8
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_item = m
+		mode: import
+		source =
+				let
+				    POItems =
+				        Table.SelectColumns(
+				            fact_po_line,
+				            {"Article", "Sub_Category", "Item_Group", "Storage_Type"},
+				            MissingField.Ignore
+				        ),
+				
+				    GRNItems =
+				        Table.SelectColumns(
+				            fact_grn_line,
+				            {"Article", "Sub_Category", "Item_Group", "Storage_Type"},
+				            MissingField.Ignore
+				        ),
+				
+				    Combined =
+				        Table.Combine({POItems, GRNItems}),
+				
+				    Filtered =
+				        Table.SelectRows(
+				            Combined,
+				            each [Article] <> null
+				        ),
+				
+				    Sorted =
+				        Table.Sort(
+				            Filtered,
+				            {{"Article", Order.Ascending}}
+				        ),
+				
+				    RemovedDuplicates =
+				        Table.Distinct(
+				            Sorted,
+				            {"Article"}
+				        )
+				in
+				    RemovedDuplicates
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

@@ -160,14 +160,14 @@ WH forecast  = constant * forecast sales for the window on screen`,
     visual: 'Warehouse — WH ACC%',
     label: 'WH ACC% (per article)',
     source: LOCAL,
-    expression: '1 - ABS(WH forecast - Outbound) / Outbound',
+    expression: '1 - ABS(WH forecast - Outbound) / MAX(WH forecast, Outbound)',
     detail:
-      'Divided by what actually left the warehouse, so the column, its footer and the card all ' +
-      'use one formula. Signed and not floored: over-forecast by more than twice what moved and ' +
-      'the answer is negative, and how negative is the point — 17 forecast against 5 issued is ' +
-      'four times worse than 82 against 40, and flooring both at 0% said they were the same. ' +
-      'Blank where there is nothing to divide by: no outbound at all, or no history for the ' +
-      'article. Those cannot be measured, which is not the same as measuring badly.',
+      'Divided by the larger of the two, so the column, its footer, the card and the daily trend ' +
+      'all use one formula. Symmetric and bounded between 0% and 100% by construction — the gap ' +
+      'can never exceed the denominator, so nothing has to be floored and nothing runs off the ' +
+      'scale. Equal quantities score 100%, one side twice the other scores 50%, and a real ' +
+      'forecast against nothing issued scores 0%. Blank only where there is nothing to compare: ' +
+      'no outbound figure at all, or nothing forecast and nothing moved.',
   },
   {
     id: 'variance',

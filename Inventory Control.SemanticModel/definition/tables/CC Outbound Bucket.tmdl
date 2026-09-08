@@ -1,0 +1,183 @@
+table 'CC Outbound Bucket'
+	lineageTag: bf6bb84d-5ee3-4a0d-b451-fe7210af1588
+
+	measure 'CC Outbound Consumption Category' =
+			
+			VAR OutboundPct =
+			    [CC Outbound Consumption%]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        OutboundPct <= 0.10, "0-10%",
+			        OutboundPct <= 0.20, "10-20%",
+			        OutboundPct <= 0.30, "20-30%",
+			        OutboundPct <= 0.40, "30-40%",
+			        OutboundPct <= 0.50, "40-50%",
+			        OutboundPct <= 0.60, "50-60%",
+			        OutboundPct <= 0.70, "60-70%",
+			        OutboundPct <= 0.80, "70-80%",
+			        OutboundPct <= 0.90, "80-90%",
+			        OutboundPct <= 1.00, "90-100%",
+			        "100%+"
+			    )
+		lineageTag: 76816d5d-d45a-4bfb-b5bb-88960987e846
+
+	measure 'CC Outbound Bucket Article Count' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        )
+			    )
+		formatString: 0
+		lineageTag: 00c72954-193a-48eb-b9b7-d6fcdda72b77
+
+	measure 'CC Outbound Bucket Row Filter' =
+			
+			VAR SelectedBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR CurrentRowCategory =
+			    [CC Outbound Consumption Category]
+			
+			RETURN
+			    IF (
+			        NOT HasBucketFilter
+			            || CONTAINSROW ( SelectedBuckets, CurrentRowCategory ),
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: c87e7fbc-438e-4b5c-81bf-0880363a9e61
+
+	column 'Outbound Consumption Category'
+		lineageTag: 6d947015-9885-4fde-848d-aba81ff6f484
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Outbound Consumption Category]
+		sortByColumn: Sort
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sort
+		formatString: 0
+		lineageTag: a1bc2321-1e43-410c-83b8-6c7db5cd1a56
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Outbound Bucket' = calculated
+		mode: import
+		source =
+				
+				DATATABLE (
+				    "Outbound Consumption Category", STRING,
+				    "Sort", INTEGER,
+				    {
+				        { "0-10%", 1 },
+				        { "10-20%", 2 },
+				        { "20-30%", 3 },
+				        { "30-40%", 4 },
+				        { "40-50%", 5 },
+				        { "50-60%", 6 },
+				        { "60-70%", 7 },
+				        { "70-80%", 8 },
+				        { "80-90%", 9 },
+				        { "90-100%", 10 },
+				        { "100%+", 11 }
+				    }
+				)
+
+	annotation PBI_Id = d985165c978e4c3ab925fee28c9303ce
+

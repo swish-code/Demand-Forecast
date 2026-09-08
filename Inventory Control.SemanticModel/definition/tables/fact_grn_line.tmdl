@@ -1,0 +1,678 @@
+table fact_grn_line
+	lineageTag: 8fd4c05a-28d0-40a0-82ac-2ec52a8ab0a3
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: 80bbdcee-ea30-45ed-82a8-b130ac6eb2e9
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 3d066fe9-0320-4099-87c0-13e10d53959d
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 4c95806a-363e-470d-b12e-db7c671b876e
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 86d84583-03bf-44dd-98d7-02910fc1ac87
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit'
+		dataType: string
+		lineageTag: e5e0fcee-db24-463b-a285-8691270e5852
+		summarizeBy: none
+		sourceColumn: GRN Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Base Unit'
+		dataType: string
+		lineageTag: 89c90f1b-a743-47f6-bf31-8ce6c4c5c6b4
+		summarizeBy: none
+		sourceColumn: GRN Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Qty'
+		dataType: double
+		lineageTag: 196e8cd7-b62a-4d3d-b48b-9c4500b84994
+		summarizeBy: sum
+		sourceColumn: GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Base Qty'
+		dataType: double
+		lineageTag: 4a88baa1-ce90-4cf2-952b-cc5a1f54502d
+		summarizeBy: sum
+		sourceColumn: GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: a29178a7-4211-4b75-afa4-ad5add068473
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Discount
+		dataType: double
+		lineageTag: 116db0d7-1db1-43f5-9fdb-9c9b18b714df
+		summarizeBy: sum
+		sourceColumn: Discount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Delivery Note No'
+		dataType: string
+		lineageTag: 68f37025-94da-4c40-a751-4f29f596f23f
+		summarizeBy: none
+		sourceColumn: Delivery Note No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 00b2fc2f-a0f3-497b-b8d7-f64192ef1704
+		summarizeBy: none
+		sourceColumn: GRN Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'DN Status'
+		dataType: string
+		lineageTag: f3794967-a8d0-4280-9a59-2071b47740d9
+		summarizeBy: none
+		sourceColumn: DN Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order No.'
+		dataType: string
+		lineageTag: bc1e1fa3-09d1-4181-934b-19860f557d6d
+		summarizeBy: none
+		sourceColumn: Order No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Order Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 86c655f9-4a71-42a2-b9f7-651829597f11
+		summarizeBy: none
+		sourceColumn: DN Order Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: ba11075d-402d-4639-814d-179c09ca6596
+		summarizeBy: none
+		sourceColumn: Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: ef40a418-df2d-482d-8b5e-7d745c0da1f7
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 6b85d8da-1241-44e6-af50-331cb6a1935e
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 0daf4e4e-4287-4f70-ab1b-ae40d5398e47
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: 089d4b6e-01c5-49be-a47f-18870883207b
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article No.'
+		dataType: string
+		lineageTag: cba3a7b4-ff96-4428-91a9-3b424934a5f6
+		summarizeBy: none
+		sourceColumn: Original Purchase Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article'
+		dataType: string
+		lineageTag: 33e63b05-dbd6-4bc3-98f2-e6f41e8bbfd2
+		summarizeBy: none
+		sourceColumn: Original Purchase Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article Key'
+		dataType: string
+		lineageTag: 359be8b4-c63f-47e8-9f10-6fc12ea26145
+		summarizeBy: none
+		sourceColumn: Original Purchase Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article'
+		dataType: string
+		lineageTag: d673f6fd-9ebc-4dcf-ba60-1028ebb55e44
+		summarizeBy: none
+		sourceColumn: Manager Stock Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article No.'
+		dataType: string
+		lineageTag: 81cbcec2-d5c9-4983-abc2-5299d88a126f
+		summarizeBy: none
+		sourceColumn: Manager Stock Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Mapping Status'
+		dataType: string
+		lineageTag: 793397a7-fb02-4398-a4b5-bc830ce62f4c
+		summarizeBy: none
+		sourceColumn: Article Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Supplier Key'
+		dataType: string
+		lineageTag: bd6a5f3f-9728-4fee-afd8-b49d38821673
+		summarizeBy: none
+		sourceColumn: Supplier Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Warehouse Key'
+		dataType: string
+		lineageTag: 00b33e06-b4b1-4bb1-b3ae-162c26be2a33
+		summarizeBy: none
+		sourceColumn: Warehouse Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Key'
+		dataType: string
+		lineageTag: d4bf672e-b0aa-448b-97a5-cffc79908dff
+		summarizeBy: none
+		sourceColumn: GRN Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: 542992ea-9591-4a47-baf1-73fef8dd6e1c
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit Key'
+		dataType: string
+		lineageTag: 41f2a2a1-379e-4493-92d3-531bf067d86b
+		summarizeBy: none
+		sourceColumn: Base Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Mapping Source'
+		dataType: string
+		lineageTag: e0f1c35c-95e4-45fe-8354-f7564857b131
+		summarizeBy: none
+		sourceColumn: GRN Unit Mapping Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Mapping Status'
+		dataType: string
+		lineageTag: 80d97644-d84d-48ea-b0be-dacf99464bad
+		summarizeBy: none
+		sourceColumn: GRN Unit Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column Price/Unit
+		dataType: double
+		lineageTag: 29fcb620-49d5-4d12-bc2e-676492bd1288
+		summarizeBy: sum
+		sourceColumn: Price/Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Price/BU
+		dataType: double
+		lineageTag: 99b2d475-e1d5-4432-9c01-a8acb267f529
+		summarizeBy: sum
+		sourceColumn: Price/BU
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: f4e43eee-3289-4309-afbc-aff3af915052
+		summarizeBy: none
+		sourceColumn: Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'GRN PO No'
+		dataType: string
+		lineageTag: e7265bd3-972e-4db9-b854-f0238e1b452b
+		summarizeBy: none
+		sourceColumn: GRN PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN PO No Key'
+		dataType: string
+		lineageTag: 26aaa8e2-d9b6-4ea8-a056-34e27d130830
+		summarizeBy: none
+		sourceColumn: GRN PO No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested QTY'
+		dataType: double
+		lineageTag: 0556878c-b686-4927-9b19-9209aae06ea6
+		summarizeBy: sum
+		sourceColumn: Requested QTY
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Requested Base Qty'
+		dataType: double
+		lineageTag: 415357b3-46e9-454a-bcf0-a54a34148819
+		summarizeBy: sum
+		sourceColumn: Requested Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Line ID'
+		dataType: string
+		lineageTag: 8ee6d3f4-eef5-4100-bb62-757a70899796
+		summarizeBy: none
+		sourceColumn: GRN Line ID
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_grn_line = m
+		mode: import
+		source =
+				let
+				    Source = #"Delivery Note",
+				
+				    FxCleanDisplayText =
+				        (x as any) as nullable text =>
+				            let
+				                Result =
+				                    try
+				                        if x = null then null
+				                        else Text.Trim(Text.Clean(Text.From(x)))
+				                    otherwise null
+				            in
+				                Result,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            try Number.From(x) otherwise null,
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            try Date.From(x) otherwise null,
+				
+				    FxSafeText =
+				        (x as any) as text =>
+				            try
+				                if x = null then ""
+				                else Text.Trim(Text.Clean(Text.From(x)))
+				            otherwise "",
+				
+				    #"Clean Text" =
+				        Table.TransformColumns(
+				            Source,
+				            {
+				                {"Article No.", each FxCleanDisplayText(_), type nullable text},
+				                {"Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Original Purchase Article No.", each FxCleanDisplayText(_), type nullable text},
+				                {"Original Purchase Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Manager Stock Article", each FxCleanDisplayText(_), type nullable text},
+				                {"Manager Stock Article No.", each FxCleanDisplayText(_), type nullable text},
+				                {"Article Mapping Status", each FxCleanDisplayText(_), type nullable text},
+				                {"Supplier", each FxCleanDisplayText(_), type nullable text},
+				                {"Warehouse", each FxCleanDisplayText(_), type nullable text},
+				                {"GRN Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"Base Unit", each FxCleanDisplayText(_), type nullable text},
+				                {"Delivery Note No", each FxCleanDisplayText(_), type nullable text},
+				                {"DN Status", each FxCleanDisplayText(_), type nullable text},
+				                {"Order No.", each FxCleanDisplayText(_), type nullable text},
+				                {"Sub_Category", each FxCleanDisplayText(_), type nullable text},
+				                {"Item_Group", each FxCleanDisplayText(_), type nullable text},
+				                {"Storage_Type", each FxCleanDisplayText(_), type nullable text}
+				            },
+				            null,
+				            MissingField.Ignore
+				        ),
+				
+				    #"Changed Types" =
+				        Table.TransformColumnTypes(
+				            #"Clean Text",
+				            {
+				                {"Article No.", type text},
+				                {"Article", type text},
+				                {"Original Purchase Article No.", type text},
+				                {"Original Purchase Article", type text},
+				                {"Manager Stock Article", type text},
+				                {"Manager Stock Article No.", type text},
+				                {"Article Mapping Status", type text},
+				                {"Supplier", type text},
+				                {"Warehouse", type text},
+				                {"GRN Unit", type text},
+				                {"GRN Qty", type number},
+				                {"GRN Base Qty", type number},
+				                {"Base Unit", type text},
+				                {"GRN Value", type number},
+				                {"Price/Unit", type number},
+				                {"Price/BU", type number},
+				                {"Discount", Percentage.Type},
+				                {"Delivery Note No", type text},
+				                {"Delivery Date", type datetime},
+				                {"DN Status", type text},
+				                {"Order No.", type text},
+				                {"DN Order Date", type date},
+				                {"Requested QTY", type number},
+				                {"Booking DateTime", type datetime},
+				                {"Sub_Category", type text},
+				                {"Item_Group", type text},
+				                {"Storage_Type", type text}
+				            }
+				        ),
+				
+				    #"Filtered Valid GRN Rows" =
+				        Table.SelectRows(
+				            #"Changed Types",
+				            each
+				                [Article] <> null
+				                and [Article] <> ""
+				                and [Warehouse] <> null
+				                and [Warehouse] <> ""
+				                and [Delivery Date] <> null
+				                and [GRN Base Qty] <> null
+				        ),
+				
+				    #"Date Only" =
+				        Table.TransformColumns(
+				            #"Filtered Valid GRN Rows",
+				            {
+				                {"Delivery Date", each FxDate(_), type nullable date}
+				            }
+				        ),
+				
+				    #"Added GRN Delivery Date" =
+				        Table.AddColumn(
+				            #"Date Only",
+				            "GRN Delivery Date",
+				            each [Delivery Date],
+				            type nullable date
+				        ),
+				
+				    #"Added GRN Base Unit" =
+				        Table.AddColumn(
+				            #"Added GRN Delivery Date",
+				            "GRN Base Unit",
+				            each [Base Unit],
+				            type nullable text
+				        ),
+				
+				    #"Added Article Key" =
+				        Table.AddColumn(
+				            #"Added GRN Base Unit",
+				            "Article Key",
+				            each fnCleanText([Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Original Purchase Article Key" =
+				        Table.AddColumn(
+				            #"Added Article Key",
+				            "Original Purchase Article Key",
+				            each fnCleanText([Original Purchase Article]),
+				            type nullable text
+				        ),
+				
+				    #"Added Warehouse Key" =
+				        Table.AddColumn(
+				            #"Added Original Purchase Article Key",
+				            "Warehouse Key",
+				            each fnCleanText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    #"Added Supplier Key" =
+				        Table.AddColumn(
+				            #"Added Warehouse Key",
+				            "Supplier Key",
+				            each fnCleanText([Supplier]),
+				            type nullable text
+				        ),
+				
+				    #"Added GRN Unit Key" =
+				        Table.AddColumn(
+				            #"Added Supplier Key",
+				            "GRN Unit Key",
+				            each fnCleanBaseUnit([GRN Unit]),
+				            type nullable text
+				        ),
+				
+				    #"Added Base Unit Key" =
+				        Table.AddColumn(
+				            #"Added GRN Unit Key",
+				            "Base Unit Key",
+				            each fnCleanBaseUnit([Base Unit]),
+				            type nullable text
+				        ),
+				
+				    #"Added GRN PO No" =
+				        Table.AddColumn(
+				            #"Added Base Unit Key",
+				            "GRN PO No",
+				            each
+				                let
+				                    POText = FxCleanDisplayText([#"Order No."])
+				                in
+				                    if POText = null
+				                        or POText = ""
+				                        or Text.Upper(POText) = "NO PO DEFINED"
+				                    then
+				                        null
+				                    else
+				                        POText,
+				            type nullable text
+				        ),
+				
+				    #"Added GRN PO No Key" =
+				        Table.AddColumn(
+				            #"Added GRN PO No",
+				            "GRN PO No Key",
+				            each fnCleanText([GRN PO No]),
+				            type nullable text
+				        ),
+				
+				    #"Added GRN Unit Mapping Source" =
+				        Table.AddColumn(
+				            #"Added GRN PO No Key",
+				            "GRN Unit Mapping Source",
+				            each
+				                if [GRN Base Qty] <> null then
+				                    "Oracle QTY/BU"
+				                else
+				                    "Missing",
+				            type text
+				        ),
+				
+				    #"Added GRN Unit Mapping Status" =
+				        Table.AddColumn(
+				            #"Added GRN Unit Mapping Source",
+				            "GRN Unit Mapping Status",
+				            each
+				                if [GRN Base Qty] <> null then
+				                    "Mapped"
+				                else
+				                    "Missing Unit Mapping",
+				            type text
+				        ),
+				
+				    #"Added Requested Base Qty" =
+				        Table.AddColumn(
+				            #"Added GRN Unit Mapping Status",
+				            "Requested Base Qty",
+				            each
+				                let
+				                    ReqQty = FxNum([Requested QTY]),
+				                    GrnQty = FxNum([GRN Qty]),
+				                    GrnBaseQty = FxNum([GRN Base Qty]),
+				                    Multiplier =
+				                        if GrnQty <> null and GrnQty <> 0 and GrnBaseQty <> null then
+				                            GrnBaseQty / GrnQty
+				                        else
+				                            null
+				                in
+				                    if ReqQty <> null and Multiplier <> null then
+				                        ReqQty * Multiplier
+				                    else
+				                        null,
+				            type nullable number
+				        ),
+				
+				    #"Added GRN Line ID" =
+				        Table.AddColumn(
+				            #"Added Requested Base Qty",
+				            "GRN Line ID",
+				            each
+				                Text.Combine(
+				                    {
+				                        FxSafeText([Delivery Note No]),
+				                        FxSafeText([Warehouse]),
+				                        FxSafeText([Article]),
+				                        if [Delivery Date] = null then "" else Date.ToText([Delivery Date], "yyyyMMdd"),
+				                        FxSafeText([GRN PO No])
+				                    },
+				                    "|"
+				                ),
+				            type text
+				        ),
+				
+				    #"Final Column Order" =
+				        Table.ReorderColumns(
+				            #"Added GRN Line ID",
+				            {
+				                "Article No.",
+				                "Article",
+				                "Article Key",
+				                "Original Purchase Article No.",
+				                "Original Purchase Article",
+				                "Original Purchase Article Key",
+				                "Manager Stock Article",
+				                "Manager Stock Article No.",
+				                "Article Mapping Status",
+				                "Supplier",
+				                "Supplier Key",
+				                "Warehouse",
+				                "Warehouse Key",
+				                "GRN Unit",
+				                "GRN Unit Key",
+				                "GRN Qty",
+				                "GRN Base Qty",
+				                "Base Unit",
+				                "GRN Base Unit",
+				                "Base Unit Key",
+				                "GRN Unit Mapping Source",
+				                "GRN Unit Mapping Status",
+				                "GRN Value",
+				                "Price/Unit",
+				                "Price/BU",
+				                "Discount",
+				                "Delivery Note No",
+				                "Delivery Date",
+				                "GRN Delivery Date",
+				                "DN Status",
+				                "Order No.",
+				                "GRN PO No",
+				                "GRN PO No Key",
+				                "DN Order Date",
+				                "Requested QTY",
+				                "Requested Base Qty",
+				                "Booking DateTime",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type",
+				                "GRN Line ID"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    #"Final Column Order"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

@@ -591,6 +591,72 @@ const averageScore = (rows, key) => {
   return { value: sum / seen.size, count: seen.size }
 }
 
+/*
+ * What each column means, for the person reading the number rather than the
+ * one who wrote it.
+ *
+ * Deliberately in the words somebody would use out loud: "how many we expected
+ * to sell" rather than "the recipe explosion of forecast sales". The exact
+ * expressions live in the Calculations panel for anybody who needs them; this
+ * is here so a reader can settle a question without leaving the table.
+ */
+const HELP = {
+  fcst: [
+    {
+      term: 'Forecast qty',
+      text: 'What the recipes say we need, if we sell what we expect to sell.',
+      formula:
+        'For every dish that uses this article:  forecast sales of the dish × amount the recipe uses.  Add those up.',
+      example: '1,000 burgers forecast × 1 bun each = 1,000 buns.',
+    },
+    {
+      term: 'Actual qty',
+      text: 'The same sum, using the dishes we actually sold.',
+      formula:
+        'For every dish that uses this article:  actual sales of the dish × the same recipe amount.  Add those up.',
+      example: '1,100 burgers sold × 1 bun each = 1,100 buns.',
+    },
+    {
+      term: 'ACC%',
+      text: 'How close the two are. Because both use the same recipe, this really scores the sales forecast rather than the recipe.',
+      formula: '1 − ( difference between Actual and Forecast ÷ Actual )',
+      example:
+        'Forecast 1,000, actual 1,100 → 1 − (100 ÷ 1,100) = 90.9%. Blank when nothing sold, because there is nothing to divide by.',
+    },
+  ],
+  wh: [
+    {
+      term: 'WH forecast',
+      text: 'What the warehouse would be expected to ship, based on how much it has shipped per unit sold.',
+      formula: `Step 1 — for each of the last 6 whole months: units the warehouse shipped ÷ that brand’s sales that month. That is a rate.
+Step 2 — average those 6 rates.
+Step 3 — multiply by the forecast sales for the dates on screen.`,
+      example:
+        'Shipped 2,000 in a month the brand sold 100,000 → a rate of 0.02. If we forecast 150,000 sales, the warehouse forecast is 3,000.',
+    },
+    {
+      term: 'Outbound',
+      text: 'What actually left the Central Warehouse for the shops.',
+      formula:
+        'Add up the quantity on every transfer where the source is the Central Warehouse, the destination is anywhere except the warehouse itself, and the status is Booked, Delivered or Declined. Dated on the requested delivery date.',
+      example:
+        'A dash means the warehouse has never shipped this article to this brand. A zero means it normally does and did not this time.',
+    },
+    {
+      term: 'WH ACC%',
+      text: 'How close the warehouse forecast was to what actually shipped.',
+      formula: '1 − ( difference between WH forecast and Outbound ÷ whichever of the two is larger )',
+      example:
+        'Forecast 8, shipped 10 → 1 − (2 ÷ 10) = 80%. Always between 0% and 100%: equal is 100%, one side twice the other is 50%, nothing shipped against a real forecast is 0%.',
+    },
+    {
+      term: 'Why it can look wrong',
+      text: 'The warehouse ships in full cases on an ordering cycle, so a short date range catches one delivery or none.',
+      example: 'Judge this over a full month; under about three weeks it is mostly noise.',
+    },
+  ],
+}
+
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
 export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin }) {
@@ -771,24 +837,27 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        * Blank stays blank: no outbound figure at all, or nothing forecast and
        * nothing moved, cannot be scored and is not a zero.
        */
+      /*
+       *   Accuracy = 1 − |Forecast − Actual| / MAX(Forecast, Actual)
+       *
+       * Symmetric, and bounded between 0 and 1 by construction: dividing by the
+       * larger of the two means the gap can never exceed the denominator, so
+       * nothing needs flooring and nothing runs off the scale. Equal quantities
+       * score 100%, one side twice the other scores 50%, and a real forecast
+       * against nothing issued scores 0%.
+       *
+       * It replaces dividing by outbound, which read the same discrepancy two
+       * quite different ways depending on its direction and sent articles with
+       * a tiny denominator to minus a million.
+       *
+       * Blank only where there is genuinely nothing to compare: no outbound
+       * figure at all, or nothing forecast and nothing moved.
+       */
       const score = (target) => {
         if (!held || !held.measured || target === null) return null
         const outbound = held.consumed
-        /*
-         * Signed, and no longer floored at zero.
-         *
-         * Everything worse than "completely wrong" used to collapse onto 0.0%,
-         * so a forecast of 17 against 5 issued and one of 82 against 40 read
-         * identically when the first is four times worse. The sign and the size
-         * both carry information: −140% says the forecast asked for nearly
-         * two and a half times what moved, over and above what moved.
-         *
-         * Nothing issued at all has no percentage — the error is divided by
-         * zero — so that stays blank rather than pretending to a number. The
-         * Outbound column beside it already reads 0, which is the finding.
-         */
-        if (outbound > 0) return 1 - Math.abs(target - outbound) / outbound
-        return null
+        const bigger = Math.max(outbound, target)
+        return bigger > 0 ? 1 - Math.abs(target - outbound) / bigger : null
       }
 
       /*
@@ -906,11 +975,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       const c = r.Consumed_Qty
       const known = c !== null && c !== undefined
       // The same formula as `score` above, on a folded row's own totals.
-      // The same rule as `score` above, on a folded row's own totals.
+      // The same formula as `score` above, on a folded row's own totals.
       const rescore = (target) => {
         if (!known || target === null || target === undefined) return null
         const outbound = Number(c)
-        return outbound > 0 ? 1 - Math.abs(Number(target) - outbound) / outbound : null
+        const bigger = Math.max(outbound, Number(target))
+        return bigger > 0 ? 1 - Math.abs(Number(target) - outbound) / bigger : null
       }
       return {
         ...r,
@@ -1496,7 +1566,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
             onRowClick={(row) => setUsage(row)}
-            groups={{ fcst: 'Product mix', wh: 'Warehouse' }}
+            groups={{
+              fcst: { label: 'Product mix', help: HELP.fcst },
+              wh: { label: 'Warehouse', help: HELP.wh },
+            }}
             fill
           />
         )}

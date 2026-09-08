@@ -1,0 +1,46 @@
+table 'CC Coverage Bucket'
+	lineageTag: 6b1819fb-4ddf-4072-bf74-375253e5be0e
+
+	measure 'Measure 6'
+		lineageTag: e08d6bd2-0e86-452d-9d4a-1598660c3669
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	column 'Coverage Bucket'
+		lineageTag: 2fcdb7fa-4844-4429-98cc-d51877fb842c
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Coverage Bucket]
+		sortByColumn: Sort
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sort
+		formatString: 0
+		lineageTag: 43b7069a-572d-451e-8c8d-24e910025d7d
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Sort]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC Coverage Bucket' = calculated
+		mode: import
+		source =
+				
+				DATATABLE (
+				    "Coverage Bucket", STRING,
+				    "Sort", INTEGER,
+				    {
+				        { "7 days", 1 },
+				        { "8-14 days", 2 },
+				        { "15-21 days", 3 },
+				        { "22-28 days", 4 },
+				        { "More than 29 days", 5 },
+				        { "No Outbound", 6 },
+				        { "No SOH", 7 }
+				    }
+				)
+
+	annotation PBI_Id = 83bd9e2a6a164b7383a55b0a791c14a4
+

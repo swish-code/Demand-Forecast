@@ -2882,6 +2882,126 @@ table.dt tbody tr.dt__grouprow-body th {
 .dt__groupsum + .dt__groupsum { margin-left: var(--s3); }
 .dt__groupsum b { color: var(--text); font-variant-numeric: tabular-nums; }
 
+/* --- the column explainer ------------------------------------------------ */
+
+.dt__grouptitle { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Small, quiet, and unmistakably a question mark's cousin. Sits in a heading
+   that is otherwise not interactive, so it needs its own affordance. */
+.dt__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.dt__help:hover {
+  color: var(--accent, var(--blue));
+  border-color: var(--accent, var(--blue));
+}
+
+/*
+ * The panel lives inside a table heading, so it inherits one.
+ *
+ * `table.dt th` sets uppercase, letter-spacing, centred text and — the one that
+ * actually broke it — `white-space: nowrap` with `overflow: hidden`. The
+ * explanation was being laid out as a single unwrappable line and clipped at
+ * the panel's edge, mid-sentence and in capitals.
+ *
+ * Everything the heading imposes is undone here rather than in the Popover,
+ * because the Popover is fine everywhere else it is used; the heading is the
+ * unusual host.
+ */
+.pop--help {
+  width: min(400px, 92vw);
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  font-weight: var(--w-regular);
+  color: var(--text);
+  cursor: default;
+}
+
+.help {
+  padding: var(--s4);
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  /* Long groups scroll rather than running off the bottom of the screen. */
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+}
+
+.help__title {
+  margin: 0 0 var(--s3);
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-faint);
+}
+
+/* Term above its explanation rather than beside it: the explanations run to a
+   sentence or two, and a narrow second column would set them in a ravine. */
+.help__list { margin: 0; }
+
+.help__list dt {
+  font-size: 12px;
+  font-weight: var(--w-medium);
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  color: var(--text);
+}
+
+.help__list dd {
+  margin: 2px 0 var(--s3);
+  font-size: 11.5px;
+  line-height: 1.55;
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  color: var(--text-muted);
+}
+
+.help__list dd:last-child { margin-bottom: 0; }
+
+/* The sum itself: set apart, monospaced, and allowed to keep its line breaks
+   so a three-step calculation reads as three steps. */
+.help__sum {
+  display: block;
+  margin: 6px 0 0;
+  padding: 7px 9px;
+  background: var(--sunken);
+  border-left: 2px solid var(--line);
+  border-radius: 0 var(--r-sm, 6px) var(--r-sm, 6px) 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-line;
+}
+
+.help__eg { display: block; margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-faint); }
+.help__eg b { color: var(--text-muted); font-weight: var(--w-medium); }
+
 /* A column that wraps rather than truncates. Only the article name does this:
    it is the one column where losing the end of the text loses the meaning. */
 table.dt td.dt--wrap {
@@ -4781,6 +4901,89 @@ table.dt tbody tr:hover td.dt--wh {
 }
 
 .bandchart__rows--wide .bandrow__count { min-width: 40px; text-align: right; }
+
+/* --------------------------------------------- the route to 90% --------- */
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
+
+/* Numbered because the order is the advice: step 1 costs nothing and is worth
+   the most, and doing 4 before 1 wastes a backtest on a window that was always
+   going to read badly. */
+.step {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.step__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent, var(--brand));
+  color: #fff;
+  font-size: 13px;
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.step__title { margin: 4px 0 6px; font-size: 15px; line-height: 1.3; }
+
+/* The instruction is the point of the card, so it reads before the reasoning. */
+.step__do {
+  margin: 0 0 var(--s3);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.step__fields { margin: 0; display: grid; grid-template-columns: 58px 1fr; gap: 6px var(--s3); }
+
+.step__fields dt {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding-top: 2px;
+}
+
+.step__fields dd { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
+
+/* The honest limit, set apart from the plan it qualifies. */
+.ceiling {
+  margin-top: var(--s4);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--r-card);
+  background: var(--sunken);
+}
+
+.ceiling h3 { margin: 0 0 var(--s2); font-size: 14px; line-height: 1.35; }
+
+.ceiling p {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 82ch;
+}
+
+.ceiling p:last-child { margin-bottom: 0; }
+.ceiling__target { color: var(--text); font-weight: var(--w-medium); }
+.ceiling__note { font-size: 12px; color: var(--text-faint); }
+
+@media (max-width: 640px) {
+  .step { grid-template-columns: 1fr; }
+  .step__fields { grid-template-columns: 1fr; gap: 2px; }
+  .step__fields dd { margin-bottom: var(--s2); }
+}
 
 /* "See the articles" — the link from a finding to its evidence. */
 .iss__see { margin-top: var(--s3); }

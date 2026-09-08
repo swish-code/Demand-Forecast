@@ -55,6 +55,49 @@ const BANDS = [
   { key: '85-100', label: '85–100%', lo: 0.85, hi: 1.0001 },
 ]
 
+/*
+ * The same explainer the Stock Article table carries, for the columns that
+ * differ here — this table adds Variance, and its reader is asking a warehouse
+ * question rather than a demand one.
+ */
+const HELP_WH = [
+  {
+    term: 'WH forecast',
+    text: 'What the warehouse would be expected to ship, based on how much it has shipped per unit sold.',
+    formula: `Step 1 — for each of the last 6 whole months: units the warehouse shipped ÷ that brand’s sales that month. That is a rate.
+Step 2 — average those 6 rates.
+Step 3 — multiply by the forecast sales for the dates on screen.`,
+    example:
+      'Shipped 2,000 in a month the brand sold 100,000 → a rate of 0.02. If we forecast 150,000 sales, the warehouse forecast is 3,000.',
+  },
+  {
+    term: 'Outbound',
+    text: 'What actually left the Central Warehouse for the shops.',
+    formula:
+      'Add up the quantity on every transfer where the source is the Central Warehouse, the destination is anywhere except the warehouse itself, and the status is Booked, Delivered or Declined. Dated on the requested delivery date.',
+    example:
+      'A dash means the warehouse has never shipped this article to this brand. A zero means it normally does and did not this time.',
+  },
+  {
+    term: 'Variance',
+    text: 'How many units out we were, and in which direction.',
+    formula: 'WH forecast − Outbound',
+    example: 'Forecast 3,000, shipped 2,500 → +500, meaning we expected more than moved.',
+  },
+  {
+    term: 'WH ACC%',
+    text: 'How close the warehouse forecast was to what actually shipped.',
+    formula: '1 − ( difference between WH forecast and Outbound ÷ whichever of the two is larger )',
+    example:
+      'Forecast 8, shipped 10 → 1 − (2 ÷ 10) = 80%. Always between 0% and 100%: equal is 100%, one side twice the other is 50%, nothing shipped against a real forecast is 0%.',
+  },
+  {
+    term: 'Why it can look wrong',
+    text: 'The warehouse ships in full cases on an ordering cycle, so a short date range catches one delivery or none.',
+    example: 'Judge this over a full month; under about three weeks it is mostly noise.',
+  },
+]
+
 const inBand = (v, b) => v !== null && v !== undefined && v >= b.lo && v < b.hi
 
 /** Under 40% is what "low accuracy" means everywhere on this page. */
@@ -329,11 +372,13 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
          * this measure unreadable before.
          */
         /*
-         * Signed. Everything worse than "completely wrong" used to land on
-         * 0.0%, which hid how much worse. Nothing issued has no percentage at
-         * all — divided by zero — so that stays blank.
+         *   1 − |Forecast − Actual| / MAX(Forecast, Actual)
+         *
+         * Symmetric and bounded 0–1: equal quantities score 100%, one side
+         * twice the other scores 50%, and a real forecast against nothing
+         * issued scores 0%. Blank only where there is nothing to compare.
          */
-        WH_Accuracy: measured && o > 0 ? 1 - Math.abs(f - o) / o : null,
+        WH_Accuracy: measured && Math.max(o, f) > 0 ? 1 - Math.abs(f - o) / Math.max(o, f) : null,
       }
     })
   }, [rows])
@@ -412,8 +457,10 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       scored,
       low,
       accuracy:
-        scored && scoredOutbound > 0
-          ? 1 - Math.abs(scoredForecast - scoredOutbound) / scoredOutbound
+        scored && Math.max(scoredOutbound, scoredForecast) > 0
+          ? 1 -
+            Math.abs(scoredForecast - scoredOutbound) /
+              Math.max(scoredOutbound, scoredForecast)
           : null,
     }
   }, [focused])
@@ -791,7 +838,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
             columns={COLUMNS}
             rows={banded}
             tableId="warehouse-insights"
-            groups={{ wh: 'Warehouse' }}
+            groups={{ wh: { label: 'Warehouse', help: HELP_WH } }}
             totals
             initialSort={{ key: 'Consumed_Qty', dir: 'desc' }}
             searchPlaceholder="Search article…"

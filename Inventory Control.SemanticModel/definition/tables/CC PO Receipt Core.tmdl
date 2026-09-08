@@ -1,0 +1,432 @@
+table 'CC PO Receipt Core'
+	lineageTag: 30f281c6-0209-4327-b62a-9540c2219e66
+
+	column 'PO Article Location Key'
+		dataType: string
+		lineageTag: 30f0d600-76e8-450a-9fce-73d3d6e148d5
+		summarizeBy: none
+		sourceColumn: PO Article Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO No'
+		dataType: string
+		lineageTag: 82c9eef3-0a84-4de8-b3e1-2ed88a6323ba
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Receipt Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: a5c47390-19b4-45f0-894b-8b17a9eb7581
+		summarizeBy: none
+		sourceColumn: Receipt Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Location
+		dataType: string
+		lineageTag: 30ea24cc-3773-4abf-a991-454dcc5efbd2
+		summarizeBy: none
+		sourceColumn: Location
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Location Key'
+		dataType: string
+		lineageTag: 90653fb8-5d38-4724-bb9f-dfece387dc5f
+		summarizeBy: none
+		sourceColumn: Location Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 98cdcd4a-42b2-4fd8-8318-610d35f06296
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: 0b97f2ce-16a5-4d8e-af55-79decf2ec7bb
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Received Base Qty'
+		dataType: double
+		lineageTag: 8ac30436-102f-44de-9cf1-d591ded274a2
+		summarizeBy: sum
+		sourceColumn: Received Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Source Row Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: c624aae1-b2a4-46d1-9e63-717842667ce3
+		summarizeBy: sum
+		sourceColumn: Source Row Count
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'CC PO Receipt Core' = m
+		mode: import
+		source =
+				let
+				    OpenPOCoreRaw = #"CC Open PO Core",
+				
+				    OpenPOCore =
+				        Table.ReplaceErrorValues(
+				            OpenPOCoreRaw,
+				            List.Transform(
+				                Table.ColumnNames(OpenPOCoreRaw),
+				                each {_, null}
+				            )
+				        ),
+				
+				    OpenPONos =
+				        Table.Buffer(
+				            Table.Distinct(
+				                Table.SelectRows(
+				                    Table.SelectColumns(
+				                        OpenPOCore,
+				                        {"PO No"},
+				                        MissingField.UseNull
+				                    ),
+				                    each [PO No] <> null and Text.Trim(Text.From([PO No])) <> ""
+				                )
+				            )
+				        ),
+				
+				    OpenPOKeys =
+				        Table.Buffer(
+				            Table.Distinct(
+				                Table.SelectRows(
+				                    Table.SelectColumns(
+				                        OpenPOCore,
+				                        {"PO Article Location Key"},
+				                        MissingField.UseNull
+				                    ),
+				                    each [PO Article Location Key] <> null and Text.Trim(Text.From([PO Article Location Key])) <> ""
+				                )
+				            )
+				        ),
+				
+				    SourceRaw = fact_grn_line,
+				
+				    KeepColumnsRaw =
+				        Table.SelectColumns(
+				            SourceRaw,
+				            {
+				                "GRN Delivery Date",
+				                "Warehouse",
+				                "Article",
+				                "GRN PO No",
+				                "PO No",
+				                "GRN Base Qty",
+				                "GRN Qty"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    Source =
+				        Table.ReplaceErrorValues(
+				            KeepColumnsRaw,
+				            List.Transform(
+				                Table.ColumnNames(KeepColumnsRaw),
+				                each {_, null}
+				            )
+				        ),
+				
+				    FxText =
+				        (x as any) as nullable text =>
+				            try
+				                if x = null then
+				                    null
+				                else
+				                    let
+				                        T0 = Text.From(x),
+				                        T1 = Text.Replace(T0, Character.FromNumber(160), " "),
+				                        T2 = Text.Trim(Text.Clean(T1)),
+				                        T3 = Text.Combine(List.Select(Text.Split(T2, " "), each _ <> ""), " "),
+				                        T4 = Text.Upper(T3)
+				                    in
+				                        if T3 = ""
+				                            or T4 = "#N/A"
+				                            or T4 = "N/A"
+				                            or T4 = "NA"
+				                            or T4 = "NULL"
+				                            or T4 = "NO PO DEFINED"
+				                        then
+				                            null
+				                        else
+				                            T3
+				            otherwise null,
+				
+				    FxKey =
+				        (x as any) as nullable text =>
+				            let
+				                T = FxText(x)
+				            in
+				                if T = null then null else Text.Upper(T),
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            if x = null then
+				                null
+				            else if Value.Is(x, type date) then
+				                x
+				            else if Value.Is(x, type datetime) then
+				                Date.From(x)
+				            else if Value.Is(x, type datetimezone) then
+				                Date.From(x)
+				            else
+				                try Date.FromText(Text.From(x), [Culture = "en-GB"])
+				                otherwise try Date.FromText(Text.From(x), [Culture = "en-US"])
+				                otherwise null,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            let
+				                T = FxText(x),
+				                Result =
+				                    if x = null then
+				                        null
+				                    else
+				                        try Number.From(x)
+				                        otherwise try Number.FromText(T, "en-US")
+				                        otherwise try Number.FromText(Text.Replace(T, ",", ""), "en-US")
+				                        otherwise null
+				            in
+				                Result,
+				
+				    AddPONo =
+				        Table.AddColumn(
+				            Source,
+				            "PO No Clean",
+				            each
+				                let
+				                    P1 = FxText([GRN PO No]),
+				                    P2 = FxText([PO No])
+				                in
+				                    if P1 <> null then P1
+				                    else P2,
+				            type nullable text
+				        ),
+				
+				    FilterPONo =
+				        Table.SelectRows(
+				            AddPONo,
+				            each [PO No Clean] <> null and [PO No Clean] <> ""
+				        ),
+				
+				    MergeOpenPONo =
+				        Table.NestedJoin(
+				            FilterPONo,
+				            {"PO No Clean"},
+				            OpenPONos,
+				            {"PO No"},
+				            "Open PO Match",
+				            JoinKind.Inner
+				        ),
+				
+				    RemoveOpenPONoMatch =
+				        Table.RemoveColumns(
+				            MergeOpenPONo,
+				            {"Open PO Match"},
+				            MissingField.Ignore
+				        ),
+				
+				    AddReceiptDate =
+				        Table.AddColumn(
+				            RemoveOpenPONoMatch,
+				            "Receipt Date",
+				            each FxDate([GRN Delivery Date]),
+				            type nullable date
+				        ),
+				
+				    AddLocation =
+				        Table.AddColumn(
+				            AddReceiptDate,
+				            "Location",
+				            each FxText([Warehouse]),
+				            type nullable text
+				        ),
+				
+				    AddLocationKey =
+				        Table.AddColumn(
+				            AddLocation,
+				            "Location Key",
+				            each FxKey([Location]),
+				            type nullable text
+				        ),
+				
+				    AddArticle =
+				        Table.AddColumn(
+				            AddLocationKey,
+				            "Article Clean",
+				            each FxText([Article]),
+				            type nullable text
+				        ),
+				
+				    AddArticleKey =
+				        Table.AddColumn(
+				            AddArticle,
+				            "Article Key",
+				            each FxKey([Article Clean]),
+				            type nullable text
+				        ),
+				
+				    AddReceivedBaseQty =
+				        Table.AddColumn(
+				            AddArticleKey,
+				            "Received Base Qty",
+				            each
+				                let
+				                    BaseQty = FxNum([GRN Base Qty]),
+				                    Qty = FxNum([GRN Qty])
+				                in
+				                    if BaseQty <> null and BaseQty <> 0 then Number.Abs(BaseQty)
+				                    else if Qty <> null and Qty <> 0 then Number.Abs(Qty)
+				                    else null,
+				            type nullable number
+				        ),
+				
+				    FilterUsefulRows =
+				        Table.SelectRows(
+				            AddReceivedBaseQty,
+				            each
+				                [Receipt Date] <> null
+				                and [PO No Clean] <> null
+				                and [PO No Clean] <> ""
+				                and [Location Key] <> null
+				                and [Location Key] <> ""
+				                and [Article Key] <> null
+				                and [Article Key] <> ""
+				                and [Received Base Qty] <> null
+				                and [Received Base Qty] > 0
+				        ),
+				
+				    AddPOArticleLocationKey =
+				        Table.AddColumn(
+				            FilterUsefulRows,
+				            "PO Article Location Key",
+				            each
+				                FxText([PO No Clean])
+				                    & "|"
+				                    & FxText([Location Key])
+				                    & "|"
+				                    & FxText([Article Key]),
+				            type text
+				        ),
+				
+				    MergeOpenPOKey =
+				        Table.NestedJoin(
+				            AddPOArticleLocationKey,
+				            {"PO Article Location Key"},
+				            OpenPOKeys,
+				            {"PO Article Location Key"},
+				            "Open PO Key Match",
+				            JoinKind.Inner
+				        ),
+				
+				    RemoveOpenPOKeyMatch =
+				        Table.RemoveColumns(
+				            MergeOpenPOKey,
+				            {"Open PO Key Match"},
+				            MissingField.Ignore
+				        ),
+				
+				    KeepFinalColumns =
+				        Table.SelectColumns(
+				            RemoveOpenPOKeyMatch,
+				            {
+				                "PO Article Location Key",
+				                "PO No Clean",
+				                "Receipt Date",
+				                "Location",
+				                "Location Key",
+				                "Article Clean",
+				                "Article Key",
+				                "Received Base Qty"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    GroupedRows =
+				        Table.Group(
+				            KeepFinalColumns,
+				            {
+				                "PO Article Location Key",
+				                "PO No Clean",
+				                "Receipt Date",
+				                "Location",
+				                "Location Key",
+				                "Article Clean",
+				                "Article Key"
+				            },
+				            {
+				                {"Received Base Qty", each List.Sum(List.RemoveNulls([Received Base Qty])), type nullable number},
+				                {"Source Row Count", each Table.RowCount(_), Int64.Type}
+				            }
+				        ),
+				
+				    RenameColumns =
+				        Table.RenameColumns(
+				            GroupedRows,
+				            {
+				                {"PO No Clean", "PO No"},
+				                {"Article Clean", "Article"}
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    Final =
+				        Table.SelectColumns(
+				            RenameColumns,
+				            {
+				                "PO Article Location Key",
+				                "PO No",
+				                "Receipt Date",
+				                "Location",
+				                "Location Key",
+				                "Article",
+				                "Article Key",
+				                "Received Base Qty",
+				                "Source Row Count"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    FinalTypes =
+				        Table.TransformColumnTypes(
+				            Final,
+				            {
+				                {"PO Article Location Key", type text},
+				                {"PO No", type text},
+				                {"Receipt Date", type date},
+				                {"Location", type text},
+				                {"Location Key", type text},
+				                {"Article", type text},
+				                {"Article Key", type text},
+				                {"Received Base Qty", type number},
+				                {"Source Row Count", Int64.Type}
+				            }
+				        )
+				in
+				    FinalTypes
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

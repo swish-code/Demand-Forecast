@@ -1,0 +1,270 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "0c359e689f99bdc064d6",
+  "displayName": "WAREHOUSE",
+  "displayOption": "ActualSize",
+  "height": 1850,
+  "width": 1625,
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "bbd79b569db6bdf3db58",
+        "ordinal": 0,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Outbound Status"
+              }
+            },
+            "Property": "Outbound Status"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User"
+      },
+      {
+        "name": "f4558eed44c784fae626",
+        "ordinal": 1,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Inbound Status"
+              }
+            },
+            "Property": "Inbound Status"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User"
+      },
+      {
+        "name": "85c5390e7dbce4175178",
+        "ordinal": 2,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Wastage Status"
+              }
+            },
+            "Property": "Wastage Status"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User"
+      },
+      {
+        "name": "f55bdea9b3ee0e414718",
+        "ordinal": 3,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Item Location"
+              }
+            },
+            "Property": "Location"
+          }
+        },
+        "type": "Categorical",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC Item Location",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "In": {
+                  "Expressions": [
+                    {
+                      "Column": {
+                        "Expression": {
+                          "SourceRef": {
+                            "Source": "c"
+                          }
+                        },
+                        "Property": "Location"
+                      }
+                    }
+                  ],
+                  "Values": [
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Al MANSOUR WAREHOUSE (PNFDC)'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'MAIN WAREHOUSE (FDC)'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse  Common  Al Mansour'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse  ERMG-Mishmash'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse  Non Moving items'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse ETC Al Mansour'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse ETC Arwa'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse FM'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse Yelo Al Mansour'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Warehouse Yelo arwa'"
+                        }
+                      }
+                    ],
+                    [
+                      {
+                        "Literal": {
+                          "Value": "'Merchandise Warehouse'"
+                        }
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      }
+    ],
+    "filterSortOrder": "Custom"
+  },
+  "objects": {
+    "outspacePane": [
+      {
+        "properties": {
+          "width": {
+            "expr": {
+              "Literal": {
+                "Value": "287L"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "background": [
+      {
+        "properties": {
+          "color": {
+            "solid": {
+              "color": {
+                "expr": {
+                  "ThemeDataColor": {
+                    "ColorId": 0,
+                    "Percent": -0.2
+                  }
+                }
+              }
+            }
+          },
+          "transparency": {
+            "expr": {
+              "Literal": {
+                "Value": "75D"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "visualInteractions": [
+    {
+      "source": "e3af01a0ee984d414abf",
+      "target": "864e402d5da175decb00",
+      "type": "DataFilter"
+    },
+    {
+      "source": "864e402d5da175decb00",
+      "target": "e3af01a0ee984d414abf",
+      "type": "DataFilter"
+    },
+    {
+      "source": "f9e31204f4dbd90f612f",
+      "target": "864e402d5da175decb00",
+      "type": "DataFilter"
+    },
+    {
+      "source": "f9e31204f4dbd90f612f",
+      "target": "e3af01a0ee984d414abf",
+      "type": "DataFilter"
+    },
+    {
+      "source": "e3af01a0ee984d414abf",
+      "target": "f9e31204f4dbd90f612f",
+      "type": "DataFilter"
+    },
+    {
+      "source": "864e402d5da175decb00",
+      "target": "f9e31204f4dbd90f612f",
+      "type": "DataFilter"
+    },
+    {
+      "source": "f9e31204f4dbd90f612f",
+      "target": "262a45dc1b9164d23c97",
+      "type": "DataFilter"
+    },
+    {
+      "source": "f9e31204f4dbd90f612f",
+      "target": "a67009b7ecc1f4a01c15",
+      "type": "DataFilter"
+    }
+  ]
+}

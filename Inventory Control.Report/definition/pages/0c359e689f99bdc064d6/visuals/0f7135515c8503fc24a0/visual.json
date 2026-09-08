@@ -1,0 +1,1741 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "0f7135515c8503fc24a0",
+  "position": {
+    "x": 13.846153846153845,
+    "y": 924.61538461538453,
+    "z": 6000,
+    "height": 872.30769230769226,
+    "width": 1575.3846153846152,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Item Location"
+                    }
+                  },
+                  "Property": "Article No."
+                }
+              },
+              "queryRef": "CC Item Location.Article No.",
+              "nativeQueryRef": "Article No."
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Item Location"
+                    }
+                  },
+                  "Property": "Article"
+                }
+              },
+              "queryRef": "CC Item Location.Article",
+              "nativeQueryRef": "Article"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Item Location"
+                    }
+                  },
+                  "Property": "Base Unit"
+                }
+              },
+              "queryRef": "CC Item Location.Base Unit",
+              "nativeQueryRef": "Base Unit"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Opening Stock"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Opening Stock",
+              "nativeQueryRef": "Opening Stock",
+              "displayName": "Opening Stock"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Purchase Qty"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Purchase Qty",
+              "nativeQueryRef": "Purchase Qty",
+              "displayName": "Purchase Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Transfer In Qty"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Transfer In Qty",
+              "nativeQueryRef": "Transfer In Qty",
+              "displayName": "Transfer In Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Transfer Out Qty"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Transfer Out Qty",
+              "nativeQueryRef": "Transfer Out Qty",
+              "displayName": "Transfer Out Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Wastage Qty"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Wastage Qty",
+              "nativeQueryRef": "Wastage Qty",
+              "displayName": "Wastage Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Wastage Value"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Wastage Value",
+              "nativeQueryRef": "Wastage Value",
+              "displayName": "Wastage Value"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Closing Stock"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Closing Stock",
+              "nativeQueryRef": "Closing Stock",
+              "displayName": "Closing Stock"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Wastage Control%"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Wastage Control%",
+              "nativeQueryRef": "Wastage Control%",
+              "displayName": "Wastage Control%"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC SOH%"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core SOH%",
+              "nativeQueryRef": "SOH%",
+              "displayName": "SOH%"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC SOH Bucket"
+                    }
+                  },
+                  "Property": "CC SOH Value Visual"
+                }
+              },
+              "queryRef": "CC SOH Bucket.CC SOH Value Visual",
+              "nativeQueryRef": "SOH Value",
+              "displayName": "SOH Value"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Open PO Qty Visual"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Open PO Qty Visual",
+              "nativeQueryRef": "Open PO Qty",
+              "displayName": "Open PO Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Open PO Pending Value"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Open PO Pending Value",
+              "nativeQueryRef": "Open PO Value",
+              "displayName": "Open PO Value"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Average Transfer Out Qty"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Average Transfer Out Qty",
+              "nativeQueryRef": "AvgTransfer Out",
+              "displayName": "AvgTransfer Out"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Coverage Days"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Coverage Days",
+              "nativeQueryRef": "WH Coverage Days",
+              "displayName": "WH Coverage Days"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Supplier Coverage Days"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Supplier Coverage Days",
+              "nativeQueryRef": "PO Coverage Days",
+              "displayName": "PO Coverage Days"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Coverage Category"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Core Coverage Category",
+              "nativeQueryRef": "WH Coverage",
+              "displayName": "WH Coverage"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Supplier Coverage Bucket"
+                    }
+                  },
+                  "Property": "Supplier Coverage Category"
+                }
+              },
+              "queryRef": "CC Supplier Coverage Bucket.Supplier Coverage Category",
+              "nativeQueryRef": "Supplier Coverage",
+              "displayName": "Supplier Coverage"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Combined Coverage Bucket"
+                    }
+                  },
+                  "Property": "Combined Coverage Category"
+                }
+              },
+              "queryRef": "CC Combined Coverage Bucket.Combined Coverage Category",
+              "nativeQueryRef": "Combined Coverage",
+              "displayName": "Combined Coverage"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Utilization PO Control"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Utilization PO Control",
+              "nativeQueryRef": "Utilization%",
+              "displayName": "Utilization%"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Utilization PO Control Category"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Utilization PO Control Category",
+              "nativeQueryRef": "Utilization Category",
+              "displayName": "Utilization Category"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Outbound Bucket"
+                    }
+                  },
+                  "Property": "CC Outbound Consumption Category"
+                }
+              },
+              "queryRef": "CC Outbound Bucket.CC Outbound Consumption Category",
+              "nativeQueryRef": "Consumption Category",
+              "displayName": "Consumption Category"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "cc_daily_inventory"
+                  }
+                },
+                "Property": "CC Open PO Qty Visual"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "objects": {
+      "grid": [
+        {
+          "properties": {
+            "outlineColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": -0.6
+                    }
+                  }
+                }
+              }
+            },
+            "gridVertical": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "gridVerticalColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": -0.3
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "columnHeaders": [
+        {
+          "properties": {
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": 0
+                    }
+                  }
+                }
+              }
+            },
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": -0.5
+                    }
+                  }
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "values": [
+        {
+          "properties": {
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "FillRule": {
+                      "Input": {
+                        "Aggregation": {
+                          "Expression": {
+                            "Column": {
+                              "Expression": {
+                                "SourceRef": {
+                                  "Entity": "Delivery Note"
+                                }
+                              },
+                              "Property": "Date Variance Days"
+                            }
+                          },
+                          "Function": 0
+                        }
+                      },
+                      "FillRule": {
+                        "linearGradient3": {
+                          "min": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'minColor'"
+                              }
+                            }
+                          },
+                          "mid": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'midColor'"
+                              }
+                            }
+                          },
+                          "max": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#F93737'"
+                              }
+                            }
+                          },
+                          "nullColoringStrategy": {
+                            "strategy": {
+                              "Literal": {
+                                "Value": "'asZero'"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "Sum(Delivery Note.Date Variance Days)"
+          }
+        },
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {},
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "_Measures Cost.CC Core SOH%"
+          }
+        },
+        {
+          "properties": {
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "FillRule": {
+                      "Input": {
+                        "Measure": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "CC SOH Bucket"
+                            }
+                          },
+                          "Property": "CC SOH Value Visual"
+                        }
+                      },
+                      "FillRule": {
+                        "linearGradient3": {
+                          "min": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#25A41E'"
+                              }
+                            }
+                          },
+                          "mid": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'midColor'"
+                              }
+                            }
+                          },
+                          "max": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#F22F2F'"
+                              }
+                            }
+                          },
+                          "nullColoringStrategy": {
+                            "strategy": {
+                              "Literal": {
+                                "Value": "'asZero'"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "CC SOH Bucket.CC SOH Value Visual"
+          }
+        },
+        {
+          "properties": {
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "_Measures Color"
+                        }
+                      },
+                      "Property": "CC Combined Coverage Color"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "CC Combined Coverage Bucket.Combined Coverage Category"
+          }
+        },
+        {
+          "properties": {
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "FillRule": {
+                      "Input": {
+                        "Measure": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "_Measures Cost"
+                            }
+                          },
+                          "Property": "CC Utilization PO Control"
+                        }
+                      },
+                      "FillRule": {
+                        "linearGradient3": {
+                          "min": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#FF6161'"
+                              }
+                            }
+                          },
+                          "mid": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'midColor'"
+                              }
+                            }
+                          },
+                          "max": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#4BFC2E'"
+                              }
+                            }
+                          },
+                          "nullColoringStrategy": {
+                            "strategy": {
+                              "Literal": {
+                                "Value": "'asZero'"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "_Measures Cost.CC Utilization PO Control"
+          }
+        },
+        {
+          "properties": {
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "FillRule": {
+                      "Input": {
+                        "Measure": {
+                          "Expression": {
+                            "SourceRef": {
+                              "Entity": "cc_daily_inventory"
+                            }
+                          },
+                          "Property": "CC Open PO Pending Value"
+                        }
+                      },
+                      "FillRule": {
+                        "linearGradient3": {
+                          "min": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#198018'"
+                              }
+                            }
+                          },
+                          "mid": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'midColor'"
+                              }
+                            }
+                          },
+                          "max": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#CE0E0E'"
+                              }
+                            }
+                          },
+                          "nullColoringStrategy": {
+                            "strategy": {
+                              "Literal": {
+                                "Value": "'asZero'"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "cc_daily_inventory.CC Open PO Pending Value"
+          }
+        }
+      ],
+      "columnFormatting": [
+        {
+          "properties": {
+            "labelPrecision": {
+              "expr": {
+                "Literal": {
+                  "Value": "0L"
+                }
+              }
+            },
+            "alignment": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Center'"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Sum(Delivery Note.Date Variance Days)"
+          }
+        },
+        {
+          "properties": {
+            "labelPrecision": {
+              "expr": {
+                "Literal": {
+                  "Value": "1L"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "CC SOH Bucket.CC SOH Value Visual"
+          }
+        },
+        {
+          "properties": {
+            "labelPrecision": {
+              "expr": {
+                "Literal": {
+                  "Value": "0L"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures Cost.CC Core Coverage Days"
+          }
+        },
+        {
+          "properties": {
+            "labelPrecision": {
+              "expr": {
+                "Literal": {
+                  "Value": "0L"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "cc_daily_inventory.CC Supplier Coverage Days"
+          }
+        }
+      ],
+      "total": [
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "13D"
+                }
+              }
+            },
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 8,
+                      "Percent": 0.2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "titleWrap": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "width": {
+              "expr": {
+                "Literal": {
+                  "Value": "1D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "stylePreset": [
+        {
+          "properties": {
+            "name": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Minimal'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "22f5915eadb0d0c3b668",
+        "ordinal": 0,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Table Load Gate"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "_",
+              "Entity": "_Measures Cost",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "_"
+                        }
+                      },
+                      "Property": "CC Table Load Gate"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "5f78549e10a67dd512c5",
+        "ordinal": 1,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Average Transfer Out Qty"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "697daea0c84c18acdafb",
+        "ordinal": 2,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Outbound Bucket"
+              }
+            },
+            "Property": "CC Outbound Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC Outbound Bucket",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "c"
+                        }
+                      },
+                      "Property": "CC Outbound Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "b77aaef9368df129ccdf",
+        "ordinal": 3,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Combined Coverage Bucket"
+              }
+            },
+            "Property": "CC Utilization PO Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC Combined Coverage Bucket",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "c"
+                        }
+                      },
+                      "Property": "CC Utilization PO Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User"
+      },
+      {
+        "name": "78c3f1f1a3325cd1b01d",
+        "ordinal": 4,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Coverage Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "_",
+              "Entity": "_Measures Cost",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "_"
+                        }
+                      },
+                      "Property": "CC Coverage Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "be70fd26d1fc1a9fd8d9",
+        "ordinal": 5,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC SOH Bucket"
+              }
+            },
+            "Property": "CC SOH Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC SOH Bucket",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "c"
+                        }
+                      },
+                      "Property": "CC SOH Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "74034dbbc2af46888cd1",
+        "ordinal": 6,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Show Row"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "_",
+              "Entity": "_Measures Cost",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "_"
+                        }
+                      },
+                      "Property": "CC Show Row"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "e7797e6e7b6cdeb3a526",
+        "ordinal": 7,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Closing Stock"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "2cf71f1c45814cf9237c",
+        "ordinal": 8,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Supplier Coverage Bucket"
+              }
+            },
+            "Property": "CC Supplier Coverage Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC Supplier Coverage Bucket",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "c"
+                        }
+                      },
+                      "Property": "CC Supplier Coverage Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "cabd221bc5a562d1c91d",
+        "ordinal": 9,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Supplier Coverage Bucket"
+              }
+            },
+            "Property": "CC Combined Coverage Bucket Row Filter"
+          }
+        },
+        "type": "Advanced",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "c",
+              "Entity": "CC Supplier Coverage Bucket",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Comparison": {
+                  "ComparisonKind": 0,
+                  "Left": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Source": "c"
+                        }
+                      },
+                      "Property": "CC Combined Coverage Bucket Row Filter"
+                    }
+                  },
+                  "Right": {
+                    "Literal": {
+                      "Value": "1L"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true
+      },
+      {
+        "name": "b038550efdf194824504",
+        "ordinal": 10,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Coverage Category"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "007e0bd9efb5941305a0",
+        "ordinal": 11,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Coverage Days"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "209dc001d601c165e9f3",
+        "ordinal": 12,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Opening Stock"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "bd60a4fc8a839a8a3ab1",
+        "ordinal": 13,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Purchase Qty"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "924727847b22f10acee0",
+        "ordinal": 14,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC SOH%"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "3532d65ca977c9ba14b5",
+        "ordinal": 15,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Transfer In Qty"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "aef8226874755f95130f",
+        "ordinal": 16,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Transfer Out Qty"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "57ab872345f6ca166d1f",
+        "ordinal": 17,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Wastage Control%"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "f922ec0fb0d4273cac2a",
+        "ordinal": 18,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Wastage Qty"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "1a7b96b01e2d7811acf1",
+        "ordinal": 19,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Wastage Value"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "cfc2735173fe4020847a",
+        "ordinal": 20,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Item Location"
+              }
+            },
+            "Property": "Article No."
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "b0b9a8107768f606dd59",
+        "ordinal": 21,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Item Location"
+              }
+            },
+            "Property": "Article"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "1200e68859ebfc32ebbd",
+        "ordinal": 22,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Item Location"
+              }
+            },
+            "Property": "Base Unit"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "67328831e790476bcf93",
+        "ordinal": 23,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Outbound Bucket"
+              }
+            },
+            "Property": "CC Outbound Consumption Category"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "fe5a3bae33f19b41d72e",
+        "ordinal": 24,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC SOH Bucket"
+              }
+            },
+            "Property": "CC SOH Value Visual"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "9a4bdd998c706addb725",
+        "ordinal": 25,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Combined Coverage Bucket"
+              }
+            },
+            "Property": "Combined Coverage Category"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "90685a9c1cbf7968bd4e",
+        "ordinal": 26,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Supplier Coverage Bucket"
+              }
+            },
+            "Property": "Supplier Coverage Category"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "b4ae62742ef47614138d",
+        "ordinal": 27,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO Qty"
+          }
+        },
+        "type": "Advanced",
+        "howCreated": "User"
+      },
+      {
+        "name": "8844299c16d819381212",
+        "ordinal": 28,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Supplier Coverage Days"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "cab35b8b65d6226ebb52",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO Qty Visual"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "8ce9d7636695d65730e7",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO Pending Value"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "6c545b2df59dcf10d2c4",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Utilization PO Control"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "48bec41b93d0364dba4d",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Utilization PO Control Category"
+          }
+        },
+        "type": "Advanced"
+      }
+    ],
+    "filterSortOrder": "Custom"
+  }
+}

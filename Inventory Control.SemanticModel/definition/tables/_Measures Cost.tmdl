@@ -1,0 +1,935 @@
+table '_Measures Cost'
+	lineageTag: 558c2547-c1b3-476d-8f27-a7d4673ea5e9
+
+	measure 'CC Start Date' =
+			
+			MINX (
+			    ALLSELECTED ( 'CC Date'[Movement Date] ),
+			    'CC Date'[Movement Date]
+			)
+		formatString: mm/dd/yy
+		lineageTag: bd6828cc-2640-4704-9b81-9c60affec448
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	measure 'CC End Date' =
+			
+			MAXX (
+			    ALLSELECTED ( 'CC Date'[Movement Date] ),
+			    'CC Date'[Movement Date]
+			)
+		formatString: mm/dd/yy
+		lineageTag: 93c33a01-431d-4036-a66a-f3c1180e825f
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	measure 'CC Opening Stock' =
+			
+			VAR StartDate =
+			    [CC Start Date]
+			
+			VAR SelectedLocations =
+			    VALUES ( 'CC Item Location'[Location] )
+			
+			VAR SelectedArticleNos =
+			    VALUES ( 'CC Item Location'[Article No.] )
+			
+			RETURN
+			    COALESCE (
+			        CALCULATE (
+			            SUM ( 'cc_daily_inventory'[Opening Stock Qty] ),
+			            TREATAS ( { StartDate }, 'cc_daily_inventory'[Movement Date] ),
+			            TREATAS ( SelectedLocations, 'cc_daily_inventory'[Location] ),
+			            TREATAS ( SelectedArticleNos, 'cc_daily_inventory'[Article No.] )
+			        ),
+			        0
+			    )
+		lineageTag: fafc1e81-9c8e-43f5-8f05-5cad814da8ad
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Closing Stock' =
+			
+			VAR EndDate =
+			    [CC End Date]
+			
+			VAR SelectedLocations =
+			    VALUES ( 'CC Item Location'[Location] )
+			
+			VAR SelectedArticleNos =
+			    VALUES ( 'CC Item Location'[Article No.] )
+			
+			RETURN
+			    COALESCE (
+			        CALCULATE (
+			            SUM ( 'cc_daily_inventory'[Closing Stock Qty] ),
+			            TREATAS ( { EndDate }, 'cc_daily_inventory'[Movement Date] ),
+			            TREATAS ( SelectedLocations, 'cc_daily_inventory'[Location] ),
+			            TREATAS ( SelectedArticleNos, 'cc_daily_inventory'[Article No.] )
+			        ),
+			        0
+			    )
+		lineageTag: 9c09fd91-8855-4a81-b60e-0617c59cbdc2
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Purchase Qty' =
+			
+			VAR SelectedDates =
+			    VALUES ( 'CC Date'[Movement Date] )
+			
+			VAR SelectedLocations =
+			    VALUES ( 'CC Item Location'[Location] )
+			
+			VAR SelectedArticleNos =
+			    VALUES ( 'CC Item Location'[Article No.] )
+			
+			VAR SelectedStatus =
+			    VALUES ( 'CC Inbound Status'[Inbound Status] )
+			
+			VAR HasStatusFilter =
+			    ISFILTERED ( 'CC Inbound Status'[Inbound Status] )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            HasStatusFilter,
+			            CALCULATE (
+			                SUMX (
+			                    'fact_grn_allocated_detail',
+			                    COALESCE (
+			                        'fact_grn_allocated_detail'[GRN Base Qty],
+			                        'fact_grn_allocated_detail'[Allocated GRN Base Qty],
+			                        0
+			                    )
+			                ),
+			                TREATAS ( SelectedDates, 'fact_grn_allocated_detail'[GRN Delivery Date] ),
+			                TREATAS ( SelectedLocations, 'fact_grn_allocated_detail'[Warehouse] ),
+			                TREATAS ( SelectedArticleNos, 'fact_grn_allocated_detail'[Article No.] ),
+			                TREATAS ( SelectedStatus, 'fact_grn_allocated_detail'[DN Status] )
+			            ),
+			            CALCULATE (
+			                SUMX (
+			                    'fact_grn_allocated_detail',
+			                    COALESCE (
+			                        'fact_grn_allocated_detail'[GRN Base Qty],
+			                        'fact_grn_allocated_detail'[Allocated GRN Base Qty],
+			                        0
+			                    )
+			                ),
+			                TREATAS ( SelectedDates, 'fact_grn_allocated_detail'[GRN Delivery Date] ),
+			                TREATAS ( SelectedLocations, 'fact_grn_allocated_detail'[Warehouse] ),
+			                TREATAS ( SelectedArticleNos, 'fact_grn_allocated_detail'[Article No.] )
+			            )
+			        ),
+			        0
+			    )
+		lineageTag: 5db16a7f-42b1-4bb9-bb53-f2f449c2e1ab
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Transfer Out Qty' =
+			
+			VAR SelectedDates =
+			    VALUES ( 'CC Date'[Movement Date] )
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleNoKeys =
+			    VALUES ( 'CC Item Location'[Article No Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR SelectedStatuses =
+			    VALUES ( 'CC Outbound Status'[Outbound Status] )
+			
+			VAR HasStatusFilter =
+			    ISFILTERED ( 'CC Outbound Status'[Outbound Status] )
+			
+			VAR ByArticleNo =
+			    IF (
+			        HasStatusFilter,
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer Out",
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleNoKeys, 'CC Outbound Core'[Article No Key] ),
+			            TREATAS ( SelectedStatuses, 'CC Outbound Core'[Status Key] )
+			        ),
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer Out",
+			            'CC Outbound Core'[Status Key] IN { "BOOKED", "DELIVERED", "DECLINED" },
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleNoKeys, 'CC Outbound Core'[Article No Key] )
+			        )
+			    )
+			
+			VAR ByArticleName =
+			    IF (
+			        HasStatusFilter,
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer Out",
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleKeys, 'CC Outbound Core'[Article Key] ),
+			            TREATAS ( SelectedStatuses, 'CC Outbound Core'[Status Key] )
+			        ),
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer Out",
+			            'CC Outbound Core'[Status Key] IN { "BOOKED", "DELIVERED", "DECLINED" },
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleKeys, 'CC Outbound Core'[Article Key] )
+			        )
+			    )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            COALESCE ( ByArticleNo, 0 ) <> 0,
+			            ByArticleNo,
+			            ByArticleName
+			        ),
+			        0
+			    )
+		lineageTag: b9b6a0d1-4340-448d-a9c0-a6436f601d04
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Transfer In Qty' =
+			
+			VAR SelectedDates =
+			    VALUES ( 'CC Date'[Movement Date] )
+			
+			VAR SelectedLocationKeys =
+			    VALUES ( 'CC Item Location'[Location Key] )
+			
+			VAR SelectedArticleNoKeys =
+			    VALUES ( 'CC Item Location'[Article No Key] )
+			
+			VAR SelectedArticleKeys =
+			    VALUES ( 'CC Item Location'[Article Key] )
+			
+			VAR SelectedStatuses =
+			    VALUES ( 'CC Outbound Status'[Outbound Status] )
+			
+			VAR HasStatusFilter =
+			    ISFILTERED ( 'CC Outbound Status'[Outbound Status] )
+			
+			VAR ByArticleNo =
+			    IF (
+			        HasStatusFilter,
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer In",
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleNoKeys, 'CC Outbound Core'[Article No Key] ),
+			            TREATAS ( SelectedStatuses, 'CC Outbound Core'[Status Key] )
+			        ),
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer In",
+			            'CC Outbound Core'[Status Key] IN { "BOOKED", "DELIVERED", "DECLINED" },
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleNoKeys, 'CC Outbound Core'[Article No Key] )
+			        )
+			    )
+			
+			VAR ByArticleName =
+			    IF (
+			        HasStatusFilter,
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer In",
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleKeys, 'CC Outbound Core'[Article Key] ),
+			            TREATAS ( SelectedStatuses, 'CC Outbound Core'[Status Key] )
+			        ),
+			        CALCULATE (
+			            SUM ( 'CC Outbound Core'[Outbound Base Qty] ),
+			            'CC Outbound Core'[Movement Type] = "Transfer In",
+			            'CC Outbound Core'[Status Key] IN { "BOOKED", "DELIVERED", "DECLINED" },
+			            TREATAS ( SelectedDates, 'CC Outbound Core'[Movement Date] ),
+			            TREATAS ( SelectedLocationKeys, 'CC Outbound Core'[Location Key] ),
+			            TREATAS ( SelectedArticleKeys, 'CC Outbound Core'[Article Key] )
+			        )
+			    )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            COALESCE ( ByArticleNo, 0 ) <> 0,
+			            ByArticleNo,
+			            ByArticleName
+			        ),
+			        0
+			    )
+		lineageTag: f01d9c21-e91a-4396-9149-db25638ba840
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Wastage Qty' =
+			
+			VAR SelectedDates =
+			    VALUES ( 'CC Date'[Movement Date] )
+			
+			VAR SelectedLocations =
+			    VALUES ( 'CC Item Location'[Location] )
+			
+			VAR SelectedArticles =
+			    VALUES ( 'CC Item Location'[Article] )
+			
+			VAR SelectedStatus =
+			    VALUES ( 'CC Wastage Status'[Wastage Status] )
+			
+			VAR HasStatusFilter =
+			    ISFILTERED ( 'CC Wastage Status'[Wastage Status] )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            HasStatusFilter,
+			            CALCULATE (
+			                SUM ( 'fact_wastage_line'[Qty] ),
+			                TREATAS ( SelectedDates, 'fact_wastage_line'[Movement Date] ),
+			                TREATAS ( SelectedLocations, 'fact_wastage_line'[Location] ),
+			                TREATAS ( SelectedArticles, 'fact_wastage_line'[Article] ),
+			                TREATAS ( SelectedStatus, 'fact_wastage_line'[Source Status] )
+			            ),
+			            CALCULATE (
+			                SUM ( 'fact_wastage_line'[Qty] ),
+			                TREATAS ( SelectedDates, 'fact_wastage_line'[Movement Date] ),
+			                TREATAS ( SelectedLocations, 'fact_wastage_line'[Location] ),
+			                TREATAS ( SelectedArticles, 'fact_wastage_line'[Article] )
+			            )
+			        ),
+			        0
+			    )
+		lineageTag: 15a6a05c-c868-42eb-81c1-7b88c436010f
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Balance Check Qty' =
+			
+			VAR BalanceQty =
+			    [CC Opening Stock]
+			        + [CC Purchase Qty]
+			        + [CC Transfer In Qty]
+			        - [CC Transfer Out Qty]
+			        - [CC Wastage Qty]
+			        - [CC Closing Stock]
+			RETURN
+			    IF (
+			        ABS ( BalanceQty ) <= 0.0001,
+			        0,
+			        BalanceQty
+			    )
+		lineageTag: d5259929-1786-4128-9c6f-8d07a935966e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Balance Status' =
+			
+			IF (
+			    ABS ( [CC Balance Check Qty] ) <= 0.0001,
+			    "OK",
+			    "Check"
+			)
+		lineageTag: 1c4ca943-4d46-4375-95f8-0f9a5cac9187
+
+	measure 'CC Available Stock' =
+			
+			[CC Opening Stock]
+			    + [CC Purchase Qty]
+			    + [CC Transfer In Qty]
+		lineageTag: 57a839e8-5e4f-4233-a53b-2ee24e0d91c9
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Outbound Consumption%' =
+			
+			DIVIDE (
+			    [CC Transfer Out Qty],
+			    [CC Available Stock],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 7ae3d8e7-b597-46cf-865e-19d74cd53c0c
+
+	measure 'CC Wastage Control%' =
+			
+			DIVIDE (
+			    [CC Wastage Qty],
+			    [CC Closing Stock],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: db274b1c-4dee-4369-8621-5baf799a80f5
+
+	measure 'CC Show Row' =
+			
+			VAR TotalValue =
+			    ABS ( [CC Opening Stock] )
+			        + ABS ( [CC Purchase Qty] )
+			        + ABS ( [CC Transfer In Qty] )
+			        + ABS ( [CC Transfer Out Qty] )
+			        + ABS ( [CC Wastage Qty] )
+			        + ABS ( [CC Closing Stock] )
+			        + ABS ( [CC Open PO Remaining Qty] )
+			
+			RETURN
+			    IF (
+			        TotalValue > 0,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: adbfa1d6-cb31-4359-bdbb-c6b92f59c4f3
+
+	measure 'CC SOH%' =
+			
+			DIVIDE (
+			    [CC Closing Stock],
+			    [CC Available Stock],
+			    0
+			)
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 0e1d52f6-a7d5-4053-94a3-e1976fba7971
+
+	measure 'CC Wastage Value' =
+			
+			VAR SelectedDates =
+			    VALUES ( 'CC Date'[Movement Date] )
+			
+			VAR SelectedLocations =
+			    VALUES ( 'CC Item Location'[Location] )
+			
+			VAR SelectedArticles =
+			    VALUES ( 'CC Item Location'[Article] )
+			
+			VAR SelectedStatus =
+			    VALUES ( 'CC Wastage Status'[Wastage Status] )
+			
+			VAR HasStatusFilter =
+			    ISFILTERED ( 'CC Wastage Status'[Wastage Status] )
+			
+			RETURN
+			    COALESCE (
+			        IF (
+			            HasStatusFilter,
+			            CALCULATE (
+			                SUM ( 'fact_wastage_line'[Wastage Value] ),
+			                TREATAS ( SelectedDates, 'fact_wastage_line'[Movement Date] ),
+			                TREATAS ( SelectedLocations, 'fact_wastage_line'[Location] ),
+			                TREATAS ( SelectedArticles, 'fact_wastage_line'[Article] ),
+			                TREATAS ( SelectedStatus, 'fact_wastage_line'[Source Status] )
+			            ),
+			            CALCULATE (
+			                SUM ( 'fact_wastage_line'[Wastage Value] ),
+			                TREATAS ( SelectedDates, 'fact_wastage_line'[Movement Date] ),
+			                TREATAS ( SelectedLocations, 'fact_wastage_line'[Location] ),
+			                TREATAS ( SelectedArticles, 'fact_wastage_line'[Article] )
+			            )
+			        ),
+			        0
+			    )
+		lineageTag: a63089c2-9c14-4a4c-8a8d-a86a41b28303
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Avg Wastage Selling Price' =
+			
+			DIVIDE (
+			    [CC Wastage Value],
+			    [CC Wastage Qty],
+			    0
+			)
+		lineageTag: 476b2a5f-1f5e-4bab-bd38-c09de4df4383
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Selected Days' =
+			
+			VAR StartDate =
+			    [CC Start Date]
+			VAR EndDate =
+			    [CC End Date]
+			RETURN
+			    IF (
+			        ISBLANK ( StartDate ) || ISBLANK ( EndDate ),
+			        BLANK (),
+			        DATEDIFF ( StartDate, EndDate, DAY ) + 1
+			    )
+		formatString: 0
+		lineageTag: e7f2d7a3-9e7f-4b3e-98b9-48f7a2cc18d5
+
+	measure 'CC Average Transfer Out Qty' =
+			
+			DIVIDE (
+			    [CC Transfer Out Qty],
+			    [CC Selected Days],
+			    0
+			)
+		lineageTag: 5a4b487c-86e2-4cee-8c9a-748217c95fbc
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Coverage Days' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			RETURN
+			    IF (
+			        AvgTransferOut <= 0 || ClosingQty <= 0,
+			        BLANK (),
+			        DIVIDE ( ClosingQty, AvgTransferOut )
+			    )
+		lineageTag: 87c1e59f-e53a-4a6c-8eee-1e21c65928fb
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Coverage Category' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			VAR CoverageDays =
+			    [CC Article Coverage Days]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        AvgTransferOut <= 0, "No Outbound",
+			        ClosingQty <= 0, "No SOH",
+			        CoverageDays <= 7, "7 days",
+			        CoverageDays <= 14, "8-14 days",
+			        CoverageDays <= 21, "15-21 days",
+			        CoverageDays <= 28, "22-28 days",
+			        "More than 29 days"
+			    )
+		lineageTag: e7a16726-2286-4a22-8956-44d5c1c047f5
+
+	measure 'CC Selected Movement Days' =
+			
+			VAR StartDate =
+			    MINX (
+			        ALLSELECTED ( 'cc_daily_inventory'[Movement Date] ),
+			        'cc_daily_inventory'[Movement Date]
+			    )
+			VAR EndDate =
+			    MAXX (
+			        ALLSELECTED ( 'cc_daily_inventory'[Movement Date] ),
+			        'cc_daily_inventory'[Movement Date]
+			    )
+			RETURN
+			    IF (
+			        ISBLANK ( StartDate ) || ISBLANK ( EndDate ),
+			        BLANK (),
+			        DATEDIFF ( StartDate, EndDate, DAY ) + 1
+			    )
+		formatString: 0
+		lineageTag: 3eba5c68-ee57-48fe-a6c6-3c0febca181a
+
+	measure 'CC Core Date Check' =
+			
+			FORMAT ( [CC Start Date], "dd-mmm-yyyy" )
+			    & " to "
+			    & FORMAT ( [CC End Date], "dd-mmm-yyyy" )
+			    & " | Days: "
+			    & FORMAT ( [CC Selected Days], "#,0" )
+		lineageTag: b8713f8a-806b-4d46-ab83-16506089aeee
+
+	measure 'CC Coverage Bucket Item Count' =
+			
+			VAR CurrentBucket =
+			    SELECTEDVALUE ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR ItemLocationTable =
+			    ALLSELECTED ( 'CC Item Location'[CC Item Location Key] )
+			
+			RETURN
+			    SUMX (
+			        ItemLocationTable,
+			        VAR ThisCategory =
+			            CALCULATE ( [CC Coverage Category] )
+			        RETURN
+			            IF ( ThisCategory = CurrentBucket, 1, 0 )
+			    )
+		formatString: 0
+		lineageTag: dfb95cea-f4af-4fbe-a978-d7f3d3b260ab
+
+	measure 'CC Coverage Bucket Row Filter' =
+			
+			VAR SelectedBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR CurrentRowCategory =
+			    [CC Coverage Category]
+			
+			RETURN
+			    IF (
+			        NOT HasBucketFilter
+			            || CONTAINSROW ( SelectedBuckets, CurrentRowCategory ),
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: 848733ff-fca1-42ba-879b-e9566ab21c44
+
+	measure 'Measure 5'
+		lineageTag: dd5b2a11-c387-497a-bcc3-b02898163c7c
+
+	measure 'CC Coverage Bucket Article Count' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || (
+			                            [__UtilizationBaseQty] > 0
+			                                && CONTAINSROW (
+			                                    SelectedUtilizationBuckets,
+			                                    [__UtilizationCategory]
+			                                )
+			                        )
+			                )
+			        )
+			    )
+		formatString: 0
+		lineageTag: 709d1a84-e6aa-4783-8b39-3713c5024110
+
+	measure 'Measure 7'
+		lineageTag: f60b4584-1279-4487-914f-db7f0a62c967
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'CC Article Coverage Days' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			RETURN
+			    IF (
+			        AvgTransferOut <= 0 || ClosingQty <= 0,
+			        BLANK (),
+			        DIVIDE ( ClosingQty, AvgTransferOut )
+			    )
+		lineageTag: c9fa8521-75bb-4e37-9bfc-ceff8778be43
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Overall Coverage Days' =
+			
+			VAR ClosingQty =
+			    [CC Closing Stock]
+			VAR AvgTransferOut =
+			    [CC Average Transfer Out Qty]
+			RETURN
+			    IF (
+			        AvgTransferOut <= 0 || ClosingQty <= 0,
+			        0,
+			        DIVIDE ( ClosingQty, AvgTransferOut )
+			    )
+		lineageTag: 36e24702-ed59-4eaa-9d86-4db3d86b9514
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'CC Table Load Gate' =
+			
+			VAR HasLocationFilter =
+			    ISFILTERED ( 'CC Item Location'[Location] )
+			        || ISFILTERED ( 'CC Item Location'[Location Key] )
+			
+			VAR HasArticleFilter =
+			    ISFILTERED ( 'CC Item Location'[Article] )
+			        || ISFILTERED ( 'CC Item Location'[Article No.] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasCoverageBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasSupplierCoverageBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasCombinedCoverageBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasUtilizationPOBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			RETURN
+			    IF (
+			        HasLocationFilter
+			            || HasArticleFilter
+			            || HasSOHBucketFilter
+			            || HasCoverageBucketFilter
+			            || HasOutboundBucketFilter
+			            || HasSupplierCoverageBucketFilter
+			            || HasCombinedCoverageBucketFilter
+			            || HasUtilizationPOBucketFilter,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: f8235522-2da2-4094-9c9c-ebe51eb33168
+
+	measure 'CC Utilization PO Control' =
+			
+			VAR PurchaseQty =
+			    [CC Purchase Qty]
+			
+			VAR OpenPOQty =
+			    [CC Open PO Qty]
+			
+			VAR TotalPOQty =
+			    PurchaseQty + OpenPOQty
+			
+			RETURN
+			    IF (
+			        TotalPOQty <= 0,
+			        BLANK (),
+			        DIVIDE (
+			            PurchaseQty,
+			            TotalPOQty
+			        )
+			    )
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 1ee73e51-0881-4836-9067-2e780190bf3d
+
+	measure 'CC Utilization PO Control Category' =
+			
+			VAR UtilizationPct =
+			    [CC Utilization PO Control]
+			
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( UtilizationPct ), BLANK (),
+			        UtilizationPct <= 0.10, "0-10%",
+			        UtilizationPct <= 0.20, "10-20%",
+			        UtilizationPct <= 0.30, "20-30%",
+			        UtilizationPct <= 0.40, "30-40%",
+			        UtilizationPct <= 0.50, "40-50%",
+			        UtilizationPct <= 0.60, "50-60%",
+			        UtilizationPct <= 0.70, "60-70%",
+			        UtilizationPct <= 0.80, "70-80%",
+			        UtilizationPct <= 0.90, "80-90%",
+			        UtilizationPct < 1, "90-100%",
+			        "100%+"
+			    )
+		lineageTag: d3db494f-ddca-4e4a-bcf8-3baa52eaa94e
+
+	measure 'CC Utilization PO Bucket Article Count' =
+			
+			VAR SelectedSOHBuckets =
+			    VALUES ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR HasSOHBucketFilter =
+			    ISFILTERED ( 'CC SOH Bucket'[SOH Control Category] )
+			
+			VAR SelectedOutboundBuckets =
+			    VALUES ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR HasOutboundBucketFilter =
+			    ISFILTERED ( 'CC Outbound Bucket'[Outbound Consumption Category] )
+			
+			VAR SelectedWHBuckets =
+			    VALUES ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR HasWHBucketFilter =
+			    ISFILTERED ( 'CC Coverage Bucket'[Coverage Bucket] )
+			
+			VAR SelectedSupplierBuckets =
+			    VALUES ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR HasSupplierBucketFilter =
+			    ISFILTERED ( 'CC Supplier Coverage Bucket'[Supplier Coverage Category] )
+			
+			VAR SelectedCombinedBuckets =
+			    VALUES ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR HasCombinedBucketFilter =
+			    ISFILTERED ( 'CC Combined Coverage Bucket'[Combined Coverage Category] )
+			
+			VAR SelectedUtilizationBuckets =
+			    VALUES ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR HasUtilizationBucketFilter =
+			    ISFILTERED ( 'CC Utilization PO Bucket'[Utilization PO Category] )
+			
+			VAR BottomTableRows =
+			    ADDCOLUMNS (
+			        SUMMARIZE (
+			            ALLSELECTED ( 'CC Item Location' ),
+			            'CC Item Location'[Article No.],
+			            'CC Item Location'[Article],
+			            'CC Item Location'[Base Unit]
+			        ),
+			        "__ShowRow", CALCULATE ( [CC Show Row] ),
+			        "__SOHCategory", CALCULATE ( [CC SOH Control Category] ),
+			        "__OutboundCategory", CALCULATE ( [CC Outbound Consumption Category] ),
+			        "__WHCategory", CALCULATE ( [CC Coverage Category] ),
+			        "__SupplierCategory", CALCULATE ( [CC Supplier Coverage Category] ),
+			        "__CombinedCategory", CALCULATE ( [CC Combined Coverage Category] ),
+			        "__UtilizationCategory", CALCULATE ( [CC Utilization PO Control Category] ),
+			        "__UtilizationBaseQty", CALCULATE ( [CC Purchase Qty] + [CC Open PO Qty] )
+			    )
+			
+			RETURN
+			    COUNTROWS (
+			        FILTER (
+			            BottomTableRows,
+			            [__ShowRow] = 1
+			                && [__UtilizationBaseQty] > 0
+			                && (
+			                    NOT HasSOHBucketFilter
+			                        || CONTAINSROW ( SelectedSOHBuckets, [__SOHCategory] )
+			                )
+			                && (
+			                    NOT HasOutboundBucketFilter
+			                        || CONTAINSROW ( SelectedOutboundBuckets, [__OutboundCategory] )
+			                )
+			                && (
+			                    NOT HasWHBucketFilter
+			                        || CONTAINSROW ( SelectedWHBuckets, [__WHCategory] )
+			                )
+			                && (
+			                    NOT HasSupplierBucketFilter
+			                        || CONTAINSROW ( SelectedSupplierBuckets, [__SupplierCategory] )
+			                )
+			                && (
+			                    NOT HasCombinedBucketFilter
+			                        || CONTAINSROW ( SelectedCombinedBuckets, [__CombinedCategory] )
+			                )
+			                && (
+			                    NOT HasUtilizationBucketFilter
+			                        || CONTAINSROW (
+			                            SelectedUtilizationBuckets,
+			                            [__UtilizationCategory]
+			                        )
+			                )
+			        )
+			    )
+		formatString: 0
+		lineageTag: 926ad9f5-4aee-4aa4-ba9a-e609dc9c8d28
+
+	column Dummy
+		formatString: 0
+		lineageTag: 28f26323-8dd5-4007-ab60-336b19c217a4
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Dummy]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition '_Measures Cost' = calculated
+		mode: import
+		source =
+				
+				DATATABLE(
+				    "Dummy", INTEGER,
+				    {
+				        {1}
+				    }
+				)
+
+	annotation PBI_Id = cd4e7e5c3b064ddaa5edc6eda6ed1390
+

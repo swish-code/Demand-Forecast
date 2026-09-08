@@ -1,0 +1,393 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "5f44cfa0fe32b08e8b74",
+  "position": {
+    "x": 1080,
+    "y": 238.46153846153845,
+    "z": 13000,
+    "height": 320,
+    "width": 510.76923076923077,
+    "tabOrder": 12000
+  },
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CC Utilization PO Bucket"
+                    }
+                  },
+                  "Property": "Utilization PO Category"
+                }
+              },
+              "queryRef": "CC Utilization PO Bucket.Utilization PO Category",
+              "nativeQueryRef": "Utilization PO Category",
+              "active": true
+            }
+          ]
+        },
+        "Tooltips": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Open PO Qty Visual"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Open PO Qty Visual",
+              "nativeQueryRef": "Open PO Qty",
+              "displayName": "Open PO Qty"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Utilization PO Bucket Open PO Value"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Utilization PO Bucket Open PO Value",
+              "nativeQueryRef": "Open PO Value",
+              "displayName": "Open PO Value"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Open PO Count Tooltip"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Open PO Count Tooltip",
+              "nativeQueryRef": "Open PO Count",
+              "displayName": "Open PO Count"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "cc_daily_inventory"
+                    }
+                  },
+                  "Property": "CC Open PO No Tooltip List"
+                }
+              },
+              "queryRef": "cc_daily_inventory.CC Open PO No List",
+              "nativeQueryRef": "Open PO No List",
+              "displayName": "Open PO No List"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures Cost"
+                    }
+                  },
+                  "Property": "CC Utilization PO Bucket Article Count"
+                }
+              },
+              "queryRef": "_Measures Cost.CC Utilization PO Bucket Article Count",
+              "nativeQueryRef": "CC Utilization PO Bucket Article Count"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "categoryAxis": [
+        {
+          "properties": {
+            "maxMarginFactor": {
+              "expr": {
+                "Literal": {
+                  "Value": "40L"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            },
+            "showAxisTitle": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "valueAxis": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            },
+            "showAxisTitle": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "dataPoint": [
+        {
+          "properties": {
+            "fill": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#197F14'"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "labels": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": -0.3
+                    }
+                  }
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "15D"
+                }
+              }
+            },
+            "width": {
+              "expr": {
+                "Literal": {
+                  "Value": "1D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "title": [
+        {
+          "properties": {
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Utilization PO Control'"
+                }
+              }
+            },
+            "titleWrap": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "alignment": {
+              "expr": {
+                "Literal": {
+                  "Value": "'center'"
+                }
+              }
+            },
+            "fontFamily": {
+              "expr": {
+                "Literal": {
+                  "Value": "'''Segoe UI Light'', wf_segoe-ui_light, helvetica, arial, sans-serif'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "42c2ad1d5b32f3cc6f32",
+        "ordinal": 0,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "CC Utilization PO Bucket"
+              }
+            },
+            "Property": "Utilization PO Category"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "c05e9fd321237ca6b657",
+        "ordinal": 1,
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures Cost"
+              }
+            },
+            "Property": "CC Utilization PO Bucket Article Count"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "4a28b4a2767e0e080ade",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Utilization PO Bucket Open PO Value"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "fedd96110f8491724f7e",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO Count Tooltip"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "3c84d0653a9d9ece3de0",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO No Tooltip List"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "8f137c04ae869e23c3c1",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "cc_daily_inventory"
+              }
+            },
+            "Property": "CC Open PO Qty Visual"
+          }
+        },
+        "type": "Advanced"
+      }
+    ],
+    "filterSortOrder": "Custom"
+  }
+}

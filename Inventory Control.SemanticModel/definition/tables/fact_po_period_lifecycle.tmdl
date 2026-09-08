@@ -1,0 +1,2027 @@
+table fact_po_period_lifecycle
+	lineageTag: d835399a-7331-402a-8ffd-afdea2e2d116
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: 269931fa-3ed5-47f5-be57-07054deed9bf
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 8c447f8f-8492-4de4-bfda-b4740a08d308
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: e3f29ca5-dcbc-4693-b2e5-3c4ab0fec2fa
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: a399190a-d2d9-47f3-83b0-556bc309b644
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier'
+		dataType: string
+		lineageTag: 05e0ad98-c454-4d70-be3a-51bf7afc018d
+		summarizeBy: none
+		sourceColumn: PO Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier List'
+		dataType: string
+		lineageTag: 3c9ace09-85e5-44ca-8871-0c1565ebc94d
+		summarizeBy: none
+		sourceColumn: PO Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Supplier'
+		dataType: string
+		lineageTag: 3514e612-0acc-4c81-9809-796a6440c980
+		summarizeBy: none
+		sourceColumn: Actual GRN Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Supplier List'
+		dataType: string
+		lineageTag: a8efe476-8157-49da-8b84-154b39ea95d5
+		summarizeBy: none
+		sourceColumn: Actual GRN Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit List'
+		dataType: string
+		lineageTag: 9275afe0-5b35-4884-81eb-cdd137e9b279
+		summarizeBy: none
+		sourceColumn: PO Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual GRN Unit List'
+		dataType: string
+		lineageTag: 44a18147-4ff4-4c12-b09a-37b92d936bcb
+		summarizeBy: none
+		sourceColumn: Actual GRN Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Unit List'
+		dataType: string
+		lineageTag: 6a2e4190-5e6f-479d-aa14-ebd2c9dd3581
+		summarizeBy: none
+		sourceColumn: PO Base Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Start Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: b24ccc44-7109-4b1b-82d9-e4105d7e86f8
+		summarizeBy: none
+		sourceColumn: PO Start Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'Next PO Date'
+		dataType: string
+		lineageTag: 0b17ab60-2c80-41b3-9edd-09d8519f52d8
+		summarizeBy: none
+		sourceColumn: Next PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO End Date'
+		dataType: dateTime
+		formatString: mm/dd/yy
+		lineageTag: 2707960c-9520-4985-b657-ad65e31de3e1
+		summarizeBy: none
+		sourceColumn: PO End Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column 'PO Base Qty'
+		dataType: int64
+		formatString: #,0
+		lineageTag: b9e71f3c-95fb-4729-97ae-da70c41c9876
+		summarizeBy: sum
+		sourceColumn: PO Base Qty
+
+		changedProperty = DataType
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Allocated GRN Base Qty'
+		dataType: double
+		lineageTag: 25484b8a-a132-40fd-8ff2-cc67d7a0020a
+		summarizeBy: sum
+		sourceColumn: Allocated GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Same Day GRN Base Qty'
+		dataType: double
+		lineageTag: d8286919-8d46-49c5-93c6-2b6644256d35
+		summarizeBy: sum
+		sourceColumn: Same Day GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Late GRN Base Qty'
+		dataType: double
+		lineageTag: a238c974-b456-4a38-bd10-e5b529ca2a2d
+		summarizeBy: sum
+		sourceColumn: Late GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Pending Qty'
+		dataType: double
+		lineageTag: 61c0642c-ce8f-44b7-a68f-a498a1e81e05
+		summarizeBy: sum
+		sourceColumn: Pending Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Over Delivered Qty'
+		dataType: double
+		lineageTag: 43e01afa-1f75-4907-a5d0-f69fc6e7cf82
+		summarizeBy: sum
+		sourceColumn: Over Delivered Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Value'
+		dataType: double
+		lineageTag: 13c4c54e-65cc-4e76-9a27-efce1d1cadee
+		summarizeBy: sum
+		sourceColumn: PO Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: 56d829fc-6c59-41bb-a930-1190cf806add
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: f5634a1f-c7e3-45ac-8cfe-560ae642f3f8
+		summarizeBy: sum
+		sourceColumn: PO Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column 'PO Line Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: b402b556-a4cf-4da2-9eb2-870a3932848b
+		summarizeBy: sum
+		sourceColumn: PO Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Delivery Note Count'
+		dataType: int64
+		lineageTag: d4f87ddf-ac85-4473-95ef-1d8b480533fb
+		summarizeBy: sum
+		sourceColumn: Delivery Note Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Line Count'
+		dataType: int64
+		lineageTag: c018e912-b9f2-4e78-b5b3-c53af3781896
+		summarizeBy: sum
+		sourceColumn: GRN Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'First GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 4176098b-970f-49f3-aeed-0d97454bf695
+		summarizeBy: none
+		sourceColumn: First GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Last GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 7334844c-0789-42b7-8a37-58c504ec3468
+		summarizeBy: none
+		sourceColumn: Last GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'First Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: e9ec44eb-fc00-49a6-a374-126b4599b1ff
+		summarizeBy: none
+		sourceColumn: First Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Last Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 73064c9f-b1e3-478c-9066-b163eb94e175
+		summarizeBy: none
+		sourceColumn: Last Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'First Receipt Delay Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: 678890fb-b9fc-413d-b08e-072d6205b4be
+		summarizeBy: sum
+		sourceColumn: First Receipt Delay Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Receipt Spread Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: 57ea5d1a-a4bd-4daa-8995-29899a644b39
+		summarizeBy: sum
+		sourceColumn: Receipt Spread Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Fulfillment Status'
+		dataType: string
+		lineageTag: 1661ece0-1867-43ff-ac64-5b612fe377b2
+		summarizeBy: none
+		sourceColumn: Fulfillment Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'In Full Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 5c683e5c-7670-466a-bc47-08517513768e
+		summarizeBy: sum
+		sourceColumn: In Full Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'On Time Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 8d7ebffb-d34a-47f4-baf9-45e0ad22dc8f
+		summarizeBy: sum
+		sourceColumn: On Time Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'OTIF Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: a984bfc2-81b5-4c41-9674-10f914a614aa
+		summarizeBy: sum
+		sourceColumn: OTIF Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub_Category
+		dataType: string
+		lineageTag: 73aea124-b4dc-4872-b6ee-913d667c5373
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 6d577502-3086-4f19-ae80-20bb6c06cf44
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: b0357407-e8c7-49e8-ad64-2e31ff116b9d
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Cost Center' =
+			
+			LOOKUPVALUE(
+			    dim_warehouse[Cost Center],
+			    dim_warehouse[Warehouse],
+			    fact_po_period_lifecycle[Warehouse]
+			)
+		lineageTag: 31d88c2f-b38b-4df4-bf4c-0e3e686a65a5
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 32200aa6-0ddc-4775-bc96-e50f06dd4120
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'PO No'
+		dataType: string
+		lineageTag: f44be62c-39d0-4786-83c9-669205f3f654
+		summarizeBy: none
+		sourceColumn: PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period Source'
+		dataType: string
+		lineageTag: ee1f142c-8288-49ca-a9c3-399a4373db06
+		summarizeBy: none
+		sourceColumn: PO Period Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Inbound Match Status'
+		dataType: string
+		lineageTag: ffda25ce-e972-42ca-982f-2bc200f4aa02
+		summarizeBy: none
+		sourceColumn: Inbound Match Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Match Status'
+		dataType: string
+		lineageTag: 70fb10a1-444c-4db1-8dc5-348245967164
+		summarizeBy: none
+		sourceColumn: GRN Match Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Allocated GRN Qty'
+		dataType: double
+		lineageTag: 83b2a547-4caf-466c-9215-ac1ebde1caf0
+		summarizeBy: sum
+		sourceColumn: Allocated GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Delivery Note List'
+		dataType: string
+		lineageTag: 3289477b-844f-491d-8f86-a0ac28d3df34
+		summarizeBy: none
+		sourceColumn: Delivery Note List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN PO No List'
+		dataType: string
+		lineageTag: cd8ae90c-e3fb-43e6-8a83-b54feff25f95
+		summarizeBy: none
+		sourceColumn: GRN PO No List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'First Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 01f55070-6750-486e-8af5-c3a9920fd7de
+		summarizeBy: none
+		sourceColumn: First Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Last Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b905ee61-39c4-4943-9847-4c2f369e5fff
+		summarizeBy: none
+		sourceColumn: Last Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Match Status List'
+		dataType: string
+		lineageTag: 0ce91339-502a-4b98-8a77-6ec2b0e1bceb
+		summarizeBy: none
+		sourceColumn: GRN Match Status List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Inbound Match Status List'
+		dataType: string
+		lineageTag: 0d827597-1cb1-4e74-948d-79ff23094073
+		summarizeBy: none
+		sourceColumn: Inbound Match Status List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Recovered Required Qty'
+		dataType: double
+		lineageTag: 00314086-50b7-4ce5-8068-ae1d88f02733
+		summarizeBy: sum
+		sourceColumn: Recovered Required Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Recovered Required Base Qty'
+		dataType: double
+		lineageTag: eed3b353-b83e-45c6-8a76-ffb6ea1be4bc
+		summarizeBy: sum
+		sourceColumn: Recovered Required Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Recovered Required Qty Source'
+		dataType: string
+		lineageTag: 7268d747-2eeb-4918-bfbb-0369fdf731e4
+		summarizeBy: none
+		sourceColumn: Recovered Required Qty Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Recovered Include In Fill Rate Flag'
+		dataType: int64
+		lineageTag: bfe4818b-79f2-49a5-9f49-a9c1c411eb8d
+		summarizeBy: sum
+		sourceColumn: Recovered Include In Fill Rate Flag
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Requested Qty Conflict Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 17f516ab-9516-443f-b986-9891e167e62c
+		summarizeBy: sum
+		sourceColumn: Requested Qty Conflict Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty Conflict Status'
+		dataType: string
+		lineageTag: f43c8cf8-4826-4177-bc10-92b38d088fff
+		summarizeBy: none
+		sourceColumn: Requested Qty Conflict Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty Distinct Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 308f0db9-1c4a-4035-8524-7adcfdb5e86a
+		summarizeBy: sum
+		sourceColumn: Requested Qty Distinct Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Base Qty Distinct Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 74b4bc65-28ec-45f7-ae59-3b6f786a5351
+		summarizeBy: sum
+		sourceColumn: Requested Base Qty Distinct Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty List'
+		dataType: string
+		lineageTag: 638158b5-a944-4904-95b6-b0a4f045797f
+		summarizeBy: none
+		sourceColumn: Requested Qty List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Base Qty List'
+		dataType: string
+		lineageTag: 4d282fd1-7974-4d04-adc8-4801050e483a
+		summarizeBy: none
+		sourceColumn: Requested Base Qty List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period GRN Base Qty'
+		dataType: double
+		lineageTag: 00a427f9-52a7-4285-bb84-08d4d5084776
+		summarizeBy: sum
+		sourceColumn: Outside Period GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outside Period GRN Qty'
+		dataType: double
+		lineageTag: 9f2accf0-9147-4f2b-9da5-bc2193a3c885
+		summarizeBy: sum
+		sourceColumn: Outside Period GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outside Period GRN Value'
+		dataType: double
+		lineageTag: 8092b858-f4d2-4946-9e0d-2160c267e204
+		summarizeBy: sum
+		sourceColumn: Outside Period GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outside Period GRN Match Status List'
+		dataType: string
+		lineageTag: 4c73e074-0520-4f83-8993-2b459a1c91f1
+		summarizeBy: none
+		sourceColumn: Outside Period GRN Match Status List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period Actual GRN Supplier List'
+		dataType: string
+		lineageTag: bf23eeff-a992-4d7e-8686-c28b9445cb6a
+		summarizeBy: none
+		sourceColumn: Outside Period Actual GRN Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period Actual GRN Unit List'
+		dataType: string
+		lineageTag: 58dc1651-7951-44ec-9282-96e5fd30622e
+		summarizeBy: none
+		sourceColumn: Outside Period Actual GRN Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period PO Base Unit List'
+		dataType: string
+		lineageTag: 7728d472-2b74-40c2-9195-8b71b511f5ff
+		summarizeBy: none
+		sourceColumn: Outside Period PO Base Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period First GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 5d8a488c-55cc-45ee-b5d6-986ddb3f4e00
+		summarizeBy: none
+		sourceColumn: Outside Period First GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Outside Period Last GRN Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 1de8b03b-cfe9-4a9a-b409-856838b3565b
+		summarizeBy: none
+		sourceColumn: Outside Period Last GRN Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Outside Period First Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 2e288c30-13a8-4745-bbc7-e01550fbd14b
+		summarizeBy: none
+		sourceColumn: Outside Period First Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period Last Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: fd9588a3-0066-4d7d-ba7f-0d631f897364
+		summarizeBy: none
+		sourceColumn: Outside Period Last Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period Delivery Note Count'
+		dataType: double
+		lineageTag: d1b8525c-69cd-46f5-8662-8afcc819a545
+		summarizeBy: sum
+		sourceColumn: Outside Period Delivery Note Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outside Period GRN Line Count'
+		dataType: double
+		lineageTag: 535f2985-73db-4762-8cfc-8de7aff14be8
+		summarizeBy: sum
+		sourceColumn: Outside Period GRN Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Outside Period Delivery Note List'
+		dataType: string
+		lineageTag: 15c45d18-3e21-43a9-89d6-54022c4cbc40
+		summarizeBy: none
+		sourceColumn: Outside Period Delivery Note List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Outside Period GRN PO No List'
+		dataType: string
+		lineageTag: 6228cb3f-617b-49a7-bc4f-c737e557e026
+		summarizeBy: none
+		sourceColumn: Outside Period GRN PO No List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Recovered Duplicate Existing PO Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 0e04a833-86b2-4897-9117-8e5d29e50f5a
+		summarizeBy: sum
+		sourceColumn: Recovered Duplicate Existing PO Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Absorbed Outside Period GRN Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 0ef92b89-b5d6-4185-b9f2-bd1b265c5f9e
+		summarizeBy: sum
+		sourceColumn: Absorbed Outside Period GRN Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_po_period_lifecycle = m
+		mode: import
+		source =
+				let
+				    PO = fact_po_period_base,
+				    GRN = agg_grn_by_po_period,
+				    GRNDetail = fact_grn_allocated_detail,
+				    RecoveredLifecycle = fact_grn_recovered_lifecycle,
+				
+				    FxSafeText =
+				        (x as any) as text =>
+				            try
+				                if x = null then ""
+				                else Text.Trim(Text.Clean(Text.From(x)))
+				            otherwise "",
+				
+				    FxUpperText =
+				        (x as any) as text =>
+				            Text.Upper(FxSafeText(x)),
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            try Date.From(x) otherwise null,
+				
+				    FxDateTime =
+				        (x as any) as nullable datetime =>
+				            try DateTime.From(x) otherwise null,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            try Number.From(x) otherwise null,
+				
+				    FxNumZero =
+				        (x as any) as number =>
+				            let
+				                N = FxNum(x)
+				            in
+				                if N = null then 0 else N,
+				
+				    FxHasPONo =
+				        (PONo as any) as logical =>
+				            let
+				                T = FxUpperText(PONo)
+				            in
+				                T <> ""
+				                    and T <> "NO PO DEFINED"
+				                    and T <> "NO_PO"
+				                    and T <> "N/A"
+				                    and T <> "NA"
+				                    and T <> "NULL",
+				
+				    FxLifecycleKey =
+				        (PONo as any, Article as any, Warehouse as any) as text =>
+				            FxUpperText(PONo)
+				                & "|"
+				                & FxUpperText(Article)
+				                & "|"
+				                & FxUpperText(Warehouse),
+				
+				    FxTextList =
+				        (InputList as list) as nullable text =>
+				            let
+				                CleanList =
+				                    List.Sort(
+				                        List.Distinct(
+				                            List.Select(
+				                                List.Transform(
+				                                    List.RemoveNulls(InputList),
+				                                    each FxSafeText(_)
+				                                ),
+				                                each _ <> "" and Text.Upper(_) <> "NULL"
+				                            )
+				                        )
+				                    )
+				            in
+				                if List.Count(CleanList) = 0 then null else Text.Combine(CleanList, ", "),
+				
+				    FxSplitTextList =
+				        (InputList as list) as nullable text =>
+				            let
+				                RawList =
+				                    List.Transform(
+				                        List.RemoveNulls(InputList),
+				                        each FxSafeText(_)
+				                    ),
+				                SplitList =
+				                    List.Combine(
+				                        List.Transform(
+				                            RawList,
+				                            each Text.Split(_, ",")
+				                        )
+				                    ),
+				                CleanList =
+				                    List.Sort(
+				                        List.Distinct(
+				                            List.Select(
+				                                List.Transform(
+				                                    SplitList,
+				                                    each FxSafeText(_)
+				                                ),
+				                                each _ <> "" and Text.Upper(_) <> "NULL"
+				                            )
+				                        )
+				                    )
+				            in
+				                if List.Count(CleanList) = 0 then null else Text.Combine(CleanList, ", "),
+				
+				    FxMergeText =
+				        (A as any, B as any) as nullable text =>
+				            FxSplitTextList({A, B}),
+				
+				    FxMergeGRNStatus =
+				        (ExistingStatus as any, OutsideStatus as any) as nullable text =>
+				            let
+				                E = FxSafeText(ExistingStatus),
+				                O = FxSafeText(OutsideStatus)
+				            in
+				                if O = "" then
+				                    if E = "" then null else E
+				                else if E = "" or Text.Upper(E) = "NO GRN YET" then
+				                    O
+				                else
+				                    FxSplitTextList({E, O}),
+				
+				    FxSupplierFromList =
+				        (TextListValue as any) as nullable text =>
+				            let
+				                T = FxSafeText(TextListValue),
+				                Parts =
+				                    List.Sort(
+				                        List.Distinct(
+				                            List.Select(
+				                                List.Transform(
+				                                    Text.Split(T, ","),
+				                                    each FxSafeText(_)
+				                                ),
+				                                each _ <> "" and Text.Upper(_) <> "NULL"
+				                            )
+				                        )
+				                    )
+				            in
+				                if List.Count(Parts) = 0 then null
+				                else if List.Count(Parts) = 1 then Parts{0}
+				                else "MULTIPLE",
+				
+				    FxMinDateFromTwo =
+				        (A as any, B as any) as nullable date =>
+				            let
+				                L = List.RemoveNulls({FxDate(A), FxDate(B)})
+				            in
+				                if List.Count(L) = 0 then null else List.Min(L),
+				
+				    FxMaxDateFromTwo =
+				        (A as any, B as any) as nullable date =>
+				            let
+				                L = List.RemoveNulls({FxDate(A), FxDate(B)})
+				            in
+				                if List.Count(L) = 0 then null else List.Max(L),
+				
+				    FxMinDateTimeFromTwo =
+				        (A as any, B as any) as nullable datetime =>
+				            let
+				                L = List.RemoveNulls({FxDateTime(A), FxDateTime(B)})
+				            in
+				                if List.Count(L) = 0 then null else List.Min(L),
+				
+				    FxMaxDateTimeFromTwo =
+				        (A as any, B as any) as nullable datetime =>
+				            let
+				                L = List.RemoveNulls({FxDateTime(A), FxDateTime(B)})
+				            in
+				                if List.Count(L) = 0 then null else List.Max(L),
+				
+				    FxReplaceColumn =
+				        (InputTable as table, ColumnName as text, Generator as function, ColumnType as any) as table =>
+				            let
+				                TempColumnName = "__Adjusted " & ColumnName,
+				                AddedTemp =
+				                    Table.AddColumn(
+				                        InputTable,
+				                        TempColumnName,
+				                        Generator,
+				                        ColumnType
+				                    ),
+				                RemovedOld =
+				                    Table.RemoveColumns(
+				                        AddedTemp,
+				                        {ColumnName},
+				                        MissingField.Ignore
+				                    ),
+				                RenamedNew =
+				                    Table.RenameColumns(
+				                        RemovedOld,
+				                        {{TempColumnName, ColumnName}},
+				                        MissingField.Ignore
+				                    )
+				            in
+				                RenamedNew,
+				
+				    POSelected =
+				        Table.SelectColumns(
+				            PO,
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Article",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "PO No",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Count",
+				                "PO Line Count",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.UseNull
+				        ),
+				
+				    POReady =
+				        Table.SelectRows(
+				            POSelected,
+				            each
+				                [PO Period ID] <> null
+				                and [PO Period ID] <> ""
+				                and [Article] <> null
+				                and [Article] <> ""
+				                and [Warehouse] <> null
+				                and [Warehouse] <> ""
+				                and [PO Start Date] <> null
+				                and [PO Base Qty] <> null
+				        ),
+				
+				    MergedGRN =
+				        Table.NestedJoin(
+				            POReady,
+				            {"PO Period ID"},
+				            GRN,
+				            {"PO Period ID"},
+				            "GRN Agg",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandedGRN =
+				        Table.ExpandTableColumn(
+				            MergedGRN,
+				            "GRN Agg",
+				            {
+				                "Inbound Match Status",
+				                "GRN Match Status",
+				                "Allocated GRN Base Qty",
+				                "Allocated GRN Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "Allocated GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "First GRN Delivery Date",
+				                "Last GRN Delivery Date",
+				                "First Booking DateTime",
+				                "Last Booking DateTime",
+				                "Receipt Spread Days",
+				                "Delivery Note List",
+				                "GRN Supplier",
+				                "GRN Supplier List",
+				                "GRN PO No List",
+				                "GRN Match Status List",
+				                "Inbound Match Status List"
+				            },
+				            {
+				                "__GRN Inbound Match Status",
+				                "__GRN Match Status",
+				                "Allocated GRN Base Qty",
+				                "Allocated GRN Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "First GRN Delivery Date",
+				                "Last GRN Delivery Date",
+				                "First Booking DateTime",
+				                "Last Booking DateTime",
+				                "Receipt Spread Days",
+				                "Delivery Note List",
+				                "GRN Supplier",
+				                "GRN Supplier List",
+				                "GRN PO No List",
+				                "GRN Match Status List",
+				                "Inbound Match Status List"
+				            }
+				        ),
+				
+				    GRNUnitRows =
+				        Table.SelectRows(
+				            GRNDetail,
+				            each
+				                [Inbound Match Status] = "Matched"
+				                and [PO Period ID] <> null
+				                and [PO Period ID] <> ""
+				        ),
+				
+				    GRNUnitGrouped =
+				        Table.Group(
+				            GRNUnitRows,
+				            {"PO Period ID"},
+				            {
+				                {"Actual GRN Unit List", each FxTextList([GRN Unit]), type nullable text},
+				                {"Actual GRN Base Unit List", each FxTextList([GRN Base Unit]), type nullable text}
+				            }
+				        ),
+				
+				    MergedGRNUnits =
+				        Table.NestedJoin(
+				            ExpandedGRN,
+				            {"PO Period ID"},
+				            GRNUnitGrouped,
+				            {"PO Period ID"},
+				            "GRN Units",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandedGRNUnits =
+				        Table.ExpandTableColumn(
+				            MergedGRNUnits,
+				            "GRN Units",
+				            {"Actual GRN Unit List", "Actual GRN Base Unit List"},
+				            {"Actual GRN Unit List", "Actual GRN Base Unit List"}
+				        ),
+				
+				    ReplaceNullNumbers =
+				        Table.ReplaceValue(
+				            ExpandedGRNUnits,
+				            null,
+				            0,
+				            Replacer.ReplaceValue,
+				            {
+				                "Allocated GRN Base Qty",
+				                "Allocated GRN Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "GRN Value",
+				                "Delivery Note Count",
+				                "GRN Line Count"
+				            }
+				        ),
+				
+				    AddedInboundMatchStatus =
+				        Table.AddColumn(
+				            ReplaceNullNumbers,
+				            "Inbound Match Status",
+				            each "Matched",
+				            type text
+				        ),
+				
+				    AddedGRNMatchStatus =
+				        Table.AddColumn(
+				            AddedInboundMatchStatus,
+				            "GRN Match Status",
+				            each
+				                if [__GRN Match Status] <> null and [__GRN Match Status] <> "" then
+				                    [__GRN Match Status]
+				                else
+				                    "No GRN Yet",
+				            type text
+				        ),
+				
+				    AddedActualGRNSupplier =
+				        Table.AddColumn(
+				            AddedGRNMatchStatus,
+				            "Actual GRN Supplier",
+				            each [GRN Supplier],
+				            type nullable text
+				        ),
+				
+				    AddedActualGRNSupplierList =
+				        Table.AddColumn(
+				            AddedActualGRNSupplier,
+				            "Actual GRN Supplier List",
+				            each [GRN Supplier List],
+				            type nullable text
+				        ),
+				
+				    AddedFirstGRNDate =
+				        Table.AddColumn(
+				            AddedActualGRNSupplierList,
+				            "First GRN Date",
+				            each FxDate([First GRN Delivery Date]),
+				            type nullable date
+				        ),
+				
+				    AddedLastGRNDate =
+				        Table.AddColumn(
+				            AddedFirstGRNDate,
+				            "Last GRN Date",
+				            each FxDate([Last GRN Delivery Date]),
+				            type nullable date
+				        ),
+				
+				    AddedFirstBookingDate =
+				        Table.AddColumn(
+				            AddedLastGRNDate,
+				            "First Booking Date",
+				            each
+				                if [First Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([First Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    AddedLastBookingDate =
+				        Table.AddColumn(
+				            AddedFirstBookingDate,
+				            "Last Booking Date",
+				            each
+				                if [Last Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([Last Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    AddedFirstReceiptDelayDays =
+				        Table.AddColumn(
+				            AddedLastBookingDate,
+				            "First Receipt Delay Days",
+				            each
+				                if [First GRN Date] = null or [PO Start Date] = null then
+				                    null
+				                else
+				                    Duration.Days([First GRN Date] - [PO Start Date]),
+				            Int64.Type
+				        ),
+				
+				    AddedPendingQty =
+				        Table.AddColumn(
+				            AddedFirstReceiptDelayDays,
+				            "Pending Qty",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and GrnQty <> null and ReqQty > GrnQty then
+				                        ReqQty - GrnQty
+				                    else
+				                        0,
+				            type number
+				        ),
+				
+				    AddedOverDeliveredQty =
+				        Table.AddColumn(
+				            AddedPendingQty,
+				            "Over Delivered Qty",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and GrnQty <> null and GrnQty > ReqQty then
+				                        GrnQty - ReqQty
+				                    else
+				                        0,
+				            type number
+				        ),
+				
+				    AddedFulfillmentStatus =
+				        Table.AddColumn(
+				            AddedOverDeliveredQty,
+				            "Fulfillment Status",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if GrnQty = null or GrnQty = 0 then
+				                        "Not Received"
+				                    else if ReqQty = null or ReqQty = 0 then
+				                        "Unknown"
+				                    else if Number.Abs(GrnQty - ReqQty) <= 0.01 then
+				                        "Fully Delivered"
+				                    else if GrnQty < ReqQty then
+				                        "Partially Delivered"
+				                    else if GrnQty > ReqQty then
+				                        "Over Delivered"
+				                    else
+				                        "Unknown",
+				            type text
+				        ),
+				
+				    AddedInFullFlag =
+				        Table.AddColumn(
+				            AddedFulfillmentStatus,
+				            "In Full Flag",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and ReqQty > 0 and GrnQty <> null and GrnQty >= ReqQty then
+				                        1
+				                    else
+				                        0,
+				            Int64.Type
+				        ),
+				
+				    AddedOnTimeFlag =
+				        Table.AddColumn(
+				            AddedInFullFlag,
+				            "On Time Flag",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    SameDayQty = FxNum([Same Day GRN Base Qty])
+				                in
+				                    if ReqQty <> null and ReqQty > 0 and SameDayQty <> null and SameDayQty >= ReqQty then
+				                        1
+				                    else
+				                        0,
+				            Int64.Type
+				        ),
+				
+				    AddedOTIFFlag =
+				        Table.AddColumn(
+				            AddedOnTimeFlag,
+				            "OTIF Flag",
+				            each
+				                if [In Full Flag] = 1 and [On Time Flag] = 1 then
+				                    1
+				                else
+				                    0,
+				            Int64.Type
+				        ),
+				
+				    FilledGRNMatchStatusList =
+				        Table.ReplaceValue(
+				            AddedOTIFFlag,
+				            null,
+				            "No GRN Yet",
+				            Replacer.ReplaceValue,
+				            {"GRN Match Status List"}
+				        ),
+				
+				    FilledInboundMatchStatusList =
+				        Table.ReplaceValue(
+				            FilledGRNMatchStatusList,
+				            null,
+				            "Matched",
+				            Replacer.ReplaceValue,
+				            {"Inbound Match Status List"}
+				        ),
+				
+				    AddedRecoveredRequiredQty =
+				        Table.AddColumn(
+				            FilledInboundMatchStatusList,
+				            "Recovered Required Qty",
+				            each null,
+				            type nullable number
+				        ),
+				
+				    AddedRecoveredRequiredBaseQty =
+				        Table.AddColumn(
+				            AddedRecoveredRequiredQty,
+				            "Recovered Required Base Qty",
+				            each null,
+				            type nullable number
+				        ),
+				
+				    AddedRecoveredRequiredQtySource =
+				        Table.AddColumn(
+				            AddedRecoveredRequiredBaseQty,
+				            "Recovered Required Qty Source",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    AddedRecoveredIncludeFlag =
+				        Table.AddColumn(
+				            AddedRecoveredRequiredQtySource,
+				            "Recovered Include In Fill Rate Flag",
+				            each 0,
+				            Int64.Type
+				        ),
+				
+				    RemovedHelperColumns =
+				        Table.RemoveColumns(
+				            AddedRecoveredIncludeFlag,
+				            {
+				                "__GRN Inbound Match Status",
+				                "__GRN Match Status",
+				                "GRN Supplier",
+				                "GRN Supplier List",
+				                "First GRN Delivery Date",
+				                "Last GRN Delivery Date",
+				                "Actual GRN Base Unit List"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    MatchedLifecycle =
+				        Table.ReorderColumns(
+				            RemovedHelperColumns,
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Inbound Match Status",
+				                "GRN Match Status",
+				                "Article",
+				                "Warehouse",
+				                "Final Cost Center",
+				                "PO No",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List",
+				                "PO Unit List",
+				                "Actual GRN Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "Recovered Required Qty",
+				                "Recovered Required Base Qty",
+				                "Recovered Required Qty Source",
+				                "Allocated GRN Base Qty",
+				                "Allocated GRN Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "Pending Qty",
+				                "Over Delivered Qty",
+				                "PO Value",
+				                "GRN Value",
+				                "PO Count",
+				                "PO Line Count",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "Delivery Note List",
+				                "GRN PO No List",
+				                "First GRN Date",
+				                "Last GRN Date",
+				                "First Booking Date",
+				                "Last Booking Date",
+				                "First Booking DateTime",
+				                "Last Booking DateTime",
+				                "First Receipt Delay Days",
+				                "Receipt Spread Days",
+				                "Fulfillment Status",
+				                "In Full Flag",
+				                "On Time Flag",
+				                "OTIF Flag",
+				                "GRN Match Status List",
+				                "Inbound Match Status List",
+				                "Recovered Include In Fill Rate Flag",
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    MatchedWithKey =
+				        Table.AddColumn(
+				            MatchedLifecycle,
+				            "__Lifecycle Key",
+				            each
+				                if [Inbound Match Status] = "Matched" and FxHasPONo([PO No]) then
+				                    FxLifecycleKey([PO No], [Article], [Warehouse])
+				                else
+				                    null,
+				            type nullable text
+				        ),
+				
+				    MatchedTargetMap =
+				        Table.Buffer(
+				            Table.Group(
+				                Table.SelectRows(
+				                    MatchedWithKey,
+				                    each [__Lifecycle Key] <> null and [__Lifecycle Key] <> ""
+				                ),
+				                {"__Lifecycle Key"},
+				                {
+				                    {
+				                        "Target PO Period ID",
+				                        each
+				                            let
+				                                SortedRows =
+				                                    Table.Sort(
+				                                        _,
+				                                        {
+				                                            {"PO Start Date", Order.Ascending},
+				                                            {"PO End Date", Order.Descending}
+				                                        }
+				                                    )
+				                            in
+				                                SortedRows{0}[PO Period ID],
+				                        type nullable text
+				                    }
+				                }
+				            )
+				        ),
+				
+				    RecoveredWithKey =
+				        Table.AddColumn(
+				            RecoveredLifecycle,
+				            "__Lifecycle Key",
+				            each
+				                if [Inbound Match Status] = "Non-Matched" and FxHasPONo([PO No]) then
+				                    FxLifecycleKey([PO No], [Article], [Warehouse])
+				                else
+				                    null,
+				            type nullable text
+				        ),
+				
+				    MergeRecoveredTarget =
+				        Table.NestedJoin(
+				            RecoveredWithKey,
+				            {"__Lifecycle Key"},
+				            MatchedTargetMap,
+				            {"__Lifecycle Key"},
+				            "__Target PO",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandRecoveredTarget =
+				        Table.ExpandTableColumn(
+				            MergeRecoveredTarget,
+				            "__Target PO",
+				            {"Target PO Period ID"},
+				            {"__Target PO Period ID"}
+				        ),
+				
+				    AddRecoveredDuplicateFlag =
+				        Table.AddColumn(
+				            ExpandRecoveredTarget,
+				            "Recovered Duplicate Existing PO Flag",
+				            each
+				                if [__Target PO Period ID] <> null and [__Target PO Period ID] <> "" then
+				                    1
+				                else
+				                    0,
+				            Int64.Type
+				        ),
+				
+				    RecoveredToAbsorb =
+				        Table.SelectRows(
+				            AddRecoveredDuplicateFlag,
+				            each [Recovered Duplicate Existing PO Flag] = 1
+				        ),
+				
+				    RecoveredToKeepRaw =
+				        Table.SelectRows(
+				            AddRecoveredDuplicateFlag,
+				            each [Recovered Duplicate Existing PO Flag] <> 1
+				        ),
+				
+				    RecoveredToKeep =
+				        Table.RemoveColumns(
+				            RecoveredToKeepRaw,
+				            {"__Lifecycle Key", "__Target PO Period ID"},
+				            MissingField.Ignore
+				        ),
+				
+				    AbsorbedGrouped =
+				        Table.Group(
+				            RecoveredToAbsorb,
+				            {"__Target PO Period ID"},
+				            {
+				                {"Outside Period GRN Base Qty", each List.Sum(List.RemoveNulls([Allocated GRN Base Qty])), type nullable number},
+				                {"Outside Period GRN Qty", each List.Sum(List.RemoveNulls([Allocated GRN Qty])), type nullable number},
+				                {"Outside Period GRN Value", each List.Sum(List.RemoveNulls([GRN Value])), type nullable number},
+				                {"Outside Period Delivery Note Count", each List.Sum(List.RemoveNulls([Delivery Note Count])), Int64.Type},
+				                {"Outside Period GRN Line Count", each List.Sum(List.RemoveNulls([GRN Line Count])), Int64.Type},
+				                {"Outside Period Delivery Note List", each FxSplitTextList([Delivery Note List]), type nullable text},
+				                {"Outside Period GRN PO No List", each FxSplitTextList([GRN PO No List]), type nullable text},
+				                {"Outside Period GRN Match Status List", each FxSplitTextList([GRN Match Status List]), type nullable text},
+				                {"Outside Period Actual GRN Supplier List", each FxSplitTextList([Actual GRN Supplier List]), type nullable text},
+				                {"Outside Period Actual GRN Unit List", each FxSplitTextList([Actual GRN Unit List]), type nullable text},
+				                {"Outside Period PO Base Unit List", each FxSplitTextList([PO Base Unit List]), type nullable text},
+				                {"Outside Period First GRN Date", each let L = List.RemoveNulls([First GRN Date]) in if List.Count(L) = 0 then null else List.Min(L), type nullable date},
+				                {"Outside Period Last GRN Date", each let L = List.RemoveNulls([Last GRN Date]) in if List.Count(L) = 0 then null else List.Max(L), type nullable date},
+				                {"Outside Period First Booking DateTime", each let L = List.RemoveNulls([First Booking DateTime]) in if List.Count(L) = 0 then null else List.Min(L), type nullable datetime},
+				                {"Outside Period Last Booking DateTime", each let L = List.RemoveNulls([Last Booking DateTime]) in if List.Count(L) = 0 then null else List.Max(L), type nullable datetime}
+				            }
+				        ),
+				
+				    MergeAbsorbedToMatched =
+				        Table.NestedJoin(
+				            MatchedWithKey,
+				            {"PO Period ID"},
+				            AbsorbedGrouped,
+				            {"__Target PO Period ID"},
+				            "__Absorbed Outside GRN",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandAbsorbed =
+				        Table.ExpandTableColumn(
+				            MergeAbsorbedToMatched,
+				            "__Absorbed Outside GRN",
+				            {
+				                "Outside Period GRN Base Qty",
+				                "Outside Period GRN Qty",
+				                "Outside Period GRN Value",
+				                "Outside Period Delivery Note Count",
+				                "Outside Period GRN Line Count",
+				                "Outside Period Delivery Note List",
+				                "Outside Period GRN PO No List",
+				                "Outside Period GRN Match Status List",
+				                "Outside Period Actual GRN Supplier List",
+				                "Outside Period Actual GRN Unit List",
+				                "Outside Period PO Base Unit List",
+				                "Outside Period First GRN Date",
+				                "Outside Period Last GRN Date",
+				                "Outside Period First Booking DateTime",
+				                "Outside Period Last Booking DateTime"
+				            },
+				            {
+				                "Outside Period GRN Base Qty",
+				                "Outside Period GRN Qty",
+				                "Outside Period GRN Value",
+				                "Outside Period Delivery Note Count",
+				                "Outside Period GRN Line Count",
+				                "Outside Period Delivery Note List",
+				                "Outside Period GRN PO No List",
+				                "Outside Period GRN Match Status List",
+				                "Outside Period Actual GRN Supplier List",
+				                "Outside Period Actual GRN Unit List",
+				                "Outside Period PO Base Unit List",
+				                "Outside Period First GRN Date",
+				                "Outside Period Last GRN Date",
+				                "Outside Period First Booking DateTime",
+				                "Outside Period Last Booking DateTime"
+				            }
+				        ),
+				
+				    ReplaceNullAbsorbedNumbers =
+				        Table.ReplaceValue(
+				            ExpandAbsorbed,
+				            null,
+				            0,
+				            Replacer.ReplaceValue,
+				            {
+				                "Outside Period GRN Base Qty",
+				                "Outside Period GRN Qty",
+				                "Outside Period GRN Value",
+				                "Outside Period Delivery Note Count",
+				                "Outside Period GRN Line Count"
+				            }
+				        ),
+				
+				    AddAbsorbedOutsideFlag =
+				        Table.AddColumn(
+				            ReplaceNullAbsorbedNumbers,
+				            "Absorbed Outside Period GRN Flag",
+				            each
+				                if FxNumZero([Outside Period GRN Base Qty]) > 0 then
+				                    1
+				                else
+				                    0,
+				            Int64.Type
+				        ),
+				
+				    AdjustGRNMatchStatus =
+				        FxReplaceColumn(
+				            AddAbsorbedOutsideFlag,
+				            "GRN Match Status",
+				            each FxMergeGRNStatus([GRN Match Status], [Outside Period GRN Match Status List]),
+				            type nullable text
+				        ),
+				
+				    AdjustAllocatedGRNBaseQty =
+				        FxReplaceColumn(
+				            AdjustGRNMatchStatus,
+				            "Allocated GRN Base Qty",
+				            each FxNumZero([Allocated GRN Base Qty]) + FxNumZero([Outside Period GRN Base Qty]),
+				            type nullable number
+				        ),
+				
+				    AdjustAllocatedGRNQty =
+				        FxReplaceColumn(
+				            AdjustAllocatedGRNBaseQty,
+				            "Allocated GRN Qty",
+				            each FxNumZero([Allocated GRN Qty]) + FxNumZero([Outside Period GRN Qty]),
+				            type nullable number
+				        ),
+				
+				    AdjustGRNValue =
+				        FxReplaceColumn(
+				            AdjustAllocatedGRNQty,
+				            "GRN Value",
+				            each FxNumZero([GRN Value]) + FxNumZero([Outside Period GRN Value]),
+				            type nullable number
+				        ),
+				
+				    AdjustDeliveryNoteCount =
+				        FxReplaceColumn(
+				            AdjustGRNValue,
+				            "Delivery Note Count",
+				            each FxNumZero([Delivery Note Count]) + FxNumZero([Outside Period Delivery Note Count]),
+				            Int64.Type
+				        ),
+				
+				    AdjustGRNLineCount =
+				        FxReplaceColumn(
+				            AdjustDeliveryNoteCount,
+				            "GRN Line Count",
+				            each FxNumZero([GRN Line Count]) + FxNumZero([Outside Period GRN Line Count]),
+				            Int64.Type
+				        ),
+				
+				    AdjustDeliveryNoteList =
+				        FxReplaceColumn(
+				            AdjustGRNLineCount,
+				            "Delivery Note List",
+				            each FxMergeText([Delivery Note List], [Outside Period Delivery Note List]),
+				            type nullable text
+				        ),
+				
+				    AdjustGRNPONoList =
+				        FxReplaceColumn(
+				            AdjustDeliveryNoteList,
+				            "GRN PO No List",
+				            each FxMergeText([GRN PO No List], [Outside Period GRN PO No List]),
+				            type nullable text
+				        ),
+				
+				    AdjustGRNMatchStatusList =
+				        FxReplaceColumn(
+				            AdjustGRNPONoList,
+				            "GRN Match Status List",
+				            each FxMergeText([GRN Match Status List], [Outside Period GRN Match Status List]),
+				            type nullable text
+				        ),
+				
+				    AdjustActualGRNSupplierList =
+				        FxReplaceColumn(
+				            AdjustGRNMatchStatusList,
+				            "Actual GRN Supplier List",
+				            each FxMergeText([Actual GRN Supplier List], [Outside Period Actual GRN Supplier List]),
+				            type nullable text
+				        ),
+				
+				    AdjustActualGRNSupplier =
+				        FxReplaceColumn(
+				            AdjustActualGRNSupplierList,
+				            "Actual GRN Supplier",
+				            each FxSupplierFromList([Actual GRN Supplier List]),
+				            type nullable text
+				        ),
+				
+				    AdjustActualGRNUnitList =
+				        FxReplaceColumn(
+				            AdjustActualGRNSupplier,
+				            "Actual GRN Unit List",
+				            each FxMergeText([Actual GRN Unit List], [Outside Period Actual GRN Unit List]),
+				            type nullable text
+				        ),
+				
+				    AdjustFirstGRNDate =
+				        FxReplaceColumn(
+				            AdjustActualGRNUnitList,
+				            "First GRN Date",
+				            each FxMinDateFromTwo([First GRN Date], [Outside Period First GRN Date]),
+				            type nullable date
+				        ),
+				
+				    AdjustLastGRNDate =
+				        FxReplaceColumn(
+				            AdjustFirstGRNDate,
+				            "Last GRN Date",
+				            each FxMaxDateFromTwo([Last GRN Date], [Outside Period Last GRN Date]),
+				            type nullable date
+				        ),
+				
+				    AdjustFirstBookingDateTime =
+				        FxReplaceColumn(
+				            AdjustLastGRNDate,
+				            "First Booking DateTime",
+				            each FxMinDateTimeFromTwo([First Booking DateTime], [Outside Period First Booking DateTime]),
+				            type nullable datetime
+				        ),
+				
+				    AdjustLastBookingDateTime =
+				        FxReplaceColumn(
+				            AdjustFirstBookingDateTime,
+				            "Last Booking DateTime",
+				            each FxMaxDateTimeFromTwo([Last Booking DateTime], [Outside Period Last Booking DateTime]),
+				            type nullable datetime
+				        ),
+				
+				    AdjustFirstBookingDate =
+				        FxReplaceColumn(
+				            AdjustLastBookingDateTime,
+				            "First Booking Date",
+				            each
+				                if [First Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([First Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    AdjustLastBookingDate =
+				        FxReplaceColumn(
+				            AdjustFirstBookingDate,
+				            "Last Booking Date",
+				            each
+				                if [Last Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([Last Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    RecalcFirstReceiptDelayDays =
+				        FxReplaceColumn(
+				            AdjustLastBookingDate,
+				            "First Receipt Delay Days",
+				            each
+				                if [First GRN Date] = null or [PO Start Date] = null then
+				                    null
+				                else
+				                    Duration.Days([First GRN Date] - [PO Start Date]),
+				            Int64.Type
+				        ),
+				
+				    RecalcReceiptSpreadDays =
+				        FxReplaceColumn(
+				            RecalcFirstReceiptDelayDays,
+				            "Receipt Spread Days",
+				            each
+				                if [First GRN Date] = null or [Last GRN Date] = null then
+				                    null
+				                else
+				                    Duration.Days([Last GRN Date] - [First GRN Date]),
+				            Int64.Type
+				        ),
+				
+				    RecalcPendingQty =
+				        FxReplaceColumn(
+				            RecalcReceiptSpreadDays,
+				            "Pending Qty",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and GrnQty <> null and ReqQty > GrnQty then
+				                        ReqQty - GrnQty
+				                    else
+				                        0,
+				            type number
+				        ),
+				
+				    RecalcOverDeliveredQty =
+				        FxReplaceColumn(
+				            RecalcPendingQty,
+				            "Over Delivered Qty",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and GrnQty <> null and GrnQty > ReqQty then
+				                        GrnQty - ReqQty
+				                    else
+				                        0,
+				            type number
+				        ),
+				
+				    RecalcFulfillmentStatus =
+				        FxReplaceColumn(
+				            RecalcOverDeliveredQty,
+				            "Fulfillment Status",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if GrnQty = null or GrnQty = 0 then
+				                        "Not Received"
+				                    else if ReqQty = null or ReqQty = 0 then
+				                        "Unknown"
+				                    else if Number.Abs(GrnQty - ReqQty) <= 0.01 then
+				                        "Fully Delivered"
+				                    else if GrnQty < ReqQty then
+				                        "Partially Delivered"
+				                    else if GrnQty > ReqQty then
+				                        "Over Delivered"
+				                    else
+				                        "Unknown",
+				            type text
+				        ),
+				
+				    RecalcInFullFlag =
+				        FxReplaceColumn(
+				            RecalcFulfillmentStatus,
+				            "In Full Flag",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    GrnQty = FxNum([Allocated GRN Base Qty])
+				                in
+				                    if ReqQty <> null and ReqQty > 0 and GrnQty <> null and GrnQty >= ReqQty then
+				                        1
+				                    else
+				                        0,
+				            Int64.Type
+				        ),
+				
+				    RecalcOnTimeFlag =
+				        FxReplaceColumn(
+				            RecalcInFullFlag,
+				            "On Time Flag",
+				            each
+				                let
+				                    ReqQty = FxNum([PO Base Qty]),
+				                    SameDayQty = FxNum([Same Day GRN Base Qty])
+				                in
+				                    if ReqQty <> null and ReqQty > 0 and SameDayQty <> null and SameDayQty >= ReqQty then
+				                        1
+				                    else
+				                        0,
+				            Int64.Type
+				        ),
+				
+				    RecalcOTIFFlag =
+				        FxReplaceColumn(
+				            RecalcOnTimeFlag,
+				            "OTIF Flag",
+				            each
+				                if [In Full Flag] = 1 and [On Time Flag] = 1 then
+				                    1
+				                else
+				                    0,
+				            Int64.Type
+				        ),
+				
+				    AddMatchedRecoveredDuplicateFlag =
+				        Table.AddColumn(
+				            RecalcOTIFFlag,
+				            "Recovered Duplicate Existing PO Flag",
+				            each 0,
+				            Int64.Type
+				        ),
+				
+				    RemoveMatchedHelperKey =
+				        Table.RemoveColumns(
+				            AddMatchedRecoveredDuplicateFlag,
+				            {"__Lifecycle Key"},
+				            MissingField.Ignore
+				        ),
+				
+				    MatchedAdjusted =
+				        RemoveMatchedHelperKey,
+				
+				    FinalColumnList =
+				        List.Union(
+				            {
+				                Table.ColumnNames(MatchedAdjusted),
+				                Table.ColumnNames(RecoveredToKeep)
+				            }
+				        ),
+				
+				    MatchedAligned =
+				        Table.SelectColumns(
+				            MatchedAdjusted,
+				            FinalColumnList,
+				            MissingField.UseNull
+				        ),
+				
+				    RecoveredAligned =
+				        Table.SelectColumns(
+				            RecoveredToKeep,
+				            FinalColumnList,
+				            MissingField.UseNull
+				        ),
+				
+				    CombinedLifecycle =
+				        Table.Combine(
+				            {
+				                MatchedAligned,
+				                RecoveredAligned
+				            }
+				        ),
+				
+				    FinalColumnOrder =
+				        Table.ReorderColumns(
+				            CombinedLifecycle,
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Inbound Match Status",
+				                "GRN Match Status",
+				
+				                "Article",
+				                "Warehouse",
+				                "Final Cost Center",
+				
+				                "PO No",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "Actual GRN Supplier",
+				                "Actual GRN Supplier List",
+				
+				                "PO Unit List",
+				                "Actual GRN Unit List",
+				                "PO Base Unit List",
+				
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				
+				                "PO Base Qty",
+				                "Recovered Required Qty",
+				                "Recovered Required Base Qty",
+				                "Recovered Required Qty Source",
+				
+				                "Allocated GRN Base Qty",
+				                "Allocated GRN Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "Outside Period GRN Base Qty",
+				                "Outside Period GRN Qty",
+				                "Outside Period GRN Value",
+				
+				                "Pending Qty",
+				                "Over Delivered Qty",
+				
+				                "PO Value",
+				                "GRN Value",
+				
+				                "PO Count",
+				                "PO Line Count",
+				                "Delivery Note Count",
+				                "GRN Line Count",
+				                "Outside Period Delivery Note Count",
+				                "Outside Period GRN Line Count",
+				
+				                "Delivery Note List",
+				                "GRN PO No List",
+				                "Outside Period Delivery Note List",
+				                "Outside Period GRN PO No List",
+				
+				                "First GRN Date",
+				                "Last GRN Date",
+				                "First Booking Date",
+				                "Last Booking Date",
+				                "First Booking DateTime",
+				                "Last Booking DateTime",
+				
+				                "First Receipt Delay Days",
+				                "Receipt Spread Days",
+				
+				                "Fulfillment Status",
+				                "In Full Flag",
+				                "On Time Flag",
+				                "OTIF Flag",
+				
+				                "GRN Match Status List",
+				                "Inbound Match Status List",
+				                "Recovered Include In Fill Rate Flag",
+				                "Recovered Duplicate Existing PO Flag",
+				                "Absorbed Outside Period GRN Flag",
+				
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type",
+				
+				                "Requested Qty Conflict Flag",
+				                "Requested Qty Conflict Status",
+				                "Requested Qty Distinct Count",
+				                "Requested Base Qty Distinct Count",
+				                "Requested Qty List",
+				                "Requested Base Qty List"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    FinalColumnOrder
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

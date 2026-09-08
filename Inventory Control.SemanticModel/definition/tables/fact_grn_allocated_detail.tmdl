@@ -1,0 +1,1767 @@
+table fact_grn_allocated_detail
+	lineageTag: 859a50a6-08be-46ac-8266-a1343bb110b4
+
+	column 'Article No.'
+		dataType: string
+		lineageTag: 246c3e9e-473c-49ac-934d-11ea3b961aad
+		summarizeBy: none
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period ID'
+		dataType: string
+		lineageTag: e82abc22-15b1-4889-81e8-bcec547a18c0
+		summarizeBy: none
+		sourceColumn: PO Period ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 27abae46-be6c-4636-82eb-88476763017b
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 54c698d8-6962-4361-bb0a-d50d09393f45
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column Warehouse
+		dataType: string
+		lineageTag: 795a2a82-f9a0-43f3-adf1-29a5c5341261
+		summarizeBy: none
+		sourceColumn: Warehouse
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier'
+		dataType: string
+		lineageTag: 1fefcac3-3f41-4977-afd3-3fcde6b0075b
+		summarizeBy: none
+		sourceColumn: PO Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Supplier List'
+		dataType: string
+		lineageTag: 0d09c6a4-3987-4d37-a01d-4b4c242d39e6
+		summarizeBy: none
+		sourceColumn: PO Supplier List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Start Date'
+		dataType: string
+		lineageTag: 7bde0898-ddc0-4ffb-b2ae-6b273b159e7c
+		summarizeBy: none
+		sourceColumn: PO Start Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column Discount
+		dataType: double
+		lineageTag: ebb51cb9-dc3d-4b91-a010-7834098172a8
+		summarizeBy: sum
+		sourceColumn: Discount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO End Date'
+		dataType: string
+		lineageTag: c0f1479c-c2c6-4aa2-b78c-6dddd1a3a47f
+		summarizeBy: none
+		sourceColumn: PO End Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Status'
+		dataType: string
+		lineageTag: 1a37ee3f-3b73-4f64-9c7f-ff84e9adf59f
+		summarizeBy: none
+		sourceColumn: DN Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order No.'
+		dataType: string
+		lineageTag: 3d5f5af9-7a97-472f-9ad1-c851f72e678a
+		summarizeBy: none
+		sourceColumn: Order No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'DN Order Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 06cdbe4f-e695-4127-8902-92a0feae58f2
+		summarizeBy: none
+		sourceColumn: DN Order Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Booking DateTime'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d275916a-3dc1-4809-b24e-51ebf1f222fb
+		summarizeBy: none
+		sourceColumn: Booking DateTime
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 795d04c9-d5f8-4a11-97ad-45bf8fcab38a
+		summarizeBy: none
+		sourceColumn: GRN Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Delivery Note No'
+		dataType: string
+		lineageTag: 526a46bc-29df-4e5f-83bc-9621ef28e382
+		summarizeBy: none
+		sourceColumn: Delivery Note No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit'
+		dataType: string
+		lineageTag: 874fd43d-6693-44d6-85ba-5548f1cf1539
+		summarizeBy: none
+		sourceColumn: GRN Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Base Unit'
+		dataType: string
+		lineageTag: 5c9f8fcf-2c21-46ea-8ca2-47c2c7cdd3bc
+		summarizeBy: none
+		sourceColumn: GRN Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Qty'
+		dataType: double
+		lineageTag: 3b155e1d-53b4-4e0d-bdab-8710413db803
+		summarizeBy: sum
+		sourceColumn: GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Base Qty'
+		dataType: double
+		lineageTag: ac760a56-6da9-428d-a0c2-9b6feb3f5bf8
+		summarizeBy: sum
+		sourceColumn: GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Same Day GRN Base Qty'
+		dataType: double
+		lineageTag: fddfa290-e1a0-44dd-a64a-70708c37ebfd
+		summarizeBy: sum
+		sourceColumn: Same Day GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Late GRN Base Qty'
+		dataType: double
+		lineageTag: 2b049044-5922-4ebc-91f6-e50f7d6303ae
+		summarizeBy: sum
+		sourceColumn: Late GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Value'
+		dataType: double
+		lineageTag: ab416a8e-31db-4b90-8f1a-2c48d4780dbc
+		summarizeBy: sum
+		sourceColumn: GRN Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Sub_Category
+		dataType: string
+		lineageTag: c964c065-d8cc-4b03-b703-9dc01d7006ef
+		summarizeBy: none
+		sourceColumn: Sub_Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Item_Group
+		dataType: string
+		lineageTag: 79da3d92-1ae9-414a-b70a-84b0ff86def4
+		summarizeBy: none
+		sourceColumn: Item_Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column Storage_Type
+		dataType: string
+		lineageTag: 7a0b388a-8ac5-47ec-913a-ba3f6ea6a294
+		summarizeBy: none
+		sourceColumn: Storage_Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Key'
+		dataType: string
+		lineageTag: dfdd11e4-03e6-4310-9c57-a79e4416c129
+		summarizeBy: none
+		sourceColumn: Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article No.'
+		dataType: string
+		lineageTag: b16ef15f-aaac-4752-bce4-ade51b4fdd3a
+		summarizeBy: none
+		sourceColumn: Original Purchase Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article'
+		dataType: string
+		lineageTag: 369455c2-3fe3-4f8d-a9a9-3ba6e65e2487
+		summarizeBy: none
+		sourceColumn: Original Purchase Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Original Purchase Article Key'
+		dataType: string
+		lineageTag: 9dec12b5-ba8b-430c-b837-ccca9e24d45d
+		summarizeBy: none
+		sourceColumn: Original Purchase Article Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article'
+		dataType: string
+		lineageTag: 3f685ab9-15d4-4a46-83fa-973d83709f76
+		summarizeBy: none
+		sourceColumn: Manager Stock Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Manager Stock Article No.'
+		dataType: string
+		lineageTag: 8bd38e62-1c08-4374-8e43-040cbcdbf937
+		summarizeBy: none
+		sourceColumn: Manager Stock Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article Mapping Status'
+		dataType: string
+		lineageTag: 526f19ca-c3a7-408f-8358-e33f2886b7cc
+		summarizeBy: none
+		sourceColumn: Article Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Supplier Key'
+		dataType: string
+		lineageTag: 5f705a4f-c0df-4a1a-a9ca-c795d16252f5
+		summarizeBy: none
+		sourceColumn: Supplier Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Warehouse Key'
+		dataType: string
+		lineageTag: fdd32536-4cbb-4665-9a07-2268bfb752d1
+		summarizeBy: none
+		sourceColumn: Warehouse Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Key'
+		dataType: string
+		lineageTag: 8b165b19-ce4e-47e9-8948-6b5fb07a84f7
+		summarizeBy: none
+		sourceColumn: GRN Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit'
+		dataType: string
+		lineageTag: c3bb6b14-c674-44e2-b270-be7396846a5b
+		summarizeBy: none
+		sourceColumn: Base Unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Base Unit Key'
+		dataType: string
+		lineageTag: d1843684-c324-49ef-9e82-d3789ea2b346
+		summarizeBy: none
+		sourceColumn: Base Unit Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Mapping Source'
+		dataType: string
+		lineageTag: bdbd08bc-ec82-4076-98f6-ca57128a64fc
+		summarizeBy: none
+		sourceColumn: GRN Unit Mapping Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Unit Mapping Status'
+		dataType: string
+		lineageTag: 00d3dace-0fb5-4599-9994-5b7de55e3c8b
+		summarizeBy: none
+		sourceColumn: GRN Unit Mapping Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column Price/Unit
+		dataType: double
+		lineageTag: 67301388-60bc-4180-8daa-3f00dc467469
+		summarizeBy: sum
+		sourceColumn: Price/Unit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Price/BU
+		dataType: double
+		lineageTag: b7227edf-65df-40ff-be1e-1f892f327839
+		summarizeBy: sum
+		sourceColumn: Price/BU
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Delivery Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 5a12fcd3-50c3-4f65-8de4-af6757621ff6
+		summarizeBy: none
+		sourceColumn: Delivery Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'GRN PO No'
+		dataType: string
+		lineageTag: 834c3048-7558-4468-8152-46e9683eccd1
+		summarizeBy: none
+		sourceColumn: GRN PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN PO No Key'
+		dataType: string
+		lineageTag: f57b518a-d4e4-4bce-8e81-bc6a1f17ea17
+		summarizeBy: none
+		sourceColumn: GRN PO No Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested QTY'
+		dataType: double
+		lineageTag: af2ed16c-cae5-4272-8c7b-fa9a9ead5770
+		summarizeBy: sum
+		sourceColumn: Requested QTY
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Requested Base Qty'
+		dataType: double
+		lineageTag: c5b6977a-2936-402e-975d-24080b94682e
+		summarizeBy: sum
+		sourceColumn: Requested Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'GRN Line ID'
+		dataType: string
+		lineageTag: d4018b8d-7fbd-436c-912d-3fda072b679d
+		summarizeBy: none
+		sourceColumn: GRN Line ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period Source'
+		dataType: string
+		lineageTag: 0d601eeb-899c-4494-8182-1194b4141424
+		summarizeBy: none
+		sourceColumn: PO Period Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Inbound Match Status'
+		dataType: string
+		lineageTag: 25a0b325-a68b-4406-adf7-eaed41276f99
+		summarizeBy: none
+		sourceColumn: Inbound Match Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Match Status'
+		dataType: string
+		lineageTag: 3b759491-1d96-4124-b32f-90beb6afad35
+		summarizeBy: none
+		sourceColumn: GRN Match Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Match Key'
+		dataType: string
+		lineageTag: 76d004f3-876b-4454-9b0a-fca82f9d0219
+		summarizeBy: none
+		sourceColumn: GRN Match Key
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Matched PO No'
+		dataType: string
+		lineageTag: b39fd41c-a728-4586-adee-13ea4b5c5f60
+		summarizeBy: none
+		sourceColumn: Matched PO No
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Date'
+		dataType: string
+		lineageTag: 90f80353-3a2e-4da5-bac3-f1f3a638406b
+		summarizeBy: none
+		sourceColumn: PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Qty'
+		dataType: string
+		lineageTag: a023706e-b15e-491b-85c2-f5491c40eee7
+		summarizeBy: none
+		sourceColumn: PO Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Value'
+		dataType: string
+		lineageTag: 2ebc2a2f-17fd-46c8-aaff-c647a40cce0c
+		summarizeBy: none
+		sourceColumn: PO Value
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Count'
+		dataType: string
+		lineageTag: 5e3550c6-e13f-4d14-bbdf-9158ce143593
+		summarizeBy: none
+		sourceColumn: PO Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Line Count'
+		dataType: string
+		lineageTag: 3581dc80-af29-43b3-9d92-a2999efc5c24
+		summarizeBy: none
+		sourceColumn: PO Line Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Allocated GRN Qty'
+		dataType: double
+		lineageTag: ee910c02-3bb7-466e-8b87-14d8c0094c08
+		summarizeBy: sum
+		sourceColumn: Allocated GRN Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Allocated GRN Base Qty'
+		dataType: double
+		lineageTag: 835c829b-e766-41fd-8531-350158b58fbf
+		summarizeBy: sum
+		sourceColumn: Allocated GRN Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Final Cost Center'
+		dataType: string
+		lineageTag: 1a5e20f9-030e-4c60-a607-f21322a71e63
+		summarizeBy: none
+		sourceColumn: Final Cost Center
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Unit List'
+		dataType: string
+		lineageTag: b0e2d571-be18-4587-9421-9f08c5d739e3
+		summarizeBy: none
+		sourceColumn: PO Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Base Unit List'
+		dataType: string
+		lineageTag: d2c7322d-9114-461a-98a8-2cc3b8c3ff0d
+		summarizeBy: none
+		sourceColumn: PO Base Unit List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Next PO Date'
+		dataType: string
+		lineageTag: f9f5d6b5-dd47-423a-8edb-bb5db9ec36d4
+		summarizeBy: none
+		sourceColumn: Next PO Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PO Period Base Qty'
+		dataType: double
+		lineageTag: 1084fc4d-4d4b-48f1-9a27-4332ad7bbd22
+		summarizeBy: sum
+		sourceColumn: PO Period Base Qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'PO Period Value'
+		dataType: double
+		lineageTag: db0acb47-f45b-4e28-913e-f696c5126dfb
+		summarizeBy: sum
+		sourceColumn: PO Period Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Days After PO'
+		dataType: int64
+		formatString: 0
+		lineageTag: 0c8b2efd-e37f-40e3-8a1b-d1353924eb83
+		summarizeBy: sum
+		sourceColumn: Days After PO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Timing Status'
+		dataType: string
+		lineageTag: 5cd94a25-d67c-4b11-ab98-69db7325283b
+		summarizeBy: none
+		sourceColumn: GRN Timing Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'GRN Booking Date'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 79829176-181e-4a85-bcf9-96b755a945c6
+		summarizeBy: none
+		sourceColumn: GRN Booking Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'GRN Detail Source'
+		dataType: string
+		lineageTag: 00d47e26-f88d-482a-94d2-32202ba83f9b
+		summarizeBy: none
+		sourceColumn: GRN Detail Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Booking Delay Days'
+		dataType: int64
+		formatString: 0
+		lineageTag: 104a3ac6-e0b8-445f-9a38-8860b3022943
+		summarizeBy: sum
+		sourceColumn: Booking Delay Days
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty Conflict Flag'
+		dataType: int64
+		formatString: 0
+		lineageTag: 37a37e03-b23e-4105-a48a-2d58ad5cf67f
+		summarizeBy: sum
+		sourceColumn: Requested Qty Conflict Flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty Conflict Status'
+		dataType: string
+		lineageTag: 31ea5409-bcb3-4a3b-964e-3dc7ea26f026
+		summarizeBy: none
+		sourceColumn: Requested Qty Conflict Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty Distinct Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: 0c8b5527-22dd-4c67-8289-8c6b6ff7acb4
+		summarizeBy: sum
+		sourceColumn: Requested Qty Distinct Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Base Qty Distinct Count'
+		dataType: int64
+		formatString: 0
+		lineageTag: a8d38dbb-ec75-4213-9151-1696a71effe2
+		summarizeBy: sum
+		sourceColumn: Requested Base Qty Distinct Count
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Qty List'
+		dataType: string
+		lineageTag: 570551eb-91ac-4016-9340-63662e871955
+		summarizeBy: none
+		sourceColumn: Requested Qty List
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Requested Base Qty List'
+		dataType: string
+		lineageTag: b74aaf14-3541-4a89-bff6-5e99f7ed232a
+		summarizeBy: none
+		sourceColumn: Requested Base Qty List
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_grn_allocated_detail = m
+		mode: import
+		source =
+				let
+				    PO = fact_po_period_base,
+				    GRN = fact_grn_line,
+				
+				    FxSafeText =
+				        (x as any) as text =>
+				            try
+				                if x = null then ""
+				                else Text.Trim(Text.Clean(Text.From(x)))
+				            otherwise "",
+				
+				    FxUpperText =
+				        (x as any) as text =>
+				            Text.Upper(FxSafeText(x)),
+				
+				    FxDate =
+				        (x as any) as nullable date =>
+				            try Date.From(x) otherwise null,
+				
+				    FxNum =
+				        (x as any) as nullable number =>
+				            try Number.From(x) otherwise null,
+				
+				    FxPositiveNumberList =
+				        (InputList as list) as list =>
+				            List.Select(
+				                List.RemoveNulls(
+				                    List.Transform(
+				                        InputList,
+				                        each FxNum(_)
+				                    )
+				                ),
+				                each _ > 0
+				            ),
+				
+				    FxDistinctPositiveNumberList =
+				        (InputList as list) as list =>
+				            List.Sort(
+				                List.Distinct(
+				                    List.Transform(
+				                        FxPositiveNumberList(InputList),
+				                        each Number.Round(_, 5)
+				                    )
+				                )
+				            ),
+				
+				    FxNumberListText =
+				        (InputList as list) as nullable text =>
+				            let
+				                CleanList = FxDistinctPositiveNumberList(InputList),
+				                TextList =
+				                    List.Transform(
+				                        CleanList,
+				                        each Number.ToText(_, "0.#####", "en-US")
+				                    )
+				            in
+				                if List.Count(TextList) = 0 then null else Text.Combine(TextList, ", "),
+				
+				    FxMinDate =
+				        (InputList as list) as nullable date =>
+				            let
+				                CleanList = List.RemoveNulls(List.Transform(InputList, each FxDate(_)))
+				            in
+				                if List.Count(CleanList) = 0 then null else List.Min(CleanList),
+				
+				    FxMaxDate =
+				        (InputList as list) as nullable date =>
+				            let
+				                CleanList = List.RemoveNulls(List.Transform(InputList, each FxDate(_)))
+				            in
+				                if List.Count(CleanList) = 0 then null else List.Max(CleanList),
+				
+				    FxHasPONo =
+				        (PONo as any) as logical =>
+				            let
+				                T = FxUpperText(PONo)
+				            in
+				                T <> ""
+				                    and T <> "NO PO DEFINED"
+				                    and T <> "NO_PO"
+				                    and T <> "N/A"
+				                    and T <> "NA"
+				                    and T <> "NULL",
+				
+				    FxMatchKey =
+				        (Article as any, Warehouse as any, PONo as any) as text =>
+				            FxSafeText(Article)
+				                & "|"
+				                & FxSafeText(Warehouse)
+				                & "|"
+				                & FxSafeText(PONo),
+				
+				    POSelected =
+				        Table.SelectColumns(
+				            PO,
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Article",
+				                "Warehouse",
+				                "PO No",
+				                "Final Cost Center",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Count",
+				                "PO Line Count"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    POReady =
+				        Table.SelectRows(
+				            POSelected,
+				            each
+				                [PO Period ID] <> null
+				                and [PO Period ID] <> ""
+				                and [Article] <> null
+				                and [Article] <> ""
+				                and [Warehouse] <> null
+				                and [Warehouse] <> ""
+				                and [PO No] <> null
+				                and [PO No] <> ""
+				                and [PO Start Date] <> null
+				                and [PO End Date] <> null
+				        ),
+				
+				    POWithMatchKey =
+				        Table.AddColumn(
+				            POReady,
+				            "__Match Key",
+				            each FxMatchKey([Article], [Warehouse], [PO No]),
+				            type text
+				        ),
+				
+				    POForGrouping =
+				        Table.SelectColumns(
+				            POWithMatchKey,
+				            {
+				                "__Match Key",
+				                "PO Period ID",
+				                "PO Period Source",
+				                "PO No",
+				                "Final Cost Center",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Count",
+				                "PO Line Count"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    POGrouped =
+				        Table.Buffer(
+				            Table.Group(
+				                POForGrouping,
+				                {"__Match Key"},
+				                {
+				                    {
+				                        "PO Candidates",
+				                        each
+				                            Table.Sort(
+				                                _,
+				                                {
+				                                    {"PO Start Date", Order.Descending},
+				                                    {"PO End Date", Order.Ascending}
+				                                }
+				                            ),
+				                        type table
+				                    },
+				                    {
+				                        "PO Candidate Count",
+				                        each Table.RowCount(_),
+				                        Int64.Type
+				                    }
+				                }
+				            )
+				        ),
+				
+				    GRNReady =
+				        Table.SelectRows(
+				            GRN,
+				            each
+				                [Article] <> null
+				                and [Article] <> ""
+				                and [Warehouse] <> null
+				                and [Warehouse] <> ""
+				                and [GRN Delivery Date] <> null
+				                and [GRN Base Qty] <> null
+				                and [GRN Line ID] <> null
+				                and [GRN Line ID] <> ""
+				        ),
+				
+				    GRNWithIndex =
+				        Table.AddIndexColumn(
+				            GRNReady,
+				            "__GRN Row Index",
+				            1,
+				            1,
+				            Int64.Type
+				        ),
+				
+				    GRNWithMatchKey =
+				        Table.AddColumn(
+				            GRNWithIndex,
+				            "__Match Key",
+				            each FxMatchKey([Article], [Warehouse], [GRN PO No]),
+				            type text
+				        ),
+				
+				    MergePOGroup =
+				        Table.NestedJoin(
+				            GRNWithMatchKey,
+				            {"__Match Key"},
+				            POGrouped,
+				            {"__Match Key"},
+				            "PO Group",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    ExpandPOGroup =
+				        Table.ExpandTableColumn(
+				            MergePOGroup,
+				            "PO Group",
+				            {"PO Candidates", "PO Candidate Count"},
+				            {"PO Candidates", "PO Candidate Count"}
+				        ),
+				
+				    ReplaceNullCandidateCount =
+				        Table.ReplaceValue(
+				            ExpandPOGroup,
+				            null,
+				            0,
+				            Replacer.ReplaceValue,
+				            {"PO Candidate Count"}
+				        ),
+				
+				    AddSelectedPO =
+				        Table.AddColumn(
+				            ReplaceNullCandidateCount,
+				            "__Selected PO",
+				            each
+				                let
+				                    GrnDate = FxDate([GRN Delivery Date]),
+				                    Candidates = try [PO Candidates] otherwise null,
+				
+				                    MatchedCandidates =
+				                        if Candidates = null or GrnDate = null then
+				                            #table({}, {})
+				                        else
+				                            Table.SelectRows(
+				                                Candidates,
+				                                each
+				                                    FxDate([PO Start Date]) <> null
+				                                    and FxDate([PO End Date]) <> null
+				                                    and GrnDate >= FxDate([PO Start Date])
+				                                    and GrnDate <= FxDate([PO End Date])
+				                            ),
+				
+				                    SortedMatched =
+				                        if Table.IsEmpty(MatchedCandidates) then
+				                            MatchedCandidates
+				                        else
+				                            Table.Sort(
+				                                MatchedCandidates,
+				                                {
+				                                    {"PO Start Date", Order.Descending},
+				                                    {"PO End Date", Order.Ascending}
+				                                }
+				                            ),
+				
+				                    Result =
+				                        if Table.IsEmpty(SortedMatched) then
+				                            null
+				                        else
+				                            SortedMatched{0}
+				                in
+				                    Result,
+				            type nullable record
+				        ),
+				
+				    MatchedRows =
+				        Table.SelectRows(
+				            AddSelectedPO,
+				            each [__Selected PO] <> null
+				        ),
+				
+				    MatchedExpandedPO =
+				        Table.ExpandRecordColumn(
+				            MatchedRows,
+				            "__Selected PO",
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "PO No",
+				                "Final Cost Center",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Count",
+				                "PO Line Count"
+				            },
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Matched PO No",
+				                "Final Cost Center",
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Value",
+				                "PO Count",
+				                "PO Line Count"
+				            }
+				        ),
+				
+				    MatchedAddPOPeriodBaseQty =
+				        Table.AddColumn(
+				            MatchedExpandedPO,
+				            "PO Period Base Qty",
+				            each [PO Base Qty],
+				            type nullable number
+				        ),
+				
+				    MatchedAddPOPeriodValue =
+				        Table.AddColumn(
+				            MatchedAddPOPeriodBaseQty,
+				            "PO Period Value",
+				            each [PO Value],
+				            type nullable number
+				        ),
+				
+				    MatchedAddAllocatedGRNBaseQty =
+				        Table.AddColumn(
+				            MatchedAddPOPeriodValue,
+				            "Allocated GRN Base Qty",
+				            each [GRN Base Qty],
+				            type nullable number
+				        ),
+				
+				    MatchedAddAllocatedGRNQty =
+				        Table.AddColumn(
+				            MatchedAddAllocatedGRNBaseQty,
+				            "Allocated GRN Qty",
+				            each [GRN Qty],
+				            type nullable number
+				        ),
+				
+				    MatchedAddSameDayGRNBaseQty =
+				        Table.AddColumn(
+				            MatchedAddAllocatedGRNQty,
+				            "Same Day GRN Base Qty",
+				            each
+				                if FxDate([GRN Delivery Date]) = FxDate([PO Start Date]) then
+				                    [GRN Base Qty]
+				                else
+				                    0,
+				            type nullable number
+				        ),
+				
+				    MatchedAddLateGRNBaseQty =
+				        Table.AddColumn(
+				            MatchedAddSameDayGRNBaseQty,
+				            "Late GRN Base Qty",
+				            each
+				                if FxDate([GRN Delivery Date]) > FxDate([PO Start Date]) then
+				                    [GRN Base Qty]
+				                else
+				                    0,
+				            type nullable number
+				        ),
+				
+				    MatchedAddDaysAfterPO =
+				        Table.AddColumn(
+				            MatchedAddLateGRNBaseQty,
+				            "Days After PO",
+				            each
+				                if [GRN Delivery Date] = null or [PO Start Date] = null then
+				                    null
+				                else
+				                    Duration.Days(FxDate([GRN Delivery Date]) - FxDate([PO Start Date])),
+				            Int64.Type
+				        ),
+				
+				    MatchedAddGRNTimingStatus =
+				        Table.AddColumn(
+				            MatchedAddDaysAfterPO,
+				            "GRN Timing Status",
+				            each
+				                if [GRN Delivery Date] = null or [PO Start Date] = null then
+				                    null
+				                else if FxDate([GRN Delivery Date]) = FxDate([PO Start Date]) then
+				                    "Same Day"
+				                else if FxDate([GRN Delivery Date]) > FxDate([PO Start Date]) then
+				                    "Late"
+				                else
+				                    "Early",
+				            type nullable text
+				        ),
+				
+				    MatchedAddGRNBookingDate =
+				        Table.AddColumn(
+				            MatchedAddGRNTimingStatus,
+				            "GRN Booking Date",
+				            each
+				                if [Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    MatchedAddBookingDelayDays =
+				        Table.AddColumn(
+				            MatchedAddGRNBookingDate,
+				            "Booking Delay Days",
+				            each
+				                let
+				                    DeliveryDate = FxDate([GRN Delivery Date]),
+				                    BookingDate = FxDate([GRN Booking Date])
+				                in
+				                    if DeliveryDate = null or BookingDate = null then
+				                        null
+				                    else
+				                        Duration.Days(BookingDate - DeliveryDate),
+				            Int64.Type
+				        ),
+				
+				    MatchedAddGRNMatchStatus =
+				        Table.AddColumn(
+				            MatchedAddBookingDelayDays,
+				            "GRN Match Status",
+				            each "Matched Active PO",
+				            type text
+				        ),
+				
+				    MatchedAddInboundMatchStatus =
+				        Table.AddColumn(
+				            MatchedAddGRNMatchStatus,
+				            "Inbound Match Status",
+				            each "Matched",
+				            type text
+				        ),
+				
+				    MatchedAddGRNMatchKey =
+				        Table.AddColumn(
+				            MatchedAddInboundMatchStatus,
+				            "GRN Match Key",
+				            each FxMatchKey([Article], [Warehouse], [GRN PO No]),
+				            type text
+				        ),
+				
+				    MatchedAddDetailSource =
+				        Table.AddColumn(
+				            MatchedAddGRNMatchKey,
+				            "GRN Detail Source",
+				            each "Matched GRN Detail",
+				            type text
+				        ),
+				
+				    MatchedClean =
+				        Table.RemoveColumns(
+				            MatchedAddDetailSource,
+				            {
+				                "__GRN Row Index",
+				                "__Match Key",
+				                "PO Candidates",
+				                "PO Candidate Count"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    NonMatchedRowsBase =
+				        Table.SelectRows(
+				            AddSelectedPO,
+				            each
+				                [__Selected PO] = null
+				                and FxNum([GRN Base Qty]) <> null
+				                and FxNum([GRN Base Qty]) > 0
+				        ),
+				
+				    NonMatchedAddRecoveredPONo =
+				        Table.AddColumn(
+				            NonMatchedRowsBase,
+				            "__Recovered PO No",
+				            each
+				                if FxHasPONo([GRN PO No]) then
+				                    FxSafeText([GRN PO No])
+				                else
+				                    "NO PO DEFINED",
+				            type text
+				        ),
+				
+				    NonMatchedAddRecoveredRequiredBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddRecoveredPONo,
+				            "__Recovered Required Base Qty",
+				            each
+				                let
+				                    ReqBase = FxNum([Requested Base Qty]),
+				                    GrnBase = FxNum([GRN Base Qty])
+				                in
+				                    if ReqBase <> null and ReqBase > 0 then
+				                        ReqBase
+				                    else
+				                        GrnBase,
+				            type nullable number
+				        ),
+				
+				    NonMatchedFilteredUsable =
+				        Table.SelectRows(
+				            NonMatchedAddRecoveredRequiredBaseQty,
+				            each
+				                FxNum([__Recovered Required Base Qty]) <> null
+				                and FxNum([__Recovered Required Base Qty]) > 0
+				        ),
+				
+				    NonMatchedAddRecoveryGroupID =
+				        Table.AddColumn(
+				            NonMatchedFilteredUsable,
+				            "__Recovery Group ID",
+				            each
+				                "RECOVERED|"
+				                    & FxSafeText([Article])
+				                    & "|"
+				                    & FxSafeText([Warehouse])
+				                    & "|"
+				                    & FxSafeText([__Recovered PO No]),
+				            type text
+				        ),
+				
+				    NonMatchedGroupStats =
+				        Table.Buffer(
+				            Table.Group(
+				                NonMatchedAddRecoveryGroupID,
+				                {"__Recovery Group ID"},
+				                {
+				                    {"__Recovered Group PO Start Date", each FxMinDate([GRN Delivery Date]), type nullable date},
+				                    {"__Recovered Group PO End Date", each FxMaxDate([GRN Delivery Date]), type nullable date},
+				
+				                    {
+				                        "__Recovered Group Required Base Qty",
+				                        each
+				                            let
+				                                ReqDistinct = FxDistinctPositiveNumberList([Requested Base Qty]),
+				                                GrnList = FxPositiveNumberList([GRN Base Qty])
+				                            in
+				                                if List.Count(ReqDistinct) = 1 then ReqDistinct{0}
+				                                else if List.Count(ReqDistinct) > 1 then null
+				                                else if List.Count(GrnList) > 0 then List.Sum(GrnList)
+				                                else null,
+				                        type nullable number
+				                    },
+				
+				                    {
+				                        "__Recovered Group Required Qty",
+				                        each
+				                            let
+				                                ReqDistinct = FxDistinctPositiveNumberList([Requested QTY]),
+				                                GrnList = FxPositiveNumberList([GRN Qty])
+				                            in
+				                                if List.Count(ReqDistinct) = 1 then ReqDistinct{0}
+				                                else if List.Count(ReqDistinct) > 1 then null
+				                                else if List.Count(GrnList) > 0 then List.Sum(GrnList)
+				                                else null,
+				                        type nullable number
+				                    },
+				
+				                    {
+				                        "Requested Qty Conflict Flag",
+				                        each
+				                            let
+				                                ReqQtyDistinct = FxDistinctPositiveNumberList([Requested QTY]),
+				                                ReqBaseDistinct = FxDistinctPositiveNumberList([Requested Base Qty])
+				                            in
+				                                if List.Count(ReqQtyDistinct) > 1 or List.Count(ReqBaseDistinct) > 1 then 1 else 0,
+				                        Int64.Type
+				                    },
+				
+				                    {
+				                        "Requested Qty Conflict Status",
+				                        each
+				                            let
+				                                ReqQtyDistinct = FxDistinctPositiveNumberList([Requested QTY]),
+				                                ReqBaseDistinct = FxDistinctPositiveNumberList([Requested Base Qty]),
+				                                HasRequest = List.Count(ReqQtyDistinct) > 0 or List.Count(ReqBaseDistinct) > 0,
+				                                HasConflict = List.Count(ReqQtyDistinct) > 1 or List.Count(ReqBaseDistinct) > 1
+				                            in
+				                                if HasConflict then "Requested Qty Conflict"
+				                                else if HasRequest then "No Conflict"
+				                                else "No Delivery Note Requested Qty",
+				                        type text
+				                    },
+				
+				                    {"Requested Qty Distinct Count", each List.Count(FxDistinctPositiveNumberList([Requested QTY])), Int64.Type},
+				                    {"Requested Base Qty Distinct Count", each List.Count(FxDistinctPositiveNumberList([Requested Base Qty])), Int64.Type},
+				                    {"Requested Qty List", each FxNumberListText([Requested QTY]), type nullable text},
+				                    {"Requested Base Qty List", each FxNumberListText([Requested Base Qty]), type nullable text}
+				                }
+				            )
+				        ),
+				
+				    NonMatchedMergeGroupStats =
+				        Table.NestedJoin(
+				            NonMatchedAddRecoveryGroupID,
+				            {"__Recovery Group ID"},
+				            NonMatchedGroupStats,
+				            {"__Recovery Group ID"},
+				            "__Recovered Group Stats",
+				            JoinKind.LeftOuter
+				        ),
+				
+				    NonMatchedExpandGroupStats =
+				        Table.ExpandTableColumn(
+				            NonMatchedMergeGroupStats,
+				            "__Recovered Group Stats",
+				            {
+				                "__Recovered Group PO Start Date",
+				                "__Recovered Group PO End Date",
+				                "__Recovered Group Required Base Qty",
+				                "__Recovered Group Required Qty",
+				                "Requested Qty Conflict Flag",
+				                "Requested Qty Conflict Status",
+				                "Requested Qty Distinct Count",
+				                "Requested Base Qty Distinct Count",
+				                "Requested Qty List",
+				                "Requested Base Qty List"
+				            },
+				            {
+				                "__Recovered Group PO Start Date",
+				                "__Recovered Group PO End Date",
+				                "__Recovered Group Required Base Qty",
+				                "__Recovered Group Required Qty",
+				                "Requested Qty Conflict Flag",
+				                "Requested Qty Conflict Status",
+				                "Requested Qty Distinct Count",
+				                "Requested Base Qty Distinct Count",
+				                "Requested Qty List",
+				                "Requested Base Qty List"
+				            }
+				        ),
+				
+				    NonMatchedAddPOPeriodID =
+				        Table.AddColumn(
+				            NonMatchedExpandGroupStats,
+				            "PO Period ID",
+				            each [__Recovery Group ID],
+				            type text
+				        ),
+				
+				    NonMatchedAddPOPeriodSource =
+				        Table.AddColumn(
+				            NonMatchedAddPOPeriodID,
+				            "PO Period Source",
+				            each "Recovered From GRN",
+				            type text
+				        ),
+				
+				    NonMatchedAddInboundMatchStatus =
+				        Table.AddColumn(
+				            NonMatchedAddPOPeriodSource,
+				            "Inbound Match Status",
+				            each "Non-Matched",
+				            type text
+				        ),
+				
+				    NonMatchedAddGRNMatchStatus =
+				        Table.AddColumn(
+				            NonMatchedAddInboundMatchStatus,
+				            "GRN Match Status",
+				            each
+				                if FxHasPONo([GRN PO No]) = false then
+				                    "No PO Defined"
+				                else if [PO Candidate Count] = 0 then
+				                    "No Active PO Match"
+				                else
+				                    "PO No Found But Outside Active Period",
+				            type text
+				        ),
+				
+				    NonMatchedAddGRNMatchKey =
+				        Table.AddColumn(
+				            NonMatchedAddGRNMatchStatus,
+				            "GRN Match Key",
+				            each FxMatchKey([Article], [Warehouse], [GRN PO No]),
+				            type text
+				        ),
+				
+				    NonMatchedAddMatchedPONo =
+				        Table.AddColumn(
+				            NonMatchedAddGRNMatchKey,
+				            "Matched PO No",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddFinalCostCenter =
+				        Table.AddColumn(
+				            NonMatchedAddMatchedPONo,
+				            "Final Cost Center",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddPOSupplier =
+				        Table.AddColumn(
+				            NonMatchedAddFinalCostCenter,
+				            "PO Supplier",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddPOSupplierList =
+				        Table.AddColumn(
+				            NonMatchedAddPOSupplier,
+				            "PO Supplier List",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddPOUnitList =
+				        Table.AddColumn(
+				            NonMatchedAddPOSupplierList,
+				            "PO Unit List",
+				            each null,
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddPOBaseUnitList =
+				        Table.AddColumn(
+				            NonMatchedAddPOUnitList,
+				            "PO Base Unit List",
+				            each [GRN Base Unit],
+				            type nullable text
+				        ),
+				
+				    NonMatchedAddPODate =
+				        Table.AddColumn(
+				            NonMatchedAddPOBaseUnitList,
+				            "PO Date",
+				            each FxDate([DN Order Date]),
+				            type nullable date
+				        ),
+				
+				    NonMatchedAddPOStartDate =
+				        Table.AddColumn(
+				            NonMatchedAddPODate,
+				            "PO Start Date",
+				            each [__Recovered Group PO Start Date],
+				            type nullable date
+				        ),
+				
+				    NonMatchedAddNextPODate =
+				        Table.AddColumn(
+				            NonMatchedAddPOStartDate,
+				            "Next PO Date",
+				            each null,
+				            type nullable date
+				        ),
+				
+				    NonMatchedAddPOEndDate =
+				        Table.AddColumn(
+				            NonMatchedAddNextPODate,
+				            "PO End Date",
+				            each [__Recovered Group PO End Date],
+				            type nullable date
+				        ),
+				
+				    NonMatchedAddPOBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddPOEndDate,
+				            "PO Base Qty",
+				            each [__Recovered Group Required Base Qty],
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddPOPeriodBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddPOBaseQty,
+				            "PO Period Base Qty",
+				            each [PO Base Qty],
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddPOValue =
+				        Table.AddColumn(
+				            NonMatchedAddPOPeriodBaseQty,
+				            "PO Value",
+				            each null,
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddPOPeriodValue =
+				        Table.AddColumn(
+				            NonMatchedAddPOValue,
+				            "PO Period Value",
+				            each null,
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddPOCount =
+				        Table.AddColumn(
+				            NonMatchedAddPOPeriodValue,
+				            "PO Count",
+				            each 1,
+				            Int64.Type
+				        ),
+				
+				    NonMatchedAddPOLineCount =
+				        Table.AddColumn(
+				            NonMatchedAddPOCount,
+				            "PO Line Count",
+				            each 0,
+				            Int64.Type
+				        ),
+				
+				    NonMatchedAddAllocatedGRNQty =
+				        Table.AddColumn(
+				            NonMatchedAddPOLineCount,
+				            "Allocated GRN Qty",
+				            each [GRN Qty],
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddAllocatedGRNBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddAllocatedGRNQty,
+				            "Allocated GRN Base Qty",
+				            each [GRN Base Qty],
+				            type nullable number
+				        ),
+				
+				    NonMatchedAddSameDayGRNBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddAllocatedGRNBaseQty,
+				            "Same Day GRN Base Qty",
+				            each
+				                if FxDate([GRN Delivery Date]) <> null
+				                    and [__Recovered Group PO Start Date] <> null
+				                    and FxDate([GRN Delivery Date]) = [__Recovered Group PO Start Date]
+				                then [GRN Base Qty]
+				                else 0,
+				            type number
+				        ),
+				
+				    NonMatchedAddLateGRNBaseQty =
+				        Table.AddColumn(
+				            NonMatchedAddSameDayGRNBaseQty,
+				            "Late GRN Base Qty",
+				            each
+				                if FxDate([GRN Delivery Date]) <> null
+				                    and [__Recovered Group PO Start Date] <> null
+				                    and FxDate([GRN Delivery Date]) > [__Recovered Group PO Start Date]
+				                then [GRN Base Qty]
+				                else 0,
+				            type number
+				        ),
+				
+				    NonMatchedAddDaysAfterPO =
+				        Table.AddColumn(
+				            NonMatchedAddLateGRNBaseQty,
+				            "Days After PO",
+				            each
+				                if FxDate([GRN Delivery Date]) = null or [__Recovered Group PO Start Date] = null then
+				                    null
+				                else
+				                    Duration.Days(FxDate([GRN Delivery Date]) - [__Recovered Group PO Start Date]),
+				            Int64.Type
+				        ),
+				
+				    NonMatchedAddGRNTimingStatus =
+				        Table.AddColumn(
+				            NonMatchedAddDaysAfterPO,
+				            "GRN Timing Status",
+				            each
+				                if FxDate([GRN Delivery Date]) = null or [__Recovered Group PO Start Date] = null then
+				                    "Non-Matched"
+				                else if FxDate([GRN Delivery Date]) = [__Recovered Group PO Start Date] then
+				                    "Same Day"
+				                else if FxDate([GRN Delivery Date]) > [__Recovered Group PO Start Date] then
+				                    "Late"
+				                else
+				                    "Early",
+				            type text
+				        ),
+				
+				    NonMatchedAddGRNBookingDate =
+				        Table.AddColumn(
+				            NonMatchedAddGRNTimingStatus,
+				            "GRN Booking Date",
+				            each
+				                if [Booking DateTime] = null then
+				                    null
+				                else
+				                    Date.From([Booking DateTime]),
+				            type nullable date
+				        ),
+				
+				    NonMatchedAddBookingDelayDays =
+				        Table.AddColumn(
+				            NonMatchedAddGRNBookingDate,
+				            "Booking Delay Days",
+				            each
+				                let
+				                    DeliveryDate = FxDate([GRN Delivery Date]),
+				                    BookingDate = FxDate([GRN Booking Date])
+				                in
+				                    if DeliveryDate = null or BookingDate = null then
+				                        null
+				                    else
+				                        Duration.Days(BookingDate - DeliveryDate),
+				            Int64.Type
+				        ),
+				
+				    NonMatchedAddDetailSource =
+				        Table.AddColumn(
+				            NonMatchedAddBookingDelayDays,
+				            "GRN Detail Source",
+				            each "Recovered GRN Detail",
+				            type text
+				        ),
+				
+				    NonMatchedClean =
+				        Table.RemoveColumns(
+				            NonMatchedAddDetailSource,
+				            {
+				                "__GRN Row Index",
+				                "__Match Key",
+				                "__Selected PO",
+				                "PO Candidates",
+				                "PO Candidate Count",
+				                "__Recovered PO No",
+				                "__Recovered Required Base Qty",
+				                "__Recovery Group ID",
+				                "__Recovered Group PO Start Date",
+				                "__Recovered Group PO End Date",
+				                "__Recovered Group Required Base Qty",
+				                "__Recovered Group Required Qty"
+				            },
+				            MissingField.Ignore
+				        ),
+				
+				    FinalColumnList =
+				        List.Union(
+				            {
+				                Table.ColumnNames(MatchedClean),
+				                Table.ColumnNames(NonMatchedClean)
+				            }
+				        ),
+				
+				    MatchedAligned =
+				        Table.SelectColumns(
+				            MatchedClean,
+				            FinalColumnList,
+				            MissingField.UseNull
+				        ),
+				
+				    NonMatchedAligned =
+				        Table.SelectColumns(
+				            NonMatchedClean,
+				            FinalColumnList,
+				            MissingField.UseNull
+				        ),
+				
+				    CombinedRows =
+				        Table.Combine(
+				            {
+				                MatchedAligned,
+				                NonMatchedAligned
+				            }
+				        ),
+				
+				    FinalColumnOrder =
+				        Table.ReorderColumns(
+				            CombinedRows,
+				            {
+				                "PO Period ID",
+				                "PO Period Source",
+				                "Inbound Match Status",
+				                "GRN Match Status",
+				                "GRN Detail Source",
+				                "GRN Match Key",
+				
+				                "Article No.",
+				                "Article",
+				                "Article Key",
+				                "Original Purchase Article No.",
+				                "Original Purchase Article",
+				                "Original Purchase Article Key",
+				                "Manager Stock Article",
+				                "Manager Stock Article No.",
+				                "Article Mapping Status",
+				
+				                "Supplier",
+				                "Supplier Key",
+				                "Warehouse",
+				                "Warehouse Key",
+				                "Final Cost Center",
+				
+				                "Matched PO No",
+				                "GRN PO No",
+				                "GRN PO No Key",
+				                "Order No.",
+				
+				                "PO Supplier",
+				                "PO Supplier List",
+				                "PO Unit List",
+				                "PO Base Unit List",
+				                "PO Date",
+				                "PO Start Date",
+				                "Next PO Date",
+				                "PO End Date",
+				                "PO Base Qty",
+				                "PO Period Base Qty",
+				                "PO Value",
+				                "PO Period Value",
+				                "PO Count",
+				                "PO Line Count",
+				
+				                "GRN Unit",
+				                "GRN Unit Key",
+				                "GRN Qty",
+				                "Allocated GRN Qty",
+				                "GRN Base Qty",
+				                "Allocated GRN Base Qty",
+				                "Same Day GRN Base Qty",
+				                "Late GRN Base Qty",
+				                "Base Unit",
+				                "GRN Base Unit",
+				                "Base Unit Key",
+				                "GRN Unit Mapping Source",
+				                "GRN Unit Mapping Status",
+				
+				                "GRN Value",
+				                "Price/Unit",
+				                "Price/BU",
+				                "Discount",
+				
+				                "Delivery Note No",
+				                "Delivery Date",
+				                "GRN Delivery Date",
+				                "Days After PO",
+				                "GRN Timing Status",
+				                "DN Status",
+				                "DN Order Date",
+				                "Requested QTY",
+				                "Requested Base Qty",
+				                "Requested Qty Conflict Flag",
+				                "Requested Qty Conflict Status",
+				                "Requested Qty Distinct Count",
+				                "Requested Base Qty Distinct Count",
+				                "Requested Qty List",
+				                "Requested Base Qty List",
+				                "Booking DateTime",
+				                "GRN Booking Date",
+				                "Booking Delay Days",
+				
+				                "Sub_Category",
+				                "Item_Group",
+				                "Storage_Type",
+				                "GRN Line ID"
+				            },
+				            MissingField.Ignore
+				        )
+				in
+				    FinalColumnOrder
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

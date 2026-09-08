@@ -1,0 +1,60 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		fastCombine
+		legacyRedirects
+		returnErrorValuesAsNull
+
+/// Errors in queries that were loaded on 17/06/2026 1:30:18 AM.
+queryGroup 'Query Errors - 17/06/2026 1:30:18 AM'
+
+	annotation PBI_QueryGroupOrder = 0
+
+/// Errors in queries that were loaded on 19/06/2026 8:04:27 PM.
+queryGroup 'Query Errors - 19/06/2026 8:04:27 PM'
+
+	annotation PBI_QueryGroupOrder = 1
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["Manager Article","Delivery Note","Open PO","Issue Requests & Transfer","Issue Requests & Transfer Grouped","Replen Planning","Unit Conversion","fnCleanText","fnCleanBaseUnit","fnDateOnly","dim_unit_conversion","dim_item","dim_supplier","dim_date","CategoryLookup","Warehouse Mapping","dim_warehouse","fact_po_line","fact_grn_line","fact_po_period_base","fact_grn_allocated_detail","agg_grn_by_po_period","fact_po_period_lifecycle","bridge_supplier_po_period","fact_outbound_line","Errors in fact_outbound_line","OutboundWH","Errors in fact_outbound_line (2)","p_FromDate","SOH Control","ref_soh_article_global_status","map_art_no","map_art_name","fact_grn_no_active_po_exception","fact_grn_recovered_lifecycle","Replen Planning (3)","Wastage","Full SOH","cc_soh_current","cc_wastage_line","cc_daily_inventory","fact_wastage_line","fact_cc_inventory_movement","CC Open PO Core","CC PO Receipt Core"]
+
+annotation PBI_ProTooling = ["WebModelingEdit","DevMode"]
+
+ref table dim_item
+ref table dim_supplier
+ref table dim_date
+ref table dim_warehouse
+ref table fact_po_line
+ref table fact_grn_line
+ref table fact_grn_allocated_detail
+ref table fact_po_period_lifecycle
+ref table dim_unit_conversion
+ref table '_Measures Inbound'
+ref table bridge_supplier_po_period
+ref table '_Measures Color'
+ref table fact_outbound_line
+ref table '_Measures Outbound'
+ref table 'Manager Article'
+ref table cc_daily_inventory
+ref table fact_wastage_line
+ref table '_Measures Cost'
+ref table 'CC Inbound Status'
+ref table 'CC Wastage Status'
+ref table 'CC Outbound Status'
+ref table 'CC Coverage Bucket'
+ref table 'CC Date'
+ref table 'CC Item Location'
+ref table 'CC Outbound Core'
+ref table 'CC SOH Bucket'
+ref table 'CC Outbound Bucket'
+ref table 'CC Open PO Core'
+ref table 'CC PO Receipt Core'
+ref table 'CC Supplier Coverage Bucket'
+ref table 'CC Combined Coverage Bucket'
+ref table 'CC Utilization PO Bucket'
+
+ref cultureInfo en-US
+
