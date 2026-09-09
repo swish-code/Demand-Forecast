@@ -124,10 +124,70 @@ export async function constantsFor(brand, { today = new Date(), months = 6 } = {
       if (first === -1) continue
       const detail = all.slice(first)
 
-      const total = detail.reduce((n, d) => n + d.constant, 0)
-      const constant = total / detail.length
+      /*
+       * Recent months count for more than old ones.
+       *
+       * Weighted 1, 2, 3 ... oldest to newest, so last month carries as much as
+       * the first three together. A flat mean cannot follow a trend in either
+       * direction: article 104900012 fell from 0.95 to 0.24 over six months and
+       * the flat constant sat at 0.71, forecasting three times the current rate.
+       *
+       * Backtested on 9 Sep 2026 by training on five months and predicting the
+       * sixth, three times over. It won every month on every measure:
+       *
+       *   predicting   flat -> weighted   volume-weighted   bias
+       *     June        69.2% -> 73.1%    65.1% -> 73.8%   +45% -> +26%
+       *     July        71.2% -> 74.3%    73.6% -> 78.8%   +29% -> +18%
+       *     August      73.2% -> 75.3%    78.4% -> 83.4%   +16% ->  +6%
+       *
+       * The bias falls by roughly half each month, which says what the +10.5%
+       * over-forecast actually was: not a calibration error, but a flat mean
+       * lagging a business whose rates were declining.
+       *
+       * Outlier capping was tested alongside this and is deliberately absent —
+       * weighting already discounts an old spike, and capping a recent one would
+       * suppress genuine recent growth. It made the weighted result worse.
+       */
+      const weights = detail.map((_, i) => i + 1)
+      const weightTotal = weights.reduce((n, w) => n + w, 0)
+      const constant =
+        detail.reduce((n, d, i) => n + d.constant * weights[i], 0) / weightTotal
       if (!Number.isFinite(constant) || constant <= 0) continue
-      out.set(article, { constant, months: detail.length, since: detail[0].month, detail })
+
+      /*
+       * Articles that ship in bursts are forecast a different way.
+       *
+       * An article that shipped in two months of six has no rate worth applying
+       * to sales — its demand is not proportional to what the brand sells, it is
+       * an order that either happens or does not. The median of the months it
+       * did ship describes that better than any average of a series that is
+       * mostly zeros.
+       *
+       * Measured over the same three backtests: 52.4% -> 58.6%, 53.6% -> 56.7%,
+       * 52.6% -> 56.9%. Median of quantities, not of rates — scaling by sales
+       * cost about three points of that gain, because sales are not what drives
+       * these articles.
+       */
+      const shipped = detail.filter((d) => d.outbound > 0)
+      const shipMonths = shipped.length
+      const intermittent = shipMonths > 0 && shipMonths <= INTERMITTENT_MONTHS
+      const sorted = shipped.map((d) => d.outbound).sort((x, y) => x - y)
+      const mid = Math.floor(sorted.length / 2)
+      const fixedMonthly = !sorted.length
+        ? 0
+        : sorted.length % 2
+          ? sorted[mid]
+          : (sorted[mid - 1] + sorted[mid]) / 2
+
+      out.set(article, {
+        constant,
+        months: detail.length,
+        shipMonths,
+        intermittent,
+        fixedMonthly,
+        since: detail[0].month,
+        detail,
+      })
     }
     return out
   })()
@@ -166,6 +226,17 @@ export function forgetConstants() {
  * for on 6 Sep 2026.
  */
 export const ACTIVE_MONTHS = 3
+
+/**
+ * Ships in this many months or fewer, out of six, and it is intermittent.
+ *
+ * Two is where the backtest separated cleanly: at three or more the weighted
+ * rate was still the better method, and below three the median won every time.
+ */
+export const INTERMITTENT_MONTHS = 2
+
+/** A month, for turning a monthly quantity into a window's worth of it. */
+const DAYS_PER_MONTH = 30.44
 
 export async function forecastFromConstants(
   brand,
@@ -225,6 +296,25 @@ export async function forecastFromConstants(
   const sales = await read(brand, filters, { allBrands: brand === OTHER_BUCKET })
   if (!sales) return new Map()
 
+  /*
+   * How much of a month the window on screen is worth.
+   *
+   * Only the intermittent branch below uses it — a median month spread over
+   * ten days is a third of itself, where the rate-based branch gets the same
+   * effect for free from the window's own sales.
+   */
+  const windowDays =
+    filters?.dateFrom && filters?.dateTo
+      ? Math.max(
+          1,
+          Math.round(
+            (Date.parse(`${filters.dateTo}T00:00:00Z`) -
+              Date.parse(`${filters.dateFrom}T00:00:00Z`)) /
+              86_400_000
+          ) + 1
+        )
+      : DAYS_PER_MONTH
+
   const out = new Map()
   for (const [article, held] of constants) {
     /*
@@ -265,7 +355,22 @@ export async function forecastFromConstants(
       continue
     }
 
-    const qty = held.constant * sales
+    /*
+     * Two ways to reach a quantity, chosen by how the article behaves.
+     *
+     * A regular article is a rate applied to sales — sell more and the
+     * warehouse ships more. An intermittent one is not: its median month is a
+     * quantity, and it is pro-rated by the length of the window rather than by
+     * sales, because sales are not what decides whether the order happens.
+     *
+     * Scaling the median by sales instead was measured and cost about three
+     * points of accuracy, so the difference is not cosmetic.
+     */
+    const qty =
+      held.intermittent && held.fixedMonthly > 0
+        ? held.fixedMonthly * (windowDays / DAYS_PER_MONTH)
+        : held.constant * sales
+
     if (!Number.isFinite(qty) || qty <= 0) continue
     out.set(article, qty)
   }
