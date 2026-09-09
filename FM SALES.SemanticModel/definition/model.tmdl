@@ -1,0 +1,21 @@
+model Model
+	culture: en-IN
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-IN
+	valueFilterBehavior: independent
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_QueryOrder = ["FM SALES PER LOCATION"]
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table 'FM SALES PER LOCATION'
+ref table DateTableTemplate_56de1c06-d99b-4855-ac4c-a2431720c84b
+ref table LocalDateTable_c4e37118-e5c0-4306-a68e-3ac13001bd1b
+
+ref cultureInfo en-IN
+

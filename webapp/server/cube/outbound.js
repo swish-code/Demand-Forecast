@@ -6,7 +6,7 @@ import {
   outboundFromWarehouse,
   OTHER_BUCKET,
 } from '../powerbi/warehouse.js'
-import { forgetShipped, forgetElsewhere, forgetMaster } from './query.js'
+import { forgetShipped, forgetElsewhere, forgetMaster, forgetShipHistory } from './query.js'
 import { forgetConstants } from '../insights/whConstant.js'
 
 /**
@@ -312,6 +312,8 @@ export async function refreshAllOutbound({ from, to, month, lastFrom, lastTo }) 
   forgetShipped()
   forgetElsewhere()
   forgetMaster()
+  // The status ladder is read straight off these dates.
+  forgetShipHistory()
   // The six-month constants are averages over these very rows.
   forgetConstants()
   return out

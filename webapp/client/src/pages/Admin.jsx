@@ -20,6 +20,7 @@ import { WhyPanel } from '../components/WhyPanel.jsx'
 import { ModelReview } from '../components/ModelReview.jsx'
 import { CubeStatus } from '../components/CubeStatus.jsx'
 import { NonRecipePanel } from '../components/NonRecipePanel.jsx'
+import { SalesImportPanel } from '../components/SalesImportPanel.jsx'
 import { useData } from '../useData.js'
 
 /**
@@ -421,6 +422,8 @@ export function Admin({ session }) {
       <CubeStatus />
 
       <NonRecipePanel />
+
+      <SalesImportPanel />
 
       <ModelReview />
 

@@ -28,6 +28,8 @@
  */
 import * as cube from '../cube/query.js'
 import { constantsFor, forecastFromConstants } from './whConstant.js'
+import { classifyArticles, classifyOne, statusOf, summarise } from './whClassify.js'
+import { shippingPatterns } from './whPatterns.js'
 import { OTHER_BUCKET } from '../powerbi/warehouse.js'
 
 /** Where the volatility bands sit — see the measurements in the file comment. */
@@ -62,6 +64,23 @@ function volatility(detail) {
 }
 
 /**
+ * The best score any forecast could get on an article that swings this much.
+ *
+ * A forecast landing exactly on the article's own average is still marked down
+ * every month the article misses that average, and how far it misses is what
+ * `cv` measures. Working the accuracy formula through for a swing of `cv` gives
+ * 1 − 0.8cv / (1 + 0.4cv).
+ *
+ * Checked against the population on 8 Sep 2026: the typical article swings ±67%
+ * and scored 58.9% when given a perfect knowledge of its own level, against
+ * 57.7% predicted here. Close enough to publish.
+ *
+ * This is the number that separates "the forecast is wrong" from "the article
+ * cannot be forecast", which is the only distinction this panel exists to make.
+ */
+const reachable = (cv) => (cv > 0 ? Math.max(0, 1 - (0.8 * cv) / (1 + 0.4 * cv)) : 1)
+
+/**
  * One named reason, chosen in the order that matters to somebody acting on it.
  *
  * Ordered by what to do about it rather than by size: an article that stopped
@@ -70,6 +89,14 @@ function volatility(detail) {
  * product nobody sells any more.
  */
 function diagnose(r) {
+  if (r.dormant) {
+    return {
+      code: 'dormant',
+      label: 'No recent history',
+      detail:
+        'The warehouse has not issued this article in the six months the rate is built from, so there is no rate and nothing is forecast for it. Its status says how long it has been quiet.',
+    }
+  }
   if (r.stopped) {
     return {
       code: 'stopped',
@@ -132,9 +159,25 @@ function diagnose(r) {
  * and so is outbound, but a diagnosis is about the article.
  */
 export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
-  const [names, recipeArticles] = await Promise.all([
+  /*
+   * Statuses are cut to the end of the window on screen, not to today.
+   *
+   * Every part of one request carries the same slicer, so the latest dateTo is
+   * that window's end. Look at March and an article that went quiet in April is
+   * Active, because in March it was.
+   */
+  const asAt =
+    parts
+      .map((p) => p.f?.dateTo)
+      .filter(Boolean)
+      .sort()
+      .pop() ?? new Date(today).toISOString().slice(0, 10)
+
+  const [names, recipeArticles, classes, patterns] = await Promise.all([
     cube.articleMaster().catch(() => new Map()),
     cube.recipeArticles().catch(() => new Set()),
+    classifyArticles({ asAt }).catch(() => new Map()),
+    shippingPatterns({ asAt }).catch(() => null),
   ])
 
   const merged = new Map()
@@ -162,10 +205,13 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
           trend: 0,
           spike: 0,
           stopped: false,
+          brands: new Set(),
+          series: [],
         }
 
       row.forecast += forecast
       if (moved !== null) row.outbound = (row.outbound ?? 0) + moved
+      row.brands.add(code)
 
       /*
        * The shape figures come from whichever brand has the longest history.
@@ -178,6 +224,12 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
         row.months = held.months
         row.activeMonths = detail.filter((d) => d.outbound > 0).length
         row.cv = volatility(detail)
+        /*
+         * The months themselves, so a reader can see the shape rather than
+         * being told about it. "100 → 20 → 250 → 50" argues the case for
+         * unpredictability better than any coefficient does.
+         */
+        row.series = detail.map((d) => ({ month: d.month, qty: d.outbound }))
 
         const recent = detail.slice(-2).map((d) => d.constant)
         const earlier = detail.slice(0, -2).map((d) => d.constant)
@@ -193,6 +245,37 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
 
       merged.set(article, row)
     }
+  }
+
+  /*
+   * The articles that have gone quiet, which the loop above cannot see.
+   *
+   * `constantsFor` builds from the last six whole months and drops anything
+   * with no delivery in them — so an article silent for seven months has no
+   * rate, and until now had no row here either. That is exactly backwards for a
+   * status ladder whose whole purpose is to find articles that have stopped:
+   * the ones furthest down it were the ones missing.
+   *
+   * Added with no forecast and no outbound, so they are unscored by
+   * construction and cannot move the accuracy figures. They are here to be
+   * counted and listed, not to be graded.
+   */
+  for (const article of classes.keys()) {
+    if (merged.has(article)) continue
+    merged.set(article, {
+      article,
+      forecast: 0,
+      outbound: null,
+      months: 0,
+      activeMonths: 0,
+      cv: 0,
+      trend: 0,
+      spike: 0,
+      stopped: false,
+      brands: new Set(),
+      series: [],
+      dormant: true,
+    })
   }
 
   const rows = []
@@ -213,6 +296,13 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
       variance: measured ? r.forecast - o : null,
       errorPct: measured ? (r.forecast - o) / o : null,
       accuracy,
+      // A Set does not survive JSON, and the page groups on this.
+      brands: [...r.brands].sort().join(', '),
+      avgMonthly: r.series.length ? mean(r.series.map((d) => d.qty)) : null,
+      reachable: reachable(r.cv),
+      // Never null: an article with no shipping record at all is "never
+      // shipped", which is a status rather than the absence of one.
+      classification: classes.get(r.article) ?? classifyOne(null, asAt),
     }
     row.issue = diagnose(row)
     rows.push(row)
@@ -356,12 +446,14 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
     history: r.months < 3 ? 'thin' : r.months < 5 ? 'some' : 'full',
     recipe: r.recipe ? 'recipe' : 'non-recipe',
     issue: r.issue?.code ?? null,
+    status: r.classification?.status ?? null,
   })
 
   const shape = (r) => ({
     article: r.article,
     name: r.name,
     unit: r.unit,
+    brands: r.brands,
     forecast: r.forecast,
     outbound: r.outbound,
     variance: r.variance,
@@ -373,6 +465,17 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
     trend: r.trend,
     recipe: r.recipe,
     issue: r.issue,
+    series: r.series,
+    avgMonthly: r.avgMonthly,
+    reachable: r.reachable,
+    status: r.classification?.status ?? null,
+    // Labelled here rather than on the page: one definition of what "Slow-Moving"
+    // is called, so a rename cannot leave the table and the ladder disagreeing.
+    statusLabel: statusOf(r.classification?.status)?.label ?? '—',
+    statusTone: statusOf(r.classification?.status)?.tone ?? 'slate',
+    daysIdle: r.classification?.daysIdle ?? null,
+    lastShipped: r.classification?.lastShipped ?? null,
+    thinEvidence: r.classification?.thinEvidence ?? false,
     keys: keysFor(r),
   })
 
@@ -395,7 +498,88 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
 
   const stopped = rows.filter((r) => r.stopped)
 
+  /*
+   * Articles nobody could forecast well, and what they cost.
+   *
+   * `reachable` is the honest ceiling for each one, so the panel can say "these
+   * score 22% and the best possible is 31%" — which is a statement about the
+   * article, not about the method. `averageWithout` is the counterfactual the
+   * reader actually wants: what the headline would be if these were planned by
+   * a rule instead of a forecast.
+   */
+  const hard = scored.filter((r) => r.cv >= CV_VOLATILE)
+  const rest = scored.filter((r) => r.cv < CV_VOLATILE)
+  const avgAcc = (list) =>
+    list.length ? list.reduce((s, r) => s + Math.max(0, r.accuracy), 0) / list.length : null
+
+  const unpredictable = {
+    count: hard.length,
+    share: scored.length ? hard.length / scored.length : 0,
+    averageAccuracy: avgAcc(hard),
+    reachable: hard.length ? mean(hard.map((r) => r.reachable)) : null,
+    forecast: hard.reduce((s, r) => s + r.forecast, 0),
+    outbound: hard.reduce((s, r) => s + r.outbound, 0),
+    unitsAtStake: hard.reduce((s, r) => s + Math.abs(r.variance ?? 0), 0),
+    // What the typical article would score if these were set aside.
+    averageWithout: avgAcc(rest),
+    restCount: rest.length,
+    threshold: CV_VOLATILE,
+  }
+
+  /*
+   * What the target is actually up against.
+   *
+   * `reachable` per article, averaged the same way the accuracy card averages —
+   * so this is, in the card's own units, the score a forecast would get if it
+   * knew every article's true average and nothing else. It is not a prediction
+   * of what we will achieve; it is the line above which no method of any kind
+   * can go while these articles are the ones being scored.
+   *
+   * Cut three ways, because the difference between them is the whole argument:
+   * the population decides the ceiling far more than the method does.
+   */
+  const median = (xs) => {
+    if (!xs.length) return null
+    const s = [...xs].sort((a, b) => a - b)
+    return s[Math.floor(s.length / 2)]
+  }
+  const activeScored = scored.filter((r) => r.classification?.status === 'active')
+  const steadyScored = scored.filter((r) => r.cv < CV_STEADY)
+  const avg = (list, pick) => (list.length ? mean(list.map(pick)) : null)
+
+  const ceiling = {
+    all: avg(scored, (r) => r.reachable),
+    allCount: scored.length,
+    active: avg(activeScored, (r) => r.reachable),
+    activeCount: activeScored.length,
+    steady: avg(steadyScored, (r) => r.reachable),
+    steadyCount: steadyScored.length,
+    typicalSwing: median(scored.map((r) => r.cv)),
+    /*
+     * The relationship itself, so the page can show why rather than assert it.
+     * Same expression `reachable` uses, evaluated at readable swing values.
+     */
+    curve: [0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5].map((cv) => ({
+      cv,
+      best: reachable(cv),
+    })),
+    /** The swing an article must be under for 85% to be possible at all. */
+    swingFor85: 0.2,
+  }
+
   return {
+    unpredictable,
+    ceiling,
+    patterns,
+    /*
+     * The five statuses with their counts, in ladder order.
+     *
+     * Carries each status's own definition and intended treatment alongside the
+     * count, so the page, the guide and anything printed from them describe the
+     * policy in the words `whClassify.js` holds rather than their own.
+     */
+    statuses: summarise(rows.map((r) => r.classification)),
+    classifiedAt: asAt,
     summary: {
       articles: rows.length,
       scored: scored.length,

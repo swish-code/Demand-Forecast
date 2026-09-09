@@ -4841,6 +4841,203 @@ table.dt tbody tr:hover td.dt--wh {
 /* What a chart means, in one line under it. */
 .pnote { margin: var(--s3) 0 0; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
 
+/*
+ * A month-by-month shipment history, small enough to sit in a table cell.
+ *
+ * The bars carry the shape and the numbers carry the evidence: "±180% variation"
+ * is a claim, and 100 → 20 → 250 → 50 underneath it is the proof. Both, because
+ * the reader this panel is written for should not have to take the first on
+ * trust.
+ */
+.trail { display: flex; flex-direction: column; gap: 3px; }
+
+.trail__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+}
+
+.trail__bar {
+  flex: 1 1 0;
+  min-width: 4px;
+  min-height: 1px;
+  border-radius: 1px 1px 0 0;
+  background: var(--blue);
+  opacity: 0.45;
+}
+
+/* The month that is furthest from ordinary — the one making it hard to plan. */
+.trail__bar--peak { background: var(--amber); opacity: 1; }
+
+.trail__nums {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A reachable-ceiling reading: what the best possible forecast would score. */
+.ceil { display: inline-flex; align-items: baseline; gap: 4px; }
+.ceil__cap { font-size: 11px; color: var(--text-muted); }
+
+/*
+ * The status ladder — five rungs, each a filter.
+ *
+ * Laid out as one row of equal cards so the ladder reads left to right in the
+ * order an article travels down it. The colour is on a dot and a top rule
+ * rather than the whole card, because five saturated blocks side by side stop
+ * being a ranking and start being a warning.
+ */
+.statgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--s3);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s4);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--neutral);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.stat:hover { background: var(--sunken); }
+
+/* Focus comes from the global :focus-visible rule, like every other control. */
+.stat--on { border-color: var(--accent); background: var(--sunken); }
+
+.stat--green { border-top-color: var(--green); }
+.stat--amber { border-top-color: var(--amber); }
+.stat--red   { border-top-color: var(--red); }
+.stat--blue  { border-top-color: var(--blue); }
+.stat--slate { border-top-color: var(--neutral); }
+
+.stat__head { display: flex; align-items: center; gap: 6px; }
+
+.stat__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neutral);
+  flex: none;
+}
+
+.stat--green .stat__dot { background: var(--green); }
+.stat--amber .stat__dot { background: var(--amber); }
+.stat--red   .stat__dot { background: var(--red); }
+.stat--blue  .stat__dot { background: var(--blue); }
+
+.stat__label { font-size: 12px; font-weight: var(--w-bold); }
+
+.stat__count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__share { font-size: 12px; font-weight: var(--w-regular); color: var(--text-muted); }
+.stat__crit { font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+
+.stat__plan {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* A bar that is a reading, not a control — no hover, no disabled fade. */
+.bandrow--static { cursor: default; }
+.bandrow--static:hover { background: transparent; }
+
+/*
+ * Two demand shapes side by side.
+ *
+ * The argument for treating occasional articles differently is much easier to
+ * make with the two number sequences next to each other than with a definition
+ * of intermittency, so the example is the visual rather than an illustration
+ * of one.
+ */
+.egpair { display: flex; flex-direction: column; gap: var(--s3); }
+
+.eg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.eg--alt { border-left-color: var(--amber); }
+
+.eg__tag {
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.eg__nums {
+  font-size: 15px;
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.eg__note { font-size: 11.5px; line-height: 1.55; color: var(--text-muted); }
+
+/* A tested-and-rejected idea reads as settled, not as an open problem. */
+.iss--ruled { border-left: 3px solid var(--neutral); }
+
+/* An import summary: label and value, so the figures line up to be checked. */
+.imp {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  gap: 6px var(--s4);
+  font-size: 13px;
+}
+
+.imp dt { color: var(--text-muted); }
+.imp dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/*
+ * A finished step stays on the list rather than disappearing from it.
+ *
+ * Removing it would lose the sequence, and the sequence is the argument — that
+ * classification came before suppression on purpose. Recessive instead, so the
+ * eye lands on what is still outstanding.
+ */
+.step--done { background: var(--sunken); }
+.step--done .step__num { background: var(--green); }
+.step--done .step__title,
+.step--done .step__do { color: var(--text-muted); }
+
+/* A step nothing else can start until it is settled. */
+.step--blocked { border-color: var(--red); }
+.step--blocked .step__num { background: var(--red); }
+
 /* An investigated issue — severity, then the same named fields every time. */
 .issgrid {
   display: grid;
@@ -4956,29 +5153,6 @@ table.dt tbody tr:hover td.dt--wh {
 .step__fields dd { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-muted); }
 
 /* The honest limit, set apart from the plan it qualifies. */
-.ceiling {
-  margin-top: var(--s4);
-  padding: var(--s4);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--amber);
-  border-radius: var(--r-card);
-  background: var(--sunken);
-}
-
-.ceiling h3 { margin: 0 0 var(--s2); font-size: 14px; line-height: 1.35; }
-
-.ceiling p {
-  margin: 0 0 var(--s2);
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--text-muted);
-  max-width: 82ch;
-}
-
-.ceiling p:last-child { margin-bottom: 0; }
-.ceiling__target { color: var(--text); font-weight: var(--w-medium); }
-.ceiling__note { font-size: 12px; color: var(--text-faint); }
-
 @media (max-width: 640px) {
   .step { grid-template-columns: 1fr; }
   .step__fields { grid-template-columns: 1fr; gap: 2px; }

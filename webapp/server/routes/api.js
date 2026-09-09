@@ -26,6 +26,9 @@ import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
+import { classifyArticles, classifyOne, statusOf } from '../insights/whClassify.js'
+import { sohTrend } from '../insights/sohTrend.js'
+import { salesRunRate } from '../insights/salesRunRate.js'
 import {
   allowedBrands,
   applyLocationScope,
@@ -47,7 +50,7 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
 // everything below it requires a session.
 
 
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply', 'recipeKinds']
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply', 'recipeKinds', 'statuses']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -953,6 +956,39 @@ async function withSupply(rows, filters) {
 const RECIPE_KIND = (r) =>
   String(r['Recipe Group'] ?? '').startsWith('No recipe') ? 'Non-recipe' : 'Recipe'
 
+/**
+ * Each row's article status, and the slicer that filters on it.
+ *
+ * The same ladder the forecast routes on — Active through To Be Deactivated —
+ * so a reader who filters to Non-Moving sees exactly the articles the forecast
+ * decided not to forecast, rather than a second definition that happens to
+ * agree most of the time.
+ *
+ * Cut to the end of the window on screen, like everywhere else this status is
+ * used: looking at March must show what was true in March.
+ */
+async function withStatus(rows, filters) {
+  const asAt = filters?.dateTo || new Date().toISOString().slice(0, 10)
+  const classes = await classifyArticles({ asAt }).catch(() => new Map())
+
+  const labelled = rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    // A kitchen step has no article number, so there is nothing to classify.
+    if (!article) return { ...r, Status: null, Days_Idle: null }
+    const c = classes.get(article) ?? classifyOne(null, asAt)
+    return {
+      ...r,
+      Status: statusOf(c.status)?.label ?? null,
+      Days_Idle: c.daysIdle,
+    }
+  })
+
+  const wanted = (filters?.statuses ?? []).filter(Boolean)
+  if (!wanted.length) return labelled
+  const keep = new Set(wanted)
+  return labelled.filter((r) => r.Status && keep.has(r.Status))
+}
+
 function withRecipeKind(rows, filters) {
   const wanted = (filters?.recipeKinds ?? []).filter(Boolean)
   if (!wanted.length) return rows
@@ -987,6 +1023,35 @@ function withRecipeKind(rows, filters) {
  * Administrators only: it is a diagnosis of the method rather than a figure to
  * order from, and every row on it is an argument about a calculation.
  */
+/**
+ * Warehouse stock against what left it, week by week.
+ *
+ * Not admin-only: it answers an operational question — is the warehouse holding
+ * enough — rather than diagnosing the forecast, so it belongs to whoever can
+ * see the warehouse pages at all.
+ */
+api.all('/soh-trend', handle(async (req, res) => {
+  if (pageDenied(req, res, 'warehouse')) return
+  const g = guardMany(req, res)
+  if (!g) return
+  const f = g.parts[0]?.f ?? {}
+  res.json((await sohTrend({ dateFrom: f.dateFrom, dateTo: f.dateTo })) ?? { weeks: [], unavailable: true })
+}))
+
+/**
+ * Sales value by month, and the pace the current month is running at.
+ *
+ * On the warehouse pages because it is the warehouse forecast's denominator —
+ * every WH figure is the constant times this number.
+ */
+api.all('/sales-runrate', handle(async (req, res) => {
+  if (pageDenied(req, res, 'warehouse')) return
+  const g = guardMany(req, res)
+  if (!g) return
+  const f = g.parts[0]?.f ?? {}
+  res.json(await salesRunRate({ dateTo: f.dateTo }))
+}))
+
 api.all('/warehouse-diagnostics', handle(async (req, res) => {
   if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'This analysis is available to administrators.' })
@@ -1344,8 +1409,11 @@ api.all('/component-level', handle(async (req, res) => {
     return res.json({
       sales,
       rows: withRecipeKind(
-        await withSupply(
-          await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+        await withStatus(
+          await withSupply(
+            await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+            window
+          ),
           window
         ),
         window
@@ -1357,13 +1425,16 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     sales,
     rows: withRecipeKind(
-      await withSupply(
-        await addWarehouseWide(
-          // Split by brand, the brands are the answer, so they are not added up.
-          grain.brand ? results.flat() : merged(results),
-          window,
-          grain,
-          mtdAll?.get(OTHER_BUCKET)
+      await withStatus(
+        await withSupply(
+          await addWarehouseWide(
+            // Split by brand, the brands are the answer, so they are not added up.
+            grain.brand ? results.flat() : merged(results),
+            window,
+            grain,
+            mtdAll?.get(OTHER_BUCKET)
+          ),
+          window
         ),
         window
       ),

@@ -1,7 +1,11 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { config } from '../config.js'
+import { DATA_DIR } from '../db/driver.js'
 import { pg } from '../db/accounts.js'
-import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, coverage, rebuildRollup, vacuum } from './extract.js'
+import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, refreshSalesValues, coverage, rebuildRollup, vacuum } from './extract.js'
 import { refreshAllOutbound } from './outbound.js'
+import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
 import { loadCoverage } from './query.js'
 import { raise, clear } from '../insights/alerts.js'
@@ -46,6 +50,19 @@ const state = async () => ({
   lastError,
   brands: await coverage(),
   rows: (await pg.get('SELECT COUNT(*)::int AS n FROM cube_daily'))?.n ?? 0,
+  /*
+   * The sales value the warehouse constant divides by.
+   *
+   * Reported because when it is empty every warehouse forecast is blank and
+   * nothing else on the page says why — the article rows, the outbound and the
+   * product-mix figures all carry on working, so it reads as one broken column
+   * rather than one missing table.
+   */
+  sales: (await pg.get(
+    `SELECT COUNT(*)::int AS rows, COUNT(DISTINCT brand)::int AS brands,
+            MIN(date) AS lo, MAX(date) AS hi, SUM(value) AS total
+       FROM cube_sales_daily`
+  )) ?? { rows: 0, brands: 0, lo: null, hi: null, total: 0 },
 })
 
 export { state as cubeState }
@@ -274,6 +291,124 @@ function untilHour(hour) {
   return next.getTime() - now.getTime()
 }
 
+/**
+ * Fill the sales value once, if the copy has never held any.
+ *
+ * The constant divides by sales value, and that table arrives empty on any copy
+ * built before 9 Sep 2026 — so without this the warehouse forecast is blank
+ * until somebody finds a button and presses it. A migration that repairs itself
+ * is worth more than one that has to be discovered.
+ *
+ * Only when the table is completely empty. Once there is a single row the
+ * scheduled refresh keeps it current, and re-pulling six months an hour would
+ * be a waste of a capacity that throttles.
+ */
+/**
+ * A file record of what the sales fill did, and when.
+ *
+ * The console is not always readable — a dev server started in the background
+ * writes to somewhere nobody is looking — and this is the one job whose silent
+ * failure blanks every warehouse forecast without producing an error. Appended
+ * rather than replaced, so an interrupted run and its retry are both visible.
+ */
+function noteSales(line) {
+  try {
+    fs.appendFileSync(
+      path.join(DATA_DIR, 'cube-sales.log'),
+      `[${new Date().toISOString()}] ${line}
+`
+    )
+  } catch {
+    /* a diagnostic that cannot be written must not stop the job it describes */
+  }
+}
+
+async function salesValuesIfEmpty() {
+  /*
+   * Empty, or missing a brand.
+   *
+   * "Empty" alone was not enough: a fill interrupted part way through leaves
+   * some brands present and the rest absent, and the constant for a missing
+   * brand has no denominator at all — so the check asks whether every brand is
+   * represented, not merely whether anything is.
+   */
+  /*
+   * Checked per brand, on depth as well as presence.
+   *
+   * Two traps caught this in turn. Counting rows alone passed once the hourly
+   * refresh had topped up the last few days. Adding a global MIN(date) passed
+   * too, because Forevermore carries January and masked nine brands that had
+   * five days each. The rate is an average over six whole months, so a brand
+   * short of history has no usable month at all and every one of its warehouse
+   * forecasts is blank — with no error, because an empty denominator is not a
+   * failure, it is just nothing to average.
+   */
+  const now = new Date()
+  const oldest = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1))
+    .toISOString()
+    .slice(0, 10)
+
+  const per = await pg.all(
+    'SELECT brand, COUNT(*)::int AS n, MIN(date) AS lo, MAX(date) AS hi FROM cube_sales_daily GROUP BY brand'
+  )
+  const held = new Map(per.map((r) => [String(r.brand), r]))
+  const short = config.brands.filter((b) => {
+    const r = held.get(b.code)
+    return !r || !r.lo || String(r.lo) > oldest
+  })
+
+  if (!short.length) {
+    noteSales(
+      `skipped — every brand deep enough: ` +
+        per.map((r) => `${r.brand}:${r.n}@${r.lo}`).join(' ')
+    )
+    return { skipped: 'already filled' }
+  }
+  noteSales(
+    `starting — need history back to ${oldest}; short: ${short.map((b) => b.code).join(', ')} · ` +
+      `held: ${per.map((r) => `${r.brand}:${r.n}@${r.lo}`).join(' ') || 'nothing'}`
+  )
+  console.log(
+    `  [cube] sales value short for ${short.length} brand(s) — filling it`
+  )
+  const results = await refreshSalesValues((r) =>
+    noteSales(
+      r.error
+        ? `  ${r.brand}: FAILED — ${r.error}`
+        : `  ${r.brand}: ${r.rows} days, ${r.from} to ${r.to}`
+    )
+  )
+  /*
+   * And the brands that have sales and no model of their own.
+   *
+   * Forevermore belongs in the same total — its outbound is already counted
+   * against it — so filling the nine and leaving it out would produce exactly
+   * the mismatch this table exists to fix.
+   */
+  const extra = await refreshAllSalesOnly().catch((err) => {
+    console.log(`  [cube] sales-only fill failed: ${err.message.slice(0, 100)}`)
+    return []
+  })
+  /*
+   * Drop cached answers as well as cached constants.
+   *
+   * This job does not run inside `guarded`, which is what normally clears the
+   * response cache after an extract — so without this a request answered while
+   * the table was empty would keep being served from the cache, blank, after
+   * the numbers behind it had arrived.
+   */
+  clearCache()
+
+  const all = [...results, ...extra]
+  const rows = all.reduce((n, r) => n + (r.rows ?? 0), 0)
+  console.log(`  [cube] sales value filled: ${rows} brand-days`)
+  noteSales(
+    `finished — ${rows} brand-days · ` +
+      all.map((r) => `${r.brand}:${r.error ? 'ERROR ' + r.error : (r.rows ?? 0)}`).join(' ')
+  )
+  return { results: all }
+}
+
 export function startCubeSchedule() {
   if (!enabled()) return false
 
@@ -296,6 +431,23 @@ export function startCubeSchedule() {
   }
 
   setTimeout(() => {
+    /*
+     * The sales value goes first, on its own.
+     *
+     * It used to run at the end of the chain below, and during a day of rapid
+     * edits the server restarted before ever reaching it — so the table stayed
+     * empty and every warehouse forecast was blank, with no error anywhere
+     * because an empty denominator is not a failure, it is just no months to
+     * average. It is nine quick queries and everything downstream depends on
+     * it, so it no longer queues behind an hour of backfill.
+     */
+    detached('sales value', () =>
+      salesValuesIfEmpty().catch((err) => {
+        noteSales(`ABORTED — ${err.message}`)
+        throw err
+      })
+    )
+
     detached('initial backfill', () =>
       backfillThin()
         .then(() => refreshRecentAll())

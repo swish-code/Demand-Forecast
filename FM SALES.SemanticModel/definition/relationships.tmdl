@@ -1,0 +1,5 @@
+relationship 92ca9979-df79-4df5-afef-74c77ea0e318
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'FM SALES PER LOCATION'.Date
+	toColumn: LocalDateTable_c4e37118-e5c0-4306-a68e-3ac13001bd1b.Date
+

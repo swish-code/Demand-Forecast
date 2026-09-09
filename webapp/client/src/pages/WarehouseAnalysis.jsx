@@ -31,6 +31,15 @@ const SEVERITY = { Critical: 'red', High: 'amber', Medium: 'blue', Low: 'slate' 
 /** A forecast at or above this counts as one that worked — the server's line. */
 const GOOD = 0.6
 
+/*
+ * Where the swing bands sit. These mirror whDiagnostics.js exactly; the server
+ * decides which band each article is in (`keys.volatility`) and these are only
+ * for wording a badge, so the two cannot disagree about who is in which group.
+ */
+const CV_STEADY = 0.3
+const CV_VOLATILE = 0.6
+const CV_ERRATIC = 1.0
+
 /* ------------------------------------------------------------- findings --- */
 
 /**
@@ -137,99 +146,151 @@ const FINDINGS = [
     resolvedNote: 'No article is being carried by a single unusual month.',
     filter: { type: 'issue', key: 'spike' },
   },
-  {
-    id: 'thin-history',
-    severity: 'Medium',
-    title: 'New articles are forecast from very little',
-    plain:
-      'An article with one or two months of deliveries gets a forecast built on those months alone, which is closer to a guess than a rate.',
-    why: 'An average of one or two numbers is just those numbers. There is no pattern yet to find.',
-    affects: 'Newly listed articles and seasonal ones returning after a gap.',
-    cost: (s, seg, issues) => `${fmtInt(issues('thin-history'))} articles have under three months of history.`,
-    fix:
-      'For recipe articles, use the menu forecast instead — that is a real signal. For others, hold off until there is enough history to average.',
-    check: (s, seg, issues) => issues('thin-history') > 0,
-    resolvedNote: 'Every article being forecast has enough history to average.',
-    filter: { type: 'issue', key: 'thin-history' },
-  },
+  /*
+   * "New articles are forecast from very little" used to sit here, and was
+   * removed on 8 Sep 2026 rather than reworded. Measuring it showed articles
+   * with 3-4 months of history score about the same as those with 5-6, so it
+   * described a fault that is not there. It is in "what we ruled out" below,
+   * where a tested-and-rejected idea is worth more than a plausible one.
+   */
 ]
 
 /**
- * The route to 90%, in the order the measurements say to do it.
+ * The plan to 85%, in the priority the business set on 8 Sep 2026.
  *
  * Separate from the findings above, which each describe one fault. This is the
- * plan: what to do first, what it is worth, and what it costs to try. Ordered
- * by measured impact rather than by how hard each one is.
+ * order of work: what to do, why, what it is worth, and what it costs to try.
  *
- * `gain` is deliberately worded as an expectation rather than a promise. Two of
- * these have been measured directly (the window, and the articles that stopped
- * shipping); the rest are reasoned from the segment data and say so.
+ * `gain` distinguishes what was measured from what is expected, in those words,
+ * because the two are not the same kind of claim and a plan that blurs them is
+ * how a target gets set that the data cannot support.
+ *
+ * `state` lets a step say it is already done. The page then stops advertising
+ * work that has been finished, the same way the findings retire themselves.
  */
 const ROUTE = [
   {
-    step: 1,
-    title: 'Judge accuracy over a full month, not a few days',
-    do: 'Default the warehouse pages to a whole month, and do not read accuracy on any window shorter than about three weeks.',
+    step: 0,
+    state: 'blocked',
+    title: 'Agree what the 85% is measured over',
+    do: 'Decide whether the card averages every article, or only the articles we actively plan — and show the count beside it either way.',
     why:
-      'The warehouse ships in bulk cases on an ordering cycle — 5,000, 10,000, 30,000 units at a time, roughly a week of supply each. A short window catches one delivery or none.',
-    gain: 'Measured: the same articles read 30% on a month-to-date window and 74% at monthly grain. Nothing about the forecast changes.',
-    effort: 'No code change. Do this first.',
+      'This decides whether the target is reachable at all. Averaged over every article, a forecast that knew each one’s true level perfectly would still score far below 85%. Averaged over active articles only, it is a different and much more answerable question.',
+    gain: 'Nothing else on this list can be judged until the thing being judged is settled.',
+    effort: 'A decision, not a code change. Everything below assumes it is made first.',
+  },
+  {
+    step: 1,
+    state: 'done',
+    title: 'Classify every article by how long since it moved',
+    do: 'Five statuses from Swish SPS V3 2026 — Active, Slow-Moving, Super Slow-Moving, Non-Moving, To Be Deactivated.',
+    why:
+      'One method is currently used for articles that ship every week and articles that stopped last spring. They are not the same problem and cannot have the same answer.',
+    gain:
+      'The single largest lever. Most articles carry a small share of the volume, and in an average across articles each one counts as much as the largest line.',
+    effort: 'Done. Shown above; it does not change what is forecast yet.',
   },
   {
     step: 2,
-    title: 'Apply the stopped-shipping rule to recipe articles too',
-    do: 'Extend the two-month activity test to articles a recipe uses, not just to the rest.',
+    title: 'Forecast occasional articles as how often, not how much per day',
+    do: 'For articles that ship in bursts, forecast the chance of an order and the size of one, instead of spreading a monthly average across every day.',
     why:
-      'The rule currently exempts recipe articles, because the menu item still exists. But the canned drinks range stopped shipping in July while the drinks stayed on the menu, so the forecast keeps asking for them.',
+      'An article ordered every third week does not have a weekly demand. An average is too high on the silent weeks and too low on the ordering week, so it is wrong in both directions at once.',
     gain:
-      'Measured: 25 articles slip through. Pepsi Cola Can alone is forecast at 42,794 against 4 issued — one article scoring -1,008,417%, enough to outweigh a thousand good ones.',
-    effort: 'Small. The rule already exists; it needs its exemption removed.',
+      'Expected to be large: this is the shape most of the silent weeks have. It also converts articles that look volatile — but are only on a delivery cycle — into predictable ones.',
+    effort: 'A second forecasting method, scoped to the Slow-Moving group first.',
   },
   {
     step: 3,
-    title: 'Stop scoring articles too small to score',
-    do: 'Below about a hundred units, show how many units out we were and no percentage. Report those separately.',
-    why: 'Two units out of four is a "50% error". It is arithmetically true and tells nobody anything.',
-    gain: 'Around 330 articles. They produce most of the extreme scores and none of the insight.',
-    effort: 'Small, and it only changes what is displayed.',
+    title: 'Test whether a longer window lifts the ceiling',
+    do: 'Score the same forecast over a quarter as well as a month, and compare.',
+    why:
+      'Swings that are unpredictable week to week partly cancel over a longer period. If they do here, the achievable accuracy rises without changing the forecast at all.',
+    gain:
+      'Not yet measured properly — the attempt so far had too few periods to trust. This is a measurement to run, not a change to make.',
+    effort: 'Analysis only. No change to the app until the result is in.',
   },
   {
     step: 4,
-    title: 'Give recent months more weight',
-    do: 'Weight the six months roughly 3 / 2.5 / 2 / 1.5 / 1 / 1 instead of equally.',
+    title: 'Use stock on hand to suppress orders, not to reduce them',
+    do: 'Where shops already hold well over the usual cover, forecast zero for the period rather than a smaller number.',
     why:
-      'The error is persistent rather than random — consecutive months miss in the same direction 54.5% of the time. A flat average cannot follow a trend either way.',
-    gain: 'Targets the overall lean, which affects every article rather than a group of them.',
-    effort: 'Backtest before switching: build the rate from March to July, forecast August, compare against the current method.',
+      'Outbound already reflects somebody looking at the shelf before ordering. Subtracting stock from a forecast built on outbound counts the same decision twice.',
+    gain:
+      'Unproven. Stock levels were tested against what ships next and showed no relationship. The narrower question — whether high stock explains the zero weeks specifically — has not been tested yet and should be, before this is built.',
+    effort: 'Test first. The inventory model has the data, from January 2026 onwards.',
   },
   {
     step: 5,
-    title: 'Use the middle month for volatile articles only',
-    do: 'Where the monthly rate swings by more than ±60%, take the median month rather than the average.',
-    why: 'One unusual month enters an average at full weight and keeps inflating the figure for six months.',
-    gain: 'Steady articles already reach 60% accuracy 87% of the time; the most erratic manage 30%. This targets the second group.',
-    effort: 'Scope it to volatile articles. The 497 steady ones already work and must not be touched.',
+    title: 'Spread the forecast by the days an article actually ships on',
+    do: 'Weight each weekday by that article’s own history instead of splitting the window evenly.',
+    why:
+      'An article that only ever ships on Wednesdays is forecast something every Monday, and misses every time.',
+    gain:
+      'Helps short windows most — a day, a week, month-to-date. Over a full month it moves quantity around inside the window and changes the total very little.',
+    effort: 'Needs a minimum amount of history per article before its shape is trusted.',
+  },
+  {
+    step: 6,
+    title: 'Correct the overall lean',
+    do: 'Apply one calibration factor so the total forecast matches the total shipped.',
+    why: 'Every month counts equally in the rate, so a drift in demand leaves a standing bias in one direction.',
+    gain: 'Small but free, and it applies to every article rather than a group of them.',
+    effort: 'One number. Backtest on a past month before switching over.',
+  },
+  {
+    step: 7,
+    title: 'Stop one big delivery setting the next six months',
+    do: 'Cap an exceptional month at about three times the median of the others before averaging, rather than dropping it.',
+    why: 'An average cannot tell a one-off from a pattern, and carries the one-off forward at full weight.',
+    gain: 'The damage is concentrated in a small number of articles, so this is narrow but cheap.',
+    effort: 'Small, inside the rate calculation. Cap rather than delete — the stock really was consumed.',
   },
 ]
 
 /**
- * What 90% would actually require.
+ * Ideas that were tested and did not survive.
  *
- * Kept beside the route rather than buried in it, because it is the part that
- * changes what somebody should expect: the first five steps improve the number,
- * and none of them can reach 90% on the thing currently being measured.
+ * On the page for one reason: without it, a sensible theory that has already
+ * been measured and rejected gets proposed again every few months, and somebody
+ * spends a week re-discovering the same answer. A null result is a finding, and
+ * it is worth as much page space as a positive one.
  */
-const CEILING = {
-  title: 'Why the first five steps stop short of 90%',
-  body:
-    'What is measured today is how well we predict a purchasing decision, not demand. Somebody orders a full case, on a cycle, subject to a minimum quantity. Predicting that to 90% would mean predicting the buyer rather than the business.',
-  target:
-    'Steps 1 to 5 should reach roughly 75–80% on average and 85% or better for the typical article. The largest articles, already at 84%, should clear 90%.',
-  next:
-    'Getting the headline number to 90% needs a different target: forecast what stores actually consume, then convert that into a replenishment — order = forecast demand − stock on hand + safety stock. Two separable numbers, each checkable on its own.',
-  data:
-    'That needs stock on hand at store level, with opening + receipts − issues = closing. Not because stock explains the current gap — that was tested, and the month-to-month errors do not reverse the way buffering would require — but because it is the only way to measure demand rather than a decision about demand.',
-}
+const RULED_OUT = [
+  {
+    id: 'soh-buffering',
+    title: 'Stock on hand explains why less ships than forecast',
+    theory:
+      'Shops that already hold stock order less, so outbound falls below forecast — and picks up again once the stock runs down.',
+    test:
+      'Compared shop stock cover against what shipped the following period, at both monthly and weekly grain, across roughly 1,300 articles and 45,000 article-weeks.',
+    result:
+      'No relationship at either grain, and the weekly direction runs the wrong way — articles holding the most stock shipped slightly more the following week, not less.',
+    verdict: 'Rejected as an explanation. Kept as a possible zero-suppression signal, which is a different claim.',
+  },
+  {
+    id: 'history-length',
+    title: 'New articles forecast badly because they have less history',
+    theory: 'An article with three months of history should forecast worse than one with six.',
+    test: 'Split every scored article by how many months of deliveries it has and compared accuracy.',
+    result:
+      'Almost no difference — 3–4 months and 5–6 months both score about the same. What separates good from bad is how steadily the article ships, not how long it has been shipping.',
+    verdict:
+      'Rejected. No separate method is needed for new articles, which is one less thing to build. Judge an article by its steadiness instead.',
+  },
+  {
+    id: 'consumption',
+    title: 'Forecast what shops consume, then convert it into shipments',
+    theory:
+      'Shipments are a purchasing decision; consumption is the real demand underneath, and should be steadier and easier to forecast.',
+    test:
+      'Compared month-to-month variation in recorded shop consumption against variation in warehouse shipments, for every article present in both.',
+    result:
+      'Consumption came out noisier, not steadier — and for most articles it is barely recorded at all. Shop transfer-in matches warehouse shipments closely, so the data lines up; the consumption columns themselves are largely empty.',
+    verdict:
+      'Blocked by the data rather than disproven. Worth revisiting if those columns are ever populated upstream.',
+  },
+]
 
 /**
  * What has already been changed.
@@ -238,6 +299,72 @@ const CEILING = {
  * end up in the same list at the bottom of the page.
  */
 const CHANGES = [
+  {
+    date: '09 Sep 2026',
+    status: 'Implemented',
+    title: 'Consumables are no longer blanked by the menu rule',
+    problem:
+      'Gloves, napkins, paper bags and face masks are all named in the recipe master, so the forecast treated them as menu-driven and waited for a menu signal that can never arrive — nothing on a menu is measured in gloves. Their forecast was blank while the warehouse shipped 1.75 million units of them in thirty days.',
+    change:
+      'The menu rule now applies only where a menu actually drives the article. Where no brand’s menu wants it at all, the question falls back to the one asked of every other warehouse-only article: is it still moving?',
+    impact:
+      '89 brand-article forecasts restored, worth 1,747,201 units — Gloves Blue Vinyl alone is 1,169,700. Verified to add forecasts only: no article that was forecast before lost one.',
+  },
+  {
+    date: '09 Sep 2026',
+    status: 'Implemented',
+    title: 'Article status added to the table and the slicers',
+    problem:
+      'The five statuses were worked out and shown as a summary, but there was no way to see which status a given article had, or to look at one group.',
+    change:
+      'Every row now carries its status, there is a Status slicer beside Supply, and a Status column in the table. Classification only — it does not change what is forecast.',
+    impact:
+      'A reader can filter to Non-Moving or Slow-Moving and see exactly those articles, cut to the end of the window on screen.',
+  },
+  {
+    date: '08 Sep 2026',
+    status: 'Implemented',
+    title: 'Every article now has a status',
+    problem:
+      'One forecasting method was used for articles that ship every week and for articles that stopped last spring. Nothing on the page said which was which.',
+    change:
+      'The five statuses from Swish SPS V3 2026 — Active through To Be Deactivated — worked out from how long since the warehouse last issued each article, measured in rolling days so a status does not change just because a new month began.',
+    impact:
+      'Shown, filterable and groupable. It does not change what is forecast yet: the classification is meant to be checked against what people expect before anything is suppressed.',
+  },
+  {
+    date: '08 Sep 2026',
+    status: 'Implemented',
+    title: 'Articles that cannot be forecast are now named as such',
+    problem:
+      'A low score looked the same whether the forecast was wrong or the article was simply unpredictable. Those need opposite responses and there was no way to tell them apart.',
+    change:
+      'Each article now carries the best score any forecast could achieve on it, given how much it swings. Where accuracy has already reached that figure, it says so.',
+    impact:
+      'Effort can go to articles where there is something to win, rather than to ones that are already as good as they can get.',
+  },
+  {
+    date: '08 Sep 2026',
+    status: 'Investigated — no change made',
+    title: 'Stock on hand tested again, at weekly grain this time',
+    problem:
+      'The first test was monthly, and a monthly test cannot see a buffer that turns over inside the month. That was a fair objection to it.',
+    change:
+      'Re-tested weekly, where the shops hold about two and a half weeks of cover so a buffer would show. Also checked whether shop consumption is steadier than warehouse shipments.',
+    impact:
+      'Same answer, more firmly: no relationship at weekly grain either, and the direction runs slightly the wrong way. Consumption came out noisier than shipments, and is barely recorded for most articles. Stock stays useful for suppressing orders, not for sizing them.',
+  },
+  {
+    date: '08 Sep 2026',
+    status: 'Removed',
+    title: '"New articles are forecast from very little" taken off this page',
+    problem:
+      'It was listed as a fault to fix. Measuring it showed articles with 3–4 months of history score about the same as those with 5–6.',
+    change:
+      'Removed as a finding and moved to "what we tested and ruled out", with the measurement beside it.',
+    impact:
+      'One less thing to build. What actually separates good forecasts from bad ones is how steadily an article ships, not how long it has been shipping.',
+  },
   {
     date: '06 Sep 2026',
     status: 'Implemented',
@@ -310,6 +437,26 @@ function Bar({ label, value, display, max, tone = 'good', note, active, onPick }
   )
 }
 
+/**
+ * A bar that is only a bar.
+ *
+ * Same visual language as the clickable ones, but a div rather than a disabled
+ * button — a disabled control is drawn faded, which would say "this is switched
+ * off" about a chart that is simply not a filter.
+ */
+function Meter({ label, value, display, max, tone = 'good', note }) {
+  const pct = max > 0 ? Math.max(0, (value / max) * 100) : 0
+  return (
+    <div className="bandrow bandrow--static" title={note}>
+      <span className="bandrow__key">{label}</span>
+      <span className="bandrow__track">
+        <span className={`bandrow__fill bandrow__fill--${tone}`} style={{ width: `${pct}%` }} />
+      </span>
+      <span className="bandrow__count">{display}</span>
+    </div>
+  )
+}
+
 /** A finding: the number that carries it, the claim, one line of why. */
 function Insight({ figure, title, children, tone = 'slate' }) {
   return (
@@ -321,15 +468,30 @@ function Insight({ figure, title, children, tone = 'slate' }) {
   )
 }
 
+/** How a step is labelled when it is not simply outstanding work. */
+const STEP_STATE = {
+  done: { tone: 'green', label: 'Done' },
+  blocked: { tone: 'red', label: 'Decision needed first' },
+}
+
 /** One step on the route: what to do, why, what it is worth, what it costs. */
 function Step({ entry }) {
+  const state = STEP_STATE[entry.state]
   return (
-    <article className="step">
+    <article className={`step${entry.state ? ` step--${entry.state}` : ''}`}>
       <span className="step__num" aria-hidden="true">
         {entry.step}
       </span>
       <div className="step__body">
-        <h3 className="step__title">{entry.title}</h3>
+        <h3 className="step__title">
+          {entry.title}
+          {state ? (
+            <>
+              {' '}
+              <Pill tone={state.tone}>{state.label}</Pill>
+            </>
+          ) : null}
+        </h3>
         <p className="step__do">{entry.do}</p>
         <dl className="step__fields">
           <dt>Why</dt>
@@ -369,6 +531,91 @@ function Change({ entry }) {
   )
 }
 
+/**
+ * One article's monthly shipments, as a shape and as the numbers behind it.
+ *
+ * The tallest month is picked out because that is usually the one doing the
+ * damage — an unweighted six-month mean carries a single spike forward for half
+ * a year, and seeing which month it was is the first step to deciding whether
+ * it was real demand or a one-off.
+ */
+function Trail({ series }) {
+  if (!series?.length) return <span className="muted">–</span>
+  const peak = Math.max(...series.map((d) => d.qty), 0)
+  return (
+    <div className="trail" title={series.map((d) => `${d.month}: ${fmtQty(d.qty)}`).join('\n')}>
+      <div className="trail__bars" aria-hidden="true">
+        {series.map((d) => (
+          <span
+            key={d.month}
+            className={`trail__bar${peak > 0 && d.qty === peak ? ' trail__bar--peak' : ''}`}
+            style={{ height: `${peak > 0 ? Math.max(4, (d.qty / peak) * 100) : 4}%` }}
+          />
+        ))}
+      </div>
+      <span className="trail__nums">{series.map((d) => fmtQty(d.qty)).join(' → ')}</span>
+    </div>
+  )
+}
+
+/**
+ * One rung of the status ladder: the count leads, the rule explains it.
+ *
+ * A button rather than a tile, because the point of showing 506 articles in one
+ * status is to be able to ask which ones — and the same key filters the table
+ * below, so the number on the card and the rows it produces are the same cut.
+ */
+function StatusCard({ entry, active, onPick }) {
+  return (
+    <button
+      type="button"
+      className={`stat stat--${entry.tone}${active ? ' stat--on' : ''}`}
+      onClick={onPick}
+      aria-pressed={active || undefined}
+    >
+      <span className="stat__head">
+        <span className="stat__dot" aria-hidden="true" />
+        <span className="stat__label">{entry.label}</span>
+      </span>
+      <span className="stat__count">
+        {fmtInt(entry.count)}
+        <span className="stat__share">{fmtPct(entry.share, 0)}</span>
+      </span>
+      <span className="stat__crit">{entry.plain}</span>
+      <span className="stat__plan">{entry.plan}</span>
+    </button>
+  )
+}
+
+/** The status ladder as a table cell, with the date behind it on hover. */
+const STATUS_COLUMN = {
+  key: 'statusLabel',
+  label: 'Status',
+  width: 170,
+  render: (v, row) => (
+    <span
+      title={
+        row?.lastShipped
+          ? `Last shipped ${row.lastShipped} — ${fmtInt(row.daysIdle ?? 0)} days before the end of this window`
+          : 'The warehouse has no record of ever issuing this article'
+      }
+    >
+      <Pill tone={row?.statusTone ?? 'slate'}>{v || '—'}</Pill>
+      {row?.thinEvidence ? <span className="ceil__cap"> · one delivery</span> : null}
+    </span>
+  ),
+}
+
+/** How much an article swings, said in words rather than as a coefficient. */
+const SWING = (cv) =>
+  cv >= CV_ERRATIC
+    ? { tone: 'red', label: 'Very unpredictable' }
+    : cv >= CV_VOLATILE
+      ? { tone: 'amber', label: 'Unpredictable' }
+      : cv >= CV_STEADY
+        ? { tone: 'blue', label: 'Some variation' }
+        : { tone: 'green', label: 'Steady' }
+
 /* ---------------------------------------------------------------- table --- */
 
 const COLUMNS = [
@@ -387,6 +634,7 @@ const COLUMNS = [
     width: 118,
     render: (v) => <Pill tone={v ? 'green' : 'slate'}>{v ? 'Recipe' : 'Non-recipe'}</Pill>,
   },
+  STATUS_COLUMN,
   {
     key: 'months',
     label: 'Months shipped',
@@ -444,6 +692,102 @@ const COLUMNS = [
         </span>
       ) : (
         '–'
+      ),
+  },
+]
+
+/**
+ * The unpredictable articles, with the evidence for the claim beside it.
+ *
+ * Deliberately not the same columns as the table below. That one asks "how far
+ * out is this?"; this one asks "could it ever have been right?" — so it leads
+ * with the months themselves and ends with the ceiling, and a reader can settle
+ * the question without knowing what a coefficient of variation is.
+ */
+const HARD_COLUMNS = [
+  {
+    key: 'name',
+    label: 'Article',
+    strong: true,
+    required: true,
+    autoWidth: { min: 160, max: null, percentile: 0.95 },
+    wrap: true,
+    flex: true,
+  },
+  { key: 'brands', label: 'Brand', width: 110, render: (v) => v || <span className="muted">–</span> },
+  STATUS_COLUMN,
+  {
+    /*
+     * Keyed on the number of months that actually shipped, not on the series.
+     *
+     * Every header in this table is a sort button, and an array cannot be
+     * ordered meaningfully — so the column sorts on how on-and-off the article
+     * is, which puts the articles that ship in bursts together. That is the
+     * useful ordering here, and it is the one thing the shape is showing.
+     */
+    key: 'activeMonths',
+    label: 'Month by month',
+    width: 190,
+    render: (v, row) => <Trail series={row?.series} />,
+  },
+  {
+    key: 'avgMonthly',
+    label: 'Average month',
+    autoWidth: true,
+    num: true,
+    render: (v) => (v === null || v === undefined ? <span className="muted">–</span> : fmtQty(v)),
+  },
+  {
+    key: 'cv',
+    label: 'How much it swings',
+    width: 168,
+    num: true,
+    render: (v) => {
+      const s = SWING(v ?? 0)
+      return (
+        <span title={`The monthly rate varies by about ${fmtPct(v ?? 0, 0)} around its own average`}>
+          <Pill tone={s.tone}>
+            {s.label} · ±{fmtPct(v ?? 0, 0)}
+          </Pill>
+        </span>
+      )
+    },
+  },
+  { key: 'forecast', label: 'Forecast', autoWidth: true, num: true, total: 'sum', render: fmtQty, renderTotal: fmtQty },
+  { key: 'outbound', label: 'Shipped', autoWidth: true, num: true, total: 'sum', render: fmtQty, renderTotal: fmtQty },
+  {
+    key: 'accuracy',
+    label: 'Accuracy',
+    autoWidth: true,
+    num: true,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted">–</span>
+      ) : (
+        <span className={v < 0.2 ? 'neg' : undefined}>{fmtPct(v, 1)}</span>
+      ),
+  },
+  {
+    key: 'reachable',
+    label: 'Best possible',
+    width: 150,
+    num: true,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span className="muted">–</span>
+      ) : (
+        <span
+          className="ceil"
+          title={
+            'Even a forecast that landed exactly on this article’s own average would score about ' +
+            `${fmtPct(v, 0)}, because the article itself moves this much from month to month.`
+          }
+        >
+          {fmtPct(v, 0)}
+          {row?.accuracy !== null && row?.accuracy !== undefined && row.accuracy >= v - 0.05 ? (
+            <span className="ceil__cap">· at its limit</span>
+          ) : null}
+        </span>
       ),
   },
 ]
@@ -516,10 +860,30 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
     return labelled.filter((a) => a.keys?.[pick.type] === pick.key)
   }, [labelled, pick])
 
+  /*
+   * The articles nobody could forecast well, worst first.
+   *
+   * Cut on the server's own volatility key rather than on a threshold repeated
+   * here, so this list and the "Volatile"/"Erratic" bars above always hold the
+   * same articles. Ranked by the swing itself: the question this table answers
+   * is "which of these is hopeless", not "which cost the most units".
+   */
+  const hardRows = useMemo(
+    () =>
+      labelled
+        .filter((a) => a.keys?.volatility === 'volatile' || a.keys?.volatility === 'erratic')
+        .filter((a) => a.accuracy !== null && a.accuracy !== undefined)
+        .sort((a, b) => (b.cv ?? 0) - (a.cv ?? 0)),
+    [labelled]
+  )
+
   if (error) return <ErrorBanner error={error} onRetry={reload} />
   if (loading && !data) return <ChartSkeleton height={420} />
   if (!s) return <Empty title="No warehouse history in this selection" />
 
+  const u = data.unpredictable
+  const c = data.ceiling
+  const pat = data.patterns
   const band = (k) => s.bands.find((b) => b.key === k)?.count ?? 0
   const good = band('60-85') + band('85-100')
   const goodShare = s.scored ? good / s.scored : 0
@@ -600,15 +964,89 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             {fmtQty(s.stoppedForecast)} units, because it only knows the history.
           </Insight>
 
+          {/*
+            * The lean used to be repeated here from the card at the top of the
+            * page. Replaced on 8 Sep 2026 with the ceiling, which is the fact
+            * that changes what somebody should expect from all the others.
+            */}
           <Insight
             tone="blue"
-            figure={`${s.biasPct > 0 ? '+' : ''}${fmtPct(s.biasPct ?? 0, 1)}`}
-            title="The misses lean one way"
+            figure={c?.all === null || c?.all === undefined ? '–' : fmtPct(c.all, 0)}
+            title="The best any forecast could do"
           >
-            {fmtPct(s.overShare, 0)} of articles are over-ordered and {fmtPct(s.underShare, 0)} under.
-            A consistent lean means the method is off, not that the world is unpredictable.
+            A forecast that knew every article&rsquo;s true average and nothing else would score
+            this. It is not a target — it is the line no method can go above while these are the
+            articles being scored.
           </Insight>
         </div>
+      </Panel>
+
+      <Panel
+        title="Can we reach 85%?"
+        sub="What the target is up against, measured on the articles currently being scored"
+      >
+        {c ? (
+          <>
+            <div className="unitrow" style={{ '--cards': 3 }}>
+              <MetricCard
+                label="Ceiling — every scored article"
+                accent={(c.all ?? 0) >= 0.85 ? 'green' : 'red'}
+                progress={c.all ?? 0}
+                value={c.all === null ? '–' : fmtPct(c.all, 0)}
+                foot={`A perfect forecast, averaged over all ${fmtInt(c.allCount)}`}
+              />
+              <MetricCard
+                label="Ceiling — active articles only"
+                accent={(c.active ?? 0) >= 0.85 ? 'green' : 'amber'}
+                progress={c.active ?? 0}
+                value={c.active === null ? '–' : fmtPct(c.active, 0)}
+                foot={`The same, over the ${fmtInt(c.activeCount)} still moving`}
+              />
+              <MetricCard
+                label="Ceiling — steady articles only"
+                accent={(c.steady ?? 0) >= 0.85 ? 'green' : 'amber'}
+                progress={c.steady ?? 0}
+                value={c.steady === null ? '–' : fmtPct(c.steady, 0)}
+                foot={`The ${fmtInt(c.steadyCount)} that ship a similar amount each month`}
+              />
+            </div>
+
+            <p className="pnote">
+              An article that swings up and down cannot be forecast accurately by anyone, because
+              nothing says which month will be the big one. The more it swings, the lower the best
+              possible score — and that is arithmetic, not a shortcoming of the method:
+            </p>
+
+            <div className="bandchart__rows bandchart__rows--wide">
+              {c.curve.map((p) => (
+                <Meter
+                  key={p.cv}
+                  label={`±${fmtPct(p.cv, 0)}`}
+                  value={p.best}
+                  display={fmtPct(p.best, 0)}
+                  max={1}
+                  tone={p.best >= 0.85 ? 'good' : p.best >= 0.6 ? 'fair' : 'poor'}
+                  note={`An article swinging ±${fmtPct(p.cv, 0)} month to month can score at best ${fmtPct(p.best, 0)}`}
+                />
+              ))}
+            </div>
+
+            <p className="pnote">
+              Reading it the other way round: <strong>85% needs articles that swing less than about
+              ±{fmtPct(c.swingFor85, 0)} a month.</strong>{' '}
+              {c.typicalSwing !== null && c.typicalSwing !== undefined ? (
+                <>
+                  The typical article here swings <strong>±{fmtPct(c.typicalSwing, 0)}</strong>. That
+                  gap is the whole problem, and it is closed by choosing which articles are in the
+                  average and by matching the method to the demand pattern — not by a better formula
+                  applied to everything.
+                </>
+              ) : null}
+            </p>
+          </>
+        ) : (
+          <Empty title="Not enough scored articles to work out a ceiling" />
+        )}
       </Panel>
 
       <div className="whgrid">
@@ -716,6 +1154,252 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         </div>
       </Panel>
 
+      <Panel
+        title="Article status"
+        sub={
+          'Every article by how long since the warehouse last issued it' +
+          (data.classifiedAt ? ` · as at ${data.classifiedAt}` : '') +
+          ' · click a status to see those articles'
+        }
+      >
+        <div className="statgrid">
+          {(data.statuses ?? [])
+            .filter((e) => e.count > 0 || e.key !== 'never-shipped')
+            .map((e) => (
+              <StatusCard
+                key={e.key}
+                entry={e}
+                active={on('status', e.key)}
+                onPick={choose('status', e.key, e.label)}
+              />
+            ))}
+        </div>
+        <p className="pnote">
+          These are the statuses from <strong>Swish SPS V3 2026</strong>, not ones invented here.
+          &ldquo;Current + 2 Months&rdquo; means nothing shipped for two months and the current one,
+          counted in rolling days so an article does not change status merely because a new month
+          began. The last group is a <strong>proposal for somebody to review</strong> — nothing is
+          deactivated automatically, and nothing here changes what is forecast yet.
+        </p>
+      </Panel>
+
+      {pat ? (
+        <Panel
+          title="How often articles actually ship"
+          sub={`Measured over the ${pat.weeks} weeks to ${pat.to}, across ${fmtInt(pat.articles)} articles the warehouse issued in that time`}
+        >
+          <div className="insgrid">
+            <Insight
+              tone="amber"
+              figure={pat.zeroShare === null ? '–' : fmtPct(pat.zeroShare, 0)}
+              title="of article-weeks had no shipment at all"
+            >
+              {fmtInt(pat.zeroWeeks)} silent weeks out of {fmtInt(pat.articleWeeks)}. This is not
+              missing data — it is what the demand looks like. Predicting a zero correctly is as
+              much a part of accuracy as predicting a quantity.
+            </Insight>
+
+            <Insight tone="blue" figure="Why?" title="A zero can mean six different things">
+              It was not needed · the shop already had stock · this is not an ordering day · the
+              article only moves occasionally · it is seasonal · it has stopped moving for good.
+              Only the first is a genuine forecast miss. The rest are predictable once we know
+              which is which.
+            </Insight>
+
+            <Insight
+              tone="green"
+              figure={fmtInt(pat.regularity.find((r) => r.key === 'intermittent')?.count ?? 0)}
+              title="articles ship only occasionally"
+            >
+              These do not have a weekly demand. They have a frequency and an order size — ordered
+              every few weeks, and a batch when they are. An average is too high on the quiet weeks
+              and too low on the ordering week.
+            </Insight>
+          </div>
+
+          <div className="segrid">
+            <section className="seg">
+              <h4>How regularly each article ships</h4>
+              <div className="bandchart__rows bandchart__rows--wide">
+                {pat.regularity.map((r) => (
+                  <Meter
+                    key={r.key}
+                    label={r.label}
+                    value={r.count}
+                    display={fmtInt(r.count)}
+                    max={Math.max(1, ...pat.regularity.map((x) => x.count))}
+                    tone={r.key === 'regular' ? 'good' : r.key === 'irregular' ? 'fair' : 'poor'}
+                    note={`${r.note} — ${r.plan}`}
+                  />
+                ))}
+              </div>
+              <p className="pnote">
+                Hover any bar for what it means. The further down this list an article sits, the
+                less an average describes it — which is the case for forecasting occasional
+                articles as <strong>how often × how much</strong> instead.
+              </p>
+            </section>
+
+            <section className="seg">
+              <h4>The same thing, as an example</h4>
+              <div className="egpair">
+                <div className="eg">
+                  <span className="eg__tag">Steady demand</span>
+                  <span className="eg__nums">100 → 110 → 105 → 95</span>
+                  <span className="eg__note">An average of 102 is right every week.</span>
+                </div>
+                <div className="eg eg--alt">
+                  <span className="eg__tag">Occasional demand</span>
+                  <span className="eg__nums">0 → 0 → 80 → 0 → 0 → 100</span>
+                  <span className="eg__note">
+                    An average of 30 is wrong every single week. What is true is: ordered about
+                    every third week, around 90 units at a time.
+                  </span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </Panel>
+      ) : null}
+
+      {pat?.weekday ? (
+        <Panel
+          title="Which days articles ship on"
+          sub="Spreading a forecast evenly across the week guarantees a miss when an article only ships on one day"
+        >
+          <div className="segrid">
+            <section className="seg">
+              <h4>When the warehouse ships, overall</h4>
+              <div className="bandchart__rows bandchart__rows--wide">
+                {pat.weekday.overall.map((d) => (
+                  <Meter
+                    key={d.key}
+                    label={d.label}
+                    value={d.share}
+                    display={fmtPct(d.share, 0)}
+                    max={Math.max(0.01, ...pat.weekday.overall.map((x) => x.share))}
+                    tone="good"
+                    note={`${d.key} — ${fmtQty(d.qty)} units`}
+                  />
+                ))}
+              </div>
+              <p className="pnote">
+                Across everything the pattern is mild. Per article it is not, which is the point.
+              </p>
+            </section>
+
+            <section className="seg">
+              <h4>How concentrated each article is</h4>
+              <div className="bandchart__rows bandchart__rows--wide">
+                {pat.weekday.concentration.map((k) => (
+                  <Meter
+                    key={k.key}
+                    label={k.label}
+                    value={k.count}
+                    display={fmtInt(k.count)}
+                    max={Math.max(1, ...pat.weekday.concentration.map((x) => x.count))}
+                    tone={k.key === 'spread' ? 'good' : k.key === 'leaning' ? 'fair' : 'poor'}
+                    note={k.note}
+                  />
+                ))}
+              </div>
+              <p className="pnote">
+                An article with more than half its volume on one weekday is forecast something on
+                every other day and misses each time. This costs most on{' '}
+                <strong>short windows</strong> — a day, a week, month-to-date. Over a full month it
+                moves quantity around inside the window and barely changes the total.
+              </p>
+            </section>
+          </div>
+        </Panel>
+      ) : null}
+
+      <Panel
+        title="Articles that are naturally hard to forecast"
+        count={hardRows.length}
+        sub="Not a forecasting mistake — these articles move too much from month to month for any forecast to follow"
+      >
+        {hardRows.length ? (
+          <>
+            <div className="insgrid">
+              <Insight
+                tone="amber"
+                figure={`${fmtInt(u?.count ?? hardRows.length)} of ${fmtInt(s.scored)}`}
+                title="Articles that jump about"
+              >
+                Their shipments change by more than {fmtPct(u?.threshold ?? 0.6, 0)} from one month
+                to the next. That is {fmtPct(u?.share ?? 0, 0)} of everything we can score.
+              </Insight>
+
+              <Insight
+                tone="blue"
+                figure={
+                  u?.averageAccuracy === null || u?.averageAccuracy === undefined
+                    ? '–'
+                    : `${fmtPct(u.averageAccuracy, 0)} → ${fmtPct(u.reachable ?? 0, 0)}`
+                }
+                title="Scoring now, against the best possible"
+              >
+                The second number is what a perfect forecast would score on these articles. The gap
+                between the two is all we could ever win back by forecasting better.
+              </Insight>
+
+              <Insight
+                tone="green"
+                figure={
+                  u?.averageWithout === null || u?.averageWithout === undefined
+                    ? '–'
+                    : fmtPct(u.averageWithout, 0)
+                }
+                title="What the rest score without them"
+              >
+                Set these {fmtInt(u?.count ?? 0)} aside and the remaining {fmtInt(u?.restCount ?? 0)}{' '}
+                articles score this. The headline is being held down by articles that cannot be
+                forecast, not by the method used on the ones that can.
+              </Insight>
+            </div>
+
+            <p className="pnote">
+              <strong>Why is this article difficult to forecast?</strong> Look at the month-by-month
+              column. An article that ships 100, then 20, then 250, then 50 has no pattern to follow
+              — the forecast lands on the average and every month is a long way from it. An article
+              that ships 100, 105, 95, 110 is easy. Nothing in our data says which month will be the
+              big one, so the &ldquo;best possible&rdquo; column is a ceiling, not a target. Where
+              accuracy already sits at that ceiling, the forecast is working correctly and the
+              article is simply unpredictable — those need a different plan, not a better formula.
+            </p>
+
+            <DataTable
+              columns={HARD_COLUMNS}
+              rows={hardRows}
+              tableId="wh-analysis-hard"
+              groupable={[
+                { key: 'volatilityLabel', label: 'How much demand varies' },
+                { key: 'statusLabel', label: 'Status' },
+                { key: 'brands', label: 'Brand' },
+                { key: 'issueLabel', label: 'Why it is off' },
+                { key: 'recipe', label: 'Recipe / non-recipe' },
+                { key: 'unit', label: 'Unit' },
+              ]}
+              maxHeight={560}
+              totals
+              initialSort={{ key: 'cv', dir: 'desc' }}
+              searchPlaceholder="Search an article…"
+            />
+
+            <p className="pnote">
+              Shown per article across every brand it reaches. The warehouse copy records what
+              shipped and on which day, but not which branch it went to, so there is no location
+              column to give — that mapping is still unsettled.
+            </p>
+          </>
+        ) : (
+          <Empty title="Nothing here is badly behaved">
+            Every article that could be scored moves steadily enough for a forecast to follow.
+          </Empty>
+        )}
+      </Panel>
+
       <Panel title="Why each article is off" sub="One reason per article, chosen by what to do about it. Click to see them.">
         <div className="bandchart__rows bandchart__rows--wide">
           {(data.issues ?? []).map((i) => (
@@ -756,6 +1440,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             rows={shown}
             tableId="wh-analysis-articles"
             groupable={[
+              { key: 'statusLabel', label: 'Status' },
               { key: 'recipe', label: 'Recipe / non-recipe' },
               { key: 'issueLabel', label: 'Why it is off' },
               { key: 'bandLabel', label: 'Accuracy band' },
@@ -817,23 +1502,44 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
-        title="Getting to 90%"
-        count={ROUTE.length}
-        sub="The steps that move the number most, in the order the measurements say to do them"
+        title="What we tested and ruled out"
+        count={RULED_OUT.length}
+        sub="Sensible theories that were measured and did not hold — kept so they are not proposed again"
+      >
+        <div className="issgrid">
+          {RULED_OUT.map((r) => (
+            <article key={r.id} className="iss iss--ruled">
+              <header className="iss__head">
+                <Pill tone="slate">Ruled out</Pill>
+                <h3>{r.title}</h3>
+              </header>
+              <dl className="iss__body">
+                <dt>The idea</dt>
+                <dd>{r.theory}</dd>
+                <dt>How we checked</dt>
+                <dd>{r.test}</dd>
+                <dt>What came back</dt>
+                <dd>{r.result}</dd>
+                <dt>So</dt>
+                <dd>
+                  <strong>{r.verdict}</strong>
+                </dd>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel
+        title="The plan to 85%"
+        count={ROUTE.filter((r) => r.state !== 'done').length}
+        sub="What to do, in the priority agreed on 8 September — with what is already finished marked as such"
       >
         <ol className="steps">
           {ROUTE.map((r) => (
             <Step key={r.step} entry={r} />
           ))}
         </ol>
-
-        <section className="ceiling">
-          <h3>{CEILING.title}</h3>
-          <p>{CEILING.body}</p>
-          <p className="ceiling__target">{CEILING.target}</p>
-          <p>{CEILING.next}</p>
-          <p className="ceiling__note">{CEILING.data}</p>
-        </section>
       </Panel>
 
       <Panel title="What has changed" sub="Fixes already made, and problems that have since cleared">

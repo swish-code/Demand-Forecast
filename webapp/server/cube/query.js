@@ -768,8 +768,8 @@ export async function outboundByDay(brand, f, articles = null) {
 export async function forecastSalesByDay(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return new Map()
   const rows = await rowsOf(
-    `SELECT date, SUM(forecast) AS forecast
-       FROM cube_location_daily
+    `SELECT date, SUM(value) AS forecast
+       FROM cube_sales_daily
       WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?
       GROUP BY date
       ORDER BY date ASC`,
@@ -851,9 +851,9 @@ export async function monthlySales(brand, months, { allBrands = false } = {}) {
    */
   const rows = await rowsOf(
     `SELECT LEFT(date, 7) AS month,
-            SUM(actual)   AS actual,
-            SUM(forecast) AS forecast
-       FROM cube_location_daily
+            SUM(value) AS actual,
+            SUM(value) AS forecast
+       FROM cube_sales_daily
       WHERE ${allBrands ? '' : 'brand = ? AND '}LEFT(date, 7) IN (${months.map(() => '?').join(', ')})
       GROUP BY LEFT(date, 7)`,
     allBrands ? [...months] : [brand, ...months]
@@ -895,8 +895,8 @@ export async function outboundByMonth(brand, months) {
 export async function actualSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   const rows = await rowsOf(
-    `SELECT SUM(actual) AS actual
-       FROM cube_location_daily
+    `SELECT SUM(value) AS actual
+       FROM cube_sales_daily
       WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?`,
     allBrands ? [f.dateFrom, f.dateTo] : [brand, f.dateFrom, f.dateTo]
   )
@@ -908,8 +908,8 @@ export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   // Same reasoning as monthlySales: the bucket borrows everyone's denominator.
   const rows = await rowsOf(
-    `SELECT SUM(forecast) AS forecast
-       FROM cube_location_daily
+    `SELECT SUM(value) AS forecast
+       FROM cube_sales_daily
       WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?`,
     allBrands ? [f.dateFrom, f.dateTo] : [brand, f.dateFrom, f.dateTo]
   )
@@ -1048,6 +1048,131 @@ export async function recipeArticles() {
 /** Dropped when the extract rewrites the recipe copy. */
 export function forgetRecipeArticles() {
   recipeCache = null
+}
+
+/**
+ * When each article last moved, and how often it has moved lately.
+ *
+ * This is what the five-status classification is built on — Active through to
+ * To Be Deactivated is entirely a question of how long ago the warehouse last
+ * issued the article, so the whole ladder reduces to one date per article.
+ *
+ * Read across every brand. An article that reached one brand last week has
+ * moved, whatever the others did with it; asking per brand would put the same
+ * article in two statuses at once.
+ *
+ * `asAt` is the end of the window on screen rather than today. Look at March
+ * and the statuses shown must be the ones that applied in March, or the page
+ * contradicts itself as soon as anybody scrolls back.
+ *
+ * `recentDays` counts distinct days shipped inside `recentFrom`, which is what
+ * separates an article that is genuinely back from one that got a single
+ * delivery after months of silence.
+ */
+const shipHistoryCache = new Map()
+
+export async function shipHistory({ asAt, recentFrom }) {
+  const key = `${asAt}|${recentFrom}`
+  const held = shipHistoryCache.get(key)
+  if (held) return held
+
+  const work = (async () => {
+    const rows = await rowsOf(
+      `SELECT article,
+              MAX(date) AS last_date,
+              MIN(date) AS first_date,
+              SUM(qty)  AS total_qty,
+              COUNT(DISTINCT date) FILTER (WHERE date >= ?) AS recent_days
+         FROM cube_outbound_daily
+        WHERE qty > 0 AND date <= ?
+        GROUP BY article`,
+      [recentFrom, asAt]
+    )
+    const out = new Map()
+    for (const r of rows) {
+      out.set(String(r.article), {
+        lastShipped: r.last_date ? String(r.last_date).slice(0, 10) : null,
+        firstShipped: r.first_date ? String(r.first_date).slice(0, 10) : null,
+        totalQty: Number(r.total_qty) || 0,
+        recentDays: Number(r.recent_days) || 0,
+      })
+    }
+    return out
+  })()
+
+  shipHistoryCache.set(key, work)
+  return work
+}
+
+/** Dropped when the extract rewrites outbound — these are those very rows. */
+export function forgetShipHistory() {
+  shipHistoryCache.clear()
+}
+
+/**
+ * How many distinct weeks each article shipped in, over a window.
+ *
+ * Counting the weeks that happened is what avoids building an article-by-week
+ * grid to find the silent ones: a week with no shipment has no row, so it can
+ * only be counted by subtracting from the weeks available.
+ */
+export async function shippingWeeks(from, to) {
+  return rowsOf(
+    `SELECT article,
+            COUNT(DISTINCT to_char(date::date, 'IYYY-IW')) AS weeks_shipped,
+            SUM(qty) AS qty
+       FROM cube_outbound_daily
+      WHERE qty > 0 AND date >= ? AND date <= ?
+      GROUP BY article`,
+    [from, to]
+  )
+}
+
+/**
+ * Total sales value per day across every brand, for one window.
+ *
+ * No brand filter: this is the same all-brands total the warehouse constant
+ * divides by, so the chart and the forecast are reading one number.
+ */
+export async function salesByDate(from, to) {
+  return rowsOf(
+    `SELECT date, SUM(value) AS value
+       FROM cube_sales_daily
+      WHERE date >= ? AND date <= ?
+      GROUP BY date
+      ORDER BY date ASC`,
+    [from, to]
+  )
+}
+
+/**
+ * Outbound by article and day across every brand, for one window.
+ *
+ * Summed over buckets rather than split by them: the SOH trend compares what
+ * left the warehouse against what the warehouse was holding, and the warehouse
+ * holds one pile per article whoever it is destined for.
+ */
+export async function outboundByArticleDates(from, to) {
+  return rowsOf(
+    `SELECT article, date, SUM(qty) AS qty
+       FROM cube_outbound_daily
+      WHERE date >= ? AND date <= ? AND qty > 0
+      GROUP BY article, date`,
+    [from, to]
+  )
+}
+
+/** What each article shipped by day of week, Sunday = 0. */
+export async function shippingWeekdays(from, to) {
+  return rowsOf(
+    `SELECT article,
+            EXTRACT(DOW FROM date::date) AS dow,
+            SUM(qty) AS qty
+       FROM cube_outbound_daily
+      WHERE qty > 0 AND date >= ? AND date <= ?
+      GROUP BY article, EXTRACT(DOW FROM date::date)`,
+    [from, to]
+  )
 }
 
 /** The constants for items no recipe covers, and the article master. */

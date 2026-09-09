@@ -168,13 +168,24 @@ async function request(method, path, body, { signal } = {}) {
  * restart is several seconds during which nothing answers and the dev proxy
  * returns a bare 500. One retry after 900ms was not enough to cover that, and
  * the reader got an error banner for something that fixed itself a moment
- * later. Three attempts spread over about five seconds covers an ordinary
- * restart without making a genuinely dead server take any longer to report.
+ * later. Three attempts over five seconds were not enough either.
+ *
+ * Timed on 8 Sep 2026 rather than guessed at again: touching a server file and
+ * polling until the health endpoint reported the database open, the API was
+ * unreachable for 9.0 seconds and fully answering at 12.4. Against that, a
+ * five-second budget expires while the server is still starting, which is
+ * exactly the banner it was meant to prevent — reported from the Stock Article
+ * page, where every filter change is one of these reads.
+ *
+ * Six attempts over about twenty-five seconds covers that with room for a
+ * colder start. The cost is stated plainly: a genuinely dead server now takes
+ * twenty-five seconds to say so instead of five. That is the right trade for a
+ * read, because the common case by far is a server that is coming back.
  *
  * Reads only. A write repeated is an email sent twice or a user created twice,
  * so those go through `send` and fail on the spot.
  */
-const RETRY_DELAYS = [900, 1800, 3000]
+const RETRY_DELAYS = [900, 1800, 3000, 5000, 7000, 7000]
 
 async function read(method, path, body, options) {
   let lastError
@@ -267,6 +278,10 @@ export const api = {
   // the same rows the Stock Article page draws — and only the daily series from
   // its own endpoint, which is aggregated on the server.
   warehouseTrend: (filters, options) => query('/warehouse-trend', filters, options),
+  // Warehouse stock against what left it, week by week.
+  sohTrend: (filters, options) => query('/soh-trend', filters, options),
+  // Sales value by month, and the pace the current month is running at.
+  salesRunRate: (filters, options) => query('/sales-runrate', filters, options),
   // Admin-only: why the warehouse forecast misses, article by article.
   warehouseDiagnostics: (filters, options) => query('/warehouse-diagnostics', filters, options),
   productionPlan: (filters, options) => query('/production-plan', filters, options),
@@ -304,6 +319,12 @@ export const api = {
     // Two calls, same body: without `commit` the server only says what it would do.
     importRecipients: (text, commit = false) => post('/admin/email/recipients/import', { text, commit }),
     setRecipientsActive: (active) => post('/admin/email/recipients/active', { active }),
+    // Sales for a brand with no semantic model — same two-step as the import above.
+    importedSales: (brand = 'FM') => get(`/admin/sales/imported?brand=${encodeURIComponent(brand)}`),
+    importSales: (brand, text, commit = false) => post('/admin/sales/import', { brand, text, commit }),
+    refreshSales: (brand) => post('/admin/sales/refresh', { brand }),
+    // Refill the value columns the constant divides by, without a whole backfill.
+    refillSalesValues: () => post('/admin/cube/sales-values'),
     emailCheck: () => get('/admin/email/check'),
     sendEmail: (opts) => post('/admin/email/send', opts ?? {}),
   },

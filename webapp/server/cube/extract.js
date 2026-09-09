@@ -1,8 +1,10 @@
 import { config } from '../config.js'
+import { refreshAllSalesOnly } from './salesOnly.js'
 import { pg } from '../db/accounts.js'
 import { loadCoverage, forgetRecipeArticles } from './query.js'
 import { executeQuery } from '../powerbi/client.js'
 import * as dax from '../powerbi/dax.js'
+import { forgetConstants } from '../insights/whConstant.js'
 
 /**
  * Filling the local copy of the forecast.
@@ -205,6 +207,60 @@ ${dax.summarize({
     brand.datasetId,
     { bulk: true }
   )
+}
+
+/**
+ * What the brand sold each day, in money.
+ *
+ * Read from FORECAST (2) rather than from Forecast_Product_Table, because that
+ * table's Totalsale is already actual for past dates and forecast for future
+ * ones — the one series the constant needs on both sides of today, rather than
+ * two columns to choose between.
+ *
+ * Grouped by its own Date and filtered on its own Brand, so nothing depends on
+ * how it is related to the rest of the model. In each brand's model only that
+ * brand's rows are populated — the others are present and empty — so the filter
+ * is what stops nine brands' worth of zeros being read as data.
+ */
+async function fetchSalesValue(brand, window) {
+  const code = brand.chain ?? brand.code
+  const d = (iso) => {
+    const [y, m, day] = String(iso).slice(0, 10).split('-')
+    return `DATE(${Number(y)},${Number(m)},${Number(day)})`
+  }
+  return executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS('FORECAST (2)'[Date],
+  FILTER(ALL('FORECAST (2)'[Brand]), 'FORECAST (2)'[Brand] = "${code}"),
+  FILTER(ALL('FORECAST (2)'[Date]),
+    'FORECAST (2)'[Date] >= ${d(window.from)} && 'FORECAST (2)'[Date] <= ${d(window.to)}),
+  "Value", SUM('FORECAST (2)'[Totalsale]))`,
+    brand.datasetId,
+    { bulk: true }
+  )
+}
+
+async function writeSalesValue(brand, rows, scope) {
+  if (!rows.length && !scope) return
+  await pg.tx(async () => {
+    if (scope) {
+      await pg.run('DELETE FROM cube_sales_daily WHERE brand = ? AND date >= ? AND date <= ?', [
+        brand,
+        scope.from,
+        scope.to,
+      ])
+    }
+    await insertBatched(
+      'cube_sales_daily',
+      ['brand', 'date', 'value'],
+      ['brand', 'date'],
+      rows,
+      (r) => {
+        const k = Object.keys(r)
+        return [brand, String(r[k[0]] ?? '').slice(0, 10), Number(r.Value) || 0]
+      }
+    )
+  })
 }
 
 /** Component requirement by day, for the Ingredients page. */
@@ -550,6 +606,7 @@ async function fillWide(brand, wide) {
       writeArticles(brand.code, await inSpans(wide, 30, (w) => fetchArticles(brand, w)), wide)],
     ['branches', async () =>
       writeLocationDaily(brand.code, await fetchLocationDaily(brand, wide), wide)],
+    ['sales', async () => writeSalesValue(brand.code, await fetchSalesValue(brand, wide), wide)],
     ['components', async () =>
       writeComponents(brand.code, await inSpans(wide, 90, (w) => fetchComponents(brand, w)), wide)],
   ]) {
@@ -616,6 +673,7 @@ export async function refreshRecent(brand) {
   for (const [what, run] of [
     ['articles', async () => writeArticles(brand.code, await fetchArticles(brand, recent), recent)],
     ['branches', async () => writeLocationDaily(brand.code, await fetchLocationDaily(brand, recent), recent)],
+    ['sales', async () => writeSalesValue(brand.code, await fetchSalesValue(brand, recent), recent)],
     ['components', async () => writeComponents(brand.code, await fetchComponents(brand, recent), recent)],
   ]) {
     try {
@@ -768,6 +826,50 @@ export async function backfillAll(onStep) {
       out.push({ brand: brand.code, error: err.message })
     }
   }
+  out.push(...(await refreshAllSalesOnly()))
+  return out
+}
+
+/**
+ * Refill the sales table alone, for every brand.
+ *
+ * Written for the move from item counts to sales value on 9 Sep 2026: the two
+ * value columns arrive empty, and the constant divides by them, so until they
+ * are filled every warehouse forecast is blank. A full backfill would do it and
+ * walks every brand branch by branch for several minutes; this is the one query
+ * per brand that actually matters, and the same call `fillWide` makes.
+ *
+ * Safe to run at any time — it replaces each brand's own rows over the window it
+ * pulled, exactly as the scheduled refresh does.
+ */
+export async function refreshSalesValues(onBrand = null) {
+  const out = []
+  for (const brand of config.brands) {
+    try {
+      const window = await windowFor(brand)
+      if (!window) {
+        out.push({ brand: brand.code, skipped: 'no calendar' })
+        continue
+      }
+      const rows = await fetchSalesValue(brand, window.wide)
+      await writeSalesValue(brand.code, rows, window.wide)
+      const total = rows.reduce((n, r) => n + (Number(r.Value) || 0), 0)
+      out.push({
+        brand: brand.code,
+        rows: rows.length,
+        total,
+        from: window.wide.from,
+        to: window.wide.to,
+      })
+      onBrand?.({ brand: brand.code, rows: rows.length, from: window.wide.from, to: window.wide.to })
+    } catch (err) {
+      out.push({ brand: brand.code, error: err.message.slice(0, 120) })
+      onBrand?.({ brand: brand.code, error: err.message.slice(0, 120) })
+    }
+    await sleep(GAP_MS)
+  }
+  // The rate is an average over these very numbers, held for the process's life.
+  forgetConstants()
   return out
 }
 
@@ -781,6 +883,14 @@ export async function refreshAllRecent() {
     }
     await sleep(GAP_MS)
   }
+  /*
+   * Then the brands that have sales and nothing else.
+   *
+   * Last, and with their own error handling inside, because they are an
+   * addition to the all-brands total rather than a page anybody opens. A
+   * badly-shaped sales model must not stop the nine real brands refreshing.
+   */
+  out.push(...(await refreshAllSalesOnly()))
   return out
 }
 

@@ -294,11 +294,49 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
     onLoaded,
   })
   const trend = useData(api.warehouseTrend, request, { enabled: ready, nonce: refreshNonce })
+  const soh = useData(api.sohTrend, request, { enabled: ready, nonce: refreshNonce })
+  const runRate = useData(api.salesRunRate, request, { enabled: ready, nonce: refreshNonce })
 
   const [band, setBand] = useState(null)
   const [view, setView] = useState(null)
 
   const rows = data?.rows ?? []
+
+  /*
+   * The latest week's stock reading, for the three cards.
+   *
+   * Taken from the last week that could be scored rather than the last week in
+   * the range: a part-week at the end has a full stock figure against partial
+   * outbound, which reads as a sudden collapse in usage that did not happen.
+   */
+  /** The run-rate cards, worded so a part-month never reads as a collapse. */
+  const rr = useMemo(() => {
+    const s = runRate.data?.summary
+    const cur = s?.current ?? null
+    const pace = s?.pace ?? null
+    return {
+      soFar: cur ? fmtQty(cur.soFar) : '–',
+      soFarFoot: cur ? `${cur.days} of ${cur.daysInMonth} days · ${cur.month}` : 'No month in progress',
+      runRate: cur?.runRate ? fmtQty(cur.runRate) : '–',
+      previous: s?.previous ? fmtQty(s.previous.total) : '–',
+      previousFoot: s?.previous ? s.previous.month : 'None complete yet',
+      pace: pace === null ? '–' : `${pace > 0 ? '+' : ''}${fmtPct(pace, 1)}`,
+      paceTone: pace === null ? 'slate' : pace >= 0 ? 'green' : 'amber',
+    }
+  }, [runRate.data])
+
+  const sohRead = useMemo(() => {
+    const weeks = (soh.data?.weeks ?? []).filter((w) => w.cover !== null)
+    const last = weeks.length ? weeks[weeks.length - 1] : null
+    const cover = soh.data?.summary?.latest?.cover ?? last?.cover ?? null
+    return {
+      cover: cover === null ? '–' : fmtPct(cover, 0),
+      // Under half a week of cover is where the shortfall showed up in testing.
+      tone: cover === null ? 'slate' : cover > 1 ? 'red' : cover > 0.5 ? 'amber' : 'green',
+      shortCount: last?.short ?? 0,
+      dryCount: last?.dry ?? 0,
+    }
+  }, [soh.data])
 
   /*
    * One row per article, rolled up and scored exactly as Stock Article does it.
@@ -632,6 +670,208 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
               />
             </ComposedChart>
           </ResponsiveContainer>
+        )}
+      </Panel>
+
+      <Panel
+        title="Sales run rate"
+        sub="Total sales value across every brand, month by month. This is the warehouse forecast's own denominator — every WH figure is the rate times this number. Last 12 months, regardless of the date slicer."
+      >
+        {runRate.loading ? (
+          <ChartSkeleton height={260} />
+        ) : runRate.data?.unavailable || !(runRate.data?.months ?? []).length ? (
+          <Empty title="No sales loaded yet">
+            The sales value table has nothing in it for this period.
+          </Empty>
+        ) : (
+          <>
+            <div className="unitrow" style={{ '--cards': 4 }}>
+              <MetricCard
+                label="This month so far"
+                accent="slate"
+                value={rr.soFar}
+                foot={rr.soFarFoot}
+              />
+              <MetricCard
+                label="On course for"
+                accent={rr.paceTone}
+                value={rr.runRate}
+                foot="At the pace set so far this month"
+              />
+              <MetricCard
+                label="Last full month"
+                accent="slate"
+                value={rr.previous}
+                foot={rr.previousFoot}
+              />
+              <MetricCard
+                label="Against the same point last month"
+                accent={rr.paceTone}
+                value={rr.pace}
+                foot="Like for like — same number of days in"
+              />
+            </div>
+
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={runRate.data.months} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                <CartesianGrid stroke="var(--line-soft)" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  stroke="var(--line)"
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  stroke="var(--line)"
+                  width={72}
+                  tickFormatter={fmtQty}
+                />
+                <Tooltip
+                  formatter={(v, n) => [fmtQty(v), n]}
+                  contentStyle={tooltipStyle}
+                />
+                {/*
+                  * Stacked, because the two halves of a month are one month.
+                  * Sold is what has happened; Still expected is the rest of the
+                  * month the models are forecasting — a finished month has none.
+                  */}
+                <Bar dataKey="actual" name="Sold" stackId="m" fill="var(--plain)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="ahead" name="Still expected" stackId="m" fill="var(--amber)" radius={[3, 3, 0, 0]} />
+                <Line
+                  dataKey="runRate"
+                  name="On course for"
+                  stroke="var(--red)"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+
+            <p className="pnote">
+              Bars are the month&rsquo;s sales value: the solid part has been sold, the amber part is
+              the rest of the month the models still expect. The dot shows what the current month is{' '}
+              <strong>on course for</strong> at the pace set so far — where it sits above or below the
+              amber bar, the pace and the models disagree, and that gap is worth a look. Everything
+              here is value, not units, and every brand is included.
+            </p>
+          </>
+        )}
+      </Panel>
+
+      <Panel
+        title="Stock on hand against what left"
+        sub="Weekly. How much of the stock it was holding the typical article shipped — 100% means it shipped exactly what it held. Follows the date slicer."
+      >
+        {soh.loading ? (
+          <ChartSkeleton height={260} />
+        ) : soh.data?.unavailable ? (
+          <Empty title="No inventory model connected">
+            Stock on hand comes from a separate model. Without it this chart has nothing to read.
+          </Empty>
+        ) : soh.data?.tooShort || (soh.data?.weeks ?? []).length < 3 ? (
+          <Empty title="Not enough weeks to draw a trend">
+            Widen the date range to at least three whole weeks.
+          </Empty>
+        ) : (
+          <>
+            <div className="unitrow" style={{ '--cards': 3 }}>
+              <MetricCard
+                label="Typical stock use"
+                accent={sohRead.tone}
+                value={sohRead.cover}
+                foot="Of what it held, shipped in a week"
+              />
+              <MetricCard
+                label="Shipped more than held"
+                accent={sohRead.shortCount ? 'amber' : 'green'}
+                value={fmtInt(sohRead.shortCount)}
+                foot="Articles last week — replenished mid-week to manage it"
+              />
+              <MetricCard
+                label="Shipped with an empty shelf"
+                accent={sohRead.dryCount ? 'red' : 'green'}
+                value={fmtInt(sohRead.dryCount)}
+                foot="Articles last week with no stock recorded"
+              />
+            </div>
+
+            <div className="segrid">
+              <section className="seg">
+                <h4>How much of its stock the typical article shipped</h4>
+                <ResponsiveContainer width="100%" height={230}>
+                  <ComposedChart data={soh.data.weeks} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                    <CartesianGrid stroke="var(--line-soft)" vertical={false} />
+                    <XAxis
+                      dataKey="week"
+                      tickFormatter={fmtDate}
+                      tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                      stroke="var(--line)"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                      stroke="var(--line)"
+                      width={54}
+                      tickFormatter={(v) => `${Math.round(v * 100)}%`}
+                    />
+                    <Tooltip
+                      labelFormatter={fmtDate}
+                      formatter={(v) => [v === null ? '–' : fmtPct(v, 0), 'Stock used']}
+                      contentStyle={tooltipStyle}
+                    />
+                    <Line
+                      dataKey="cover"
+                      name="Stock used"
+                      stroke="var(--plain)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      connectNulls
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <p className="pnote">
+                  Rising means stock is being drawn down faster relative to what is held; falling
+                  means the warehouse is holding more than it is shipping. Read the level as
+                  cover: 25% is about four weeks of stock, 100% is one week.
+                </p>
+              </section>
+
+              <section className="seg">
+                <h4>Articles that shipped more than they held</h4>
+                <ResponsiveContainer width="100%" height={230}>
+                  <ComposedChart data={soh.data.weeks} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                    <CartesianGrid stroke="var(--line-soft)" vertical={false} />
+                    <XAxis
+                      dataKey="week"
+                      tickFormatter={fmtDate}
+                      tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                      stroke="var(--line)"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                      stroke="var(--line)"
+                      width={54}
+                      tickFormatter={fmtInt}
+                    />
+                    <Tooltip
+                      labelFormatter={fmtDate}
+                      formatter={(v, n) => [fmtInt(v), n]}
+                      contentStyle={tooltipStyle}
+                    />
+                    <Bar dataKey="short" name="Shipped more than held" fill="var(--amber)" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="dry" name="No stock recorded" fill="var(--red)" radius={[3, 3, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <p className="pnote">
+                  These are the articles most at risk of a stockout. Measured across roughly 47,000
+                  article-weeks, a warehouse holding under a quarter-week of cover shipped{' '}
+                  <strong>0.60x</strong> that article&rsquo;s average the following week, against{' '}
+                  <strong>1.10x</strong> when it held more — so this chart leads the shortfall
+                  rather than reporting it.
+                </p>
+              </section>
+            </div>
+          </>
         )}
       </Panel>
 

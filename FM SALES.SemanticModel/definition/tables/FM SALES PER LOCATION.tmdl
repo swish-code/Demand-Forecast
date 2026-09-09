@@ -1,0 +1,69 @@
+table 'FM SALES PER LOCATION'
+	lineageTag: 64a555ba-0097-46e9-8462-eedfadf31ca8
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: b74607fa-5a92-4636-8138-5cc70a0659cf
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 92ca9979-df79-4df5-afef-74c77ea0e318
+			defaultHierarchy: LocalDateTable_c4e37118-e5c0-4306-a68e-3ac13001bd1b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Branch
+		dataType: string
+		lineageTag: beff7a05-1c0d-4b53-a57c-af7bd771c4c7
+		summarizeBy: none
+		sourceColumn: Branch
+
+		annotation SummarizationSetBy = Automatic
+
+	column Source
+		dataType: string
+		lineageTag: 5537cf49-cf36-493b-93bd-f9a33d86b539
+		summarizeBy: none
+		sourceColumn: Source
+
+		annotation SummarizationSetBy = Automatic
+
+	column orders
+		dataType: int64
+		formatString: 0
+		lineageTag: 523f5451-76c2-4301-9eff-78809c68a55a
+		summarizeBy: sum
+		sourceColumn: orders
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sales
+		dataType: double
+		lineageTag: 7609825a-8d0d-4b53-96f5-6cce02f077db
+		summarizeBy: sum
+		sourceColumn: Sales
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'FM SALES PER LOCATION' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/FOREVERMORE%20DAILY%20SALES.xlsx"), null, true),
+				    #"Per Location_Sheet" = Source{[Item="Per Location",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Per Location_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Branch", type text}, {"Source", type text}, {"orders", Int64.Type}, {"Sales", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

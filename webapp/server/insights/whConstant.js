@@ -1,6 +1,6 @@
 import * as cube from '../cube/query.js'
 import { OTHER_BUCKET } from '../powerbi/warehouse.js'
-import { articlesWithFutureDemand } from './futureDemand.js'
+import { articlesWithFutureDemand, articlesWithAnyFutureDemand } from './futureDemand.js'
 
 /**
  * Forecasting an article from what the warehouse actually shipped.
@@ -14,8 +14,14 @@ import { articlesWithFutureDemand } from './futureDemand.js'
  * This is a second opinion that never looks at a recipe. It asks a simpler
  * question of the warehouse's own history:
  *
- *     for every unit this brand sold last month, how much of this article
+ *     for every dinar this brand sold last month, how much of this article
  *     did the warehouse have to ship?
+ *
+ * Sales are measured as value rather than as items — changed on 9 Sep 2026. The
+ * models carry both, and the item count was the original choice, but Forevermore
+ * has a sales value and no item count at all, and a company total that adds a
+ * dinar to an item is not a total of anything. Value is also what the business
+ * itself reasons in.
  *
  * That ratio is the constant. Measure it over each of the last six whole
  * months, average the six, and multiply by what the brand is forecast to sell —
@@ -199,9 +205,10 @@ export async function forecastFromConstants(
    * no menu behind them and the activity test is the only one that applies.
    */
   const wide = brand === OTHER_BUCKET
-  const [recipeArticles, future] = await Promise.all([
+  const [recipeArticles, future, menuDriven] = await Promise.all([
     wide ? new Set() : cube.recipeArticles().catch(() => new Set()),
     wide ? null : articlesWithFutureDemand(brand, { today }),
+    wide ? null : articlesWithAnyFutureDemand({ today }),
   ])
 
   /*
@@ -220,6 +227,12 @@ export async function forecastFromConstants(
 
   const out = new Map()
   for (const [article, held] of constants) {
+    /*
+     * Is the article still moving? The fallback both branches share.
+     */
+    const stillMoving = () =>
+      (held.detail ?? []).slice(-ACTIVE_MONTHS).some((d) => d.outbound > 0)
+
     if (recipeArticles.has(article)) {
       /*
        * Recipe article: forecast only while a menu item still wants it.
@@ -227,11 +240,29 @@ export async function forecastFromConstants(
        * `future` is null when the question could not be asked — a failed query
        * must not read as a menu that has emptied, so the article is left alone.
        */
-      if (future && !future.has(article)) continue
-    } else {
-      const detail = held.detail ?? []
-      const recent = detail.slice(-ACTIVE_MONTHS).some((d) => d.outbound > 0)
-      if (!recent) continue
+      if (future && !future.has(article)) {
+        /*
+         * Being named in a recipe does not make something menu-driven.
+         *
+         * Gloves, napkins, paper bags and face masks are all in the recipe
+         * master, and no menu forecast will ever reach them — nothing on a menu
+         * is measured in gloves. Demanding a signal that cannot arrive blanked
+         * 1.75 million units of consumables that ship every week.
+         *
+         * So the menu rule only applies where a menu actually drives the
+         * article. Where no brand's menu wants it at all, it is not an
+         * ingredient in any meaningful sense, and the question becomes the one
+         * asked of every other warehouse-only article: is it still moving?
+         *
+         * `menuDriven` null means the question could not be answered, and the
+         * permissive reading is the right one — a failed query must not delete
+         * a forecast. Asked for on 9 Sep 2026.
+         */
+        if (menuDriven && menuDriven.has(article)) continue
+        if (!stillMoving()) continue
+      }
+    } else if (!stillMoving()) {
+      continue
     }
 
     const qty = held.constant * sales

@@ -19,6 +19,7 @@ import { reviewModels } from '../insights/modelReview.js'
 import { sendDailyReports, sendLog, sendSummary } from '../mail/runner.js'
 import { buildForRecipient } from '../mail/reports.js'
 import { cubeState, runBackfill } from '../cube/schedule.js'
+import { refreshSalesValues } from '../cube/extract.js'
 import {
   REPORTS,
   listRecipients,
@@ -29,6 +30,9 @@ import {
   setAllActive,
 } from '../mail/recipients.js'
 import { planImport, applyImport, templateCsv } from '../mail/bulk.js'
+import { parseSalesCsv, importSales, importedSales } from '../cube/salesImport.js'
+import { refreshAllSalesOnly, forgetSalesSchema } from '../cube/salesOnly.js'
+import { forgetConstants } from '../insights/whConstant.js'
 import { config } from '../config.js'
 
 export const admin = Router()
@@ -617,6 +621,121 @@ admin.post(
   })
 )
 
+/* ------------------------------------------------- sales for a brand ---- */
+
+/**
+ * Daily sales for a brand that has no semantic model behind it.
+ *
+ * Forevermore is the case: its warehouse outbound is already in the system and
+ * correctly coded, but with no forecast model its sales were absent from the
+ * all-brands total — which is the denominator its own outbound is measured
+ * against. The numbers come from a spreadsheet because that is where they live.
+ *
+ * Two steps, the same as the recipient import above and for the same reason:
+ * this says what the file would do, and nothing is written until the same file
+ * comes back with `commit`. A sales import lands on dates, and a date column
+ * read the wrong way round is the kind of mistake that balances perfectly and
+ * is still completely wrong.
+ */
+admin.get(
+  '/sales/imported',
+  handle(async (req, res) => {
+    const brand = String(req.query?.brand ?? 'FM').trim()
+    const model = config.salesOnly.find((b) => b.code.toUpperCase() === brand.toUpperCase()) ?? null
+    res.json({
+      brand,
+      loaded: await importedSales(brand),
+      // Which of the two ways these sales arrive, so the screen can stop
+      // offering a manual import for a brand that refreshes itself.
+      source: model ? 'model' : 'file',
+      model: model ? { label: model.label, datasetId: model.datasetId } : null,
+    })
+  })
+)
+
+/**
+ * Pull a sales-only brand now, rather than waiting for the next refresh.
+ *
+ * The point at which somebody needs this is the moment they publish the model:
+ * without it, "did the table come through, and did it find the right columns?"
+ * is a question you wait an hour to answer.
+ */
+admin.post(
+  '/sales/refresh',
+  handle(async (req, res) => {
+    if (!config.salesOnly.length) {
+      return res.status(400).json({
+        error: 'No sales-only brands are configured. Set PBI_SALES_ONLY to CODE|Label|datasetId.',
+      })
+    }
+    forgetSalesSchema()
+    const results = await refreshAllSalesOnly()
+    forgetConstants()
+    audit(req.user.id, 'sales.refresh', results.map((r) => r.brand).join(', '), { results })
+    const brand = String(req.body?.brand ?? config.salesOnly[0].code)
+    res.json({ results, loaded: await importedSales(brand) })
+  })
+)
+
+admin.post(
+  '/sales/import',
+  handle(async (req, res) => {
+    const brand = String(req.body?.brand ?? '').trim().toUpperCase()
+    const text = String(req.body?.text ?? '')
+    if (!brand) return res.status(400).json({ error: 'Which brand are these sales for?' })
+    if (!text.trim()) return res.status(400).json({ error: 'Nothing to import — the file is empty.' })
+
+    /*
+     * Not a brand that has its own model.
+     *
+     * Those are refreshed from Power BI, and the extract would overwrite an
+     * import on its next run — so accepting one here would look like it worked
+     * and quietly undo itself hours later.
+     */
+    if (config.brands.some((b) => b.code.toUpperCase() === brand)) {
+      return res.status(400).json({
+        error: `${brand} has its own Power BI model, so its sales come from the extract. Importing them here would be overwritten on the next refresh.`,
+      })
+    }
+
+    const plan = parseSalesCsv(text)
+    if (plan.error) return res.status(400).json({ error: plan.error })
+    if (!plan.rows.length) {
+      return res.status(400).json({ error: 'No usable rows were found in the file.' })
+    }
+
+    const preview = {
+      brand,
+      rows: plan.rows.length,
+      from: plan.rows[0].date,
+      to: plan.rows[plan.rows.length - 1].date,
+      actual: plan.rows.reduce((s, r) => s + r.actual, 0),
+      forecast: plan.rows.reduce((s, r) => s + r.forecast, 0),
+      locations: [...new Set(plan.rows.map((r) => r.location))],
+      skipped: plan.skipped,
+      dateWarning: plan.dateWarning,
+      missingForecast: plan.missingForecast,
+      sample: plan.rows.slice(0, 5),
+    }
+
+    if (!req.body?.commit) return res.json({ ...preview, committed: false })
+
+    const written = await importSales(brand, plan.rows)
+    /*
+     * The rate is an average over whole months of these very sales, held for
+     * the life of the process. Without this the import lands and every figure
+     * derived from it keeps using the totals from before it.
+     */
+    forgetConstants()
+    audit(req.user.id, 'sales.import', brand, {
+      rows: written.written,
+      from: written.from,
+      to: written.to,
+    })
+    res.json({ ...preview, committed: true, written, loaded: await importedSales(brand) })
+  })
+)
+
 /** The file to start from. */
 admin.get(
   '/email/recipients/template',
@@ -867,6 +986,25 @@ admin.post(
     // takes minutes. The page polls /cube to watch it fill.
     runBackfill()
     res.json({ started: true })
+  })
+)
+
+/**
+ * Refill the sales table for every brand, without a whole backfill.
+ *
+ * The constant divides by sales value, and those columns start empty on an
+ * existing database — so this is what turns the warehouse forecast back on
+ * after the change of basis. One query per brand rather than the branch-by-
+ * branch walk a full backfill does.
+ */
+admin.post(
+  '/cube/sales-values',
+  handle(async (req, res) => {
+    const state = await cubeState()
+    if (state.running) return res.status(409).json({ error: 'A refresh is already running' })
+    const results = await refreshSalesValues()
+    audit(req.user.id, 'cube.sales-values', null, { results })
+    res.json({ results })
   })
 )
 

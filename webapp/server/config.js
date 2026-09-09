@@ -94,6 +94,56 @@ export const config = {
    * is applied as a filter automatically.
    */
   brands: parseBrands(process.env.PBI_DATASETS, process.env.PBI_DATASET_ID),
+
+  /**
+   * Brands that have sales in Power BI and nothing else.
+   *
+   * Forevermore is the case this exists for: no product-level data, so no
+   * `Forecast_Product_Table` and no place in `brands` above — an entry there
+   * would point the recipe and product queries at tables the model lacks. What
+   * it does have is a daily sales figure, and the all-brands total needs it,
+   * because FM's warehouse outbound is already counted against a denominator
+   * that was leaving FM's own sales out.
+   *
+   * Same `code|Label|datasetId` shape as PBI_DATASETS. These never reach the
+   * brand picker; they are read by their own small extract into the sales copy.
+   */
+  salesOnly: parseSalesOnly(process.env.PBI_SALES_ONLY),
+
+  /**
+   * The inventory model, which holds stock on hand.
+   *
+   * Its own workspace, like the warehouse model — it was built separately and
+   * published where whoever built it had rights. Absent, every stock-on-hand
+   * figure is blank and nothing else is affected.
+   */
+  inventory: {
+    workspaceId: process.env.INV_WORKSPACE_ID || null,
+    datasetId: process.env.INV_DATASET_ID || null,
+  },
+}
+
+/**
+ * `code|Label|datasetId[|workspaceId]` — the sales-only list.
+ *
+ * A workspace of its own, unlike `parseBrands`, whose fourth field is a chain.
+ * These models are built by hand from a spreadsheet and land wherever the
+ * person building them has rights to publish, which is not usually the forecast
+ * workspace. Omitted, it falls back to the forecast workspace like everything
+ * else.
+ */
+function parseSalesOnly(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [code, label, datasetId, workspaceId] = entry.split('|').map((p) => (p || '').trim())
+      return code && datasetId
+        ? { code, label: label || code, datasetId, workspaceId: workspaceId || null }
+        : null
+    })
+    .filter(Boolean)
 }
 
 function parseBrands(raw, fallbackId) {

@@ -19,6 +19,16 @@ import { IconDownload } from '../components/Icons.jsx'
  */
 const TYPE_TONE = { RAW: 'type-raw', PREP: 'type-prep', PA: 'type-pa' }
 
+/** Ladder order, and how each rung reads. Mirrors whClassify.js on the server. */
+const STATUS_TONE = {
+  Active: 'green',
+  'Slow-Moving': 'amber',
+  'Super Slow-Moving': 'amber',
+  'Non-Moving': 'red',
+  'To Be Deactivated': 'slate',
+  'Never shipped': 'slate',
+}
+
 const COLUMNS = [
   // Which day the requirement falls on. Hidden by default: with a thirty-day
   // window every component repeats once per day, and most readers open this
@@ -49,6 +59,34 @@ const COLUMNS = [
    * forecast by different methods and trusted to different degrees, and until
    * now the only clue was the recipe group reading "No recipe — from outbound".
    */
+  {
+    /*
+     * How long since the warehouse last issued the article.
+     *
+     * The same ladder the forecast routes on, so a reader who wonders why a row
+     * has no warehouse forecast can see the reason in the row rather than
+     * having to know the rule. Off by default — the table is already wide, and
+     * this matters when it is being asked about rather than always.
+     */
+    key: 'Status',
+    label: 'Status',
+    width: 150,
+    hiddenByDefault: true,
+    render: (v, row) =>
+      v ? (
+        <span
+          title={
+            row?.Days_Idle === null || row?.Days_Idle === undefined
+              ? undefined
+              : `Last shipped ${row.Days_Idle} days before the end of this window`
+          }
+        >
+          <Pill tone={STATUS_TONE[v] ?? 'slate'}>{v}</Pill>
+        </span>
+      ) : (
+        <span className="muted">–</span>
+      ),
+  },
   {
     key: 'Source',
     label: 'Recipe',
@@ -896,6 +934,13 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           ? 1 - Math.abs(implied - forecast) / implied
           : null
 
+      /*
+       * Does this row hold the article's warehouse figures, or point at another?
+       */
+      const carriesWarehouse =
+        (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
+        (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
+
       return {
         ...r,
         // A real value, so the CSV has something to write and the table has
@@ -905,9 +950,19 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         Article_Forecast_Qty: forecast,
         Sales_Accuracy: salesAccuracy,
         Accuracy: score(forecast),
-        // The same measurement against the other forecast, so the two methods
-        // can be judged on the same evidence rather than on each other.
-        WH_Accuracy: score(held?.wh ?? null),
+        /*
+         * The same measurement against the other forecast, so the two methods
+         * can be judged on the same evidence rather than on each other.
+         *
+         * Only on the row that carries the warehouse figures. Those sit on one
+         * row per article and every other row of the same article is blank —
+         * they mean "counted on another line" rather than zero. The score,
+         * though, is worked out per article, so it used to be stamped on all of
+         * them: a row reading "– – 83.3%", an accuracy apparently derived from
+         * two blanks. Folding the rows recomputes the score from the summed
+         * columns, so the grouped view is unaffected.
+         */
+        WH_Accuracy: carriesWarehouse ? score(held?.wh ?? null) : null,
       }
     })
   }, [rows, dayAccuracy])

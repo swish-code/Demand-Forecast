@@ -35,6 +35,50 @@ const dax = (d) => {
  * rather than deleting it, because a failed query must not look like a menu
  * that has emptied.
  */
+/**
+ * Every article any brand's menu still wants.
+ *
+ * The per-brand answer above decides whether *this* brand's menu drives an
+ * article. This one answers a different question: is the article menu-driven at
+ * all?
+ *
+ * It exists because being named in a recipe does not make something menu-driven.
+ * Gloves, napkins, paper bags and face masks are all in the recipe master —
+ * somebody added them to a recipe — and no menu forecast will ever reach them,
+ * because nothing on a menu is measured in gloves. Treating them as menu-driven
+ * meant demanding a signal that cannot arrive, and blanking the forecast for
+ * 1.75 million units of consumables that ship every week.
+ *
+ * Null when nothing could be determined, which callers read as "no opinion"
+ * rather than "no menu wants anything".
+ */
+let anyCache = null
+let anyCacheKey = ''
+
+export async function articlesWithAnyFutureDemand({ today = new Date() } = {}) {
+  const key = iso(today)
+  if (anyCache && anyCacheKey === key) return anyCache
+
+  const work = (async () => {
+    const sets = await Promise.all(
+      config.brands.map((b) => articlesWithFutureDemand(b.code, { today }))
+    )
+    const known = sets.filter(Boolean)
+    // Every brand failed or answered nothing: no opinion, not an empty menu.
+    if (!known.length) return null
+    const out = new Set()
+    for (const s of known) for (const a of s) out.add(a)
+    return out
+  })()
+
+  anyCacheKey = key
+  anyCache = work
+  work.catch(() => {
+    if (anyCacheKey === key) anyCache = null
+  })
+  return work
+}
+
 export async function articlesWithFutureDemand(brandCode, { today = new Date() } = {}) {
   const brand = config.brands.find((b) => b.code === brandCode)
   if (!brand) return null

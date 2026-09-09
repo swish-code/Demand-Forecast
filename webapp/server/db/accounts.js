@@ -415,6 +415,39 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
  * before this existed keeps working with the column empty, and the Ingredients
  * page simply shows no consumption until the copy is rebuilt.
  */
+/*
+ * What each brand sold, in money, per day.
+ *
+ * The warehouse constant is outbound divided by what the brand sold, and until
+ * 9 Sep 2026 "sold" meant items. Asked to make it a value instead: Forevermore
+ * has a sales value and no item count, and a company total that adds a dinar to
+ * an item is not a total of anything.
+ *
+ * Its own table rather than two more columns on cube_location_daily, for two
+ * reasons. That table is keyed on brand + date + branch and is read by the
+ * Overview trend and the branch panel, so a brand with no branch split would
+ * have to invent one and it would show up there as a phantom branch. And the
+ * constant is a brand-level figure that is never filtered by branch — the
+ * forecast returns nothing at all under a branch filter — so the branch column
+ * would carry no information.
+ *
+ * The value is FORECAST (2)[Totalsale]: actual for dates that have happened and
+ * forecast for dates that have not, which is exactly what the constant needs on
+ * each side of today. Measured 9 Sep 2026 — for October it equals the model's
+ * forecast to the unit, and for August it equals its own Actual Sales.
+ */
+CREATE TABLE IF NOT EXISTS cube_sales_daily (
+  brand TEXT NOT NULL,
+  date  TEXT NOT NULL,
+  value DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, date)
+);
+
+-- Superseded by cube_sales_daily above, and dropped so nothing reads a column
+-- that is no longer filled.
+ALTER TABLE cube_location_daily DROP COLUMN IF EXISTS actual_value;
+ALTER TABLE cube_location_daily DROP COLUMN IF EXISTS forecast_value;
+
 ALTER TABLE cube_component_daily ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
 ALTER TABLE cube_component_monthly ADD COLUMN IF NOT EXISTS article TEXT NOT NULL DEFAULT '';
 

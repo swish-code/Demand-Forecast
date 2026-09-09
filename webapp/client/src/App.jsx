@@ -67,7 +67,7 @@ const PAGES = [
     // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
     // the table; only the slicer is gone. Put 'recipeGroup' back in this list
     // and its row back in FilterBar's SLICERS to restore it.
-    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply', 'recipeKind', 'status'],
   },
   {
     id: 'warehouse',
@@ -145,6 +145,21 @@ const EMPTY_OPTIONS = {
   supply: ['Warehouse', 'Direct Supply'],
   // Fixed too: a row either has a recipe behind it or it does not.
   recipeKinds: ['Recipe', 'Non-recipe'],
+  /*
+   * The five statuses from Swish SPS V3 2026, in ladder order.
+   *
+   * Fixed rather than fetched: they are worked out from how long ago the
+   * warehouse last issued each article, so there is nothing to look up and the
+   * order is the ladder rather than the alphabet.
+   */
+  statuses: [
+    'Active',
+    'Slow-Moving',
+    'Super Slow-Moving',
+    'Non-Moving',
+    'To Be Deactivated',
+    'Never shipped',
+  ],
   prepStatus: ['Extra Prep Needed', 'Normal', 'Reduced Prep Needed'],
   dateRange: {},
 }
@@ -249,6 +264,7 @@ export default function App({ session, onSignedOut }) {
     nodeTypes: [],
     supply: [],
     recipeKinds: [],
+    statuses: [],
     prepStatus: [],
     dateFrom: undefined,
     dateTo: undefined,
@@ -366,6 +382,7 @@ export default function App({ session, onSignedOut }) {
     nodeType: { list: 'nodeTypes', filter: 'nodeTypes' },
     supply: { list: 'supply', filter: 'supply' },
     recipeKind: { list: 'recipeKinds', filter: 'recipeKinds' },
+    status: { list: 'statuses', filter: 'statuses' },
     prepStatus: { list: 'prepStatus', filter: 'prepStatus' },
   }
 
@@ -431,6 +448,7 @@ export default function App({ session, onSignedOut }) {
       ...EMPTY_OPTIONS,
       ...(slicers.data ?? {}),
       supply: EMPTY_OPTIONS.supply,
+      statuses: EMPTY_OPTIONS.statuses,
       recipeKinds: EMPTY_OPTIONS.recipeKinds,
     }),
     [slicers.data]

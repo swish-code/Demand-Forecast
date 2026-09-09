@@ -33,6 +33,13 @@ const SLICERS = [
    */
   { id: 'supply', key: 'supply', label: 'Supply', options: 'supply', placeholder: 'All' },
   /*
+   * How long since the warehouse last issued the article.
+   *
+   * The same ladder the forecast routes on, so filtering to Non-Moving shows
+   * exactly the articles the forecast decided not to forecast.
+   */
+  { id: 'status', key: 'statuses', label: 'Status', options: 'statuses', placeholder: 'All' },
+  /*
    * Whether a recipe asks for the article, or only the warehouse ships it.
    *
    * Two fixed values like Supply, and for the same reason: it is derived from
