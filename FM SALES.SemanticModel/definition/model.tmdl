@@ -9,13 +9,19 @@ model Model
 
 annotation __PBI_TimeIntelligenceEnabled = 1
 
-annotation PBI_QueryOrder = ["FM SALES PER LOCATION"]
+annotation PBI_QueryOrder = ["FM SALES PER LOCATION","FM FORECAST","Seasonal Effect test"]
 
 annotation PBI_ProTooling = ["DevMode"]
 
 ref table 'FM SALES PER LOCATION'
 ref table DateTableTemplate_56de1c06-d99b-4855-ac4c-a2431720c84b
 ref table LocalDateTable_c4e37118-e5c0-4306-a68e-3ac13001bd1b
+ref table 'FM FORECAST'
+ref table LocalDateTable_962c1038-9871-4d4b-a70d-17bbf7c17447
+ref table 'Seasonal Effect test'
+ref table LocalDateTable_3dbaf19b-34eb-454b-878a-f1d74f5fdbd6
+ref table LocalDateTable_97af104a-f7aa-4e34-ae8f-01b89b72603a
+ref table LocalDateTable_fa604c19-ec3f-43ec-a5c3-e6bb2c92d135
 
 ref cultureInfo en-IN
 

@@ -292,5 +292,70 @@ export async function articleNames() {
   return out
 }
 
+/**
+ * Which brand each physical location belongs to.
+ *
+ * The inventory model names shops the way the ERP does — "BBT Adailiya",
+ * "Shakir Egaila", "T-Ardiya" — while everything else here speaks in brand
+ * codes. This model already holds the translation, because it is the same
+ * translation that decides which brand a shipment counts against: every
+ * outbound line carries both the raw `Transfer To` and the `Mapped Transfer To`
+ * beside it.
+ *
+ * Taking it from here rather than writing a list of prefixes means stock and
+ * outbound are attributed by one rule. A shop that moves brand, or a new site
+ * that opens, is picked up by both at once or by neither.
+ *
+ * Both ends of the movement are read: a warehouse that only ever issues stock
+ * appears as a source and never as a destination, and it is the source list
+ * that names the buildings whose stock is the warehouse's own.
+ *
+ * Returns a Map of location name to brand code, `OTHER_BUCKET`, or the supply
+ * source itself. Cached for the process — it changes when a site opens.
+ */
+let destinationCache = null
+
+export async function destinationBuckets() {
+  if (!isConfigured()) return new Map()
+  if (destinationCache) return destinationCache
+
+  const work = (async () => {
+    const ask = (raw, mapped) =>
+      executeQuery(
+        `EVALUATE SUMMARIZECOLUMNS(fact_outbound_line[${raw}], fact_outbound_line[${mapped}])`,
+        config.warehouse.datasetId,
+        { bulk: true, workspace: config.warehouse.workspaceId }
+      )
+
+    const [to, from] = await Promise.all([
+      ask('Transfer To', 'Mapped Transfer To'),
+      ask('Cost Center/Store', 'Mapped Cost Center/Store'),
+    ])
+
+    const brands = new Set(config.brands.map((b) => b.code))
+    const out = new Map()
+    const take = (rows, rawKey, mappedKey) => {
+      for (const r of rows) {
+        const location = String(r[rawKey] ?? '').trim()
+        const mapped = String(r[mappedKey] ?? '').trim()
+        if (!location || !mapped || out.has(location)) continue
+        out.set(
+          location,
+          mapped === WAREHOUSE ? WAREHOUSE : brands.has(mapped) ? mapped : OTHER_BUCKET
+        )
+      }
+    }
+    take(to, 'Transfer To', 'Mapped Transfer To')
+    take(from, 'Cost Center/Store', 'Mapped Cost Center/Store')
+    return out
+  })()
+
+  destinationCache = work
+  work.catch(() => {
+    destinationCache = null
+  })
+  return work
+}
+
 /** Whether the page should offer consumption at all. */
 export const warehouseReady = isConfigured

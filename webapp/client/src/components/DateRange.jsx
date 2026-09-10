@@ -67,7 +67,10 @@ export function DateRange({ label = 'Date', from, to, min, max, today, onChange 
 
   return (
     <Popover
-      align="right"
+      align="center"
+      // Wider than the filter lists this component is shared with, whose 340px
+      // cap was cutting the From and To fields off the right-hand side.
+      panelClassName="pop__panel--wide"
       trigger={({ open, toggle }) => (
         <FilterTrigger
           label={label}

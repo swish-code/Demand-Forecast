@@ -129,6 +129,57 @@ export function chooseSalesTable(all) {
   return best
 }
 
+/**
+ * The names a single actual-then-forecast series goes by.
+ *
+ * The nine real brands each carry `FORECAST (2)[Totalsale]`: one column that
+ * holds what was sold up to today and what is expected after it. That is the
+ * series the all-brands denominator is built from, so a sales-only brand that
+ * publishes the same thing should be read the same way.
+ *
+ * Kept here rather than in `COLUMN_ALIASES` deliberately. That vocabulary is
+ * shared with the CSV importer, where `actual` already matches "total" loosely,
+ * and widening it would change how spreadsheets are parsed to solve a problem
+ * that only exists in Power BI models.
+ */
+const TOTAL_ALIASES = ['totalsale', 'totalsales', 'salestotal', 'totalsalesvalue']
+
+/**
+ * The table holding an actual-then-forecast series, if the model has one.
+ *
+ * Separate from `chooseSalesTable` because the two answer different questions
+ * and, in the Forevermore model, different tables answer them: `FM SALES PER
+ * LOCATION` has the longer history and the branch split, while `FM FORECAST`
+ * has the forward view and starts only in April. Scoring them against one
+ * another produced a tie — both scored 3 — which meant whichever Power BI
+ * happened to list first won, and the winner decided silently whether the app
+ * had a forecast for this brand or nine months of history for it.
+ *
+ * Asking twice gets both.
+ */
+export function chooseSeriesTable(all) {
+  const tables = new Map()
+  for (const r of all) {
+    if (!r.table || !r.column || r.column.startsWith('RowNumber-')) continue
+    // Power BI's hidden per-column date tables are never the answer.
+    if (/^(LocalDateTable|DateTableTemplate)/.test(r.table)) continue
+    if (!tables.has(r.table)) tables.set(r.table, [])
+    tables.get(r.table).push(r)
+  }
+
+  for (const [table, columns] of tables) {
+    const date = columns.find((c) => /date|time/i.test(c.type) && matchExact(c.column, 'date'))
+    const total = columns.find(
+      (c) =>
+        /number|integer|decimal|currency|double/i.test(c.type) &&
+        !isRatio(c.column) &&
+        TOTAL_ALIASES.some((a) => normalise(c.column) === normalise(a))
+    )
+    if (date && total) return { table, date: date.column, total: total.column }
+  }
+  return null
+}
+
 export async function discoverSales(datasetId, workspace = null) {
   if (schemaCache.has(datasetId)) return schemaCache.get(datasetId)
 
@@ -143,14 +194,26 @@ export async function discoverSales(datasetId, workspace = null) {
       return { table: String(r[k[0]] ?? ''), column: String(r[k[1]] ?? ''), type: String(r[k[2]] ?? '') }
     })
 
-    const best = chooseSalesTable(all)
+    const series = chooseSeriesTable(all)
+
+    /*
+     * The history table is chosen from what is left.
+     *
+     * Excluding the series table first is what stops one table answering both
+     * questions and the other going unread — which in the Forevermore model
+     * would have thrown away January to March, because the forecast table only
+     * begins in April. If nothing else qualifies, the series table is allowed
+     * to stand for both.
+     */
+    const rest = series ? all.filter((r) => r.table !== series.table) : all
+    const best = chooseSalesTable(rest) ?? (series ? chooseSalesTable(all) : null)
     if (!best) {
       const seen = [...new Set(all.map((r) => r.table))].join(', ') || '(no tables)'
       throw new Error(
         `No sales table found in this model. It needs one table with a date column and a numeric sales column — name them "Date" and "Sales". Tables present: ${seen}.`
       )
     }
-    return best
+    return { ...best, series }
   })()
 
   schemaCache.set(datasetId, work)
@@ -164,6 +227,37 @@ export function forgetSalesSchema() {
   schemaCache.clear()
 }
 
+/**
+ * The actual-then-forecast series, by day.
+ *
+ * One row per date is expected and not assumed — the figures are summed, so a
+ * model that later splits the series by brand or channel adds up rather than
+ * keeping whichever row came last.
+ */
+async function fetchSeries(brand, window, series) {
+  if (!series) return null
+  const rows = await executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS(
+  ${ref(series.table, series.date)},
+  FILTER(ALL(${ref(series.table, series.date)}),
+    ${ref(series.table, series.date)} >= ${daxDate(window.from)} && ${ref(series.table, series.date)} <= ${daxDate(window.to)}),
+  "Total", SUM(${ref(series.table, series.total)})
+)`,
+    brand.datasetId,
+    { bulk: true, workspace: brand.workspaceId ?? null }
+  )
+
+  const out = new Map()
+  for (const r of rows) {
+    const k = Object.keys(r)
+    const date = String(r[k[0]] ?? '').slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    out.set(date, (out.get(date) ?? 0) + (Number(r.Total) || 0))
+  }
+  return out
+}
+
 /** The brand's daily sales over a window, as `{ date, location, actual, forecast }`. */
 export async function fetchSalesOnly(brand, window) {
   const s = await discoverSales(brand.datasetId, brand.workspaceId ?? null)
@@ -172,6 +266,8 @@ export async function fetchSalesOnly(brand, window) {
 
   const measures = [`"Actual", SUM(${ref(s.table, s.actual)})`]
   if (s.forecast) measures.push(`"Forecast", SUM(${ref(s.table, s.forecast)})`)
+
+  const seriesRows = fetchSeries(brand, window, s.series)
 
   const rows = await executeQuery(
     `EVALUATE
@@ -200,7 +296,7 @@ SUMMARIZECOLUMNS(
       forecast: Number(r.Forecast) || 0,
     })
   }
-  return { rows: out, schema: s }
+  return { rows: out, schema: s, series: await seriesRows }
 }
 
 /**
@@ -211,7 +307,7 @@ SUMMARIZECOLUMNS(
  * the old ones, or both are counted.
  */
 export async function refreshSalesOnly(brand, window) {
-  const { rows: perBranch, schema } = await fetchSalesOnly(brand, window)
+  const { rows: perBranch, schema, series } = await fetchSalesOnly(brand, window)
 
   /*
    * Summed to one row a day.
@@ -223,6 +319,30 @@ export async function refreshSalesOnly(brand, window) {
    */
   const byDate = new Map()
   for (const r of perBranch) byDate.set(r.date, (byDate.get(r.date) ?? 0) + r.actual)
+
+  /*
+   * The forecast series wins on any day it covers.
+   *
+   * It is the same figure for a day that has happened — measured on 10 Sep 2026,
+   * Forevermore's April to August totals matched the branch table to the dinar —
+   * and on a day that has not happened it is the only one of the two that has
+   * anything to say. Days before the series begins keep the branch table's
+   * actuals, which is the whole reason both are read.
+   *
+   * This is what puts a sales-only brand on the same footing as the nine real
+   * ones. Their `FORECAST (2)[Totalsale]` runs to the end of the year, so a
+   * window in November has a denominator for them; without this, Forevermore
+   * contributed its outbound to that window and nothing to the sales it was
+   * divided by.
+   */
+  let ahead = 0
+  if (series) {
+    for (const [date, value] of series) {
+      if (!byDate.has(date)) ahead++
+      byDate.set(date, value)
+    }
+  }
+
   const rows = [...byDate.entries()]
     .map(([date, actual]) => ({ date, actual }))
     .sort((x, y) => (x.date < y.date ? -1 : 1))
@@ -263,14 +383,34 @@ export async function refreshSalesOnly(brand, window) {
     from: window.from,
     to: window.to,
     actual: rows.reduce((s, r) => s + r.actual, 0),
-    read: `${schema.table}: ${schema.date}, ${schema.actual}${schema.forecast ? ', ' + schema.forecast : ''}${schema.location ? ', ' + schema.location : ''}`,
-    noForecast: !schema.forecast,
+    seriesDays: series ? series.size : 0,
+    // Days the series added that the branch table had nothing for — the forward
+    // view, which is the point of reading it.
+    aheadDays: ahead,
+    read:
+      `${schema.table}: ${schema.date}, ${schema.actual}` +
+      `${schema.forecast ? ', ' + schema.forecast : ''}${schema.location ? ', ' + schema.location : ''}` +
+      `${schema.series ? ` + ${schema.series.table}: ${schema.series.total}` : ''}`,
+    noForecast: !schema.series,
   }
 }
 
 /** How far either side of today a refresh reaches. */
 const HISTORY_DAYS = Number(process.env.SALES_ONLY_HISTORY_DAYS) || 800
-const AHEAD_DAYS = 35
+
+/*
+ * Far enough ahead to reach the end of a forecast, not just the end of a month.
+ *
+ * This was 35 days, which was right while these models held actuals only —
+ * there was nothing further out to fetch. A model with a forecast series runs
+ * to the end of its calendar, and the nine real brands are pulled across their
+ * model's whole range, so a five-week window here would leave Forevermore
+ * missing from every denominator past mid-October while the others had one.
+ *
+ * Asking for dates the model does not have costs nothing: the filter is on the
+ * table's own date column, so it returns what exists and no more.
+ */
+const AHEAD_DAYS = Number(process.env.SALES_ONLY_AHEAD_DAYS) || 400
 
 const DAY = 86_400_000
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10)

@@ -1,0 +1,338 @@
+table 'FM FORECAST'
+	lineageTag: ecda4c98-c60a-458b-86b5-d00700dcf7fb
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 2e92fe48-e8af-4063-aebc-7f6aacb816bd
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 73e5828d-7e18-460a-95da-5f2bdf388f57
+			defaultHierarchy: LocalDateTable_962c1038-9871-4d4b-a70d-17bbf7c17447.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Weekday
+		dataType: string
+		lineageTag: ff1a47ed-ec93-4951-b53a-560983ff4ffb
+		summarizeBy: none
+		sourceColumn: Weekday
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'D. Forecast %'
+		dataType: double
+		lineageTag: 158e7aee-8381-4763-8a3e-22eed1203dc6
+		summarizeBy: sum
+		sourceColumn: D. Forecast %
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MRR
+		dataType: double
+		lineageTag: 4fc14ab3-7535-417d-a90c-8f3a892cd0cb
+		summarizeBy: sum
+		sourceColumn: MRR
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Brand
+		dataType: string
+		lineageTag: ff8ca257-67d9-4eb2-ac53-97ae5277501a
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Actual Sales' =
+			
+			IF(
+			    'FM FORECAST'[DATE] < TODAY(),
+			    COALESCE(
+			        CALCULATE(
+			            SUM('FM SALES PER LOCATION'[Sales]),
+			            FILTER(
+			                ALL('FM SALES PER LOCATION'),
+			                'FM SALES PER LOCATION'[Date] = 'FM FORECAST'[DATE]
+			                    && 'FM SALES PER LOCATION'[Brand] = 'FM FORECAST'[BRAND]
+			            )
+			        ),
+			        0
+			    ),
+			    BLANK()
+			)
+		lineageTag: fdf6765c-f801-4c35-a4de-4c6ae27d8ce4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MonthlyRunRate_MTD = ```
+			
+			VAR CurrentDate = 'FM FORECAST'[DATE]
+			VAR MTDStart = DATE(YEAR(CurrentDate), MONTH(CurrentDate), 1)
+			
+			-- Cumulative Actual Sales, grouped by brand and location
+			VAR CumulativeActualSales = 
+			    CALCULATE(
+			        SUM('FM FORECAST'[Actual Sales]),
+			        FILTER(
+			            'FM FORECAST',
+			            'FM FORECAST'[Date] <= CurrentDate &&
+			            'FM FORECAST'[Date] >= MTDStart &&
+			            NOT(ISBLANK('FM FORECAST'[D. Forecast %])) &&
+			            'FM FORECAST'[Brand] = EARLIER('FM FORECAST'[BRAND])  -- Group by LocationID
+			        )
+			    )
+			
+			-- Cumulative Forecast %, grouped by brand and location
+			VAR CumulativeForecast = 
+			    CALCULATE(
+			        SUM('FM FORECAST'[D. Forecast %]),
+			        FILTER(
+			            'FM FORECAST',
+			            'FM FORECAST'[Date] <= CurrentDate &&
+			            'FM FORECAST'[Date] >= MTDStart &&
+			            'FM FORECAST'[Brand] = EARLIER('FM FORECAST'[BRAND])        )
+			    )
+			
+			RETURN
+			IF(
+			    CumulativeForecast = 0 || ISBLANK(CumulativeForecast),
+			    0,
+			    DIVIDE(CumulativeActualSales, CumulativeForecast)
+			)
+			```
+		lineageTag: 7acf042f-abfe-48fd-ae25-68faeef156ce
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Yesterday = ```
+			'FM FORECAST'[DATE] - 1
+			
+			```
+		formatString: General Date
+		lineageTag: df8c06c4-9b3a-4b7d-ad66-ec1b41d0e85d
+		summarizeBy: none
+
+		variation Variation
+			isDefault
+			relationship: 169b690a-2914-424d-b80a-ca0de9f0383a
+			defaultHierarchy: LocalDateTable_97af104a-f7aa-4e34-ae8f-01b89b72603a.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Yesterday Monthly RunRate' = ```
+			
+			VAR CurrentBrand = 'FM FORECAST'[BRAND]
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX('FM FORECAST'[MonthlyRunRate_MTD]),
+			        FILTER(
+			            'FM FORECAST',
+			            'FM FORECAST'[Date] = TODAY() - 1 &&
+			            'FM FORECAST'[Brand] = CurrentBrand        )
+			    )
+			RETURN
+			YesterdayRunRate
+			```
+		lineageTag: 3b4663f2-7b9c-4c99-aaef-b1702e2b0b3e
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Day = DAY('FM FORECAST'[DATE].[Date])
+		formatString: 0
+		lineageTag: 9b53a47f-d53d-4a94-94fb-e97bc52b3d88
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column DateCategorys = ```
+			
+			IF (
+			    'FM FORECAST'[DATE] < TODAY(),
+			    "Actual",  -- Categorizes dates before today
+			    "Forecast" -- Categorizes today and future dates
+			)
+			
+			```
+		lineageTag: de13334b-27f7-4f84-9cc1-e7efc9abe9eb
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrentMonthRunrate =
+			
+			IF(
+			    MONTH('FM FORECAST'[DATE]) = MONTH(TODAY()) &&
+			    YEAR('FM FORECAST'[DATE]) = YEAR(TODAY()), -- Ensure it is the current month
+			    IF(
+			        DAY(TODAY()) > 1, -- Start calculation from the 2nd day of the month
+			        IF(
+			            'FM FORECAST'[Actual Sales] = 0,
+			            'FM FORECAST'[D. Forecast %] * 'FM FORECAST'[Yesterday Monthly RunRate],
+			            BLANK()
+			        ),
+			        BLANK() -- Exclude rows on the 1st day of the month
+			    ),
+			    BLANK() -- Exclude rows outside the current month
+			)
+		lineageTag: 32c62125-b11e-4121-9a15-f085fcc2d8dd
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Totalsale = ```
+			
+			IF(
+			    NOT(ISBLANK('FM FORECAST'[Actual Sales])), 
+			    'FM FORECAST'[Actual Sales], -- Use ActualSales if available
+			    IF(
+			        NOT(ISBLANK('FM FORECAST'[CurrentMonthRunrate])), 
+			        'FM FORECAST'[CurrentMonthRunrate], -- Use CurrentMonthRunrate if ActualSales is not available
+			        'FM FORECAST'[NextMonthRunrate] -- Use NextMonthRunrate as a fallback
+			    )
+			) 
+			```
+		lineageTag: b3e3c702-70e8-43fd-a5cb-d377442b5de3
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year_Forecast = YEAR('FM FORECAST'[DATE].[Date])
+		formatString: 0
+		lineageTag: efc3705f-9811-4f11-b917-50c6739088c4
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column NextMonthRunrate =
+			
+			'FM FORECAST'[SeasonalEffectSales]*'FM FORECAST'[D. Forecast %]
+		lineageTag: 45b9c70f-524c-4e45-8028-b44f525def94
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Month_Forecast = MONTH('FM FORECAST'[DATE].[Date])
+		formatString: 0
+		lineageTag: 74d5c267-1492-4cf6-94a7-081dfaf41295
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column SeasonalEffectSales = ```
+			
+			VAR CurrentYear = 'FM FORECAST'[Year_Forecast]  -- Get Year from FORECAST[Year_Forecast]
+			VAR CurrentMonth = 'FM FORECAST'[Month_Forecast]  -- Get Month from FORECAST[Month_Forecast]
+			VAR CurrentBrand = 'FM FORECAST'[Brand]  -- Capture the current Brand from FORECAST[Brand]
+			
+			
+			RETURN
+			LOOKUPVALUE(
+			    'Seasonal Effect test'[SeasonalMonth],  -- The column to return
+			    'Seasonal Effect test'[Brand], CurrentBrand,  -- Match Brand between tables
+			    'Seasonal Effect test'[Year_SeasonalEffect], CurrentYear,  -- Match Year
+			    'Seasonal Effect test'[Month_SeasonalEffect], CurrentMonth  -- Match Month
+			)
+			
+			```
+		lineageTag: e306e666-b1c7-442f-9728-d4e34e3edff7
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MonthRunrate = ```
+			
+			    CALCULATE(
+			        LASTNONBLANK('FM FORECAST'[YesterdayMonthly], 1) * LASTNONBLANK('FM FORECAST'[D. Forecast %], 1),
+			        'FM FORECAST'[DATE] <= TODAY() - 1
+			    ) 
+			
+			```
+		lineageTag: 5a55930b-f3e5-4e50-bba5-63923b16dfff
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column YesterdayMonthly = ```
+			
+			VAR PreviousDa = 'FM FORECAST'[DATE] - 1
+			VAR CurrentBrand = 'FM FORECAST'[BRAND]
+			VAR YesterdayRunRate = 
+			    CALCULATE(
+			        MAX('FM FORECAST'[MonthlyRunRate_MTD]),
+			        FILTER(
+			            'FM FORECAST',
+			            'FM FORECAST'[Date] = PreviousDa &&
+			            'FM FORECAST'[Brand] = CurrentBrand         )
+			    )
+			RETURN
+			IF(DAY('FM FORECAST'[DATE]) = 1, YesterdayRunRate * 'FM FORECAST'[SeasonalEffect], YesterdayRunRate)
+			```
+		lineageTag: d8634d22-8012-4909-b9c1-61adccdaf35c
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column SeasonalEffect =
+			
+			VAR CurrentYear = 'FM FORECAST'[Year_Forecast]
+			VAR CurrentMonth = 'FM FORECAST'[Month_Forecast]
+			VAR CurrentBrand = 'FM FORECAST'[BRAND]
+			
+			RETURN
+			LOOKUPVALUE(
+			    'Seasonal Effect test'[Seasonal Effect],
+			    'Seasonal Effect test'[Brand], CurrentBrand,
+			    'Seasonal Effect test'[Year_SeasonalEffect], CurrentYear,
+			    'Seasonal Effect test'[Month_SeasonalEffect], CurrentMonth
+			)
+		lineageTag: d35b0147-2956-473c-a404-1ea8916c6efc
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'FM FORECAST' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/FOREVERMORE%20DAILY%20SALES.xlsx"), null, true),
+				    Sheet2_Sheet = Source{[Item="Sheet2",Kind="Sheet"]}[Data],
+				    #"Changed Type" = Table.TransformColumnTypes(Sheet2_Sheet,{{"Column1", type any}, {"Column2", type any}, {"Column3", type any}, {"Column4", type any}, {"Column5", type any}, {"Column6", type text}, {"Column7", type any}, {"Column8", type any}, {"Column9", type any}, {"Column10", type any}, {"Column11", type any}, {"Column12", type any}, {"Column13", type text}, {"Column14", type any}, {"Column15", type number}, {"Column16", type any}, {"Column17", type any}, {"Column18", type text}, {"Column19", type any}, {"Column20", type text}, {"Column21", type number}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Column1", "Column2", "Column3", "Column4", "Column9", "Column10", "Column11", "Column12", "Column13", "Column14", "Column15", "Column16", "Column17", "Column18", "Column19", "Column20", "Column21"}),
+				    #"Removed Blank Rows" = Table.SelectRows(#"Removed Columns", each not List.IsEmpty(List.RemoveMatchingItems(Record.FieldValues(_), {"", null}))),
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Removed Blank Rows", [PromoteAllScalars=true]),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Weekday", type text}, {"D. Forecast %", type number}, {"MRR", type number}}),
+				    #"Added Custom" = Table.AddColumn(#"Changed Type1", "Brand", each "FM")
+				in
+				    #"Added Custom"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

@@ -3,3 +3,23 @@ relationship 92ca9979-df79-4df5-afef-74c77ea0e318
 	fromColumn: 'FM SALES PER LOCATION'.Date
 	toColumn: LocalDateTable_c4e37118-e5c0-4306-a68e-3ac13001bd1b.Date
 
+relationship 73e5828d-7e18-460a-95da-5f2bdf388f57
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'FM FORECAST'.Date
+	toColumn: LocalDateTable_962c1038-9871-4d4b-a70d-17bbf7c17447.Date
+
+relationship c48da662-882a-416f-86ba-36683a9a350b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Seasonal Effect test'.Date
+	toColumn: LocalDateTable_3dbaf19b-34eb-454b-878a-f1d74f5fdbd6.Date
+
+relationship 169b690a-2914-424d-b80a-ca0de9f0383a
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'FM FORECAST'.Yesterday
+	toColumn: LocalDateTable_97af104a-f7aa-4e34-ae8f-01b89b72603a.Date
+
+relationship ea31fb8d-f533-41e0-bbab-10d27b18f50c
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Seasonal Effect test'.Today
+	toColumn: LocalDateTable_fa604c19-ec3f-43ec-a5c3-e6bb2c92d135.Date
+

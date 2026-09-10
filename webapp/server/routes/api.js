@@ -28,6 +28,7 @@ import { forecastFromConstants } from '../insights/whConstant.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
+import { storeStock, stockColumnsFor } from '../insights/storeStock.js'
 import { salesRunRate } from '../insights/salesRunRate.js'
 import {
   allowedBrands,
@@ -989,6 +990,65 @@ async function withStatus(rows, filters) {
   return labelled.filter((r) => r.Status && keep.has(r.Status))
 }
 
+/**
+ * What the shops are holding, and what the next shipment ought to be.
+ *
+ * Added beside the warehouse columns rather than folded into them: the forecast
+ * says what the shops will need, this says what they already have, and the two
+ * are different questions that a single number cannot answer. Nothing here
+ * changes WH forecast — see the note at the top of `insights/storeStock.js` for
+ * the backtest that settled that.
+ *
+ * Silent under the same filters that blank the warehouse forecast. Stock can be
+ * read per shop, but the forecast beside it cannot be split that way, so a
+ * branch-filtered cover figure would divide this branch's stock by every
+ * branch's demand.
+ */
+async function withStoreStock(rows, filters, buckets, grain, admin) {
+  /*
+   * Withheld rather than hidden.
+   *
+   * These columns are for the people who maintain the numbers: store stock is
+   * still settling — negative book balances, and a posting gap that has been
+   * inflating September — and a replenishment quantity read as an instruction
+   * by somebody who has not been told its limits does real harm. So the fields
+   * are never put in the response at all. Dropping them in the browser would
+   * leave them one network tab away.
+   */
+  if (!admin) return rows
+  if (grain.date || grain.location) return rows
+  if (filters?.locations?.length || filters?.products?.length || filters?.articles?.length) return rows
+
+  const held = await storeStock({
+    dateFrom: filters?.dateFrom,
+    dateTo: filters?.dateTo,
+    buckets,
+  }).catch((err) => {
+    console.warn(`  [store-stock] ${err.message.slice(0, 90)}`)
+    return null
+  })
+  // No inventory model, or nothing to read: the columns stay off rather than
+  // filling the page with dashes that look like a fault.
+  if (!held) return rows
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    /*
+     * Only the row that already carries this article's warehouse figures.
+     *
+     * Outbound and WH forecast sit on one row per article and are blank on the
+     * rest; stock belongs to the article in exactly the same way, so it goes on
+     * the same line. Spread across every recipe line it would be counted once
+     * per recipe by any total.
+     */
+    const carries =
+      (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
+      (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
+    if (!article || !carries) return r
+    return { ...r, ...stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held) }
+  })
+}
+
 function withRecipeKind(rows, filters) {
   const wanted = (filters?.recipeKinds ?? []).filter(Boolean)
   if (!wanted.length) return rows
@@ -1405,16 +1465,26 @@ api.all('/component-level', handle(async (req, res) => {
   // One local query per brand, and the answer is a few dozen numbers.
   const sales = await salesByDay(g.parts)
 
+  // The shops whose stock counts: the brands on screen, plus the kitchens and
+  // bakery the page already adds under the catch-all.
+  const buckets = [...g.parts.map((p) => p.brand.code), OTHER_BUCKET]
+
   if (g.single)
     return res.json({
       sales,
       rows: withRecipeKind(
-        await withStatus(
-          await withSupply(
-            await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+        await withStoreStock(
+          await withStatus(
+            await withSupply(
+              await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+              window
+            ),
             window
           ),
-          window
+          window,
+          buckets,
+          grain,
+          req.user?.role === 'admin'
         ),
         window
       ),
@@ -1425,18 +1495,24 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     sales,
     rows: withRecipeKind(
-      await withStatus(
-        await withSupply(
-          await addWarehouseWide(
-            // Split by brand, the brands are the answer, so they are not added up.
-            grain.brand ? results.flat() : merged(results),
-            window,
-            grain,
-            mtdAll?.get(OTHER_BUCKET)
+      await withStoreStock(
+        await withStatus(
+          await withSupply(
+            await addWarehouseWide(
+              // Split by brand, the brands are the answer, so they are not added up.
+              grain.brand ? results.flat() : merged(results),
+              window,
+              grain,
+              mtdAll?.get(OTHER_BUCKET)
+            ),
+            window
           ),
           window
         ),
-        window
+        window,
+        buckets,
+        grain,
+        req.user?.role === 'admin'
       ),
       window
     ),

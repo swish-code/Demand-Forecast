@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react'
  * Anchored popover with outside-click and Escape dismissal. `render` receives a
  * `close` callback so panel contents can dismiss themselves after acting.
  */
+/**
+ * @param {'left'|'center'|'right'} align  which part of the trigger the panel
+ *   is anchored to. Every option is clamped to the window afterwards, so this
+ *   is a preference rather than a promise.
+ */
 export function Popover({ trigger, children, render, align = 'left', panelClassName = '', onOpen }) {
   const [open, setOpen] = useState(false)
   const [box, setBox] = useState(null)
@@ -54,6 +59,20 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
         if (width && width + right > window.innerWidth - margin) {
           right = Math.max(margin, window.innerWidth - margin - width)
         }
+      } else if (align === 'center') {
+        /*
+         * Centred on the trigger rather than hung from one of its edges.
+         *
+         * Only worth it for a panel narrow enough to sit under its button. A
+         * wide one centred on a control near the edge of the window is clamped
+         * to that edge anyway, and then "centred" is just left or right with
+         * extra arithmetic.
+         */
+        left = Math.round(r.left + r.width / 2 - (width || r.width) / 2)
+        if (width && left + width > window.innerWidth - margin) {
+          left = window.innerWidth - margin - width
+        }
+        left = Math.max(margin, left)
       } else {
         left = Math.round(r.left)
         if (width && left + width > window.innerWidth - margin) {

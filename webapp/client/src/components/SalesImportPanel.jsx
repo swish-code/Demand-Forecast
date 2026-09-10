@@ -83,7 +83,10 @@ export function SalesImportPanel() {
         setNotice(
           `${fmtInt(mine?.rows ?? 0)} days read from the model` +
             (mine?.read ? ` · found ${mine.read}` : '') +
-            (mine?.noForecast ? ' · no forecast column, so forecast is zero' : '')
+            // The forward half is the reason a forecast series is read at all,
+            // so it is worth saying how much of one arrived.
+            (mine?.aheadDays ? ` · ${fmtInt(mine.aheadDays)} days of forecast` : '') +
+            (mine?.noForecast ? ' · no forecast series, so future dates are zero' : '')
         )
       }
       setState((s) => ({ ...(s ?? {}), loaded: r.loaded }))

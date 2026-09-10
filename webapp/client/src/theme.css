@@ -801,6 +801,25 @@ select {
   overflow: hidden;
 }
 
+/*
+ * A panel that needs more than the 340px the filter lists are capped at.
+ *
+ * The cap above is right for a list of brand names and wrong for anything with
+ * two columns in it: the date picker rendered at its natural 420px inside a box
+ * clamped to 340px, and `overflow: hidden` quietly sliced the From and To
+ * fields off the right-hand edge. Nothing looked broken — the panel simply
+ * ended early, and the inputs were unreachable.
+ *
+ * The measurement pass is the reason this has to be CSS rather than an inline
+ * width. Popover.jsx measures the panel while it is hidden and positions it
+ * from that width, so a panel whose stylesheet width and rendered width differ
+ * gets placed for the wrong one.
+ */
+.pop__panel--wide {
+  max-width: min(440px, calc(100vw - 24px));
+  overflow: auto;
+}
+
 .pop__panel--right {
   left: auto;
   right: 0;
@@ -952,9 +971,34 @@ select {
 
 /* ----------------------------------------------------------- date popover */
 
+/* A stated width, not one the content argues for.
+
+   With only a minimum here the panel took its width from the longest thing
+   inside it — the sentence about what the model covers — and grew to roughly
+   760px, wide enough to reach across the page and cover the sidebar. The
+   sentence wraps perfectly well; it just never had to. */
 .dr {
   display: flex;
-  min-width: 316px;
+  width: min(420px, calc(100vw - 28px));
+}
+
+/*
+ * Below about 420px the two columns stop fitting side by side, so they stack
+ * and the presets become a wrapping row. A preset nobody can reach is the same
+ * as no preset at all.
+ */
+@media (max-width: 460px) {
+  .dr {
+    flex-direction: column;
+  }
+
+  .dr__presets {
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
 }
 
 .dr__presets {
@@ -4692,6 +4736,19 @@ table.dt td.dt--wh {
   background: color-mix(in srgb, #f97316 3.5%, var(--surface));
 }
 
+/* Two more blocks, continuing the same left-to-right story: what was needed,
+   what moved, what is on the shelf, what to send. Different hues so the four
+   read as four, at the same faintness so none of them shouts. */
+table.dt th.dt--stock,
+table.dt td.dt--stock {
+  background: color-mix(in srgb, #0ea5e9 3.5%, var(--surface));
+}
+
+table.dt th.dt--repl,
+table.dt td.dt--repl {
+  background: color-mix(in srgb, #8b5cf6 3.5%, var(--surface));
+}
+
 /* The row naming the groups, above the one naming the columns.
    Its cells carry the same tint, so the title and its columns read as one
    block from the top of the table down. */
@@ -4755,7 +4812,9 @@ table.dt td.dt--gend {
 
 /* The row hover still has to win, or a shaded column looks unhoverable. */
 table.dt tbody tr:hover td.dt--fcst,
-table.dt tbody tr:hover td.dt--wh {
+table.dt tbody tr:hover td.dt--wh,
+table.dt tbody tr:hover td.dt--stock,
+table.dt tbody tr:hover td.dt--repl {
   background: var(--sunken);
 }
 

@@ -731,29 +731,51 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
                   contentStyle={tooltipStyle}
                 />
                 {/*
-                  * Stacked, because the two halves of a month are one month.
-                  * Sold is what has happened; Still expected is the rest of the
-                  * month the models are forecasting — a finished month has none.
+                  * Two lines rather than a stack, because the reason to look at
+                  * this is the shape over twelve months and a line carries a
+                  * shape better than twelve separate heights.
+                  *
+                  * They sit on top of each other for every finished month, where
+                  * sold and total are the same number. They separate only at the
+                  * current month, and that separation is exactly the thing worth
+                  * seeing: the solid line stops at what has been sold, the
+                  * dashed one carries on to what the models still expect.
                   */}
-                <Bar dataKey="actual" name="Sold" stackId="m" fill="var(--plain)" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="ahead" name="Still expected" stackId="m" fill="var(--amber)" radius={[3, 3, 0, 0]} />
+                <Line
+                  dataKey="total"
+                  name="Including what is still expected"
+                  stroke="var(--amber)"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={{ r: 3 }}
+                  connectNulls
+                />
+                <Line
+                  dataKey="actual"
+                  name="Sold"
+                  stroke="var(--plain)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls
+                />
                 <Line
                   dataKey="runRate"
                   name="On course for"
                   stroke="var(--red)"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
+                  strokeWidth={0}
+                  dot={{ r: 5 }}
                   connectNulls={false}
                 />
               </ComposedChart>
             </ResponsiveContainer>
 
             <p className="pnote">
-              Bars are the month&rsquo;s sales value: the solid part has been sold, the amber part is
-              the rest of the month the models still expect. The dot shows what the current month is{' '}
-              <strong>on course for</strong> at the pace set so far — where it sits above or below the
-              amber bar, the pace and the models disagree, and that gap is worth a look. Everything
-              here is value, not units, and every brand is included.
+              The solid line is what has been sold; the dashed line adds the rest of the month the
+              models still expect. They are the same figure for every finished month, so the two
+              only separate at the month in progress. The red dot shows what that month is{' '}
+              <strong>on course for</strong> at the pace set so far — where it sits above or below
+              the dashed line, the pace and the models disagree, and that gap is worth a look.
+              Everything here is value, not units, and every brand is included.
             </p>
           </>
         )}

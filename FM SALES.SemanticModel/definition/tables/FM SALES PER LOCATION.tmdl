@@ -52,6 +52,14 @@ table 'FM SALES PER LOCATION'
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
+	column Brand
+		dataType: string
+		lineageTag: 71c34f1a-2621-4fb6-8265-03641692d54f
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
 	partition 'FM SALES PER LOCATION' = m
 		mode: import
 		source =
@@ -59,9 +67,10 @@ table 'FM SALES PER LOCATION'
 				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/FOREVERMORE%20DAILY%20SALES.xlsx"), null, true),
 				    #"Per Location_Sheet" = Source{[Item="Per Location",Kind="Sheet"]}[Data],
 				    #"Promoted Headers" = Table.PromoteHeaders(#"Per Location_Sheet", [PromoteAllScalars=true]),
-				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Branch", type text}, {"Source", type text}, {"orders", Int64.Type}, {"Sales", type number}})
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Branch", type text}, {"Source", type text}, {"orders", Int64.Type}, {"Sales", type number}}),
+				    #"Added Custom" = Table.AddColumn(#"Changed Type", "Brand", each "FM")
 				in
-				    #"Changed Type"
+				    #"Added Custom"
 
 	annotation PBI_NavigationStepName = Navigation
 

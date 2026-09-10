@@ -29,6 +29,33 @@ const STATUS_TONE = {
   'Never shipped': 'slate',
 }
 
+/**
+ * The cover target the replenishment column aims at, in months.
+ *
+ * Kept in step with `TARGET_COVER_MONTHS` in `server/insights/storeStock.js`,
+ * which is where it was chosen and where the sweep that chose it is written up.
+ * It appears here only to be said out loud in a tooltip.
+ */
+const TARGET_COVER = 1.25
+
+/*
+ * Severity, not identity. Every pill carries its own words, so nothing here
+ * depends on being able to tell the colours apart.
+ */
+const SOH_TONE = {
+  'No store stock': 'red',
+  'Low stock': 'amber',
+  Normal: 'green',
+  'Store already stocked': 'slate',
+}
+
+const SHIPMENT_TONE = {
+  'Low stock — urgent': 'red',
+  'Shipment required': 'amber',
+  'No shipment needed': 'green',
+  'Supply constraint': 'slate',
+}
+
 const COLUMNS = [
   // Which day the requirement falls on. Hidden by default: with a thirty-day
   // window every component repeats once per day, and most readers open this
@@ -432,7 +459,131 @@ const COLUMNS = [
     // The average article, computed exactly as the card above it is.
     total: (list) => averageScore(list, 'WH_Accuracy')?.value ?? null,
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
-  }
+  },
+
+  /*
+   * What the shops are already holding.
+   *
+   * These sit beside the warehouse columns rather than inside them because they
+   * answer the question the warehouse columns provoke: a forecast of 14,934
+   * against an outbound of 0 reads as a total failure until you can see whether
+   * the shops were already full. They change nothing about the forecast — see
+   * `server/insights/storeStock.js` for the backtest that settled that.
+   */
+  {
+    key: 'Store_SOH',
+    label: 'Store SOH',
+    autoWidth: true,
+    num: true,
+    group: 'stock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="The inventory model has no reading for this article in these brands' shops. That is not the same as zero stock — it means nothing is known, so nothing is claimed."
+        >
+          –
+        </span>
+      ) : v < 0 ? (
+        // A book balance below zero is shown as it stands rather than tidied to
+        // zero — it is a real condition somebody needs to go and fix — but it is
+        // marked, because it is not a quantity of stock sitting anywhere.
+        <span
+          title="The books show less than nothing here: consumption has been recorded against stock the system had already run out of, usually a delivery booked late or a transfer never posted. It is treated as empty when working out what to send, not as a debt to be made up."
+        >
+          {fmtQty(v)}
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
+  },
+  {
+    /*
+     * Stock in months of demand, because raw stock says nothing on its own.
+     *
+     * Ten thousand units is a fortnight of one article and two years of
+     * another. Dividing by the article's own monthly requirement is what makes
+     * the column comparable down its length.
+     */
+    key: 'Stock_Cover',
+    label: 'Stock cover',
+    autoWidth: true,
+    num: true,
+    group: 'stock',
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No cover can be worked out: either there is no stock reading, or there is no warehouse forecast to divide by. A cover figure with nothing underneath it would be infinity dressed up as a number."
+        >
+          –
+        </span>
+      ) : (
+        <span title={`${v.toFixed(2)} months of the forecast requirement`}>
+          {v >= 100 ? '99+' : v.toFixed(2)}m
+        </span>
+      ),
+  },
+  {
+    key: 'SOH_Status',
+    label: 'SOH status',
+    width: 168,
+    group: 'stock',
+    render: (v) =>
+      v ? (
+        <Pill tone={SOH_TONE[v] ?? 'slate'}>{v}</Pill>
+      ) : (
+        <span className="muted">–</span>
+      ),
+  },
+
+  /*
+   * What the shops would need sent to reach the cover target.
+   *
+   * Deliberately a separate column from WH forecast rather than a replacement
+   * for it. WH forecast is demand — what the shops will get through. This is
+   * replenishment — what to send given what they already have. Backtesting
+   * showed the second is a worse predictor of what the warehouse actually ships
+   * than the first, by nine points, so both are published and neither pretends
+   * to be the other.
+   */
+  {
+    key: 'Required_Shipment',
+    label: 'Required',
+    autoWidth: true,
+    num: true,
+    group: 'repl',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="Nothing to work out: no stock reading, or no warehouse forecast.">
+          –
+        </span>
+      ) : (
+        <span
+          title={`Enough to bring the shops to ${TARGET_COVER} months of cover, from the ${
+            row?.Store_SOH === null || row?.Store_SOH === undefined ? '0' : fmtInt(row.Store_SOH)
+          } they hold now. A monthly figure, whatever window is on screen — a stock target does not shrink because you are looking at a week.`}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Shipment_Status',
+    label: 'Shipment',
+    width: 176,
+    group: 'repl',
+    render: (v) =>
+      v ? (
+        <Pill tone={SHIPMENT_TONE[v] ?? 'slate'}>{v}</Pill>
+      ) : (
+        <span className="muted">–</span>
+      ),
+  },
 ]
 
 /**
@@ -472,11 +623,28 @@ const COLUMN_ORDER = [
   'WH_Constant_Forecast_Qty',
   'Consumed_Qty',
   'WH_Accuracy',
+  // What the shops hold, then what that implies should be sent. Read left to
+  // right the four blocks are: what was needed, what moved, what is there, what
+  // to do about it.
+  'Store_SOH',
+  'Stock_Cover',
+  'SOH_Status',
+  'Required_Shipment',
+  'Shipment_Status',
   // Belongs to the day rather than to either group, so it sits outside both.
   'Sales_Day_Accuracy',
   // Neither group.
   'Live_Outbound_MTD',
 ]
+
+/** The two blocks that only maintainers see, kept in one place. */
+const STOCK_COLUMNS = new Set([
+  'Store_SOH',
+  'Stock_Cover',
+  'SOH_Status',
+  'Required_Shipment',
+  'Shipment_Status',
+])
 
 const ORDERED_COLUMNS = (() => {
   const rank = new Map(COLUMN_ORDER.map((key, i) => [key, i]))
@@ -691,6 +859,53 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
       term: 'Why it can look wrong',
       text: 'The warehouse ships in full cases on an ordering cycle, so a short date range catches one delivery or none.',
       example: 'Judge this over a full month; under about three weeks it is mostly noise.',
+    },
+  ],
+  stock: [
+    {
+      term: 'Store SOH',
+      text: 'What the shops of the brands on screen are holding, added together, in the article’s own base unit.',
+      formula: 'Closing stock in the inventory model, on the day before this window opens.',
+      example:
+        'The day before, not the last day: closing stock cannot explain a shipment that was decided before it existed. A dash means the model has no reading at all, which is not the same as none in stock.',
+    },
+    {
+      term: 'Stock cover',
+      text: 'How long that stock would last at the rate this article is forecast to be needed.',
+      formula: 'Store SOH ÷ the warehouse forecast put on a monthly footing.',
+      example:
+        '100 in the shops against 100 a month = 1.00m. Blank when there is no forecast to divide by, because the honest answer there is not infinity.',
+    },
+    {
+      term: 'SOH status',
+      text: 'The same figure in words, with the lines drawn where the data actually changes behaviour.',
+      formula:
+        'Nothing held → No store stock.  Under 0.25 months → Low stock.  0.25 to 2 → Normal.  2 months or more → Store already stocked.',
+      example:
+        'Backtested over 6,815 article-months: above two months of cover, what ships falls from about three quarters of the forecast to about half. Below two months, cover tells you almost nothing — which is why there is one band there and not three.',
+    },
+  ],
+  repl: [
+    {
+      term: 'Required',
+      text: 'What would have to be sent to bring the shops up to the cover target — a suggestion to order from, not a forecast.',
+      formula: 'MAX(0, 1.25 months of forecast demand − Store SOH)',
+      example:
+        'A monthly figure whatever window is on screen, because a stock target does not shrink because you are looking at a week. It sits beside WH forecast rather than replacing it: the forecast says what the shops will get through, this says what to send given what they already have.',
+    },
+    {
+      term: 'Shipment',
+      text: 'What to do about it.',
+      formula:
+        'Warehouse empty at any point this window → Supply constraint.  Nothing needed → No shipment needed.  Needed and cover under 0.25 months → Low stock, urgent.  Otherwise → Shipment required.',
+      example:
+        'Supply constraint wins over the rest on purpose: a shop that needs stock from a warehouse that has none is a purchase order, not a shipment somebody has forgotten to raise.',
+    },
+    {
+      term: 'Why this is not the forecast',
+      text: 'Because it was tested as one and it was worse.',
+      example:
+        'Over five months, subtracting store stock from the forecast scored 42.1% against 53.5% for leaving it alone, and drove one forecast in five to zero — 566 of which then shipped 2.15 million units. Store stock and shipments move together (r = +0.80), not against each other: bigger shops hold more and receive more.',
     },
   ],
 }
@@ -1443,19 +1658,26 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * the forecast reads as one.
    */
   const future = isFutureWindow(filters, options?.dateRange)
-  const columns = useMemo(
-    () =>
-      future
-        ? ORDERED_COLUMNS.filter(
-            (c) =>
-              c.key !== 'Consumed_Qty' &&
-              c.key !== 'Accuracy' &&
-              c.key !== 'WH_Accuracy' &&
-              c.key !== 'Sales_Accuracy'
-          )
-        : ORDERED_COLUMNS,
-    [future]
-  )
+  const columns = useMemo(() => {
+    let list = future
+      ? ORDERED_COLUMNS.filter(
+          (c) =>
+            c.key !== 'Consumed_Qty' &&
+            c.key !== 'Accuracy' &&
+            c.key !== 'WH_Accuracy' &&
+            c.key !== 'Sales_Accuracy'
+        )
+      : ORDERED_COLUMNS
+    /*
+     * Store inventory and replenishment are for maintainers for now.
+     *
+     * The server withholds the fields as well, so this is tidiness rather than
+     * the control itself — without it a reader would get five permanently empty
+     * columns and two group headings over nothing.
+     */
+    if (!isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
+    return list
+  }, [future, isAdmin])
 
   /*
    * What the CSV holds.
@@ -1624,6 +1846,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
+              ...(isAdmin
+                ? {
+                    stock: { label: 'Store inventory', help: HELP.stock },
+                    repl: { label: 'Replenishment', help: HELP.repl },
+                  }
+                : {}),
             }}
             fill
           />
