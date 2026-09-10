@@ -692,6 +692,9 @@ export default function App({ session, onSignedOut }) {
               // Some detail is for the people who maintain the numbers rather
               // than the people who read them.
               isAdmin={session?.user?.role === 'admin'}
+              // And the warehouse, whose job this page is: the server decides
+              // which departments count, so the two sides cannot drift.
+              fullDetail={Boolean(session?.user?.fullDetail)}
             />
           )}
             </>

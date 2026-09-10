@@ -307,13 +307,32 @@ export function forgetConstants() {
  * rounding.
  */
 /**
- * How many recent months of shipping keep a non-recipe article alive.
+ * How many recent months of shipping keep an article in the forecast. 0 = no test.
  *
- * An article the warehouse has not issued in three whole months has stopped
- * moving, and its six-month rate is describing a period that has ended. Asked
- * for on 6 Sep 2026.
+ * Off since 10 Sep 2026, and the reason it can be off is the decay above.
+ *
+ * The test existed because a flat six-month average kept asking for articles
+ * that had stopped: the rate described a period that had ended, and nothing in
+ * the arithmetic noticed. Weighting the recent months at 60% and 24% removes
+ * that problem at the source — an article with three empty months now forecasts
+ * close to nothing on its own, without being excluded.
+ *
+ * Measured across five months, gate on against gate off:
+ *
+ *   gate      forecasts made   card    by volume   bias   error/article
+ *   3 months       7,055       56.7%     81.6%     +9%       3,349
+ *   none           7,529       56.2%     81.6%     +9%       3,321
+ *
+ * Half a point of card accuracy for 474 more articles on the page, no change to
+ * the volume figure or the bias, and slightly *less* error per article. The
+ * decisive number is what the test was throwing away: of the article-months it
+ * excluded, 39 went on to ship 24,432 units. It was hiding real demand, and the
+ * total forecast it saved was 8,694 units — 42 of those forecasts were under a
+ * single unit.
+ *
+ * Set WH_ACTIVE_MONTHS to a number to bring the test back.
  */
-export const ACTIVE_MONTHS = 3
+export const ACTIVE_MONTHS = Number(process.env.WH_ACTIVE_MONTHS ?? 0)
 
 /**
  * Ships in this many months or fewer, out of six, and it is intermittent.
@@ -454,7 +473,7 @@ export async function forecastFromConstants(
      * Is the article still moving? The fallback both branches share.
      */
     const stillMoving = () =>
-      (held.detail ?? []).slice(-ACTIVE_MONTHS).some((d) => d.outbound > 0)
+      !ACTIVE_MONTHS || (held.detail ?? []).slice(-ACTIVE_MONTHS).some((d) => d.outbound > 0)
 
     if (recipeArticles.has(article)) {
       /*

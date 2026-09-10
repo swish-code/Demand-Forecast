@@ -182,7 +182,7 @@ api.get('/health', handle(async (req, res) => {
 
 /** Everything past this point needs a session and carries a scope. */
 api.use(requireAuth, (req, res, next) => {
-  loadScope(req.user.id, req.user.role)
+  loadScope(req.user.id, req.user.role, req.user.department)
     .then((scope) => {
       req.scope = scope
       next()
@@ -279,7 +279,7 @@ function guardMany(req, res) {
 
 
 api.get('/brands', requireAuth, handle(async (req, res) => {
-  const scope = await loadScope(req.user.id, req.user.role)
+  const scope = await loadScope(req.user.id, req.user.role, req.user.department)
   res.json({ brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })) })
 }))
 

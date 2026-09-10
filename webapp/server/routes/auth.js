@@ -8,7 +8,7 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
-import { allowedPages } from '../departments.js'
+import { allowedPages, worksAtBrandLevel } from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -45,7 +45,7 @@ function record(userId, email, success, reason, req) {
 
 /** Everything the client needs to render the shell for this user. */
 async function sessionPayload(user) {
-  const scope = await loadScope(user.id, user.role)
+  const scope = await loadScope(user.id, user.role, user.department)
   return {
     user: {
       id: user.id,
@@ -53,6 +53,15 @@ async function sessionPayload(user) {
       name: user.name,
       role: user.role,
       department: user.department ?? null,
+      /*
+       * Whether this account sees the stock page in full.
+       *
+       * Sent as a decided answer rather than as a department name the client
+       * would have to interpret. Two lists of department names, one per side,
+       * is exactly how "Warehouse" and "Warehouse " become different things —
+       * the server owns the rule and says yes or no.
+       */
+      fullDetail: user.role === 'admin' || worksAtBrandLevel(user.department),
     },
     brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })),
     scope: {

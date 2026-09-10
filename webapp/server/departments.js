@@ -96,6 +96,34 @@ export const DEPARTMENT_PAGES = {
  * the restriction — they would answer with everything and look like a leak,
  * because they would be one. Ingredients is the page these accounts are for.
  */
+/**
+ * Departments whose work is the whole brand, not one shop in it.
+ *
+ * A warehouse ships to every branch, so restricting a warehouse account to a
+ * few of them is not a narrower view of their job — it is a narrower view of
+ * somebody else's. And it broke the page they are given: both warehouse figures
+ * refuse a branch filter, because outbound names a brand and not a branch, so
+ * an account carrying branch grants saw the WH forecast blank, Outbound blank,
+ * and the four hundred non-recipe rows that only exist because the forecast
+ * puts them there missing entirely. "Location: All" in the picker still sent
+ * the granted list as a filter, so it did not look like a restriction.
+ *
+ * Naming the department here removes the *branch* narrowing and nothing else.
+ * Brand grants still apply, page grants still apply, and a branch the reader
+ * chooses in the slicer is still honoured — it is their question rather than a
+ * restriction imposed on them.
+ *
+ * Production and Bakery work from the same page and have the same problem. They
+ * are deliberately not here: widening an account's data is a decision per
+ * department, not an inference from one.
+ */
+export const BRAND_LEVEL_DEPARTMENTS = ['Warehouse']
+
+const BRAND_LEVEL = new Set(BRAND_LEVEL_DEPARTMENTS.map(norm))
+
+/** Does this department work across every branch of the brands it holds? */
+export const worksAtBrandLevel = (department) => BRAND_LEVEL.has(norm(department))
+
 const PAGES_BY_NAME = byNormalisedName(DEPARTMENT_PAGES)
 
 /** The pages this department may see by default, or null for all of them. */

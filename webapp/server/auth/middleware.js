@@ -1,6 +1,7 @@
 import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 import { COOKIE_NAME, readCookie, resolveSession } from './sessions.js'
+import { worksAtBrandLevel } from '../departments.js'
 
 /**
  * Authentication, roles, and — most importantly — data scoping.
@@ -68,12 +69,31 @@ export function requireRole(...roles) {
  *   byBrand   Map of brand code to a Set of branches, or null for all of them
  *   anyBrand  branches granted without a brand, or null for all of them
  */
-export async function loadScope(userId, role) {
+export async function loadScope(userId, role, department = null) {
   if (role === 'admin') return { brands: null, locations: null, byBrand: null, anyBrand: null }
 
   const rows = await pg.all('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ?', [userId])
   // No grants means nothing, never everything.
   if (!rows.length) return { brands: new Set(), locations: new Set(), byBrand: new Map(), anyBrand: new Set() }
+
+  /*
+   * A brand-level department keeps its brands and loses the branch narrowing.
+   *
+   * Done here rather than at the filter, so one place decides it and every
+   * route sees the same answer. The brands are still read from the grant below
+   * — this only says that within a brand they hold, every shop is theirs to
+   * see, which is what a warehouse account needs and what the branch grants
+   * were accidentally denying.
+   */
+  if (worksAtBrandLevel(department)) {
+    const held = new Set()
+    let all = false
+    for (const r of rows) {
+      if (!r.brand_code) all = true
+      else held.add(r.brand_code)
+    }
+    return { brands: all ? null : held, locations: null, byBrand: null, anyBrand: null }
+  }
 
   const brands = new Set()
   const collected = new Map()

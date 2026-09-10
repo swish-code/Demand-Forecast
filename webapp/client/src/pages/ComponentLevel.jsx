@@ -809,6 +809,42 @@ const averageScore = (rows, key) => {
   return { value: sum / seen.size, count: seen.size }
 }
 
+/**
+ * The same average, weighted by how much of the article actually moved.
+ *
+ * Two numbers answering two different questions, which is why both are shown.
+ * The plain average asks "how did the typical article do", and counts a
+ * packaging item that ships forty units a quarter exactly as heavily as
+ * sunflower oil. Weighted by volume it asks "how did the units we actually ship
+ * do", which is the question an order is judged on.
+ *
+ * Measured over five backtested months the two read 56.7% and 81.6% on the same
+ * forecast — a 25-point gap, all of it the long tail of tiny articles. Showing
+ * one without the other invites a reader to draw the wrong conclusion from
+ * whichever they happen to see.
+ *
+ * Deliberately the same rows and the same de-duplication as `averageScore`, so
+ * the pair always covers exactly the same set of articles.
+ */
+const weightedScore = (rows, key, weightKey) => {
+  const seen = new Map()
+  for (const r of rows) {
+    const v = r[key]
+    if (v === null || v === undefined) continue
+    const article = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
+    if (!article || seen.has(article)) continue
+    seen.set(article, { score: Math.max(0, Number(v)), weight: Math.max(0, Number(r[weightKey]) || 0) })
+  }
+  let sum = 0
+  let total = 0
+  for (const { score, weight } of seen.values()) {
+    sum += score * weight
+    total += weight
+  }
+  // No volume at all is not a zero-accuracy answer, it is no answer.
+  return total > 0 ? { value: sum / total, weight: total } : null
+}
+
 /*
  * What each column means, for the person reading the number rather than the
  * one who wrote it.
@@ -924,7 +960,7 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
 
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
-export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin }) {
+export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin, fullDetail }) {
   /*
    * Which extra dimensions the reader has switched on.
    *
@@ -1595,6 +1631,21 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     const wh = averageScore(focused, 'WH_Accuracy')
     const whOverall = wh?.value ?? null
 
+    /*
+     * And both again, weighted by volume.
+     *
+     * Each side is weighted by its own actual: the recipe figure by the
+     * quantity the recipes imply was used, the warehouse figure by what the
+     * warehouse actually issued. Weighting either by a forecast would let the
+     * thing being judged decide how much it counts.
+     */
+    const mixByVolume = weightedScore(
+      focused.filter(fromRecipe),
+      'Sales_Accuracy',
+      'Component_Actual_Qty'
+    )
+    const whByVolume = weightedScore(focused, 'WH_Accuracy', 'Consumed_Qty')
+
     return {
       forecast,
       actual,
@@ -1603,8 +1654,10 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       measured: scored,
       unmatched: unmatched.size,
       overall,
+      overallByVolume: mixByVolume?.value ?? null,
       whMeasured: wh?.count ?? 0,
       whOverall,
+      whOverallByVolume: whByVolume?.value ?? null,
     }
   }, [focused])
 
@@ -1752,9 +1805,19 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             loading={busy}
             value={summary.overall === null ? '–' : fmtPct(summary.overall, 1)}
             foot={
-              summary.overall === null
-                ? 'Nothing has sold in this window yet'
-                : `Average article · ${fmtInt(summary.mixArticles)} scored`
+              summary.overall === null ? (
+                'Nothing has sold in this window yet'
+              ) : (
+                <>
+                  Average article · {fmtInt(summary.mixArticles)} scored
+                  {summary.overallByVolume !== null && (
+                    <>
+                      <br />
+                      Volume accuracy · {fmtPct(summary.overallByVolume, 1)}
+                    </>
+                  )}
+                </>
+              )
             }
           />
         )}
@@ -1777,9 +1840,19 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             loading={busy}
             value={summary.whOverall === null ? '–' : fmtPct(summary.whOverall, 1)}
             foot={
-              summary.whOverall === null
-                ? 'Needs warehouse history to compare against'
-                : `Average article · ${fmtInt(summary.whMeasured)} scored`
+              summary.whOverall === null ? (
+                'Needs warehouse history to compare against'
+              ) : (
+                <>
+                  Average article · {fmtInt(summary.whMeasured)} scored
+                  {summary.whOverallByVolume !== null && (
+                    <>
+                      <br />
+                      Volume accuracy · {fmtPct(summary.whOverallByVolume, 1)}
+                    </>
+                  )}
+                </>
+              )
             }
           />
         )}
@@ -1980,7 +2053,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         <ArticleUsage
           article={usage}
           filters={filters}
-          isAdmin={isAdmin}
+          isAdmin={isAdmin || fullDetail}
           onClose={() => setUsage(null)}
         />
       )}
