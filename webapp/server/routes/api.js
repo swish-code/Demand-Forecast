@@ -24,7 +24,7 @@ import {
 } from '../powerbi/warehouse.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
-import { forecastFromConstants } from '../insights/whConstant.js'
+import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
@@ -1424,6 +1424,144 @@ SUMMARIZECOLUMNS(
     .sort((a, b) => b.Qty_Per_Unit - a.Qty_Per_Unit)
 
   res.json({ rows })
+}))
+
+
+/**
+ * "Why is this article not on my page?" — answered from the copy, in one call.
+ *
+ * This exists because of a question that kept coming back. Somebody compares a
+ * warehouse outbound sheet against the page, cannot find an article, and reports
+ * it missing. Three completely different situations arrive as the same empty
+ * search:
+ *
+ *   - it IS on the page, but they searched the name and the two systems spell
+ *     it differently (this was 468 of 488 reported cases)
+ *   - the warehouse has never issued it, so there is nothing to forecast from
+ *   - it only ever goes to the central kitchen, so no brand shows it
+ *
+ * The page's own search box cannot tell them apart, because it filters the rows
+ * already on screen — an article that is not there returns nothing whichever
+ * reason applies. So this looks the article up in the master and the outbound
+ * history directly, whether or not it is on the page, and says which.
+ *
+ * Read entirely from the local copy: no Power BI call, so it answers instantly
+ * and works even when the models are throttled.
+ */
+api.get('/article-lookup', requireAuth, handle(async (req, res) => {
+  const q = String(req.query.q ?? '').trim()
+  if (q.length < 2) return res.json({ query: q, matches: [], tooShort: true })
+
+  const matches = await cube.findArticles(q).catch(() => [])
+  if (!matches.length) {
+    return res.json({
+      query: q,
+      matches: [],
+      verdict: 'unknown-article',
+      // Said plainly, because it is the one answer people misread as a fault.
+      explain:
+        'No article in the warehouse master matches that. Check the number rather ' +
+        'than the name — names differ between systems, article numbers do not.',
+    })
+  }
+
+  // More than one candidate: hand back the list and let the reader choose,
+  // rather than guessing which of four similar names they meant.
+  if (matches.length > 1 && !matches[0].exact) {
+    return res.json({ query: q, matches })
+  }
+
+  const article = matches[0].article
+  const meta = matches[0]
+
+  const months = pastMonths(new Date(), 12).sort()
+  const [history, classes, recipes, elsewhere] = await Promise.all([
+    cube.articleHistory(article, months).catch(() => []),
+    classifyArticles({ asAt: new Date() }).catch(() => new Map()),
+    cube.recipeArticles().catch(() => new Set()),
+    cube.outboundElsewhere().catch(() => new Map()),
+  ])
+
+  /*
+   * Does it carry a forecast right now, and by which method?
+   *
+   * Asked of the engine itself rather than recomputed here, so the answer
+   * cannot drift from what the page shows. The constants are cached, so this
+   * costs nothing after the first call.
+   */
+  const buckets = [...config.brands.map((b) => b.code), OTHER_BUCKET]
+  const held = []
+  for (const bucket of buckets) {
+    const constants = await constantsFor(bucket, {}).catch(() => new Map())
+    const h = constants.get(article)
+    if (h) held.push({ bucket, behaviour: h.behaviour, shipMonths: h.shipMonths, months: h.months })
+  }
+
+  const byMonth = new Map()
+  const byBucket = new Map()
+  for (const r of history) {
+    const month = String(r.month)
+    const qty = Number(r.qty) || 0
+    byMonth.set(month, (byMonth.get(month) ?? 0) + qty)
+    byBucket.set(String(r.brand), (byBucket.get(String(r.brand)) ?? 0) + qty)
+  }
+  const total = [...byMonth.values()].reduce((s, v) => s + v, 0)
+  const shippedMonths = [...byMonth.values()].filter((v) => v > 0).length
+
+  const status = classes.get(article) ?? classifyOne(null, new Date())
+
+  /*
+   * The verdict, in the order a reader needs it.
+   *
+   * Forecast or not comes first, because that is the question. Everything after
+   * it is why.
+   */
+  const forecast = held.length > 0
+  const verdict = forecast
+    ? 'in-forecast'
+    : total > 0
+      ? 'shipped-no-constant'
+      : 'never-shipped'
+
+  const explain = forecast
+    ? `This article is in the forecast, under ${held.map((h) => (h.bucket === OTHER_BUCKET ? 'the catch-all destinations' : h.bucket)).join(', ')}. ` +
+      `If you cannot see it on the page, check the Status, Supply and Recipe slicers, and search by the article number rather than the name.`
+    : total > 0
+      ? 'The warehouse has issued this article, but not in a month that could be paired with sales, so there is no rate to forecast from. Usually this means every request was fulfilled at zero quantity.'
+      : 'The warehouse has never issued this article in the last twelve months. There is no history to forecast from — it is bought some other way, or through another route.'
+
+  res.json({
+    query: q,
+    article,
+    name: meta.name,
+    unit: meta.unit,
+    verdict,
+    explain,
+    forecast,
+    inRecipe: recipes.has(article),
+    status: { label: statusOf(status.status)?.label ?? null, daysIdle: status.daysIdle },
+    months: months.map((m) => ({ month: m, qty: byMonth.get(m) ?? 0 })),
+    destinations: [...byBucket.entries()]
+      .map(([bucket, qty]) => ({
+        bucket: bucket === OTHER_BUCKET ? 'Kitchens, bakery, head office, FM' : bucket,
+        qty,
+      }))
+      .sort((a, b) => b.qty - a.qty),
+    total,
+    shippedMonths,
+    held,
+    /*
+     * Where it goes when it goes nowhere a brand can claim.
+     *
+     * Flattened to the two fields the reader needs. The stored shape nests the
+     * destination under `top`, and the caller should not have to know that.
+     */
+    elsewhere: (() => {
+      const other = elsewhere.get(article)
+      if (!other) return null
+      return { destination: other.top?.destination ?? null, total: other.total }
+    })(),
+  })
 }))
 
 

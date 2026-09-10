@@ -49,7 +49,7 @@ const SLICERS = [
   { id: 'recipeKind', key: 'recipeKinds', label: 'Recipe', options: 'recipeKinds', placeholder: 'All' },
 ]
 
-export function FilterBar({ show, options, filters, setFilters, loading, brands, selectedBrands, onBrandChange, onNeedOptions }) {
+export function FilterBar({ show, options, filters, setFilters, loading, brands, selectedBrands, onBrandChange, onNeedOptions, tools }) {
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }))
   const visible = SLICERS.filter((s) => show.includes(s.id))
 
@@ -128,6 +128,15 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
           Reset
         </button>
       )}
+
+      {/*
+        * A page's own control, beside the reset rather than adrift below it.
+        *
+        * Stock Article puts its guide link here. It belongs with the filters
+        * because that is what it explains, and a button on a row of its own
+        * read as a stray element rather than as part of the bar.
+        */}
+      {tools}
     </div>
   )
 }

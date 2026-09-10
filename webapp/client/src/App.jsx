@@ -5,7 +5,16 @@ import { SideNav } from './components/SideNav.jsx'
 import { FilterBar } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
 import { CalcInspector } from './components/CalcInspector.jsx'
-import { IconSummary, IconProduct, IconComponent, IconPlan, IconUsers, IconBox } from './components/Icons.jsx'
+import {
+  IconSummary,
+  IconProduct,
+  IconComponent,
+  IconPlan,
+  IconUsers,
+  IconWarehouse,
+  IconInsight,
+  IconInfo,
+} from './components/Icons.jsx'
 /*
  * The pages are fetched when they are opened, not when the app starts.
  *
@@ -74,7 +83,7 @@ const PAGES = [
     label: 'Warehouse Insights',
     kicker: 'Forecast against outbound',
     blurb: 'How well the warehouse forecast matched what actually left it, article by article',
-    Icon: IconBox,
+    Icon: IconWarehouse,
     Component: WarehouseInsights,
     /*
      * The same slicers as Stock Article, and for the same reason: this page
@@ -89,7 +98,7 @@ const PAGES = [
     label: 'Forecast Insights',
     kicker: 'Findings and recommendations',
     blurb: 'Why the warehouse forecast misses, which articles are responsible, and what to change',
-    Icon: IconBox,
+    Icon: IconInsight,
     Component: WarehouseAnalysis,
     // Not a report anybody orders from — it explains the method, so it is for
     // the people who maintain it.
@@ -110,8 +119,8 @@ const PAGES = [
   {
     id: 'guide',
     label: 'Guide',
-    kicker: 'How to use this app',
-    blurb: 'What each page answers, how the daily email works, and what to check when a number looks wrong',
+    kicker: 'How to use this page',
+    blurb: 'A step-by-step walkthrough of Stock Article',
     Icon: IconSummary,
     Component: Guide,
     // Off the rail on purpose: it is one click from the Overview button, and a
@@ -568,9 +577,26 @@ export default function App({ session, onSignedOut }) {
 
   return (
     <div className="shell">
+      {/*
+        * One granted page is still a rail, not a strip.
+        *
+        * This used to force the collapsed state whenever the account had a
+        * single tab, and withhold the toggle with it — the reasoning being that
+        * one icon needs no label. What it produced was a 60px column of rail
+        * colour holding one unlabelled icon, with nothing to click to widen it:
+        * the page had no name, the status line and the sign-out label were both
+        * hidden with the rest of the collapsed chrome, and the reader could not
+        * undo any of it. An account with one page now gets the same rail as
+        * everybody else and the same toggle, so narrow is a choice they make
+        * rather than a state they are put in.
+        *
+        * The "Reports" heading is still held back for a single page — see
+        * SideNav. A divider separating one item from nothing is a different
+        * question from how wide the rail is.
+        */}
       <SideNav
-        collapsed={navCollapsed || navPages.length <= 1}
-        onToggle={navPages.length > 1 ? () => setNavCollapsed((v) => !v) : undefined}
+        collapsed={navCollapsed}
+        onToggle={() => setNavCollapsed((v) => !v)}
         pages={navPages}
         active={tab}
         onSelect={setTab}
@@ -625,6 +651,19 @@ export default function App({ session, onSignedOut }) {
               selectedBrands={brandCodes}
               onBrandChange={setBrandCodes}
               onNeedOptions={noteListOpened}
+              tools={
+                page.id === 'component' ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => drill('guide', {})}
+                    title="A step-by-step walkthrough of this page"
+                  >
+                    <IconInfo size={13} />
+                    How to use this page
+                  </button>
+                ) : null
+              }
             />
           </div>
         )}

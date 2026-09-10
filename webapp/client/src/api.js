@@ -274,6 +274,9 @@ export const api = {
   componentLevel: (filters, options) => query('/component-level', filters, options),
   // Which menu items use one article, and how much of it each takes.
   articleUsage: (filters, options) => query('/article-usage', filters, options),
+  /* The lookup behind "Find an article" — a GET, because it takes one term and
+     no filters, and it must work whatever the page is currently showing. */
+  articleLookup: (q) => get(`/article-lookup?q=${encodeURIComponent(q)}`),
   // Warehouse Insights reads the article figures from componentLevel above —
   // the same rows the Stock Article page draws — and only the daily series from
   // its own endpoint, which is aggregated on the server.

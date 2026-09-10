@@ -1025,6 +1025,59 @@ export function forgetMaster() {
 }
 
 /**
+ * Every month the warehouse issued this article, and to whom.
+ *
+ * For the lookup that answers "why is this not on my page?". A reader who
+ * cannot find an article has no way to tell the three possible answers apart —
+ * it is on the page and they missed it, the warehouse has never shipped it, or
+ * it shipped and stopped — and all three arrive as the same empty search. This
+ * is the evidence, straight from the copy, whether or not the article is on the
+ * page at all.
+ *
+ * Includes the catch-all destinations. An article that only ever goes to the
+ * central kitchen looks absent from every brand, and "it goes to the kitchen"
+ * is the answer that stops the question coming back.
+ */
+export async function articleHistory(article, months) {
+  if (!article || !months?.length) return []
+  return rowsOf(
+    `SELECT brand, month, qty
+       FROM cube_outbound_monthly
+      WHERE article = ? AND month IN (${months.map(() => '?').join(', ')})
+      ORDER BY month`,
+    [String(article), ...months]
+  )
+}
+
+/**
+ * Articles whose number or name matches what somebody typed.
+ *
+ * Number first and exactly, because that is the key everything else joins on
+ * and a nine-digit code typed in full is never a guess. Then a loose match on
+ * the name, which is how people actually search — and the reason the reports
+ * disagree in the first place, since names differ between systems while the
+ * number does not.
+ */
+export async function findArticles(query, limit = 12) {
+  const q = String(query ?? '').trim()
+  if (q.length < 2) return []
+  const master = await articleMaster()
+
+  const exact = master.get(q)
+  if (exact) return [{ article: q, ...exact, exact: true }]
+
+  const needle = q.toLowerCase()
+  const out = []
+  for (const [article, meta] of master) {
+    if (article.includes(q) || String(meta.name).toLowerCase().includes(needle)) {
+      out.push({ article, ...meta, exact: false })
+      if (out.length >= limit) break
+    }
+  }
+  return out
+}
+
+/**
  * Every article some recipe names, so it is not forecast twice.
  *
  * The recipe explosion already produces a requirement for these; adding a

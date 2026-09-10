@@ -18,7 +18,7 @@ import {
   InfoBanner,
   FmNotice,
 } from '../components/ui.jsx'
-import { IconDownload, IconInfo, IconCalendar } from '../components/Icons.jsx'
+import { IconDownload, IconCalendar } from '../components/Icons.jsx'
 import { useChartTheme } from '../components/charts/useChartTheme.js'
 
 /*
@@ -392,17 +392,14 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
       <FmNotice />
 
       {/*
-        The way in to the guide.
-        
-        On the Overview because that is where everybody lands, and next to the
-        figures because "what am I looking at" is asked while looking at them.
+        The link to the guide was removed from here on 10 Sep 2026.
+
+        The guide is now the Stock Article walkthrough rather than an app-level
+        one, because the departments it is granted to hold that page and nothing
+        else. A button here saying "How to use this app" would have opened a
+        guide about a different page. Stock Article carries its own link, in its
+        filter bar.
       */}
-      <div className="pagehelp">
-        <button type="button" className="btn pagehelp__btn" onClick={() => onDrill?.('guide', {})}>
-          <IconInfo size={13} />
-          How to use this app
-        </button>
-      </div>
 
       {future && (
         <InfoBanner icon={<IconCalendar size={15} />}>

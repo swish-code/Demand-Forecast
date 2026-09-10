@@ -109,7 +109,7 @@
   --pair-h: 520px;
 
   --nav-w: 208px;
-  --nav-w-collapsed: 60px;
+  --nav-w-collapsed: 66px;
 }
 
 @media (prefers-color-scheme: dark) {

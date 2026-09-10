@@ -192,6 +192,35 @@ export const IconBox = (p) => (
   </Svg>
 )
 
+/*
+ * Two glyphs added because one blank square was doing the work of two pages.
+ *
+ * Warehouse Insights and Forecast Insights both used `IconBox` - an empty
+ * rounded rectangle - so in the collapsed rail, where the icon is the only
+ * label there is, they were two identical featureless tabs. Size was not the
+ * problem: a bigger empty square is still an empty square.
+ *
+ * A building for the page about what the warehouse shipped, and a lamp for the
+ * page about why the forecast missed. Both are silhouettes that survive being
+ * read at 21px on a dark rail, and neither can be mistaken for the cube or the
+ * stacked layers already in the list.
+ */
+export const IconWarehouse = (p) => (
+  <Svg {...p}>
+    <path d="M2.8 10.6 12 4l9.2 6.6" />
+    <path d="M5 10.4V20h14v-9.6" />
+    <path d="M9.5 20v-5h5v5" />
+  </Svg>
+)
+
+export const IconInsight = (p) => (
+  <Svg {...p}>
+    <path d="M8.3 15.2A5.6 5.6 0 1 1 15.7 15.2" />
+    <path d="M9.7 15.4v2.4h4.6v-2.4" />
+    <path d="M10.6 20.4h2.8" />
+  </Svg>
+)
+
 /* --- sign-in ------------------------------------------------------------- */
 
 export const IconLock = (p) => (

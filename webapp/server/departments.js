@@ -78,9 +78,17 @@ const byNormalisedName = (map) =>
  */
 export const DEPARTMENT_PAGES = {
   // These four work from the stock list and nothing else.
-  Production: ['component'],
-  Bakery: ['component'],
-  Warehouse: ['component'],
+  /*
+   * The guide goes with the page, not with seniority.
+   *
+   * These three hold Stock Article and nothing else, and the guide is now that
+   * page's own walkthrough — so withholding it kept the instructions from the
+   * only people who need them. The "How to use this page" button in the filter
+   * bar would have navigated to a page they were not granted.
+   */
+  Production: ['component', 'guide'],
+  Bakery: ['component', 'guide'],
+  Warehouse: ['component', 'guide'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.
   Procurement: ['component', 'warehouse', 'guide'],
@@ -140,6 +148,23 @@ export const pagesFor = (department) => PAGES_BY_NAME.get(norm(department)) ?? n
 export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin', 'wh-analysis']
 
 /**
+ * The guide travels with the page it documents.
+ *
+ * `DEPARTMENT_PAGES` already pairs the two, but an explicit per-account grant
+ * wins over the department default — so an account granted `['component']` and
+ * nothing else got the "How to use this page" button in its filter bar with no
+ * page behind it. The click resolved to a page the account may not open, the
+ * app fell back to the first one it may, and the button looked broken rather
+ * than forbidden. Administrators were the only readers it worked for, because
+ * they are unrestricted.
+ *
+ * Applied to both answers below rather than to the grant, so it holds however
+ * the access was given: by grant, by department, or by default.
+ */
+const withGuide = (pages) =>
+  pages.includes('component') && !pages.includes('guide') ? [...pages, 'guide'] : pages
+
+/**
  * What one account may open — the whole rule, in one place.
  *
  * An explicit grant on the account wins. It is stored per user so somebody in
@@ -175,8 +200,8 @@ export function allowedPages(user) {
     const valid = granted.filter((p) => REPORTS.includes(p))
     // A grant of nothing valid is a mistake, not an instruction to lock the
     // account out of every page it has.
-    if (valid.length) return valid
+    if (valid.length) return withGuide(valid)
   }
 
-  return pagesFor(user?.department) ?? REPORTS
+  return withGuide(pagesFor(user?.department) ?? REPORTS)
 }

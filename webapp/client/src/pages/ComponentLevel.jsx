@@ -7,6 +7,7 @@ import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } 
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { ArticleUsage } from '../components/ArticleUsage.jsx'
+import { ArticleFinder } from '../components/ArticleFinder.jsx'
 import { IconDownload } from '../components/Icons.jsx'
 
 /**
@@ -960,7 +961,7 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
 
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
-export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, isAdmin, fullDetail }) {
+export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, onDrill, isAdmin, fullDetail }) {
   /*
    * Which extra dimensions the reader has switched on.
    *
@@ -1433,6 +1434,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
    * away the fetch, and so the table below stays exactly where it was.
    */
   const [usage, setUsage] = useState(null)
+  const [finding, setFinding] = useState(false)
 
   /*
    * The file is named for what it is and when it covers.
@@ -1774,6 +1776,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         */}
       <FmNotice detail />
 
+
       <div className="metrics">
         <MetricCard
           label="Outbound"
@@ -1887,6 +1890,23 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
         flush
         fill
         tools={
+          <>
+          {/*
+            * The answer to "this article is missing".
+            *
+            * The search box beside it filters the rows on screen, which cannot
+            * tell a reader why something is not there. This looks the article up
+            * whether or not the page shows it, and says which of the reasons
+            * applies — so the question gets settled here instead of by email.
+            */}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setFinding(true)}
+            title="Check whether any article is in the forecast, and see its twelve-month history"
+          >
+            Find an article
+          </button>
           <button
             type="button"
             className="btn"
@@ -1902,6 +1922,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             <IconDownload size={12} />
             CSV
           </button>
+          </>
         }
       >
         {/*
@@ -2048,6 +2069,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           {facets.slice(3).map((f) => f.unit).join(', ')}) — in the table above.
         </p>
       )}
+
+      {finding && <ArticleFinder onClose={() => setFinding(false)} />}
 
       {usage && (
         <ArticleUsage
