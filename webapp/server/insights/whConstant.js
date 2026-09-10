@@ -41,6 +41,54 @@ import { articlesWithFutureDemand, articlesWithAnyFutureDemand } from './futureD
  * and much noisier in practice, since deliveries and sales do not land in step
  * within a month.
  */
+/**
+ * How fast the weighting forgets. 0 keeps every month equal; 1 keeps only the
+ * last one. Swept across five backtested months — every value from 0.4 to 0.8
+ * beat the linear scheme it replaces, and 0.6 was the best of them.
+ */
+export const ALPHA = Number(process.env.WH_FORECAST_ALPHA) || 0.6
+
+/**
+ * The old model, kept so the two can be compared on the same screen.
+ *
+ * Set WH_FORECAST_MODEL=legacy to put the six-month average of ratios back.
+ * Nothing else changes — both models are computed from the same history, so
+ * switching is a restart, not a rebuild.
+ */
+export const LEGACY_MODEL = process.env.WH_FORECAST_MODEL === 'legacy'
+
+/** Ships in every one of its months, and there are at least this many. */
+const REGULAR_MONTHS = 6
+
+const median = (xs) => {
+  if (!xs.length) return 0
+  const s = [...xs].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+/**
+ * What kind of demand this is, which decides how it is forecast.
+ *
+ * Measured over June to August, and the spread is the reason the split exists —
+ * these are not reporting labels:
+ *
+ *   regular       371 articles  68.8% accuracy   +18% bias   29.5% of volume
+ *   intermittent  728 articles  58.2%            +26%        59.9%
+ *   new           164 articles  32.7%             +7%        10.1%
+ *   rare           75 articles  33.5%          +1,097%        0.3%
+ *   stopped        88 articles   9.1%          +2,407%        0.2%
+ *
+ * The last two are where a rate model does most of its damage, and they are
+ * where a different method earns its place.
+ */
+function behaviourOf(detail, shipMonths) {
+  if (detail.length <= 2) return 'new'
+  if (shipMonths <= INTERMITTENT_MONTHS) return 'rare'
+  if (shipMonths >= REGULAR_MONTHS && detail.length >= REGULAR_MONTHS) return 'regular'
+  return 'intermittent'
+}
+
 export function pastMonths(today = new Date(), count = 6) {
   const y = today.getUTCFullYear()
   const m = today.getUTCMonth()
@@ -171,20 +219,60 @@ export async function constantsFor(brand, { today = new Date(), months = 6 } = {
       const shipped = detail.filter((d) => d.outbound > 0)
       const shipMonths = shipped.length
       const intermittent = shipMonths > 0 && shipMonths <= INTERMITTENT_MONTHS
-      const sorted = shipped.map((d) => d.outbound).sort((x, y) => x - y)
-      const mid = Math.floor(sorted.length / 2)
-      const fixedMonthly = !sorted.length
-        ? 0
-        : sorted.length % 2
-          ? sorted[mid]
-          : (sorted[mid - 1] + sorted[mid]) / 2
+      const fixedMonthly = median(shipped.map((d) => d.outbound))
+
+      /*
+       * The median across EVERY month, zeros included.
+       *
+       * `fixedMonthly` above takes the median of the months that shipped, which
+       * over-forecast these articles by 144% and doubled their error. The reason
+       * is arithmetic: with two shipping months a median is the mean of them, so
+       * one bulk order and one small one average to something that never
+       * happened. Article 106800040 shipped 2,510,000 in January and 2,500 in
+       * April; the median of those two is 1,256,250, and the page duly asked for
+       * 1.24 million units a month of a sticker that had stopped moving. It was
+       * the single largest error on the page.
+       *
+       * Counting the zeros answers a different and more useful question: in a
+       * typical month, how much of this does the warehouse ship? For an article
+       * that ships twice in six months the honest answer is usually none, and
+       * the month it does ship is a miss we take rather than a miss we spread
+       * over the other five. Backtested over five months: bias +56% -> -5%,
+       * error per article 7,020 -> 3,340.
+       */
+      const medianAll = median(detail.map((d) => d.outbound))
+
+      /*
+       * The level and the sales behind it, both decayed towards the present.
+       *
+       * `constant` above averages six monthly *ratios*, which lets one month
+       * dominate twice over — once through an unusual quantity and again
+       * through an unusually small denominator. January 2026 had both (the
+       * sales copy was still filling, so the month reads 1.0m against a normal
+       * 3.2m) and article 100400137 came out forecast at 158,333 against a real
+       * 1,500, because its January rate of 0.71 is a thousand times its normal
+       * one and survived the averaging.
+       *
+       * Decaying the quantities and the sales separately, then dividing, keeps
+       * the sales responsiveness without averaging ratios. ALPHA was swept:
+       * 0.4 through 0.8 all beat the current scheme, and 0.6 was the best
+       * balance of card accuracy, volume accuracy and error.
+       */
+      const decay = detail.map((_, i) => (1 - ALPHA) ** (detail.length - 1 - i))
+      const decayTotal = decay.reduce((n, w) => n + w, 0)
+      const level = detail.reduce((n, d, i) => n + d.outbound * decay[i], 0) / decayTotal
+      const salesBase = detail.reduce((n, d, i) => n + d.sales * decay[i], 0) / decayTotal
 
       out.set(article, {
         constant,
+        level,
+        salesBase,
+        medianAll,
         months: detail.length,
         shipMonths,
         intermittent,
         fixedMonthly,
+        behaviour: behaviourOf(detail, shipMonths),
         since: detail[0].month,
         detail,
       })
@@ -237,6 +325,51 @@ export const INTERMITTENT_MONTHS = 2
 
 /** A month, for turning a monthly quantity into a window's worth of it. */
 const DAYS_PER_MONTH = 30.44
+
+/**
+ * One article's quantity for a window, by how the article behaves.
+ *
+ *   rare      the typical month's quantity, zeros counted, pro-rated by days.
+ *             Sales are not what decides whether the order happens, so scaling
+ *             by them was measured and cost about three points.
+ *   the rest  a decayed level of recent months, re-scaled by how the window's
+ *             sales compare with the sales those months carried. Sell more and
+ *             the warehouse ships more; the level says how much more.
+ *
+ * Backtested on five target months (April to August 2026), against the model it
+ * replaces — it won all five on every measure:
+ *
+ *                        card    by volume   bias    error/article
+ *   old (6-month rate)   53.5%      78.2%    +33%      5,553
+ *   this                 56.7%      81.3%     +9%      3,399
+ *   ... regular only     72.1%      87.8%     +6%      2,042
+ */
+function quantityFor(held, sales, windowDays) {
+  if (held.behaviour === 'rare') return held.medianAll * (windowDays / DAYS_PER_MONTH)
+
+  /*
+   * Two months of history is not enough to scale by sales.
+   *
+   * The ratio between shipments and sales would rest on one or two
+   * observations, and re-scaling by it turns any difference between those
+   * months and this one into a multiplier. Measured: scaling new articles by
+   * sales took their bias to +32% and their error to 6,480 per article; taking
+   * the level as it stands gives 0% bias and 4,381 — better than the model this
+   * replaces, which managed +5% and 5,019.
+   */
+  if (held.behaviour === 'new') return held.level * (windowDays / DAYS_PER_MONTH)
+
+  /*
+   * No usable sales history behind the level — fall back to the level itself.
+   *
+   * Only reachable when every training month had zero sales, which means the
+   * sales copy is missing rather than the brand being closed. Pro-rating by
+   * days is the honest answer; multiplying by a ratio with nothing underneath
+   * it is not.
+   */
+  if (!(held.salesBase > 0)) return held.level * (windowDays / DAYS_PER_MONTH)
+  return held.level * (sales / held.salesBase)
+}
 
 export async function forecastFromConstants(
   brand,
@@ -366,12 +499,23 @@ export async function forecastFromConstants(
      * Scaling the median by sales instead was measured and cost about three
      * points of accuracy, so the difference is not cosmetic.
      */
-    const qty =
-      held.intermittent && held.fixedMonthly > 0
+    const qty = LEGACY_MODEL
+      ? held.intermittent && held.fixedMonthly > 0
         ? held.fixedMonthly * (windowDays / DAYS_PER_MONTH)
         : held.constant * sales
+      : quantityFor(held, sales, windowDays)
 
-    if (!Number.isFinite(qty) || qty <= 0) continue
+    /*
+     * A forecast of zero is a forecast, and it stays on the page.
+     *
+     * Dropping it would be the easy way to a better-looking card: an article
+     * with nothing forecast and nothing shipped cannot be scored, so it would
+     * quietly leave the average. But a zero is the model's actual answer for a
+     * rare article in a quiet month, and it has to be held to it — when the
+     * article does ship, that zero scores 0% and counts. Only a figure that is
+     * not a number at all is skipped.
+     */
+    if (!Number.isFinite(qty) || qty < 0) continue
     out.set(article, qty)
   }
   return out

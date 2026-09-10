@@ -637,6 +637,18 @@ const COLUMN_ORDER = [
   'Live_Outbound_MTD',
 ]
 
+/*
+ * Store inventory and replenishment are switched off for now.
+ *
+ * Off on 10 Sep 2026 while the stock data settles — the inventory model stopped
+ * posting sales depletion on 1 September, so stock on hand has been drifting
+ * upwards on its own. The server withholds the fields as well; this is the half
+ * that keeps two empty group headings off the table.
+ *
+ * Set this back to true and the columns return as they were: admin only.
+ */
+const STORE_COLUMNS_ON = false
+
 /** The two blocks that only maintainers see, kept in one place. */
 const STOCK_COLUMNS = new Set([
   'Store_SOH',
@@ -1675,7 +1687,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * the control itself — without it a reader would get five permanently empty
      * columns and two group headings over nothing.
      */
-    if (!isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
+    if (!STORE_COLUMNS_ON || !isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
     return list
   }, [future, isAdmin])
 
@@ -1846,7 +1858,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
-              ...(isAdmin
+              ...(STORE_COLUMNS_ON && isAdmin
                 ? {
                     stock: { label: 'Store inventory', help: HELP.stock },
                     repl: { label: 'Replenishment', help: HELP.repl },

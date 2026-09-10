@@ -1004,7 +1004,22 @@ async function withStatus(rows, filters) {
  * branch-filtered cover figure would divide this branch's stock by every
  * branch's demand.
  */
+/*
+ * Store inventory and replenishment are switched off for now.
+ *
+ * Turned off on 10 Sep 2026 while the stock data settles: the inventory model
+ * stopped posting sales depletion on 1 September, so closing stock has been
+ * inflating about 26% in nine days, and 5.9% of articles carried a negative
+ * book balance at the last month end. A replenishment quantity computed from
+ * either of those is worse than no quantity at all.
+ *
+ * Nothing is deleted. Set WH_STORE_COLUMNS=1, or flip this default, and the
+ * columns come back exactly as they were — admin-only, as they were built.
+ */
+const STORE_COLUMNS_ON = process.env.WH_STORE_COLUMNS === '1'
+
 async function withStoreStock(rows, filters, buckets, grain, admin) {
+  if (!STORE_COLUMNS_ON) return rows
   /*
    * Withheld rather than hidden.
    *
