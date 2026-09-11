@@ -1520,7 +1520,24 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     let forecast = 0
     let actual = 0
     let consumed = 0
+    /*
+     * Outbound twice, because two questions want it.
+     *
+     * `consumed` is every article's outbound in view, which is what the card
+     * above the table shows and what the Outbound column totals underneath it.
+     * `consumedCovered` is only the part a recipe requirement covers, which is
+     * what the card's progress bar compares against that requirement - mixing
+     * the two would measure outbound the recipes never asked for against a
+     * requirement that never asked for it.
+     */
+    let consumedCovered = 0
+    // Rows a recipe names, so the card beside this one can say whether it has
+    // nothing to measure or nothing was sold.
+    let recipeRows = 0
     let scored = 0
+    // Distinct articles the warehouse has an outbound figure for. Not the same
+    // as `scored`, which counts articles scorable on product-mix accuracy.
+    const withOutbound = new Set()
     /*
      * The requirement for the articles the consumption total actually covers.
      *
@@ -1569,15 +1586,38 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
        */
       const recipeRow = fromRecipe(r)
       const c = r.Consumed_Qty
+      const hasOutbound = c !== null && c !== undefined
 
       if (recipeRow) {
+        recipeRows += 1
         forecast += Number(r.Component_Forecast_Qty) || 0
         actual += Number(r.Component_Actual_Qty) || 0
-        if (c !== null && c !== undefined) consumed += Number(c) || 0
+        if (hasOutbound) consumedCovered += Number(c) || 0
       }
 
       const a = String(r['Item No.'] ?? '').trim()
       if (!a) continue
+
+      /*
+       * Outside the recipe test, and that is the fix.
+       *
+       * The outbound total used to be accumulated inside it, so an article with
+       * no recipe contributed nothing to the card however much of it left the
+       * warehouse. Searching the table for one non-recipe article - a raw
+       * material, which is most of what the warehouse ships - left the card
+       * reading "No transfers matched this view" directly above an Outbound
+       * column reading 15. The card was answering a question about recipes
+       * while wearing the column's name.
+       *
+       * Added rather than taken once per article: an article used by different
+       * recipe groups in different brands stays as separate rows, each carrying
+       * its own share, so taking one would throw the rest away. Same rule as
+       * the per-article roll-up above.
+       */
+      if (hasOutbound) {
+        consumed += Number(c) || 0
+        withOutbound.add(a)
+      }
 
       if (!recipeRow) continue
       if (r.Accuracy === null) {
@@ -1653,7 +1693,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       actual,
       mixArticles: mix?.count ?? 0,
       consumed,
-      measured: scored,
+      consumedCovered,
+      outboundArticles: withOutbound.size,
+      recipeRows,
+      // Scorable on product-mix accuracy. Named for that rather than
+      // "measured", which is what the Outbound card mistook it for.
+      mixScored: scored,
       unmatched: unmatched.size,
       overall,
       overallByVolume: mixByVolume?.value ?? null,
@@ -1782,12 +1827,14 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           label="Outbound"
           calc="outbound"
           accent="green"
-          progress={summary.forecast ? Math.min(1, summary.consumed / summary.forecast) : 0}
+          progress={summary.forecast ? Math.min(1, summary.consumedCovered / summary.forecast) : 0}
           loading={busy}
-          value={summary.measured ? fmtInt(summary.consumed) : '–'}
+          value={summary.outboundArticles ? fmtInt(summary.consumed) : '–'}
           foot={
-            summary.measured
-              ? `Left the warehouse, ${fmtInt(summary.measured)} components measured`
+            summary.outboundArticles
+              ? `Left the warehouse, ${fmtInt(summary.outboundArticles)} article${
+                  summary.outboundArticles === 1 ? '' : 's'
+                } measured`
               : 'No transfers matched this view'
           }
         />
@@ -1809,7 +1856,20 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             value={summary.overall === null ? '–' : fmtPct(summary.overall, 1)}
             foot={
               summary.overall === null ? (
-                'Nothing has sold in this window yet'
+                /*
+                 * Which of the two reasons it actually is.
+                 *
+                 * It said "nothing has sold" whatever the cause, so a view of
+                 * raw articles - none of which have a recipe to explode, and
+                 * most of what the warehouse ships - was told the shops had
+                 * sold nothing. Phrased like the warehouse card beside it,
+                 * which has the same shape of answer.
+                 */
+                summary.recipeRows ? (
+                  'Nothing has sold in this window yet'
+                ) : (
+                  'Needs a recipe article to compare against'
+                )
               ) : (
                 <>
                   Average article · {fmtInt(summary.mixArticles)} scored
@@ -1860,13 +1920,22 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           />
         )}
 
+        {/*
+          * Counted over what the table is showing, like every other card here.
+          *
+          * This one read `rows` while its own foot read the narrowed set, so a
+          * search for one article produced "1,860" above "1 recipe groups" -
+          * two answers to the same question in one card. The population is
+          * still reported, in the place that belongs to it: the panel heading
+          * below says how many rows there are and how many the search matched.
+          */}
         <MetricCard
           label="Articles"
           accent="slate"
           progress={0.72}
           loading={busy}
-          value={fmtInt(rows.length)}
-          foot={`${fmtInt(groups)} recipe groups`}
+          value={fmtInt(focused.length)}
+          foot={`${fmtInt(groups)} recipe group${groups === 1 ? '' : 's'}`}
         />
         <MetricCard
           label="Largest requirement"
