@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmtInt } from '../api.js'
-import { IconClose } from './icons.jsx'
+import { IconClose } from './Icons.jsx'
 
 /**
  * "Is this article in the forecast, and if not, why?"
