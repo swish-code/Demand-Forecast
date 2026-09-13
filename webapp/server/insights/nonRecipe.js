@@ -243,7 +243,7 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
    */
   const code = brand.code ?? brand
   const [forecasts, covered, names] = await Promise.all([
-    forecastFromConstants(code, filters, { today }),
+    forecastFromConstants(code, filters, { now: today }),
     cube.recipeArticles().catch(() => new Set()),
     cube.articleMaster().catch(() => new Map()),
   ])

@@ -34,7 +34,7 @@ import { articlesWithFutureDemand, articlesWithAnyFutureDemand } from './futureD
  */
 
 /**
- * The last `count` whole months before the month `today` falls in.
+ * The last `count` whole months before the month the anchor falls in.
  *
  * Whole months only. September is not over, so September's ratio would be a
  * partial numerator over a partial denominator — the same fraction in theory
@@ -89,14 +89,95 @@ function behaviourOf(detail, shipMonths) {
   return 'intermittent'
 }
 
-export function pastMonths(today = new Date(), count = 6) {
-  const y = today.getUTCFullYear()
-  const m = today.getUTCMonth()
+/**
+ * The `count` whole calendar months immediately before `before`.
+ *
+ * The arithmetic is unchanged; the parameter name is not, and that is the fix.
+ * It used to be called `today`, every caller duly passed `new Date()`, and the
+ * six months a forecast trained on were therefore the six before *today*
+ * rather than the six before the month being forecast. Viewing August in
+ * September trained on March-August - August included, at 60% of the weight -
+ * and scored the result against August.
+ *
+ * Anchor on the first day of the target month and both cases come out right
+ * from one rule:
+ *
+ *   pastMonths('2026-08-01')  ->  Feb, Mar, Apr, May, Jun, Jul   (backtest)
+ *   pastMonths('2026-09-01')  ->  Mar, Apr, May, Jun, Jul, Aug   (live)
+ *
+ * Anchor on the last day of the month before instead and July disappears, so
+ * callers pass the window's own first day rather than the day before it.
+ *
+ * Accepts a Date or an ISO date string, because the anchor now comes from a
+ * filter value rather than from the clock.
+ */
+export function pastMonths(before = new Date(), count = 6) {
+  const at =
+    before instanceof Date ? before : new Date(`${String(before).slice(0, 10)}T00:00:00Z`)
+  const y = at.getUTCFullYear()
+  const m = at.getUTCMonth()
   const out = []
   for (let i = 1; i <= count; i++) {
     out.push(new Date(Date.UTC(y, m - i, 1)).toISOString().slice(0, 7))
   }
   return out
+}
+
+/** The calendar month a Date or ISO string falls in, as `YYYY-MM`. */
+export const monthOf = (at) =>
+  (at instanceof Date ? at.toISOString() : String(at)).slice(0, 7)
+
+const dayOf = (at) => (at instanceof Date ? at.toISOString() : String(at)).slice(0, 10)
+
+/**
+ * Which question the window on screen is asking, and what the forecast may know.
+ *
+ * Three cases, and they want different sales figures. The distinction used to
+ * be made nowhere at all: every window was forecast as though it were the one
+ * being planned, which is how a finished month came to be forecast from its own
+ * sales.
+ *
+ *   live-future    the window has not started. Everything about it is a
+ *                  forecast already, so the sales series is exactly right.
+ *   live-current   the window contains today. The series is part actual, part
+ *                  forecast - a nowcast. Right for somebody placing an order,
+ *                  and not a forecast for the purpose of scoring one.
+ *   historical     the window has ended. Its sales are actuals, so they are
+ *                  forbidden: a forecast may not be built from the answer.
+ *
+ * `anchor` is the window's first day in all three cases, so the training months
+ * follow the target month and not the calendar. With no window at all - the
+ * article-lookup probe is the one caller - it falls back to today, which is the
+ * live question and the only one that can be asked without a window.
+ */
+export function resolveBasis(filters, { now = new Date() } = {}) {
+  const today = dayOf(now)
+  const from = filters?.dateFrom ? dayOf(filters.dateFrom) : null
+  const to = filters?.dateTo ? dayOf(filters.dateTo) : null
+
+  if (!from) return { anchor: today, mode: 'live-current', from: null, to: null }
+
+  const mode = to && to < today ? 'historical' : from > today ? 'live-future' : 'live-current'
+
+  /*
+   * Clamped to the month we are standing in, which only bites on a future one.
+   *
+   * The anchor is the window's own first day - that is the fix - but a window
+   * that has not started yet must not be anchored on itself: anchoring next
+   * month on next month makes *this* month a "completed month before it", and
+   * this month is not over. Planning October in September would have trained on
+   * April-September with a part-month September in it, which is the partial
+   * numerator over a partial denominator the six-month rule exists to avoid.
+   *
+   * So the rule is the six whole months before whichever comes first, the
+   * target month or the current one:
+   *
+   *   August in September    -> anchor Aug 1   -> Feb-Jul   (historical)
+   *   September in September -> anchor Sep 1   -> Mar-Aug   (live, unchanged)
+   *   October in September   -> anchor Sep 1   -> Mar-Aug   (live, unchanged)
+   */
+  const anchor = from > today ? `${today.slice(0, 7)}-01` : from
+  return { anchor, mode, from, to }
 }
 
 const cache = new Map()
@@ -116,8 +197,42 @@ const cache = new Map()
  * month". An article that received nothing in all six is left out entirely:
  * there is no evidence to average.
  */
-export async function constantsFor(brand, { today = new Date(), months = 6 } = {}) {
-  const list = pastMonths(today, months)
+export async function constantsFor(brand, { anchor, months = 6 } = {}) {
+  /*
+   * No default, deliberately.
+   *
+   * It used to default to `new Date()`, which meant a caller that forgot to say
+   * which month it was forecasting silently got the six months before today -
+   * and every caller forgot, because there was nothing to remember. A thrown
+   * error is the only version of this that cannot be got wrong quietly.
+   */
+  if (!anchor) {
+    throw new Error(
+      'constantsFor needs an explicit anchor: the first day of the month being forecast, ' +
+        'or today for a live question with no window. Passing nothing used to mean "today", ' +
+        'which is what leaked the target month into its own forecast.'
+    )
+  }
+
+  const list = pastMonths(anchor, months)
+
+  /*
+   * The tripwire.
+   *
+   * `pastMonths` cannot return the anchor's own month, so this can only fire if
+   * somebody changes it - which is precisely the change that needs to fail
+   * loudly. The original bug was silent because every layer was individually
+   * reasonable and nothing in the system could tell the difference.
+   */
+  const limit = monthOf(anchor)
+  const leaked = list.filter((m) => m >= limit)
+  if (leaked.length) {
+    throw new Error(
+      `Forecast leakage: training months ${leaked.join(', ')} are not before the ` +
+        `target month ${limit}. A month may never be trained on itself or on its future.`
+    )
+  }
+
   const key = `${brand}|${list[0]}|${months}`
   const held = cache.get(key)
   if (held) return held
@@ -343,7 +458,8 @@ export const ACTIVE_MONTHS = Number(process.env.WH_ACTIVE_MONTHS ?? 0)
 export const INTERMITTENT_MONTHS = 2
 
 /** A month, for turning a monthly quantity into a window's worth of it. */
-const DAYS_PER_MONTH = 30.44
+/* Exported alongside `quantityFor` so a backtest scales a window the same way. */
+export const DAYS_PER_MONTH = 30.44
 
 /**
  * One article's quantity for a window, by how the article behaves.
@@ -363,7 +479,11 @@ const DAYS_PER_MONTH = 30.44
  *   this                 56.7%      81.3%     +9%      3,399
  *   ... regular only     72.1%      87.8%     +6%      2,042
  */
-function quantityFor(held, sales, windowDays) {
+/*
+ * Exported so a backtest can drive it with two different sales figures and
+ * compare, rather than re-implementing it and drifting from what ships.
+ */
+export function quantityFor(held, sales, windowDays) {
   if (held.behaviour === 'rare') return held.medianAll * (windowDays / DAYS_PER_MONTH)
 
   /*
@@ -393,7 +513,7 @@ function quantityFor(held, sales, windowDays) {
 export async function forecastFromConstants(
   brand,
   filters,
-  { today = new Date(), basis = 'forecast' } = {}
+  { now = new Date(), basis = 'forecast' } = {}
 ) {
   /*
    * Whole brand or nothing.
@@ -409,7 +529,15 @@ export async function forecastFromConstants(
     return new Map()
   }
 
-  const constants = await constantsFor(brand, { today })
+  /*
+   * The window decides which months this is allowed to learn from.
+   *
+   * It always had the window - it used it to choose what the rate was
+   * multiplied by, and then ignored it when choosing what the rate was learned
+   * from. One line, and it is the whole leakage fix.
+   */
+  const { anchor, mode } = resolveBasis(filters, { now })
+  const constants = await constantsFor(brand, { anchor })
   if (!constants.size) return new Map()
 
   /*
@@ -430,8 +558,16 @@ export async function forecastFromConstants(
   const wide = brand === OTHER_BUCKET
   const [recipeArticles, future, menuDriven] = await Promise.all([
     wide ? new Set() : cube.recipeArticles().catch(() => new Set()),
-    wide ? null : articlesWithFutureDemand(brand, { today }),
-    wide ? null : articlesWithAnyFutureDemand({ today }),
+    /*
+     * These two stay on the real clock, deliberately.
+     *
+     * They are inclusion rules, not history: "does any menu item still want
+     * this article from tomorrow". Anchoring them to the window would change
+     * which articles appear on the page, which is a separate decision from
+     * where the forecast gets its months.
+     */
+    wide ? null : articlesWithFutureDemand(brand, { today: now }),
+    wide ? null : articlesWithAnyFutureDemand({ today: now }),
   ])
 
   /*
@@ -444,9 +580,50 @@ export async function forecastFromConstants(
    * and computing it here rather than in a second function keeps both halves
    * derived from exactly the same constants.
    */
+  /*
+   * And for a month that has ended, it may not be the window's own sales.
+   *
+   * `cube_sales_daily` holds one series: the actual where one exists, the
+   * forecast only where none does. So for a finished month both accessors
+   * return that month's realised sales, and multiplying by them handed the
+   * forecast the answer - the larger of the two leaks, because outbound
+   * correlates with sales.
+   *
+   * The pre-month forecast cannot be recovered: it was overwritten the day the
+   * month closed, and the model keeps no vintage of it (verified 12 Sep 2026 -
+   * `Totalsale` equals `Actual Sales` on every past date). So a historical
+   * window uses the sales rate of the months it trained on, scaled to the
+   * window's length, which is the only sales figure that was knowable before
+   * the month began.
+   *
+   * That makes the ratio cancel: level/salesBase x salesBase x D/30.44 is
+   * level x D/30.44. Stated plainly because it looks like a bug and is not -
+   * with no retained sales forecast, there is no honest sales signal left for a
+   * past month, and the forecast falls back to the decayed outbound level it
+   * would have had. Restoring the signal is what the vintage table is for.
+   *
+   * Per article rather than one figure for the brand, because `salesBase` is
+   * carried on each article's own record. Every branch of `quantityFor` is
+   * untouched and behaves exactly as it does live.
+   */
+  const historical = mode === 'historical'
   const read = basis === 'actual' ? cube.actualSales : cube.forecastSales
-  const sales = await read(brand, filters, { allBrands: brand === OTHER_BUCKET })
-  if (!sales) return new Map()
+
+  /*
+   * A finished month asks the vintage first.
+   *
+   * If a forecast for this window was captured before the window opened, that
+   * is the real answer and the one a backtest should be judged on. It returns
+   * null for every month that closed before the vintage table shipped, which
+   * today is all of them - so in practice this is dormant until October and
+   * then starts answering. The fallback below is never the window's actuals.
+   */
+  const vintage = historical
+    ? await cube.salesVintage(brand, filters, { allBrands: wide }).catch(() => null)
+    : null
+
+  const windowSales = historical ? vintage : await read(brand, filters, { allBrands: wide })
+  if (!historical && !windowSales) return new Map()
 
   /*
    * How much of a month the window on screen is worth.
@@ -466,6 +643,18 @@ export async function forecastFromConstants(
           ) + 1
         )
       : DAYS_PER_MONTH
+
+  /*
+   * What this article's rate is applied to, in order of preference.
+   *
+   * Live: the window's sales figure, one number for the brand, exactly as
+   * before. Historical with a vintage: the forecast that was actually made for
+   * this window before it opened. Historical without one: the article's own
+   * decayed sales base over its training months, scaled to the window - the
+   * only sales figure that was knowable before the window began.
+   */
+  const salesFor = (held) =>
+    windowSales ?? held.salesBase * (windowDays / DAYS_PER_MONTH)
 
   const out = new Map()
   for (const [article, held] of constants) {
@@ -518,6 +707,7 @@ export async function forecastFromConstants(
      * Scaling the median by sales instead was measured and cost about three
      * points of accuracy, so the difference is not cosmetic.
      */
+    const sales = salesFor(held)
     const qty = LEGACY_MODEL
       ? held.intermittent && held.fixedMonthly > 0
         ? held.fixedMonthly * (windowDays / DAYS_PER_MONTH)

@@ -121,11 +121,30 @@ export const DEPARTMENT_PAGES = {
  * chooses in the slicer is still honoured — it is their question rather than a
  * restriction imposed on them.
  *
- * Production and Bakery work from the same page and have the same problem. They
- * are deliberately not here: widening an account's data is a decision per
- * department, not an inference from one.
+ * Five departments are named, confirmed one at a time rather than inferred.
+ * Warehouse came first, in September 2026, when a warehouse account was found
+ * to be missing half the article list. The other four were confirmed by the
+ * business afterwards, for the same reason: each of them orders, buys or
+ * produces for the whole brand, so a branch grant narrows somebody else's job
+ * rather than their own.
+ *
+ *   Warehouse      ships to every branch
+ *   Supply Chain   plans across every branch
+ *   Procurement    buys for every branch
+ *   Production     produces for every branch
+ *   Bakery         produces for every branch
+ *
+ * Everything else keeps its branch narrowing. A department belongs here only
+ * when somebody has confirmed that its work spans every shop - the failure it
+ * causes is silent, so guessing is worse than leaving a department out.
  */
-export const BRAND_LEVEL_DEPARTMENTS = ['Warehouse']
+export const BRAND_LEVEL_DEPARTMENTS = [
+  'Warehouse',
+  'Supply Chain',
+  'Procurement',
+  'Production',
+  'Bakery',
+]
 
 const BRAND_LEVEL = new Set(BRAND_LEVEL_DEPARTMENTS.map(norm))
 

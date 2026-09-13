@@ -260,7 +260,62 @@ async function writeSalesValue(brand, rows, scope) {
         return [brand, String(r[k[0]] ?? '').slice(0, 10), Number(r.Value) || 0]
       }
     )
+
+    /*
+     * The same read, kept as a vintage - but only the part that is still ahead.
+     *
+     * Rows on or before today are actuals, and an actual stamped with a date is
+     * just the actual again; keeping them would double the table and answer no
+     * question. The future rows are the forecast, and they are the only record
+     * of what was expected before the month they belong to began - see
+     * cube_sales_vintage in db/accounts.js for why that record has to be made
+     * here rather than recovered later.
+     *
+     * Written in the same transaction as the series itself, so a vintage can
+     * never describe a read that did not land.
+     */
+    const asOf = new Date().toISOString().slice(0, 10)
+    const ahead = rows.filter((r) => {
+      const k = Object.keys(r)
+      return String(r[k[0]] ?? '').slice(0, 10) > asOf
+    })
+    if (ahead.length) {
+      await insertBatched(
+        'cube_sales_vintage',
+        ['brand', 'as_of', 'date', 'value'],
+        ['brand', 'as_of', 'date'],
+        ahead,
+        (r) => {
+          const k = Object.keys(r)
+          return [brand, asOf, String(r[k[0]] ?? '').slice(0, 10), Number(r.Value) || 0]
+        }
+      )
+    }
   })
+}
+
+/**
+ * Keep the vintages that can still answer something, drop the rest.
+ *
+ * Two months of daily vintages, so a recent question can be asked at day
+ * resolution, and the last vintage of every month before that, which is the one
+ * a "before this month started" question resolves to. Everything else is a
+ * duplicate of a finer answer nobody asks for.
+ *
+ * Deliberately not driven by a row count: the useful vintages are defined by
+ * the calendar, not by how many extracts happened to run.
+ */
+export async function pruneSalesVintages(keepDays = 62) {
+  const cut = new Date(Date.now() - keepDays * 86_400_000).toISOString().slice(0, 10)
+  await pg.run(
+    `DELETE FROM cube_sales_vintage
+      WHERE as_of < ?
+        AND as_of NOT IN (
+          SELECT MAX(as_of) FROM cube_sales_vintage
+           WHERE as_of < ? GROUP BY brand, LEFT(as_of, 7)
+        )`,
+    [cut, cut]
+  )
 }
 
 /** Component requirement by day, for the Ingredients page. */

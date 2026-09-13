@@ -1492,7 +1492,15 @@ api.get('/article-lookup', requireAuth, handle(async (req, res) => {
   const buckets = [...config.brands.map((b) => b.code), OTHER_BUCKET]
   const held = []
   for (const bucket of buckets) {
-    const constants = await constantsFor(bucket, {}).catch(() => new Map())
+    /*
+     * Anchored on today, explicitly, because this one has no window.
+     *
+     * "Does this article carry a forecast right now" is the live question, and
+     * the live anchor is the right answer to it. Spelled out rather than left
+     * to a default: the default is gone, and this is the only caller that
+     * genuinely means "now" rather than "the month on screen".
+     */
+    const constants = await constantsFor(bucket, { anchor: new Date() }).catch(() => new Map())
     const h = constants.get(article)
     if (h) held.push({ bucket, behaviour: h.behaviour, shipMonths: h.shipMonths, months: h.months })
   }

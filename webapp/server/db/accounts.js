@@ -443,6 +443,40 @@ CREATE TABLE IF NOT EXISTS cube_sales_daily (
   PRIMARY KEY (brand, date)
 );
 
+-- The sales forecast as it stood on a given day, kept because the live one
+-- destroys itself.
+--
+-- cube_sales_daily above holds one value per day: the actual once the day has
+-- happened, the forecast until then. That is the right series for planning, and
+-- it makes a historical forecast impossible to reconstruct - the moment a month
+-- closes, the forecast that was made for it is overwritten by what happened and
+-- there is nowhere left to read what had been expected. Verified against the
+-- model on 12 Sep 2026: Totalsale equals Actual Sales on every past date, and
+-- the semantic model keeps no vintage of its own.
+--
+-- So each extract writes the part of the series that is still in the future -
+-- the part that is genuinely a forecast - stamped with the day it was read.
+-- Then "what did we expect August to sell, before August began" is answerable:
+-- take the newest as_of before 1 August.
+--
+-- This cannot be backfilled. The first useful vintage is the first one written,
+-- so the earliest month that can ever be honestly backtested is the one that
+-- starts after this ships. Months already closed stay out of reach, which is
+-- the reason for writing it now rather than when it is next wanted.
+--
+-- Growth is bounded by the prune in cube/extract.js: every vintage from the
+-- last two months, and the final vintage of each month before that - which is
+-- the only one a month-boundary question ever asks for.
+CREATE TABLE IF NOT EXISTS cube_sales_vintage (
+  brand TEXT NOT NULL,
+  as_of TEXT NOT NULL,
+  date  TEXT NOT NULL,
+  value DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, as_of, date)
+);
+
+CREATE INDEX IF NOT EXISTS cube_sales_vintage_asof ON cube_sales_vintage (brand, as_of);
+
 -- Superseded by cube_sales_daily above, and dropped so nothing reads a column
 -- that is no longer filled.
 ALTER TABLE cube_location_daily DROP COLUMN IF EXISTS actual_value;

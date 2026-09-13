@@ -904,6 +904,37 @@ export async function actualSales(brand, f, { allBrands = false } = {}) {
   return Number.isFinite(v) ? v : null
 }
 
+/**
+ * The sales forecast for a window as it stood before that window began.
+ *
+ * Answers the question `forecastSales` cannot answer about a finished month:
+ * not "what did it sell" but "what did we think it would". Takes the newest
+ * vintage stamped strictly before the window's first day - the last forecast
+ * made while the month was still entirely ahead.
+ *
+ * Returns null when no such vintage exists, which is the normal answer for
+ * every month that closed before the vintage table shipped. The caller falls
+ * back to the training window's own sales rate; it must not fall back to the
+ * window's actuals, which is the leak this exists to close.
+ */
+export async function salesVintage(brand, f, { allBrands = false } = {}) {
+  if (!f?.dateFrom || !f?.dateTo) return null
+  const rows = await rowsOf(
+    `SELECT SUM(value) AS forecast
+       FROM cube_sales_vintage
+      WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?
+        AND as_of = (
+          SELECT MAX(as_of) FROM cube_sales_vintage
+           WHERE ${allBrands ? '' : 'brand = ? AND '}as_of < ?
+        )`,
+    allBrands
+      ? [f.dateFrom, f.dateTo, f.dateFrom]
+      : [brand, f.dateFrom, f.dateTo, brand, f.dateFrom]
+  )
+  const v = Number(rows[0]?.forecast)
+  return Number.isFinite(v) && v > 0 ? v : null
+}
+
 export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   // Same reasoning as monthlySales: the bucket borrows everyone's denominator.

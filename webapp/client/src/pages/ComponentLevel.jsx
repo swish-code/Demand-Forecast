@@ -1892,28 +1892,47 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           * other needs six months of warehouse history — so neither is a
           * substitute for the other, and where they disagree is the finding.
           */}
+        {/*
+          * Volume accuracy leads; the article average sits under it.
+          *
+          * The two describe the same forecast and disagree by around twenty
+          * points — 79.1% against 55.6% on the same August window — because
+          * the article average weights every line equally. Measured across
+          * April-August: the top tenth of articles by volume carry 82% of
+          * everything the warehouse ships and score 82.3%, while the bottom
+          * half carry 0.3% of the volume and score 49.4%. Leading with the
+          * equal-weighted figure therefore answered a question nobody was
+          * asking — how did the typical *line* do — in the place people read
+          * for how the *orders* did.
+          *
+          * Both stay on the card. Where they diverge is the finding: a wide
+          * gap means the long tail is being missed while the volume is fine,
+          * which is a different problem from the volume itself being wrong.
+          */}
         {!future && (
           <MetricCard
             label="Warehouse accuracy"
             calc="card-warehouse,wh-forecast,outbound"
             accent={
-              summary.whOverall === null ? 'slate' : summary.whOverall >= 0.9 ? 'green' : 'amber'
+              summary.whOverallByVolume === null
+                ? 'slate'
+                : summary.whOverallByVolume >= 0.9
+                  ? 'green'
+                  : 'amber'
             }
-            progress={summary.whOverall ?? 0}
+            progress={summary.whOverallByVolume ?? 0}
             loading={busy}
-            value={summary.whOverall === null ? '–' : fmtPct(summary.whOverall, 1)}
+            value={
+              summary.whOverallByVolume === null ? '–' : fmtPct(summary.whOverallByVolume, 1)
+            }
             foot={
               summary.whOverall === null ? (
                 'Needs warehouse history to compare against'
               ) : (
                 <>
-                  Average article · {fmtInt(summary.whMeasured)} scored
-                  {summary.whOverallByVolume !== null && (
-                    <>
-                      <br />
-                      Volume accuracy · {fmtPct(summary.whOverallByVolume, 1)}
-                    </>
-                  )}
+                  Volume weighted · {fmtInt(summary.whMeasured)} scored
+                  <br />
+                  Average article · {fmtPct(summary.whOverall, 1)}
                 </>
               )
             }

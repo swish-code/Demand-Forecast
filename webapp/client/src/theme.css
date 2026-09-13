@@ -3402,18 +3402,8 @@ table.dt thead th:hover .th__sort--idle {
 /* ------------------------------------------------------------- responsive */
 
 @media (max-width: 900px) {
-  .nav {
-    width: var(--nav-w-collapsed);
-  }
-  .nav__wordmark,
-  .nav__section,
-  .nav__meta,
-  .nav__item-text {
-    display: none;
-  }
-  .nav__item {
-    justify-content: center;
-  }
+  /* The rail is not forced narrow here any more - see the note on the single
+     breakpoint below. Only the content padding tightens at this width. */
   .scroll,
   .topbar {
     padding-left: var(--s3);
@@ -3491,8 +3481,40 @@ table.dt thead th:hover .th__sort--idle {
   animation: modalIn var(--t-fast) var(--ease);
 }
 
+/*
+ * The dialog's surface belongs to every dialog, not only the wide ones.
+ *
+ * This rule used to carry a width and nothing else: the background, border,
+ * radius and height limit were all declared on `.modal__card--wide`. So the
+ * four dialogs that do not use that modifier - the user editor, the recipient
+ * editor, bulk recipients and the sales import - rendered with no surface at
+ * all. The page behind showed straight through them, form labels landing on
+ * top of the table underneath, and because nothing bounded the height the
+ * `overflow-y: auto` on `.modal__body` had nothing to scroll inside and the
+ * footer ran off the bottom of the screen.
+ *
+ * The size stays on the modifier; only the appearance moves down here. Source
+ * order matters: `--wide` is declared below this rule and still overrides the
+ * width and height, which is why this is edited in place rather than appended.
+ */
 .modal__card {
   width: min(720px, 100%);
+  max-height: calc(100vh - 2 * var(--s5));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: 0 18px 48px rgba(17, 24, 39, 0.22);
+  outline: none;
+  overflow: hidden;
+  animation: modalCardIn var(--t-med) var(--ease);
+}
+
+/* A flex child only scrolls inside itself once it is allowed to be shorter
+   than its content. Without this the body grows and the card overflows. */
+.modal__body {
+  min-height: 0;
 }
 
 /* A dialog holding a table, rather than a form: as wide as the screen allows
@@ -4369,9 +4391,21 @@ table.dt thead th:hover .th__sort--idle {
   color: var(--rail-muted);
 }
 
-/* On a narrow screen the rail collapses to icons rather than stealing width
-   from the content, which is the part people are actually reading. */
-@media (max-width: 1080px) {
+/*
+ * One breakpoint for the rail, and it is a genuinely narrow one.
+ *
+ * This used to fire at 1080px, with a second block doing the same thing again
+ * at 900px. Two problems. 1080px is not a narrow screen - an ordinary laptop,
+ * an unmaximised window or a browser at 110% zoom all land under it, so the
+ * rail was collapsed for people who had never asked for it. And because the
+ * media query restyles the rail *without* setting `nav--collapsed`, the
+ * component still believed it was open: the chevron pointed the wrong way and
+ * clicking it appeared to do nothing, because the CSS overrode the state.
+ *
+ * Below 820px - tablet portrait and narrower - collapsing still earns its
+ * place. Above it the toggle decides, which is what the toggle is for.
+ */
+@media (max-width: 820px) {
   .nav {
     width: var(--nav-w-collapsed);
   }

@@ -27,7 +27,7 @@
  * forecast applies it to both.
  */
 import * as cube from '../cube/query.js'
-import { constantsFor, forecastFromConstants } from './whConstant.js'
+import { constantsFor, forecastFromConstants, resolveBasis } from './whConstant.js'
 import { classifyArticles, classifyOne, statusOf, summarise } from './whClassify.js'
 import { shippingPatterns } from './whPatterns.js'
 import { OTHER_BUCKET } from '../powerbi/warehouse.js'
@@ -185,8 +185,12 @@ export async function warehouseDiagnostics(parts, { today = new Date() } = {}) {
   for (const { brand, f } of parts) {
     const code = brand.code ?? brand
     const [constants, forecasts, outbound] = await Promise.all([
-      constantsFor(code, { today }).catch(() => new Map()),
-      forecastFromConstants(code, f, { today }).catch(() => new Map()),
+      // Same anchor the forecast uses, so a diagnosis describes the months the
+      // figure it is diagnosing was actually built from.
+      constantsFor(code, { anchor: resolveBasis(f, { now: today }).anchor }).catch(
+        () => new Map()
+      ),
+      forecastFromConstants(code, f, { now: today }).catch(() => new Map()),
       cube.outboundByArticle(code, f).catch(() => null),
     ])
 

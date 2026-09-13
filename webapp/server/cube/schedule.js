@@ -3,7 +3,7 @@ import path from 'node:path'
 import { config } from '../config.js'
 import { DATA_DIR } from '../db/driver.js'
 import { pg } from '../db/accounts.js'
-import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, refreshSalesValues, coverage, rebuildRollup, vacuum } from './extract.js'
+import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, refreshSalesValues, coverage, rebuildRollup, vacuum, pruneSalesVintages } from './extract.js'
 import { refreshAllOutbound } from './outbound.js'
 import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
@@ -467,6 +467,8 @@ export function startCubeSchedule() {
     const nightly = () =>
       runBackfill()
         .then(() => runOutbound())
+        // Before the vacuum, so the space the prune frees is actually returned.
+        .then(() => pruneSalesVintages())
         .then(() => vacuum({ full: true }))
     detached('nightly backfill', nightly)
     setInterval(() => detached('nightly backfill', nightly), 24 * HOUR).unref?.()
