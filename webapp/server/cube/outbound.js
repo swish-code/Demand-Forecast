@@ -4,6 +4,7 @@ import {
   articleNames,
   outboundByDestination,
   outboundFromWarehouse,
+  forgetWarehouseSourced,
   OTHER_BUCKET,
 } from '../powerbi/warehouse.js'
 import { forgetShipped, forgetElsewhere, forgetMaster, forgetShipHistory } from './query.js'
@@ -311,6 +312,9 @@ export async function refreshAllOutbound({ from, to, month, lastFrom, lastTo }) 
   // at all. Held for the life of the process otherwise.
   forgetShipped()
   forgetElsewhere()
+  // Which articles the warehouse supplies is decided from the source column,
+  // and a new article starting to arrive from it is the same new evidence.
+  forgetWarehouseSourced()
   forgetMaster()
   // The status ladder is read straight off these dates.
   forgetShipHistory()

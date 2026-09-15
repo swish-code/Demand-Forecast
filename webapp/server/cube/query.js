@@ -581,6 +581,20 @@ const COMPONENT_FILTERS = new Set([
   // Applied after the rows are built, from the outbound copy, so it does not
   // narrow the query itself.
   'supply',
+  /*
+   * The same treatment, for the same reason.
+   *
+   * `withRecipeKind` and `withStatus` in routes/api.js filter the assembled
+   * rows, so neither narrows the query either. Left out of this set they read
+   * as filters the copy has no column for, and the whole Stock Article table
+   * fell back to a live component query the moment either slicer was touched --
+   * on the 8s budget, because `heavy(grain)` is false without a branch split.
+   * Nine brands of that answers "Could not reach Power BI". Status is not even
+   * a cube column: it is classified per article at request time, so filtering
+   * it in SQL was never possible and post-hoc is the only place it can happen.
+   */
+  'recipeKinds',
+  'statuses',
   'brand',
   'brands',
   'dateFrom',
@@ -1014,8 +1028,37 @@ export async function articlesShippedSince(months = 6, today = new Date()) {
   return work
 }
 
+/**
+ * Every article the warehouse copy has ever moved, with no window.
+ *
+ * Only a fallback. The Supply classification is decided from the inbound source
+ * column - see `warehouseSourcedArticles` in powerbi/warehouse.js - and this
+ * stands in for it when that model cannot be reached, so a Power BI outage
+ * degrades the label rather than blanking the column and emptying the supply
+ * slicer. It is close but not equal: measured 14 Sep 2026 the two differed on
+ * 616 articles, because the catch-all side of the copy is not source-filtered.
+ */
+let everShippedCache = null
+
+export async function articlesEverShipped() {
+  if (everShippedCache) return everShippedCache
+  const work = (async () => {
+    // An empty bind list, not none: `rowsOf` passes its second argument
+    // straight to the driver, and `undefined` arrives as one null parameter
+    // against a statement that takes none.
+    const rows = await rowsOf(`SELECT DISTINCT article FROM cube_outbound_monthly WHERE qty > 0`, [])
+    return new Set(rows.map((r) => String(r.article)))
+  })()
+  everShippedCache = work
+  work.catch(() => {
+    everShippedCache = null
+  })
+  return work
+}
+
 /** Dropped when the extract rewrites it. */
 export function forgetElsewhere() {
+  everShippedCache = null
   shippedSinceCache.clear()
   elsewhereCache = null
 }

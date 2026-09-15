@@ -21,6 +21,7 @@ import {
   consumptionByArticle,
   outboundFromWarehouse,
   OTHER_BUCKET,
+  warehouseSourcedArticles,
 } from '../powerbi/warehouse.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
@@ -29,6 +30,7 @@ import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
 import { storeStock, stockColumnsFor } from '../insights/storeStock.js'
+import { openPoByArticle } from '../insights/openPo.js'
 import { salesRunRate } from '../insights/salesRunRate.js'
 import {
   allowedBrands,
@@ -773,7 +775,32 @@ function merged(results) {
       'Live_Outbound_MTD',
       'WH_Constant_Forecast_Qty',
     ],
-    keepNull: ['Consumed_Qty', 'Live_Outbound_MTD', 'WH_Constant_Forecast_Qty'],
+    /*
+     * The demand side needs the same protection, added 13 Sep 2026.
+     *
+     * It was listed under `sum` without being listed here, and `num(null)` is
+     * 0, so two brands that both carry a blank for the same component added up
+     * to a measured zero. Articles no recipe names carry null on both of these
+     * deliberately - `nonRecipeRows` and the catch-all block below set them so
+     * - which meant the Product Mix columns showed "0" for a non-recipe article
+     * whenever two or more brands were selected, and "-" for the very same
+     * article when one was, because `mergeRows` returns the single list
+     * untouched. Same article, same situation, two different displays decided
+     * by nothing but how many brands were on screen.
+     *
+     * The copy has no zeros on either column anywhere in the extracted span, so
+     * every "0" a reader saw here was manufactured at this line.
+     *
+     * The guard only fires when BOTH sides are missing, so a real figure in one
+     * brand and a blank in another still sums to the real figure.
+     */
+    keepNull: [
+      'Consumed_Qty',
+      'Live_Outbound_MTD',
+      'WH_Constant_Forecast_Qty',
+      'Component_Forecast_Qty',
+      'Component_Actual_Qty',
+    ],
     sort: (a, b) => Number(b.Component_Forecast_Qty) - Number(a.Component_Forecast_Qty),
   })
   for (const r of rows) {
@@ -902,15 +929,45 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
  * So the rows are labelled rather than dropped. An earlier version excluded
  * them, which lost the requirement along with the blanks.
  *
- * Judged on the outbound copy over six whole months, not on the window on
- * screen: an article delivered in May and not since is still warehouse-supplied
- * in September, and a window-based test would relabel it every month.
+ * Decided from the inbound source, changed on 14 Sep 2026.
+ *
+ * The question is the business one: did this article's inbound supply come from
+ * the Central Warehouse? Every outbound line carries both ends of the movement,
+ * so `fact_outbound_line[Mapped Cost Center/Store]` answers it directly.
+ *
+ * It replaces a six-month outbound-history test. That test asked "has the
+ * warehouse issued this lately", which is a different question and got a
+ * different answer: 304 of the page's articles were labelled Direct Supply
+ * purely because their last warehouse movement fell outside the window, 289 of
+ * them having last shipped in August 2025. Shipping history, frequency, stock
+ * on hand and open purchase orders are all still on the page, but none of them
+ * decides this label any more.
+ *
+ * No time window at all. An article the warehouse supplied last year is
+ * warehouse-supplied; whether it moved recently is what the outbound and
+ * forecast columns are for.
  */
 const SUPPLY_WAREHOUSE = 'Warehouse'
 const SUPPLY_DIRECT = 'Direct Supply'
 
+/*
+ * One set, two callers, so the table and the trend can never disagree.
+ *
+ * The copy stands in when the warehouse model cannot be reached. It is a near
+ * miss rather than a match - the catch-all side of `cube_outbound_monthly` is
+ * not source-filtered, and the two differed on 616 articles when measured - but
+ * a degraded label beats a blank column and a supply slicer that returns
+ * nothing, which is what returning null here would cause.
+ */
+async function warehouseSuppliedArticles() {
+  const sourced = await warehouseSourcedArticles().catch(() => null)
+  if (sourced?.size) return sourced
+  console.warn('  [supply] inbound source unavailable — falling back to the outbound copy')
+  return cube.articlesEverShipped().catch(() => null)
+}
+
 async function withSupply(rows, filters) {
-  const moved = await cube.articlesShippedSince(6).catch(() => null)
+  const moved = await warehouseSuppliedArticles()
 
   const labelled = rows.map((r) => {
     const article = String(r['Item No.'] ?? '').trim()
@@ -1005,21 +1062,149 @@ async function withStatus(rows, filters) {
  * branch's demand.
  */
 /*
- * Store inventory and replenishment are switched off for now.
+ * Store inventory is withheld again, asked for on 14 Sep 2026.
  *
- * Turned off on 10 Sep 2026 while the stock data settles: the inventory model
- * stopped posting sales depletion on 1 September, so closing stock has been
- * inflating about 26% in nine days, and 5.9% of articles carried a negative
- * book balance at the last month end. A replenishment quantity computed from
- * either of those is worse than no quantity at all.
+ * On for a day. The posting gap never closed: store closing stock rose on 58 of
+ * the 60 days to 13 Sep, never fell in September, and ended 28.8% above where
+ * the month started, with 5.9% of articles carrying a negative book balance at
+ * the last month end. A stock level that only ever rises is not a stock level,
+ * so the fields do not go into the response at all rather than being hidden in
+ * the browser one network tab away.
  *
- * Nothing is deleted. Set WH_STORE_COLUMNS=1, or flip this default, and the
- * columns come back exactly as they were — admin-only, as they were built.
+ * Set WH_STORE_COLUMNS=1 to bring them back. Admin-only regardless — the
+ * `admin` check below is the real gate. Warehouse stock is a separate switch
+ * and is unaffected.
  */
 const STORE_COLUMNS_ON = process.env.WH_STORE_COLUMNS === '1'
 
+/*
+ * Warehouse stock gets its own switch, because it is its own data quality story.
+ *
+ * The store figures are behind a switch because the inventory model stopped
+ * posting sales depletion. That gap does not reach the warehouse locations:
+ * measured 14 Sep 2026, warehouse closing stock rose on 29 of the previous
+ * sixty days and fell on 31, with no negative balances anywhere. Tying the two
+ * together would have meant switching off a sound set of columns the next time
+ * the store ones had to go.
+ */
+const WH_STOCK_COLUMNS_ON = process.env.WH_WAREHOUSE_STOCK !== '0'
+
+const STORE_ONLY_FIELDS = [
+  'Store_SOH',
+  'Stock_Cover',
+  'SOH_Status',
+  'Required_Shipment',
+  'Shipment_Status',
+]
+const WAREHOUSE_ONLY_FIELDS = ['WH_Opening_SOH', 'WH_Closing_SOH']
+
+/*
+ * Replenishment is off, asked for on 14 Sep 2026.
+ *
+ * "Required" and "Shipment" were the two columns that told somebody what to do
+ * rather than what happened, and they are not wanted on the page. Nothing is
+ * deleted - `stockColumnsFor` still works them out and the backtest behind them
+ * still stands - but the fields no longer reach the browser. Set
+ * WH_REPL_COLUMNS=1 to bring them back.
+ *
+ * Worth knowing what goes with them: Shipment carried the one signal that was
+ * not a quantity, "Supply constraint", which flagged an article the warehouse
+ * itself had none of. WH opening and WH closing now show that directly.
+ */
+const REPL_COLUMNS_ON = process.env.WH_REPL_COLUMNS === '1'
+
+/*
+ * Pending PO value, on its own switch like the other two blocks.
+ *
+ * Set WH_OPEN_PO=0 to withhold it. It reads a different table from the stock
+ * columns and carries its own reconciliation caveat, so it is switched
+ * separately from both of them.
+ */
+const OPEN_PO_COLUMN_ON = process.env.WH_OPEN_PO !== '0'
+const REPLENISHMENT_FIELDS = ['Required_Shipment', 'Shipment_Status']
+
+/*
+ * What is outstanding with suppliers, beside the warehouse stock columns.
+ *
+ * Asked for on 14 Sep 2026. Wraps `withStoreStock` rather than joining it: the
+ * open-PO book takes no window and no brand, so folding it into a function
+ * keyed on both would have cached one copy per window of a figure that is the
+ * same in every one. See `insights/openPo.js` for why the dashboard's own
+ * measure could not be used, and for the reconciliation gap that comes with it.
+ *
+ * Guarded exactly as the stock columns are, so nobody gains sight of something
+ * they could not already see: admin only, and silent under the grains that make
+ * a warehouse-wide figure meaningless on a row.
+ */
+async function withOpenPo(rows, grain, admin) {
+  if (!OPEN_PO_COLUMN_ON || !admin) return rows
+  if (grain.date || grain.location) return rows
+
+  const held = await openPoByArticle().catch((err) => {
+    console.warn(`  [open-po] ${err.message.slice(0, 90)}`)
+    return null
+  })
+  if (!held) return rows
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    /*
+     * On the row carrying the warehouse figures, and only that one.
+     *
+     * The same rule `withStoreStock` applies: an article is spread over one row
+     * per recipe group, and a per-article figure repeated on each of them would
+     * be counted once per recipe by any total.
+     */
+    const carries =
+      (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
+      (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
+    if (!article || !carries) return r
+    const po = held.get(article)
+    // Absent from the open-PO book means nothing is outstanding. Left null so
+    // the columns say that in words rather than printing a column of zeros.
+    const openQty = po ? po.qty : null
+    const openValue = po ? po.value : null
+
+    /*
+     * A TEST column. It does not touch WH forecast, the accuracy figures or
+     * the cards — asked for on 15 Sep 2026 so the two can be compared.
+     *
+     *   New Required Warehouse Qty = MAX(0, WH forecast - CLOSING SOH - pending PO)
+     *
+     * Three deliberate choices, all of them visible on the row beside it:
+     *
+     *   - SOH is WH CLOSING stock, the reading on the last day of the selected
+     *     range. Changed from opening stock on 15 Sep 2026 on request: the
+     *     planning question being asked is what is still needed given what is
+     *     on the shelf now, so the latest reading in the window is the one that
+     *     answers it. `WH_Closing_SOH` is reused as it stands - the same
+     *     `cc_daily_inventory[Closing Stock Qty]` sum over warehouse locations
+     *     that the column beside it shows, so no extra query was added.
+     *
+     *     One consequence to know: a window whose last day has not happened has
+     *     no closing reading, so the deduction falls to 0 and this column reads
+     *     the full forecast less pending PO. The inventory model stops at the
+     *     day it was last refreshed.
+     *   - A missing SOH or pending figure counts as 0, as asked. A negative
+     *     book balance also counts as 0 rather than adding to the requirement,
+     *     which is the rule `stockColumnsFor` already applies to store stock.
+     *   - Blank, not zero, when there is no WH forecast at all. With nothing
+     *     forecast there is no requirement to net down, and MAX(0, ...) would
+     *     turn "not forecast" into "nothing needed".
+     */
+    const forecast = Number(r.WH_Constant_Forecast_Qty)
+    const closingSoh = Math.max(0, Number(r.WH_Closing_SOH) || 0)
+    const pending = Math.max(0, Number(openQty) || 0)
+    const required = Number.isFinite(forecast)
+      ? Math.max(0, forecast - closingSoh - pending)
+      : null
+
+    return { ...r, Open_PO_Qty: openQty, Open_PO_Value: openValue, New_Required_Qty: required }
+  })
+}
+
 async function withStoreStock(rows, filters, buckets, grain, admin) {
-  if (!STORE_COLUMNS_ON) return rows
+  if (!STORE_COLUMNS_ON && !WH_STOCK_COLUMNS_ON) return rows
   /*
    * Withheld rather than hidden.
    *
@@ -1060,7 +1245,13 @@ async function withStoreStock(rows, filters, buckets, grain, admin) {
       (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
       (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
     if (!article || !carries) return r
-    return { ...r, ...stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held) }
+    const cols = stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held)
+    // Whichever half is switched off is never put in the response at all,
+    // rather than hidden in the browser one network tab away.
+    if (!STORE_COLUMNS_ON) for (const k of STORE_ONLY_FIELDS) delete cols[k]
+    if (!WH_STOCK_COLUMNS_ON) for (const k of WAREHOUSE_ONLY_FIELDS) delete cols[k]
+    if (!REPL_COLUMNS_ON) for (const k of REPLENISHMENT_FIELDS) delete cols[k]
+    return { ...r, ...cols }
   })
 }
 
@@ -1149,14 +1340,14 @@ api.all('/warehouse-trend', handle(async (req, res) => {
    * Supply reaches this query as a list of articles.
    *
    * It is not a column in the outbound copy — it is decided by whether the
-   * warehouse has issued the article in the last six months, which is the same
-   * rule `withSupply` applies to the table. Read from the same place, so the
-   * two can never disagree about what "Warehouse" means.
+   * article's inbound supply came from the Central Warehouse, which is the same
+   * rule `withSupply` applies to the table. Read through the same helper, so
+   * the two can never disagree about what "Warehouse" means.
    */
   const wanted = new Set((g.parts[0]?.f?.supply ?? []).filter(Boolean))
   let onlyArticles = null
   if (wanted.size === 1) {
-    const moved = await cube.articlesShippedSince(6).catch(() => null)
+    const moved = await warehouseSuppliedArticles()
     if (moved) {
       if (wanted.has(SUPPLY_WAREHOUSE)) onlyArticles = moved
       // Direct supply has no warehouse outbound by definition — that is what
@@ -1337,6 +1528,58 @@ api.all('/article-usage', handle(async (req, res) => {
     }
   }
 
+  /*
+   * What each menu item is forecast to sell, for the window on screen.
+   *
+   * Asked for on 13 Sep 2026. The panel already said "quantities are per one
+   * unit of the menu item; multiply by that product's forecast" - this does the
+   * multiplying, so the reader can see which products the requirement actually
+   * comes from instead of being told how to work it out.
+   *
+   * Keyed per dataset rather than per brand for the same reason the recipe
+   * rows are: two brands share a model and the recipe applies to both, so the
+   * forecast beside it has to be the total across the brands that model covers.
+   * Each brand's own copy row is read separately, so nothing is double counted.
+   *
+   * Only brand and the window are passed on. The page's recipe and status
+   * slicers are article-level ideas that have nothing to say about how much of
+   * a menu item will sell, and passing them would push this off the local copy
+   * and onto a live query with an eight second budget - which is exactly the
+   * failure this page had on 13 Sep.
+   */
+  const forecastByDataset = new Map()
+  await Promise.all(
+    g.parts.map(async (p) => {
+      /*
+       * Nothing for a branch-scoped reader, deliberately.
+       *
+       * Product forecasts live in a copy with no branch column, so the only
+       * figure available is the brand's whole. Showing that to somebody granted
+       * two shops would report demand they cannot see, and `canAnswerArticles`
+       * refuses a location filter rather than quietly ignoring it. A blank that
+       * the column explains is the honest answer.
+       */
+      if (p.f?.locations?.length) return
+      const rows = await data
+        .productLevel(
+          { brand: p.f.brand, brands: p.f.brands, dateFrom: p.f.dateFrom, dateTo: p.f.dateTo },
+          p.ds,
+          {}
+        )
+        .catch((err) => {
+          console.warn(`  [usage] menu item forecast ${p.brand.code}: ${err.message.slice(0, 90)}`)
+          return []
+        })
+      const held = forecastByDataset.get(p.ds) ?? new Map()
+      for (const r of rows) {
+        const plu = String(r.Clean_ItemID ?? '').trim()
+        if (!plu) continue
+        held.set(plu, (held.get(plu) ?? 0) + (Number(r.Forecast_Qty) || 0))
+      }
+      forecastByDataset.set(p.ds, held)
+    })
+  )
+
   const parts = await Promise.all(
     [...byDataset.entries()].map(([ds, { codes, chains }]) => {
       const scope = [...chains].sort()
@@ -1383,7 +1626,9 @@ SUMMARIZECOLUMNS(
         // Raw rows in the cache, so nothing stored carries one caller's label.
         executeQuery(dax, ds, { bulk: true })
       )
-        .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / ') })))
+        // `__ds` rides along so the merge below can look the menu item
+        // forecast up; it is stripped before the response is built.
+        .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / '), __ds: ds })))
         .catch((err) => {
           console.warn(`  [usage] ${codes.join('/')}: ${err.message}`)
           return []
@@ -1405,12 +1650,23 @@ SUMMARIZECOLUMNS(
     const held = out.get(key)
     const qty = Number(r.Qty_Per_Unit) || 0
     if (!held) {
+      const plu = String(r['Product PLU'] ?? '').trim()
+      const forecast = forecastByDataset.get(r.__ds)?.get(plu)
       out.set(key, {
         CHAINID: r.CHAINID,
         Product: r['Product Name'] ?? '',
         PLU: r['Product PLU'] ?? '',
         Qty_Per_Unit: qty,
         BU: r.BU ?? '',
+        /*
+         * Set once, never accumulated.
+         *
+         * Qty_Per_Unit is added across recipe paths because two paths to the
+         * same article are two real requirements. The menu item's forecast is a
+         * property of the menu item, so adding it once per path would multiply
+         * the product's sales by the number of ways it reaches the article.
+         */
+        Item_Forecast_Qty: forecast === undefined ? null : forecast,
         Paths: r['Recipe Path'] ? [r['Recipe Path']] : [],
       })
       continue
@@ -1419,9 +1675,31 @@ SUMMARIZECOLUMNS(
     if (r['Recipe Path'] && !held.Paths.includes(r['Recipe Path'])) held.Paths.push(r['Recipe Path'])
   }
 
+  /*
+   * The requirement this menu item puts on the article.
+   *
+   * Qty per unit multiplied by the units forecast - the same arithmetic the
+   * [Component_Forecast_Qty] measure does internally, per product rather than
+   * summed over all of them. Added up over the rows it should land on the
+   * article's Forecast qty in the table behind this panel, which is what makes
+   * it checkable.
+   */
   const rows = [...out.values()]
     .filter((r) => r.Qty_Per_Unit > 0)
-    .sort((a, b) => b.Qty_Per_Unit - a.Qty_Per_Unit)
+    .map(({ __ds, ...r }) => ({
+      ...r,
+      Article_Required_Qty:
+        r.Item_Forecast_Qty === null || r.Item_Forecast_Qty === undefined
+          ? null
+          : r.Qty_Per_Unit * r.Item_Forecast_Qty,
+    }))
+    // Largest requirement first, since that is the question the panel answers.
+    // Rows with no forecast sort last rather than to the top as a zero.
+    .sort(
+      (a, b) =>
+        (b.Article_Required_Qty ?? -1) - (a.Article_Required_Qty ?? -1) ||
+        b.Qty_Per_Unit - a.Qty_Per_Unit
+    )
 
   res.json({ rows })
 }))
@@ -1634,16 +1912,20 @@ api.all('/component-level', handle(async (req, res) => {
     return res.json({
       sales,
       rows: withRecipeKind(
-        await withStoreStock(
-          await withStatus(
-            await withSupply(
-              await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+        await withOpenPo(
+          await withStoreStock(
+            await withStatus(
+              await withSupply(
+                await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+                window
+              ),
               window
             ),
-            window
+            window,
+            buckets,
+            grain,
+            req.user?.role === 'admin'
           ),
-          window,
-          buckets,
           grain,
           req.user?.role === 'admin'
         ),
@@ -1656,22 +1938,26 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     sales,
     rows: withRecipeKind(
-      await withStoreStock(
-        await withStatus(
-          await withSupply(
-            await addWarehouseWide(
-              // Split by brand, the brands are the answer, so they are not added up.
-              grain.brand ? results.flat() : merged(results),
-              window,
-              grain,
-              mtdAll?.get(OTHER_BUCKET)
+      await withOpenPo(
+        await withStoreStock(
+          await withStatus(
+            await withSupply(
+              await addWarehouseWide(
+                // Split by brand, the brands are the answer, so they are not added up.
+                grain.brand ? results.flat() : merged(results),
+                window,
+                grain,
+                mtdAll?.get(OTHER_BUCKET)
+              ),
+              window
             ),
             window
           ),
-          window
+          window,
+          buckets,
+          grain,
+          req.user?.role === 'admin'
         ),
-        window,
-        buckets,
         grain,
         req.user?.role === 'admin'
       ),

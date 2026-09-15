@@ -111,12 +111,19 @@ function isRetryable(err) {
 }
 
 /** Something a person can act on, instead of the bare "fetch failed". */
-function describeNetworkError(err, attempts) {
+/*
+ * `timeoutMs` is passed in rather than read from the module.
+ *
+ * It used to print REQUEST_TIMEOUT_MS unconditionally, so a bulk query that
+ * gave up after ninety seconds still told the user it waited eight -- which
+ * sends whoever reads it looking for a fast query that does not exist.
+ */
+function describeNetworkError(err, attempts, timeoutMs = REQUEST_TIMEOUT_MS) {
   const codes = causeChain(err)
   const code = codes[codes.length - 1] ?? codes[0]
   const detail =
     err.name === 'TimeoutError'
-      ? `it did not answer within ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`
+      ? `it did not answer within ${Math.round(timeoutMs / 1000)}s`
       : code === 'ENOTFOUND' || code === 'EAI_AGAIN'
         ? 'the address could not be resolved — check DNS or the network connection'
         : code === 'ECONNRESET'
@@ -237,7 +244,11 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
           // Rewrite transport failures on the way out: "fetch failed" tells
           // nobody anything, and this error is shown to end users.
           if (!err.status) {
-            throw new HttpError(503, describeNetworkError(err, attempt + 1), { cause: err })
+            throw new HttpError(
+              503,
+              describeNetworkError(err, attempt + 1, bulk ? BULK_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+              { cause: err }
+            )
           }
           throw err
         }

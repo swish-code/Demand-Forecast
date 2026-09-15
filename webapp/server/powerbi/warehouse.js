@@ -313,6 +313,89 @@ export async function articleNames() {
  * Returns a Map of location name to brand code, `OTHER_BUCKET`, or the supply
  * source itself. Cached for the process — it changes when a site opens.
  */
+/**
+ * Articles the Central Warehouse has actually supplied, read from the source end.
+ *
+ * This is what decides Warehouse against Direct Supply, changed on 14 Sep 2026.
+ * The question asked is the business one: did this article's inbound supply come
+ * from the Central Warehouse? Every outbound line carries both ends of the
+ * movement, so the source column answers it directly - no inference from
+ * shipping history, frequency, stock or purchase orders.
+ *
+ * WHY THE SOURCE COLUMN AND NOT THE LOCAL COPY
+ *
+ * The copy looked like it would do: `outboundByBrandMonth` already filters
+ * source = Central Warehouse, so `cube_outbound_monthly` is warehouse-sourced
+ * for the brand buckets. But it is not, for the catch-all bucket:
+ * `outboundByDestination` (which fills the unattributed side) has no source
+ * filter at all, so the copy also holds movements that began somewhere else.
+ * Compared on 14 Sep 2026 over the copy's own span, the two disagreed on 616
+ * articles - 255 the source column knows and the copy does not, 361 the other
+ * way. So the source column is read directly and the copy is not trusted for
+ * this question.
+ *
+ * MULTIPLE NAMES FOR ONE WAREHOUSE
+ *
+ * There are 14 of them: "MAIN WAREHOUSE (FDC)", "Al MANSOUR WAREHOUSE (PNFDC)",
+ * "Warehouse ERMG-Mishmash", "Warehouse ETC Al Mansour" and so on. None is
+ * matched by name here. The model already folds all 14 into one value on
+ * `Mapped Cost Center/Store`, which is the same mapping that decides which
+ * brand a shipment counts against - so supply, stock and outbound are all
+ * attributed by one rule, and a new warehouse site is picked up by all of them
+ * at once or by none.
+ *
+ * Measured the same day: 174 distinct raw source names, none blank, none
+ * unmapped, across 558,155,896 units. The field is complete.
+ *
+ * Membership, not quantity: one supplied line is enough, and there is no time
+ * window - an article the warehouse supplied last year is warehouse-supplied.
+ * Cached for the process and dropped by `forgetWarehouseSourced()` when the
+ * extract refreshes, exactly as the destination mapping is.
+ */
+let sourcedCache = null
+
+export async function warehouseSourcedArticles() {
+  if (!isConfigured()) return null
+  if (sourcedCache) return sourcedCache
+
+  const work = (async () => {
+    const rows = await executeQuery(
+      `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Article No.],
+  TREATAS({${literal([WAREHOUSE])}}, fact_outbound_line[Mapped Cost Center/Store]),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${literal(config.warehouse.statuses)}}
+  ),
+  "Qty", SUM(fact_outbound_line[Action Base Qty])
+)`,
+      config.warehouse.datasetId,
+      { bulk: true, workspace: config.warehouse.workspaceId }
+    )
+
+    const out = new Set()
+    for (const r of rows) {
+      const article = String(r['Article No.'] ?? '').trim()
+      // A line that moved nothing is not supply. The same test the outbound
+      // copy applies, so the two agree about what counts as a movement.
+      if (article && (Number(r.Qty) || 0) > 0) out.add(article)
+    }
+    return out
+  })()
+
+  sourcedCache = work
+  work.catch(() => {
+    sourcedCache = null
+  })
+  return work
+}
+
+/** Dropped when the extract refreshes, like the destination mapping. */
+export function forgetWarehouseSourced() {
+  sourcedCache = null
+}
+
 let destinationCache = null
 
 export async function destinationBuckets() {

@@ -43,6 +43,24 @@ const TARGET_COVER = 1.25
  * Severity, not identity. Every pill carries its own words, so nothing here
  * depends on being able to tell the colours apart.
  */
+/*
+ * A variance, which is only readable if the sign is unmissable.
+ *
+ * These two columns are the only place on the page where a negative number is
+ * ordinary, and "2,579" against "-2,579" is a difference a reader scanning a
+ * column will miss. An explicit + on the positives makes the direction the
+ * first thing seen rather than something to work out.
+ *
+ * A dash, not a zero, when either side is missing: the difference between two
+ * quantities one of which does not exist is not nought.
+ */
+const fmtVariance = (v) => {
+  if (v === null || v === undefined) return '–'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '–'
+  return `${n > 0 ? '+' : ''}${fmtQty(n)}`
+}
+
 const SOH_TONE = {
   'No store stock': 'red',
   'Low stock': 'amber',
@@ -268,6 +286,23 @@ const COLUMNS = [
    * accuracy is therefore the sales forecast's accuracy, and nothing to do with
    * the warehouse. Shading them as one block says so without a legend.
    */
+  /*
+   * A blank here means no recipe, and it is now the only thing a reader sees.
+   *
+   * Investigated on 13 Sep 2026 because these columns showed "0" for some
+   * articles and "-" for others. They were the same articles: ones no recipe
+   * names, which carry null on both columns deliberately. The zero was made in
+   * `merged()` in routes/api.js, which summed these two fields without listing
+   * them in `keepNull`, so null + null came to 0 the moment two brands were
+   * selected - and stayed null when one was, because mergeRows returns a single
+   * list untouched. Fixed there; both are in `keepNull` now.
+   *
+   * So a blank means no recipe names this article and there is nothing to
+   * explode a sales forecast through. A zero would mean the explosion ran and
+   * came to nought, which happens nowhere in the extracted span: every one of
+   * the 3,129 rows the copy holds carries a positive figure on both columns.
+   * The tooltip says which, rather than leaving it to be guessed.
+   */
   {
     key: 'Component_Forecast_Qty',
     label: 'Forecast qty',
@@ -275,7 +310,17 @@ const COLUMNS = [
     num: true,
     group: 'fcst',
     total: 'sum',
-    render: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No recipe names this article, so there is no sales forecast to explode through one. WH forecast is the figure for these - it comes from what the warehouse actually shipped."
+        >
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
     renderTotal: fmtQty,
   },
   {
@@ -285,7 +330,17 @@ const COLUMNS = [
     num: true,
     group: 'fcst',
     total: 'sum',
-    render: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No recipe names this article, so the sales that happened imply no requirement for it. Outbound is what to read instead."
+        >
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
     renderTotal: fmtQty,
   },
   /*
@@ -463,6 +518,254 @@ const COLUMNS = [
   },
 
   /*
+   * The two methods, subtracted.
+   *
+   * Asked for on 13 Sep 2026. Forecast qty against WH forecast compares the two
+   * predictions; Actual qty against Outbound compares the two measurements. A
+   * row where both variances are small is an article the recipe tree and the
+   * warehouse agree about. A row where they are large in the same direction is
+   * one where the recipe is out by a factor rather than a margin: Kids Fries
+   * Sleeves reads +228,168 against 15,000 shipped, which is how that defect
+   * was found in the first place.
+   *
+   * Worked out per article and stamped only on the row carrying the warehouse
+   * figures, exactly as WH ACC% is. Product Mix is split across one row per
+   * recipe group, while Outbound and WH forecast sit on a single row per
+   * article and are blank on the rest - subtracting one line share from the
+   * article whole would have produced a variance on every line and a correct
+   * one on none.
+   *
+   * Outside both group headings on purpose: a column that subtracts the
+   * warehouse from the recipe belongs to neither of them.
+   */
+  {
+    key: 'Forecast_Variance',
+    label: 'Forecast variance',
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtVariance,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Both forecasts are needed to compare them. Either no recipe names this article, or the warehouse has no history to forecast from."
+        >
+          –
+        </span>
+      ) : (
+        <span title="Forecast qty minus WH forecast. Positive means the recipe explosion asks for more than the warehouse's own history does.">
+          {fmtVariance(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Actual_Variance',
+    label: 'Actual variance',
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtVariance,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Both measurements are needed to compare them. Either no recipe names this article, or the warehouse has no outbound record for it in this window."
+        >
+          –
+        </span>
+      ) : (
+        <span title="Actual qty minus Outbound. Positive means the sales that happened imply more than the warehouse actually issued.">
+          {fmtVariance(v)}
+        </span>
+      ),
+  },
+
+  /*
+   * What the warehouse itself was holding, at each end of the window.
+   *
+   * Asked for on 14 Sep 2026. The store columns below say whether the shops
+   * were already full; these say whether the warehouse had anything to send.
+   * Read together with Outbound they close the loop: opening minus closing
+   * should be roughly what went out, and where it is not, something moved that
+   * the outbound feed did not record.
+   *
+   * Opening is the day BEFORE the selected range starts, closing is its last
+   * day - so the pair brackets exactly the window on screen and responds to the
+   * date slicer.
+   *
+   * These are not behind the store switch. The posting gap that makes store
+   * stock unreliable does not reach the warehouse locations: measured over the
+   * sixty days to 14 Sep 2026, warehouse stock rose on 29 days and fell on 31,
+   * with no negative balances. See `server/insights/storeStock.js`.
+   */
+  {
+    key: 'WH_Opening_SOH',
+    label: 'WH opening',
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No warehouse stock reading for this article the day before the selected range began. The inventory model has never held it, which is a different fact from holding none of it."
+        >
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
+  },
+  {
+    key: 'WH_Closing_SOH',
+    label: 'WH closing',
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No warehouse stock reading for this article on the last day of the selected range."
+        >
+          –
+        </span>
+      ) : (
+        <span
+          title={
+            row?.WH_Opening_SOH === null || row?.WH_Opening_SOH === undefined
+              ? 'Warehouse balance on the last day of the selected range.'
+              : `Warehouse balance on the last day of the range. It moved ${fmtVariance(
+                  Number(v) - Number(row.WH_Opening_SOH)
+                )} across the window.`
+          }
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+
+  /*
+   * What is still outstanding with suppliers.
+   *
+   * Asked for on 14 Sep 2026. Sits with the warehouse stock columns because it
+   * completes them: WH closing is what is on the shelf, this is what has been
+   * bought and not yet arrived.
+   *
+   * A VALUE, not a quantity - the only money column on the page, which is why
+   * the label says so. Every other number in these groups is units.
+   *
+   * Two things it does not do, both deliberate and both in the tooltip. It does
+   * not move with the date slicer, because an open PO has no "as at" date - it
+   * is the book as it stands, the same way Outbound MTD is a fixed window. And
+   * it does not tie to the Inventory Control dashboard's own pending-PO figure;
+   * `server/insights/openPo.js` records why, and why that measure could not be
+   * read per article at all.
+   */
+  {
+    key: 'Open_PO_Qty',
+    label: 'Pending PO qty',
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Nothing outstanding: the warehouse has no open purchase order for this article."
+        >
+          –
+        </span>
+      ) : (
+        <span title="Units ordered from suppliers and not yet received, in the article's base unit. Net of receipts - the model's own column is the gross order, so anything already delivered is taken off here. Warehouse locations only, and it does not move with the date range.">
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Open_PO_Value',
+    label: 'Pending PO value',
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Nothing outstanding: the warehouse has no open purchase order for this article. A blank rather than a zero, so a column of noughts does not bury the articles that do have one."
+        >
+          –
+        </span>
+      ) : (
+        <span title="Value still outstanding on open purchase orders at the warehouse. A money figure, not units. It does not change with the date range - an open PO is the book as it stands - and it does not reconcile with the Inventory Control dashboard's headline pending-PO figure.">
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+
+  /*
+   * A TEST column, not a replacement for anything.
+   *
+   * Asked for on 15 Sep 2026 so the existing WH forecast can be compared
+   * against a net-requirement rule:
+   *
+   *   New required qty = MAX(0, WH forecast - WH closing SOH - pending PO qty)
+   *
+   * WH forecast, the accuracy figures and the cards are all untouched. Every
+   * input sits on the same row, so the arithmetic can be checked by eye.
+   *
+   * Two limits worth knowing, both measured when this was built.
+   *
+   * The warehouse is one pool serving every brand, while the forecast is only
+   * the brands selected - and the deduction is applied in full on every brand's
+   * row. Across August that overstated the stock taken off by x1.55, because
+   * 214 of 967 articles are forecast for more than one brand.
+   *
+   * The bigger one is a unit-of-time mismatch. Pending PO came to 74,518,364
+   * units against a whole month's forecast of 12,998,765 - the order book runs
+   * about 5.7 months ahead, because purchasing buys in bulk. Subtracting it
+   * from one month's requirement drives 68.8% of articles to zero. Staleness is
+   * NOT the cause: only 10.2% of the pending quantity is past its delivery
+   * date. The rule is arithmetically right and the inputs are on different
+   * time bases, which is the thing to decide about before adopting it.
+   */
+  {
+    key: 'New_Required_Qty',
+    label: 'New required qty',
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No warehouse forecast for this article, so there is no requirement to net down. A blank rather than a zero: nothing forecast is not the same as nothing needed."
+        >
+          –
+        </span>
+      ) : (
+        <span
+          title={`MAX(0, ${fmtQty(row?.WH_Constant_Forecast_Qty)} forecast - ${fmtQty(
+            Math.max(0, Number(row?.WH_Closing_SOH) || 0)
+          )} closing stock - ${fmtQty(Math.max(0, Number(row?.Open_PO_Qty) || 0))} pending PO) = ${fmtQty(v)}. A test figure - the WH forecast beside it is unchanged.`}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+
+  /*
    * What the shops are already holding.
    *
    * These sit beside the warehouse columns rather than inside them because they
@@ -624,9 +927,22 @@ const COLUMN_ORDER = [
   'WH_Constant_Forecast_Qty',
   'Consumed_Qty',
   'WH_Accuracy',
+  // Across the two groups: the recipe answer minus the warehouse answer, on
+  // both the predicted and the measured side.
+  'Forecast_Variance',
+  'Actual_Variance',
+  // What the warehouse had at each end of the window, and how long it lasts.
+  'WH_Opening_SOH',
+  'WH_Closing_SOH',
+  // What has been bought and not yet arrived, then the test figure derived
+  // from it. Last of the block, because they look forward rather than
+  // reporting a balance.
+  'Open_PO_Qty',
+  'Open_PO_Value',
+  'New_Required_Qty',
   // What the shops hold, then what that implies should be sent. Read left to
-  // right the four blocks are: what was needed, what moved, what is there, what
-  // to do about it.
+  // right the five blocks are: what was needed, what moved, what the warehouse
+  // had, what the shops have, what to do about it.
   'Store_SOH',
   'Stock_Cover',
   'SOH_Status',
@@ -639,16 +955,49 @@ const COLUMN_ORDER = [
 ]
 
 /*
- * Store inventory and replenishment are switched off for now.
+ * Store inventory is off, asked for on 14 Sep 2026.
  *
- * Off on 10 Sep 2026 while the stock data settles — the inventory model stopped
- * posting sales depletion on 1 September, so stock on hand has been drifting
- * upwards on its own. The server withholds the fields as well; this is the half
- * that keeps two empty group headings off the table.
+ * Back on for one day on 13 Sep, off again the next. The data is the honest
+ * reason to leave it off: measured 13 Sep, store closing stock rose on 58 of
+ * the previous 60 days and did not fall once in September, ending 28.8% above
+ * where the month started — a 13.3m August mean against 26.0m in September.
+ * The inventory model stopped posting sales depletion on 1 September, so Store
+ * SOH and Stock cover read roughly double throughout, and an "SOH status" of
+ * Normal could sit on a shop that was actually low.
  *
- * Set this back to true and the columns return as they were: admin only.
+ * Nothing is deleted. Set this to true, and WH_STORE_COLUMNS=1 on the server,
+ * and the three columns come back exactly as they were — admin only. The real
+ * fix is upstream: somebody has to get depletion posting again.
+ *
+ * Warehouse stock is unaffected. Its data is sound and it has its own switch.
  */
 const STORE_COLUMNS_ON = false
+
+/*
+ * Warehouse stock, kept apart from the store block on purpose.
+ *
+ * Gated on the reader being an administrator, but NOT on STORE_COLUMNS_ON -
+ * these come from the warehouse locations, whose data is sound, and they should
+ * not disappear the next time the store figures have to be switched off.
+ */
+const WH_STOCK_COLUMNS = new Set([
+  'WH_Opening_SOH',
+  'WH_Closing_SOH',
+  'Open_PO_Qty',
+  'Open_PO_Value',
+  'New_Required_Qty',
+])
+
+/*
+ * Replenishment is off, asked for on 14 Sep 2026.
+ *
+ * These were the only two columns on the page that issued an instruction rather
+ * than reporting a measurement, and they are not wanted. The server withholds
+ * the fields as well, so this is what keeps an empty group heading off the
+ * table. Set both switches back on and they return as they were.
+ */
+const REPL_COLUMNS_ON = false
+const REPL_COLUMNS = new Set(['Required_Shipment', 'Shipment_Status'])
 
 /** The two blocks that only maintainers see, kept in one place. */
 const STOCK_COLUMNS = new Set([
@@ -856,6 +1205,45 @@ const weightedScore = (rows, key, weightKey) => {
  * is here so a reader can settle a question without leaving the table.
  */
 const HELP = {
+  whstock: [
+    {
+      term: 'WH opening',
+      text: 'What the warehouse was holding the day before the selected date range began.',
+      formula: 'Closing stock qty in the inventory model, warehouse locations only, on the day before the range starts.',
+      example:
+        'Range 1-13 Sep, so the reading is 31 Aug. Kids Fries Sleeves read 7,500 that day.',
+    },
+    {
+      term: 'WH closing',
+      text: 'The same reading on the last day of the range.',
+      formula: 'Closing stock qty, warehouse locations only, on the last day of the range.',
+      example:
+        'Kids Fries Sleeves read 5,000 on 13 Sep - down 2,500, which is exactly what Outbound says went out.',
+    },
+    {
+      term: 'Pending PO qty',
+      text: 'Units ordered from suppliers and not yet received.',
+      formula:
+        "Sum of 'CC Open PO Core'[Open PO Base Qty] minus 'CC PO Receipt Core'[Received Base Qty], joined on PO Article Location Key, warehouse locations only.",
+      example:
+        'The model column is the GROSS order, so receipts are taken off here - otherwise a delivered quantity would count twice, once as still on order and again as stock on hand.',
+    },
+    {
+      term: 'New required qty',
+      text: 'A TEST figure: what would still need supplying after stock and orders already in hand.',
+      formula: 'MAX(0, WH forecast - WH closing SOH - Pending PO qty)',
+      example:
+        'Forecast 1,000, stock 300, pending 200 gives 500. Forecast 1,000, stock 700, pending 500 gives 0 rather than -200. WH forecast beside it is unchanged - this column is for comparison only. It reads high with a brand filter on, because the warehouse pool serves every brand.',
+    },
+    {
+      term: 'Pending PO value',
+      text: 'The value still outstanding on open purchase orders at the warehouse - bought, not yet arrived.',
+      formula:
+        "Sum of 'CC Open PO Core'[Open PO Value] for this article, warehouse locations only.",
+      example:
+        'Blank means nothing is on order. Two warnings: it does not move with the date range, because an open PO has no "as at" date; and it does not tie to the Inventory Control dashboard total, which is a company-wide card figure that cannot be split by article.',
+    },
+  ],
   fcst: [
     {
       term: 'Forecast qty',
@@ -1227,6 +1615,31 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
          * columns, so the grouped view is unaffected.
          */
         WH_Accuracy: carriesWarehouse ? score(held?.wh ?? null) : null,
+        /*
+         * Both sides present, or nothing at all.
+         *
+         * `held.forecast` and `held.wh` stay null until something contributes
+         * rather than starting at zero, so a missing side stays missing instead
+         * of reading as a variance that happens to equal the other side.
+         */
+        Forecast_Variance:
+          carriesWarehouse &&
+          held?.forecast !== null &&
+          held?.forecast !== undefined &&
+          held?.wh !== null &&
+          held?.wh !== undefined
+            ? held.forecast - held.wh
+            : null,
+        // `measured` is the outbound equivalent of that: set only once a real
+        // outbound figure has landed, which is what separates "shipped
+        // nothing" from "there is no record of it".
+        Actual_Variance:
+          carriesWarehouse &&
+          held?.implied !== null &&
+          held?.implied !== undefined &&
+          held?.measured
+            ? held.implied - held.consumed
+            : null,
       }
     })
   }, [rows, dayAccuracy])
@@ -1777,7 +2190,22 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             c.key !== 'Consumed_Qty' &&
             c.key !== 'Accuracy' &&
             c.key !== 'WH_Accuracy' &&
-            c.key !== 'Sales_Accuracy'
+            c.key !== 'Sales_Accuracy' &&
+            /*
+             * Actual qty goes too, and this was the one real defect behind the
+             * "why 0 here and a dash there" question.
+             *
+             * The copy stores actual as a literal 0 for a month that has not
+             * happened: October, November and December 2026 are 2,666 rows
+             * each with an actual total of exactly nought. Printed through
+             * fmtQty that is a column of "0" beside a full forecast, which
+             * reads as a total shortfall rather than as a period nobody has
+             * traded yet. Consumed_Qty and the accuracies were already dropped
+             * here for precisely this reason; this column was missed.
+             */
+            c.key !== 'Component_Actual_Qty' &&
+            // Depends on both of the above, so it cannot be formed either.
+            c.key !== 'Actual_Variance'
         )
       : ORDERED_COLUMNS
     /*
@@ -1788,6 +2216,8 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * columns and two group headings over nothing.
      */
     if (!STORE_COLUMNS_ON || !isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
+    if (!isAdmin) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
+    if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
     return list
   }, [future, isAdmin])
 
@@ -2040,10 +2470,13 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
+              ...(isAdmin ? { whstock: { label: 'Warehouse stock', help: HELP.whstock } } : {}),
               ...(STORE_COLUMNS_ON && isAdmin
                 ? {
                     stock: { label: 'Store inventory', help: HELP.stock },
-                    repl: { label: 'Replenishment', help: HELP.repl },
+                    ...(REPL_COLUMNS_ON
+                      ? { repl: { label: 'Replenishment', help: HELP.repl } }
+                      : {}),
                   }
                 : {}),
             }}

@@ -63,6 +63,59 @@ const COLUMNS = [
     renderTotal: perUnit,
   },
   { key: 'BU', label: 'Unit', autoWidth: true },
+  /*
+   * What the menu item is forecast to sell, and what that asks of this article.
+   *
+   * The panel used to stop at the rate and tell the reader to multiply it by
+   * the product's forecast themselves. These two columns are that sentence
+   * carried out: the units forecast, then the rate times the units.
+   *
+   * Blank rather than zero when there is no forecast to read - a branch-scoped
+   * reader gets none, because product forecasts are held with no branch column
+   * and the brand's whole would be more than they are granted.
+   */
+  {
+    key: 'Item_Forecast_Qty',
+    label: 'Menu item forecast',
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No forecast available for this menu item in the selected window. Product forecasts cannot be split by branch, so this is blank while a branch filter or a branch-limited account is in play."
+        >
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
+  },
+  {
+    key: 'Article_Required_Qty',
+    label: 'Article required',
+    strong: true,
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="Needs the menu item's forecast to work out.">
+          –
+        </span>
+      ) : (
+        <span
+          title={`${perUnit(row?.Qty_Per_Unit)} ${row?.BU || ''} per unit multiplied by ${fmtQty(
+            row?.Item_Forecast_Qty
+          )} units forecast`}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
   {
     key: 'Path',
     label: 'Through',
@@ -154,9 +207,9 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
                     · {perUnit(total)} {article.BU || ''} in total, per one unit of each
                   </>
                 )}
-                {' · '}quantities are per <strong>one unit</strong> of the menu item; multiply by
-                that product&rsquo;s forecast for its share of{' '}
-                {fmtQty(article.Component_Forecast_Qty)} {article.BU || ''}
+                {' · '}quantities are per <strong>one unit</strong> of the menu item, and{' '}
+                <strong>Article required</strong> is that rate times each item&rsquo;s forecast{' '}
+                for the selected window
               </p>
 
               <DataTable
@@ -174,7 +227,7 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
                 searchPlaceholder="Search a menu item…"
                 onViewChange={setView}
                 totals
-                initialSort={{ key: 'Qty_Per_Unit', dir: 'desc' }}
+                initialSort={{ key: 'Article_Required_Qty', dir: 'desc' }}
               />
 
               <p className="usage__note">

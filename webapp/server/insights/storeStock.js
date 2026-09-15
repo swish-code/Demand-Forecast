@@ -165,7 +165,7 @@ SUMMARIZECOLUMNS(
  * of the month. Measured over June to August, 151 zero-outbound cases were
  * explained by a shortage that a monthly reading could not see.
  */
-async function warehouseStock(from, to) {
+async function warehouseStock(from, to, anchor) {
   const map = await destinationBuckets()
   if (!map?.size) return null
   const locations = []
@@ -180,13 +180,24 @@ async function warehouseStock(from, to) {
   if (!dates.length) dates.push(from)
   if (dates[dates.length - 1] !== to && dates.length < 8) dates.push(to)
 
+  /*
+   * Opening and closing are asked for on top of the weekly scan.
+   *
+   * `dates` keeps its own meaning - the in-window samples `supplyShort` walks
+   * looking for a dry week - so the two readings the columns need are added to
+   * the query rather than to that list. The anchor is the day BEFORE the window
+   * opens, for the same reason store stock uses it: closing stock cannot
+   * explain a shipment that was decided before it existed.
+   */
+  const asked = [...new Set([anchor, ...dates, to].filter(Boolean))].sort()
+
   const rows = await executeQuery(
     `EVALUATE
 SUMMARIZECOLUMNS(
   cc_daily_inventory[Article No.],
   cc_daily_inventory[Movement Date],
   FILTER(ALL(cc_daily_inventory[Movement Date]),
-    cc_daily_inventory[Movement Date] IN {${dates.map(daxDate).join(',')}}),
+    cc_daily_inventory[Movement Date] IN {${asked.map(daxDate).join(',')}}),
   FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {${literal(locations)}}),
   "SOH", SUM(cc_daily_inventory[Closing Stock Qty]))`,
     config.inventory.datasetId,
@@ -202,7 +213,7 @@ SUMMARIZECOLUMNS(
     const m = held.get(article)
     m.set(date, (m.get(date) ?? 0) + (Number(r.SOH) || 0))
   }
-  return { readings: held, dates }
+  return { readings: held, dates, opening: anchor, closing: to }
 }
 
 /**
@@ -221,15 +232,28 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
   return cached(key, async () => {
     const [store, warehouse] = await Promise.all([
       stockOn(anchor, buckets).catch(() => null),
-      warehouseStock(dateFrom, dateTo).catch(() => null),
+      warehouseStock(dateFrom, dateTo, anchor).catch(() => null),
     ])
-    if (!store) return null
+    /*
+     * Either side is enough to be worth returning.
+     *
+     * This bailed whenever the store read came back empty, which was fine while
+     * the store columns were the only thing here. The warehouse opening,
+     * closing and cover columns now hang off the same object, so a failure on
+     * the store locations would blank three columns fed entirely by the
+     * warehouse ones - and with store inventory switched off on 14 Sep 2026
+     * that would have taken the only surviving half of this feature with it.
+     */
+    if (!store && !warehouse) return null
 
     const days = Math.max(
       1,
       Math.round((Date.parse(`${dateTo}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) / DAY) + 1
     )
-    return { ...store, warehouse, anchor, days }
+    // `soh` and `known` first so that a missing store side leaves them null
+    // rather than absent: `stockColumnsFor` reads both, and null is the
+    // truthful answer for "no reading" either way.
+    return { soh: null, known: null, ...(store ?? {}), warehouse, anchor, days }
   })
 }
 
@@ -248,14 +272,26 @@ export function stockColumnsFor(article, forecast, held) {
     SOH_Status: null,
     Required_Shipment: null,
     Shipment_Status: null,
+    WH_Opening_SOH: null,
+    WH_Closing_SOH: null,
   }
   if (!held || !article) return blank
 
-  const seen = held.known.has(article)
-  const soh = seen ? (held.soh.get(article) ?? 0) : null
-  if (!seen) return blank
-
   const window = Number(forecast)
+
+  /*
+   * The warehouse half is worked out first, and on its own terms.
+   *
+   * It must not sit behind the store `seen` gate below. Plenty of articles the
+   * warehouse holds have never been seen in a shop by the inventory model, and
+   * returning blank for those would hide the very stock somebody is checking.
+   */
+  const wh = warehouseColumnsFor(article, held)
+
+  const seen = held.known ? held.known.has(article) : false
+  const soh = seen ? (held.soh.get(article) ?? 0) : null
+  if (!seen) return { ...blank, ...wh }
+
   const monthly = Number.isFinite(window) && window > 0 ? (window * DAYS_PER_MONTH) / held.days : null
 
   /*
@@ -300,6 +336,7 @@ export function stockColumnsFor(article, forecast, held) {
   const required = monthly === null ? null : Math.max(0, TARGET_COVER_MONTHS * monthly - onHand)
 
   return {
+    ...wh,
     Store_SOH: soh,
     Stock_Cover: cover,
     SOH_Status: status,
@@ -327,6 +364,69 @@ export function stockColumnsFor(article, forecast, held) {
             ? 'Low stock — urgent'
             : 'Shipment required',
   }
+}
+
+/**
+ * What the warehouse itself held at each end of the window, and for how long.
+ *
+ * Asked for on 14 Sep 2026, beside the store figures. Three things, and they
+ * answer a question the store columns cannot: the store columns say whether the
+ * shops were already full, and these say whether the warehouse had anything to
+ * send them in the first place.
+ *
+ *   opening  the warehouse balance the day before the window opened
+ *   closing  the balance on its last day
+ *   cover    how many days the closing balance would last at the rate the
+ *            window's own forecast implies
+ *
+ * Unlike store stock, this data is sound. Measured on 14 Sep 2026 over the
+ * previous sixty days, warehouse closing stock rose on 29 days and fell on 31 -
+ * real movement in both directions - against store stock's 58 up and 2 down,
+ * and no article carried a negative warehouse balance. The posting gap that
+ * makes the store figures unreliable does not reach these, so they are
+ * published on their own switch rather than behind the store one.
+ *
+ * One thing to know about cover: the warehouse is a single pool serving every
+ * brand, while the forecast it is divided by belongs to the brands currently
+ * selected. With everything selected the figure is the real one; with a brand
+ * filter applied it is optimistic, because the whole pool is measured against
+ * part of the demand. The column says so rather than pretending otherwise.
+ */
+function warehouseColumnsFor(article, held) {
+  const wh = held.warehouse
+  if (!wh) return {}
+  const readings = wh.readings.get(article)
+  // Never seen in the warehouse at all: a blank, not a zero. The model having
+  // no row for an article says nothing about whether stock is there.
+  if (!readings) return {}
+
+  const at = (date) => {
+    const v = date ? readings.get(date) : undefined
+    return v === undefined ? null : v
+  }
+  const opening = at(wh.opening)
+  const closing = at(wh.closing)
+
+  /*
+   * No demand, no cover - and none from a negative balance either.
+   *
+   * The same reasoning the store cover figure uses: dividing by a forecast of
+   * zero is infinity, and an article with stock nobody has asked for is not
+   * infinitely covered. A negative balance would give a negative number of
+   * days, which is not a length of time.
+   */
+  /*
+   * Cover in days is gone, removed 14 Sep 2026 on request.
+   *
+   * It was `closing / (window forecast / days)`. Two things made it awkward to
+   * read next to the rest: it was in days while Stock cover beside it was in
+   * months, and the warehouse is one pool serving every brand while the
+   * forecast it divided by belonged only to the brands selected, so with a
+   * brand filter on it always read high. Both numbers it needed are still on
+   * the row - WH closing and WH forecast - so anyone who wants it can work it
+   * out, and restoring the column is a few lines here and in the table.
+   */
+  return { WH_Opening_SOH: opening, WH_Closing_SOH: closing }
 }
 
 /**
