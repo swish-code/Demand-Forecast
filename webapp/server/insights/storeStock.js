@@ -45,11 +45,19 @@
  *                 could not be resolved, holding −1,932 units between them.
  *   Grain         Daily. One reading per location per article per day, from
  *                 1 Jan 2026.
- *   Date logic    The reading taken is the day *before* the window opens —
- *                 opening stock, not closing. Closing stock cannot explain a
- *                 shipment that was decided before it existed, and using it
- *                 would let a delivery that arrived during the window justify
- *                 not having sent it.
+ *   Date logic    STORE stock is read on the window's LAST day — closing
+ *                 stock for the period selected, changed 15 Sep 2026. The
+ *                 WAREHOUSE opening figure still reads the day before the
+ *                 window, because that is the balance which explains a
+ *                 shipment decided before the window opened.
+ *
+ *                 The store side used to read that same day-before balance for
+ *                 the same reason, and it is the better question for judging a
+ *                 zero-outbound row. It is not the question the column was
+ *                 being read as: on a 1-31 Aug window it answered with the
+ *                 31 July balance. Closing stock is what a reader expects from
+ *                 a selected period, and it matches the New Required Qty
+ *                 column.
  *   Aggregation   Summed across every shop of every brand in scope, in the
  *                 article's own base unit. Brands not selected are not counted.
  *   Missing       A blank, never a zero. An article the inventory model has
@@ -225,13 +233,31 @@ SUMMARIZECOLUMNS(
 export async function storeStock({ dateFrom, dateTo, buckets }) {
   if (!isConfigured() || !dateFrom || !dateTo || !buckets?.length) return null
 
-  // Opening stock: the day before the window, not the day it closed.
+  /*
+   * The anchor is the day before the window, and the warehouse side still uses
+   * it for its opening reading.
+   */
   const anchor = iso(Date.parse(`${dateFrom}T00:00:00Z`) - DAY)
   const key = `store-stock:${anchor}:${dateTo}:${[...buckets].sort().join(',')}`
 
   return cached(key, async () => {
+    /*
+     * Store stock is read on the window's LAST day, changed 15 Sep 2026.
+     *
+     * It used to read the anchor - the day before the window - because that is
+     * the stock that explains a shipment decided before the window opened, and
+     * for judging a zero-outbound row that is still the better question. But
+     * the column is read as "what is on the shelf for the period I selected",
+     * and on a 1-31 Aug window it answered with the 31 July balance. Asked for
+     * on 15 Sep 2026, and it also puts Store SOH on the same footing as the
+     * New Required Qty column, which moved to closing stock the day before.
+     *
+     * One consequence, the same one the WH closing column has: a window whose
+     * last day has not happened has no reading, so Store SOH is blank for a
+     * current or future period rather than showing the latest known balance.
+     */
     const [store, warehouse] = await Promise.all([
-      stockOn(anchor, buckets).catch(() => null),
+      stockOn(dateTo, buckets).catch(() => null),
       warehouseStock(dateFrom, dateTo, anchor).catch(() => null),
     ])
     /*

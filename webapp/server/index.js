@@ -18,6 +18,7 @@ import { startMailSchedule } from './mail/runner.js'
 import { startPrewarm } from './warm.js'
 import { startCubeSchedule, cubeState } from './cube/schedule.js'
 import { loadCoverage } from './cube/query.js'
+import { loadSalesPlans } from './insights/salesPlan.js'
 import { raise, clear, isOpen, loadOpenAlerts } from './insights/alerts.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,6 +34,9 @@ const clientDist = path.join(__dirname, '..', 'client', 'dist')
  */
 await initDatabase()
 await loadOpenAlerts()
+// Plans first: `loadCoverage` widens each brand's calendar to cover a planned
+// year, and it can only do that once the plans are in memory.
+await loadSalesPlans()
 await loadCoverage()
 await purgeExpiredSessions()
 

@@ -443,6 +443,30 @@ CREATE TABLE IF NOT EXISTS cube_sales_daily (
   PRIMARY KEY (brand, date)
 );
 
+-- A sales figure somebody typed in, for a year the models do not cover.
+--
+-- The forecast models end on 31 Dec 2026: 'FORECAST (2)' has no 2027 row, and
+-- neither does Forecast_Product_Table. So a 2027 plan cannot be read from
+-- anywhere, and this is where the typed figure lives.
+--
+-- Only the figure is stored. The product and article quantities it implies are
+-- worked out on read, in cube/query.js, by scaling the base year's own shape.
+-- They are deliberately NOT written into cube_article_monthly or
+-- cube_component_monthly: the extract clears those with
+-- DELETE ... WHERE brand = ?, unscoped by date, so anything written there for
+-- 2027 would survive until the next hourly refresh and no longer.
+--
+-- One row per brand per year. Delete the row and every derived figure goes with
+-- it, which is what keeps "no input, nothing changes" true by construction.
+CREATE TABLE IF NOT EXISTS cube_sales_plan (
+  brand      TEXT NOT NULL,
+  year       INTEGER NOT NULL,
+  value      DOUBLE PRECISION NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT,
+  PRIMARY KEY (brand, year)
+);
+
 -- The sales forecast as it stood on a given day, kept because the live one
 -- destroys itself.
 --

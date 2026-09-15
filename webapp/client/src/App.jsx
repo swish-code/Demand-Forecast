@@ -40,6 +40,7 @@ const WarehouseAnalysis = lazyPage(
 )
 const ProductionPlan = lazyPage(() => import('./pages/ProductionPlan.jsx'), 'ProductionPlan')
 const Admin = lazyPage(() => import('./pages/Admin.jsx'), 'Admin')
+const SalesPlan = lazyPage(() => import('./pages/SalesPlan.jsx'), 'SalesPlan')
 const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
 
 /** One entry per report page: rail label, rail kicker, blurb and slicers. */
@@ -127,6 +128,18 @@ const PAGES = [
     // permanent entry would sit above the reports competing with them.
     hidden: true,
     slicers: [],
+  },
+  {
+    id: 'sales-plan',
+    label: 'Sales plan',
+    kicker: 'Next year, by hand',
+    blurb: 'Brand sales for a year the forecast models do not reach',
+    Icon: IconUsers,
+    Component: SalesPlan,
+    // Not a report page: the figures are per brand for a whole year, so no
+    // brand picker and no slicers. Admin only, like the other page that writes.
+    slicers: [],
+    adminOnly: true,
   },
   {
     id: 'admin',

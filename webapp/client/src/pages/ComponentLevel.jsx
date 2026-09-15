@@ -766,7 +766,13 @@ const COLUMNS = [
   },
 
   /*
-   * What the shops are already holding.
+   * What the shops are holding on the last day of the selected range.
+   *
+   * Closing stock, from 15 Sep 2026. It read the day before the window until
+   * then, which answered a 1-31 Aug selection with the 31 July balance -
+   * defensible for judging a zero-outbound row, and not what the column is read
+   * as. See the date note in `server/insights/storeStock.js`.
+   *
    *
    * These sit beside the warehouse columns rather than inside them because they
    * answer the question the warehouse columns provoke: a forecast of 14,934
@@ -786,7 +792,7 @@ const COLUMNS = [
       v === null || v === undefined ? (
         <span
           className="muted"
-          title="The inventory model has no reading for this article in these brands' shops. That is not the same as zero stock — it means nothing is known, so nothing is claimed."
+          title="No closing-stock reading for this article in these brands' shops on the last day of the selected range. That is not the same as zero stock — it means nothing is known, so nothing is claimed. A range whose last day has not happened yet has no reading at all."
         >
           –
         </span>
@@ -1000,8 +1006,19 @@ const REPL_COLUMNS_ON = false
 const REPL_COLUMNS = new Set(['Required_Shipment', 'Shipment_Status'])
 
 /** The two blocks that only maintainers see, kept in one place. */
+/*
+ * Store SOH is back, on its own switch, asked for on 15 Sep 2026.
+ *
+ * Only the stock level. Stock cover and SOH status divide it by a monthly
+ * forecast, and the level itself is the figure with the posting problem, so a
+ * number somebody can see and judge is worth showing where a ratio built on it
+ * is not. Set STORE_COLUMNS_ON back to true for those two.
+ */
+const STORE_SOH_ON = true
+const STORE_SOH_COLUMNS = new Set(['Store_SOH'])
+
+/** The derived store figures, still off. */
 const STOCK_COLUMNS = new Set([
-  'Store_SOH',
   'Stock_Cover',
   'SOH_Status',
   'Required_Shipment',
@@ -2216,6 +2233,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * columns and two group headings over nothing.
      */
     if (!STORE_COLUMNS_ON || !isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
+    if (!STORE_SOH_ON || !isAdmin) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
     if (!isAdmin) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
     if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
     return list
@@ -2471,7 +2489,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
               ...(isAdmin ? { whstock: { label: 'Warehouse stock', help: HELP.whstock } } : {}),
-              ...(STORE_COLUMNS_ON && isAdmin
+              ...((STORE_COLUMNS_ON || STORE_SOH_ON) && isAdmin
                 ? {
                     stock: { label: 'Store inventory', help: HELP.stock },
                     ...(REPL_COLUMNS_ON

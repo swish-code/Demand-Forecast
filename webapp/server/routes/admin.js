@@ -10,6 +10,14 @@ import {
   isDepartment,
 } from '../departments.js'
 import { calculationsPayload } from '../calculations.js'
+import {
+  salesPlans,
+  saveSalesPlan,
+  clearSalesPlan,
+  baseYearTotals,
+  salesPlanBaseYear,
+} from '../insights/salesPlan.js'
+import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
@@ -1021,5 +1029,187 @@ admin.post(
   handle(async (req, res) => {
     await disconnectMailbox()
     res.json({ ok: true })
+  })
+)
+
+
+/**
+ * Brand sales for a year the models do not reach.
+ *
+ * The forecast models end on 31 Dec 2026, so a 2027 figure cannot be read from
+ * anywhere and has to be typed. Only the figure is stored; the product and
+ * article quantities it implies are worked out on read - see
+ * `insights/salesPlan.js` for why that is not the same as generating rows.
+ *
+ * `loadCoverage()` is re-run after every write because it is what widens each
+ * brand's calendar to include a planned year. Without it the date picker would
+ * still stop at 31 Dec 2026 and the new figure would be unreachable.
+ */
+admin.get(
+  '/sales-plan',
+  handle(async (req, res) => {
+    const totals = await baseYearTotals()
+    const base = salesPlanBaseYear()
+    const entered = new Map(salesPlans().map((p) => [`${p.brand}|${p.year}`, p]))
+    const year = Number(req.query?.year) || (base ? base + 1 : null)
+
+    res.json({
+      baseYear: base,
+      year,
+      brands: config.brands.map((b) => {
+        const plan = entered.get(`${b.code}|${year}`) ?? null
+        const baseTotal = totals.get(b.code) ?? 0
+        return {
+          code: b.code,
+          label: b.label ?? b.code,
+          baseTotal,
+          value: plan?.value ?? null,
+          ratio: plan?.ratio ?? null,
+          updatedAt: plan?.updatedAt ?? null,
+          updatedBy: plan?.updatedBy ?? null,
+          // A brand with no base-year sales has nothing to scale from, so a
+          // figure typed against it is recorded and drives nothing. Said here
+          // rather than discovered as a blank column later.
+          usable: baseTotal > 0,
+        }
+      }),
+    })
+  })
+)
+
+admin.post(
+  '/sales-plan',
+  handle(async (req, res) => {
+    const brand = String(req.body?.brand ?? '').trim()
+    const year = Number(req.body?.year)
+    const raw = req.body?.value
+
+    if (!config.brands.some((b) => b.code === brand)) {
+      return res.status(400).json({ error: 'That is not one of the configured brands.' })
+    }
+
+    try {
+      // An empty box means "remove the plan", which is how the existing figures
+      // are put back: with no row, no code path behaves differently.
+      if (raw === null || raw === undefined || String(raw).trim() === '') {
+        await clearSalesPlan(brand, year)
+      } else {
+        await saveSalesPlan(brand, year, Number(String(raw).replace(/[,\s]/g, '')), req.user?.email ?? null)
+      }
+      await loadCoverage()
+    } catch (err) {
+      return res.status(400).json({ error: err.message })
+    }
+
+    const totals = await baseYearTotals()
+    const entered = new Map(salesPlans().map((p) => [`${p.brand}|${p.year}`, p]))
+    res.json({
+      saved: true,
+      baseYear: salesPlanBaseYear(),
+      year,
+      brands: config.brands.map((b) => {
+        const plan = entered.get(`${b.code}|${year}`) ?? null
+        const baseTotal = totals.get(b.code) ?? 0
+        return {
+          code: b.code,
+          label: b.label ?? b.code,
+          baseTotal,
+          value: plan?.value ?? null,
+          ratio: plan?.ratio ?? null,
+          updatedAt: plan?.updatedAt ?? null,
+          updatedBy: plan?.updatedBy ?? null,
+          usable: baseTotal > 0,
+        }
+      }),
+    })
+  })
+)
+
+
+/**
+ * The plan, exploded, for download.
+ *
+ * Both lists are read through the ordinary `productLevel` / `componentLevel`
+ * paths, so a downloaded figure is the same number the pages show rather than a
+ * second calculation that can drift from it. The plan year's rows are derived
+ * by scaling the base year - see `insights/salesPlan.js`.
+ *
+ * Only brands with a figure saved for the year appear. A brand with no plan has
+ * no plan-year forecast, and an empty row for it would read as a forecast of
+ * nothing rather than as the absence of one.
+ */
+const planYearWindow = (year) => ({ dateFrom: `${year}-01-01`, dateTo: `${year}-12-31` })
+
+const plannedBrands = (year) =>
+  salesPlans()
+    .filter((p) => p.year === year && p.ratio)
+    .map((p) => config.brands.find((b) => b.code === p.brand))
+    .filter(Boolean)
+
+admin.get(
+  '/sales-plan/products',
+  handle(async (req, res) => {
+    const year = Number(req.query?.year) || (salesPlanBaseYear() ?? 0) + 1
+    const f = planYearWindow(year)
+    const rows = []
+    for (const brand of plannedBrands(year)) {
+      const list = await productLevel(brand.code, { ...f, brand: brand.code }).catch(() => [])
+      for (const r of list) {
+        const qty = Number(r.Forecast_Qty) || 0
+        if (qty <= 0) continue
+        rows.push({
+          brand: brand.code,
+          plu: String(r.Clean_ItemID ?? ''),
+          product: String(r.ProductName_Fixed_Option ?? ''),
+          forecastQty: Math.round(qty * 100) / 100,
+        })
+      }
+    }
+    rows.sort((a, b) => a.brand.localeCompare(b.brand) || b.forecastQty - a.forecastQty)
+    res.json({ year, rows })
+  })
+)
+
+admin.get(
+  '/sales-plan/articles',
+  handle(async (req, res) => {
+    const year = Number(req.query?.year) || (salesPlanBaseYear() ?? 0) + 1
+    const f = planYearWindow(year)
+
+    /*
+     * One row per article, not one per recipe group.
+     *
+     * `componentLevel` returns a row for every recipe that names an article, so
+     * an article used by four recipes arrives four times. A list of articles to
+     * order wants the article once, with the recipes added together.
+     */
+    const byArticle = new Map()
+    for (const brand of plannedBrands(year)) {
+      const list = await componentLevel(brand.code, { ...f, brand: brand.code }, {}).catch(() => [])
+      for (const r of list) {
+        const article = String(r['Item No.'] ?? '').trim()
+        // A kitchen step carries no article number and cannot be ordered.
+        if (!article) continue
+        const qty = Number(r.Component_Forecast_Qty) || 0
+        if (qty <= 0) continue
+        const key = `${brand.code}|${article}`
+        const held = byArticle.get(key) ?? {
+          brand: brand.code,
+          article,
+          item: String(r.Item ?? ''),
+          unit: String(r.BU ?? ''),
+          nodeType: String(r['Node Type'] ?? ''),
+          recipeGroups: 0,
+          forecastQty: 0,
+        }
+        held.recipeGroups += 1
+        held.forecastQty += qty
+        byArticle.set(key, held)
+      }
+    }
+    const rows = [...byArticle.values()]
+      .map((r) => ({ ...r, forecastQty: Math.round(r.forecastQty * 100) / 100 }))
+      .sort((a, b) => a.brand.localeCompare(b.brand) || b.forecastQty - a.forecastQty)
+    res.json({ year, rows })
   })
 )

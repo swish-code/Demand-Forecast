@@ -1089,13 +1089,27 @@ const STORE_COLUMNS_ON = process.env.WH_STORE_COLUMNS === '1'
  */
 const WH_STOCK_COLUMNS_ON = process.env.WH_WAREHOUSE_STOCK !== '0'
 
-const STORE_ONLY_FIELDS = [
-  'Store_SOH',
-  'Stock_Cover',
-  'SOH_Status',
-  'Required_Shipment',
-  'Shipment_Status',
-]
+/*
+ * Store SOH is back on its own, asked for on 15 Sep 2026.
+ *
+ * Just the stock level. Stock cover and SOH status are derived from it and
+ * stayed off: both divide by a monthly forecast, and the stock figure they
+ * divide is the one with the data problem below, so a level somebody can see
+ * and judge is useful where a ratio built on it is not.
+ *
+ * The data caveat has not gone away. Measured 13 Sep 2026, store closing stock
+ * rose on 58 of the previous 60 days and never fell once in September, ending
+ * 28.8% above where the month started, because the inventory model stopped
+ * posting sales depletion on 1 September. So this column reads roughly double
+ * the real holding. It is shown because seeing it is better than a blank, not
+ * because it is right.
+ *
+ * WH_STORE_SOH=0 withholds it. WH_STORE_COLUMNS=1 brings cover and status back.
+ */
+const STORE_SOH_ON = process.env.WH_STORE_SOH !== '0'
+
+const STORE_SOH_FIELDS = ['Store_SOH']
+const STORE_DERIVED_FIELDS = ['Stock_Cover', 'SOH_Status']
 const WAREHOUSE_ONLY_FIELDS = ['WH_Opening_SOH', 'WH_Closing_SOH']
 
 /*
@@ -1204,7 +1218,7 @@ async function withOpenPo(rows, grain, admin) {
 }
 
 async function withStoreStock(rows, filters, buckets, grain, admin) {
-  if (!STORE_COLUMNS_ON && !WH_STOCK_COLUMNS_ON) return rows
+  if (!STORE_COLUMNS_ON && !STORE_SOH_ON && !WH_STOCK_COLUMNS_ON) return rows
   /*
    * Withheld rather than hidden.
    *
@@ -1248,7 +1262,8 @@ async function withStoreStock(rows, filters, buckets, grain, admin) {
     const cols = stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held)
     // Whichever half is switched off is never put in the response at all,
     // rather than hidden in the browser one network tab away.
-    if (!STORE_COLUMNS_ON) for (const k of STORE_ONLY_FIELDS) delete cols[k]
+    if (!STORE_SOH_ON) for (const k of STORE_SOH_FIELDS) delete cols[k]
+    if (!STORE_COLUMNS_ON) for (const k of STORE_DERIVED_FIELDS) delete cols[k]
     if (!WH_STOCK_COLUMNS_ON) for (const k of WAREHOUSE_ONLY_FIELDS) delete cols[k]
     if (!REPL_COLUMNS_ON) for (const k of REPLENISHMENT_FIELDS) delete cols[k]
     return { ...r, ...cols }

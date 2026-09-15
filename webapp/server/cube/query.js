@@ -1,5 +1,6 @@
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
+import { planWindow, plannedThrough, salesPlans } from '../insights/salesPlan.js'
 
 /**
  * Answering the Overview page from the local copy.
@@ -49,7 +50,44 @@ export async function loadCoverage() {
   const rows = await pg.all('SELECT * FROM cube_coverage')
   coverageCache.clear()
   for (const r of rows) coverageCache.set(r.brand, r)
+  widenForPlans()
   return coverageCache.size
+}
+
+/*
+ * A planned year is answerable, so coverage has to say so.
+ *
+ * Three things read these dates and would otherwise refuse 2027 outright: the
+ * date picker takes its bounds from `dateRangeFor`, `windowFor` decides which
+ * table can answer, and `within` clamps a request to the model calendar. None
+ * of them knows about a typed figure, and all three are fed from here.
+ *
+ * Widened in memory rather than in the table, because the extract rewrites
+ * `cube_coverage` on every refresh and would undo a stored change. Re-run this
+ * after `loadSalesPlans()` and the two stay in step.
+ *
+ * Only three columns move, and only forwards:
+ *
+ *   to_date   the branch-free tables, which is what the wide pages read
+ *   model_to  the model calendar, which bounds the picker and the clamp
+ *   comp_to   the recipe side, read separately because it lags the rest
+ *
+ * `detail_to` and `out_to` are deliberately left alone. Those cover the
+ * branch-level table and the outbound copy, neither of which a sales plan says
+ * anything about — so a 2027 window split by branch still goes to Power BI and
+ * comes back empty, which is the truthful answer.
+ */
+function widenForPlans() {
+  for (const [brand, cover] of coverageCache) {
+    const through = plannedThrough(brand)
+    if (!through) continue
+    const wider = { ...cover }
+    for (const column of ['to_date', 'model_to', 'comp_to']) {
+      const held = wider[column] ? String(wider[column]).slice(0, 10) : null
+      if (held && held < through) wider[column] = through
+    }
+    coverageCache.set(brand, wider)
+  }
 }
 
 /**
@@ -628,6 +666,26 @@ export function canAnswerComponents(brand, filters = {}) {
 }
 
 export async function componentLevel(brand, f, grain = {}) {
+  /*
+   * A planned year, scaled the same way the product level is.
+   *
+   * This is not a second method. Component_Forecast_Qty is the sum over every
+   * recipe naming the article of (product quantity x recipe quantity per unit),
+   * which is LINEAR in product quantity — so multiplying each component row by
+   * the brand's ratio gives exactly what re-exploding the scaled products
+   * through the recipe tree would give. The tree is untouched and the arithmetic
+   * is identical.
+   */
+  const plan = planWindow(brand, f)
+  if (plan) {
+    const rows = await componentLevel(brand, { ...f, dateFrom: plan.from, dateTo: plan.to }, grain)
+    return rows.map((r) => ({
+      ...r,
+      Component_Actual_Qty: 0,
+      Component_Forecast_Qty: (Number(r.Component_Forecast_Qty) || 0) * plan.ratio,
+    }))
+  }
+
   // The recipe-side predicates, held apart from the date and the brand so the
   // same list can be dropped into either grain's query.
   const filters = { sql: [], args: [] }
@@ -949,8 +1007,52 @@ export async function salesVintage(brand, f, { allBrands = false } = {}) {
   return Number.isFinite(v) && v > 0 ? v : null
 }
 
+/*
+ * A planned year's sales, scaled from the base year's own daily shape.
+ *
+ * Returns null for every window that is not inside a planned year, which is
+ * what keeps the untouched path untouched.
+ *
+ * The all-brands figure is the catch-all bucket's denominator, and it is summed
+ * brand by brand rather than scaled once: each brand has its own typed figure
+ * and therefore its own ratio, so one blended multiplier would be wrong for
+ * every brand in the mix.
+ */
+async function plannedSales(brand, f, allBrands) {
+  if (allBrands) {
+    const year = Number(String(f.dateFrom).slice(0, 4))
+    const scoped = salesPlans().filter((p) => p.year === year && p.ratio)
+    if (!scoped.length) return null
+    let total = 0
+    for (const plan of scoped) {
+      const mapped = planWindow(plan.brand, f)
+      if (!mapped) continue
+      const rows = await rowsOf(
+        `SELECT SUM(value) AS forecast FROM cube_sales_daily
+          WHERE brand = ? AND date >= ? AND date <= ?`,
+        [plan.brand, mapped.from, mapped.to]
+      )
+      total += (Number(rows[0]?.forecast) || 0) * mapped.ratio
+    }
+    return total
+  }
+
+  const plan = planWindow(brand, f)
+  if (!plan) return null
+  const rows = await rowsOf(
+    `SELECT SUM(value) AS forecast FROM cube_sales_daily
+      WHERE brand = ? AND date >= ? AND date <= ?`,
+    [brand, plan.from, plan.to]
+  )
+  return (Number(rows[0]?.forecast) || 0) * plan.ratio
+}
+
 export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
+  // A typed figure for this year replaces the model's, which is the whole point
+  // of the plan. Null here means there is no plan and nothing changes.
+  const planned = await plannedSales(brand, f, allBrands)
+  if (planned !== null) return planned
   // Same reasoning as monthlySales: the bucket borrows everyone's denominator.
   const rows = await rowsOf(
     `SELECT SUM(value) AS forecast
@@ -1333,6 +1435,37 @@ export function canAnswerArticles(brand, filters = {}) {
 }
 
 export async function productLevel(brand, f) {
+  /*
+   * A planned year takes the base year's product mix, scaled.
+   *
+   * Read the equivalent base-year window and multiply every product's forecast
+   * by the brand's ratio. The mix is therefore identical to the year it was
+   * built from — each product keeps its share — and the total lands on the
+   * typed figure's implied quantity.
+   *
+   * The recursion terminates because the mapped window is in the base year,
+   * where `planWindow` returns null.
+   *
+   * Actual is zeroed. A planned year has not traded, and zero is the same
+   * convention the copy already holds for months that have not happened.
+   */
+  const plan = planWindow(brand, f)
+  if (plan) {
+    const rows = await productLevel(brand, { ...f, dateFrom: plan.from, dateTo: plan.to })
+    return rows.map((r) => {
+      const forecast = (Number(r.Forecast_Qty) || 0) * plan.ratio
+      return {
+        ...r,
+        Actual_Qty: 0,
+        Forecast_Qty: forecast,
+        // Worked out exactly as the SQL below does it, so a planned row and a
+        // real one cannot disagree about what variance means.
+        Variance_Qty: 0 - forecast,
+        Variance_Pct: forecast === 0 ? 0 : (0 - forecast) / forecast,
+      }
+    })
+  }
+
   const filters = { sql: [], args: [] }
   if (f.products?.length) {
     filters.sql.push(`product IN (${f.products.map(() => '?').join(', ')})`)

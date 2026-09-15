@@ -325,6 +325,14 @@ export const api = {
     // Sales for a brand with no semantic model — same two-step as the import above.
     importedSales: (brand = 'FM') => get(`/admin/sales/imported?brand=${encodeURIComponent(brand)}`),
     importSales: (brand, text, commit = false) => post('/admin/sales/import', { brand, text, commit }),
+    // A brand sales figure for a year the models do not reach — see
+    // server/insights/salesPlan.js. An empty value removes the plan.
+    salesPlan: (year) => get(`/admin/sales-plan${year ? `?year=${year}` : ''}`),
+    saveSalesPlan: (brand, year, value) => post('/admin/sales-plan', { brand, year, value }),
+    // The plan exploded to product and article level, for download. Read
+    // through the same paths the pages use, so the figures cannot drift.
+    salesPlanProducts: (year) => get(`/admin/sales-plan/products${year ? `?year=${year}` : ''}`),
+    salesPlanArticles: (year) => get(`/admin/sales-plan/articles${year ? `?year=${year}` : ''}`),
     refreshSales: (brand) => post('/admin/sales/refresh', { brand }),
     // Refill the value columns the constant divides by, without a whole backfill.
     refillSalesValues: () => post('/admin/cube/sales-values'),

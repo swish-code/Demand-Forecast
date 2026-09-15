@@ -164,7 +164,7 @@ export const pagesFor = (department) => PAGES_BY_NAME.get(norm(department)) ?? n
  * enforcing. A page added there and not here simply cannot be granted, which is
  * the safe direction for the mistake to fail in.
  */
-export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin', 'wh-analysis']
+export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin', 'wh-analysis', 'sales-plan']
 
 /**
  * The guide travels with the page it documents.
