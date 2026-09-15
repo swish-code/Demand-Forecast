@@ -785,7 +785,15 @@ const COLUMNS = [
     label: 'Store SOH',
     autoWidth: true,
     num: true,
-    group: 'stock',
+    /*
+     * No group, deliberately — removed 15 Sep 2026.
+     *
+     * "Store inventory" is wider than the one column under it, so the heading
+     * was clipped to "STORE INVENT". A group heading earns its place when it
+     * spans several columns; over a single one it only costs width. The heading
+     * comes back with `STORE_COLUMNS_ON`, which is what puts Stock cover and
+     * SOH status beside this and gives it something to span.
+     */
     total: 'sum',
     renderTotal: fmtQty,
     render: (v) =>
@@ -2489,7 +2497,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
               ...(isAdmin ? { whstock: { label: 'Warehouse stock', help: HELP.whstock } } : {}),
-              ...((STORE_COLUMNS_ON || STORE_SOH_ON) && isAdmin
+              ...(STORE_COLUMNS_ON && isAdmin
                 ? {
                     stock: { label: 'Store inventory', help: HELP.stock },
                     ...(REPL_COLUMNS_ON
