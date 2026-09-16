@@ -170,6 +170,35 @@ export const worksAtBrandLevel = (department) => BRAND_LEVEL.has(norm(department
  * for somebody who can say yes - the same rule the brand-level list states
  * about itself.
  */
+/**
+ * Departments that see the recipe breakdown behind an article, not just a count.
+ *
+ * Its own list from 16 Sep 2026. Until then this was read off
+ * BRAND_LEVEL_DEPARTMENTS, which exists to answer an unrelated question - "does
+ * this department's work span every branch" - and was never chosen for this
+ * one. Five departments were in it for the branch rule, and all five silently
+ * got the recipe popup as a consequence.
+ *
+ * Warehouse, Production and Supply Chain are deliberately NOT here, asked for
+ * on 16 Sep 2026: they get the COUNT of menu items using an article, which is
+ * what they need to know it is used and how widely, without the recipe tree
+ * behind it. Each of them keeps everything else it holds - notably Warehouse
+ * and Supply Chain keep the Stock group and Replenishment Planning, which are
+ * on STOCK_DETAIL_DEPARTMENTS above and untouched by this list.
+ *
+ * What is left is the two departments whose work is the recipe itself.
+ *
+ * Splitting the list changes nothing about branch narrowing: all five remain on
+ * BRAND_LEVEL_DEPARTMENTS, which is the list that governs it.
+ */
+export const RECIPE_DETAIL_DEPARTMENTS = ['Procurement', 'Bakery']
+
+const RECIPE_DETAIL = new Set(RECIPE_DETAIL_DEPARTMENTS.map(norm))
+
+/** May this account see which menu items use an article, and at what rate? */
+export const seesRecipeDetail = (user) =>
+  user?.role === 'admin' || RECIPE_DETAIL.has(norm(user?.department))
+
 export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Supply Chain']
 
 const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
@@ -259,3 +288,5 @@ export function allowedPages(user) {
 
   return withGuide(pagesFor(user?.department) ?? REPORTS)
 }
+
+

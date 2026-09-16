@@ -591,21 +591,176 @@ const COLUMNS = (today, asOf) => [
   },
 ]
 
+/*
+ * The group headings, and the help behind each heading's information icon.
+ *
+ * `help` is a LIST of { term, text, formula?, example? } - one entry per column
+ * in the group. It was written as a single string when this table was built and
+ * that crashed the page: a string is truthy, so the icon rendered, and opening
+ * it called `.map` on the string. Nobody clicked it until 16 Sep 2026, when it
+ * surfaced on the deployed site as "b(...).help.map is not a function".
+ *
+ * Same shape as `HELP` in `pages/ComponentLevel.jsx`, which is where the
+ * contract is set and where these read well next to.
+ */
 const GROUPS = {
-  planid: { label: 'Article', help: 'Identity and units, from the replenishment planning sheet.' },
+  planid: {
+    label: 'Article',
+    help: [
+      {
+        term: 'Article No, Article',
+        text: 'What the order will be placed against, and its name.',
+      },
+      {
+        term: 'Supplier name',
+        text: 'Who last supplied this article. Some articles list several suppliers, and the cell wraps rather than cutting them off.',
+        formula: "'Replan Planning'[last Supplier Name]",
+      },
+      {
+        term: 'Purchase Unit',
+        text: 'The pack it is bought in, including the pack size.',
+        formula: "'Replan Planning'[PURCH UNIT]",
+        example: '"Ctn 2500 Pcs" is a carton of 2,500 pieces.',
+      },
+      {
+        term: 'Base Unit',
+        text: 'The unit every quantity in this table is counted in. Nothing here is in purchase packs.',
+        formula: "'Replan Planning'[BASE UNIT]",
+      },
+    ],
+  },
   planneed: {
     label: 'Requirement',
-    help: 'The warehouse forecast for the selected range, its daily rate, and the safety stock that rate implies. The forecast is reused exactly as Article Detail shows it.',
+    help: [
+      {
+        term: 'WH Forecast, Outbound, ACC%',
+        text: 'Taken straight from the Article Detail table above. Nothing in this table changes them.',
+      },
+      {
+        term: 'SS days',
+        text: 'How many days of buffer stock the article should hold.',
+        formula: "'Replan Planning'[SS]",
+        example:
+          '"NoNeed" means no buffer is wanted. "OnDemand" means it is ordered only when needed, so there is no standing buffer and the columns that need one are blank.',
+      },
+      {
+        term: 'Per day qty',
+        text: 'The average daily requirement. Every figure to its right is built on this.',
+        formula: 'WH Forecast / days in the selected range (counted inclusively)',
+        example: '17,537 over 15 Sep to 5 Nov is 52 days, so 337.25 a day.',
+      },
+      {
+        term: 'SS Qty',
+        text: 'The buffer in units. Worked out from the FORECAST rather than from Outbound, so a bad month at the warehouse cannot shrink the buffer meant to protect against it.',
+        formula: 'SS days x Per day qty',
+      },
+    ],
   },
   planstock: {
     label: 'Warehouse position',
-    help: "Warehouse stock on hand plus what is on order, and how many days that lasts. Warehouse stock only — the shops' Store SOH is not used in any of these figures.",
+    help: [
+      {
+        term: 'SOH',
+        text: "What the WAREHOUSE holds right now, as at the date in this panel's heading. Never the shops' stock - Store SOH cannot be issued by the warehouse and is not used anywhere in this table.",
+        formula: 'cc_daily_inventory[Closing Stock Qty] on the feed’s last day, warehouse locations only',
+        example: 'A dash means the feed has never seen the article there, which is not the same as none in stock.',
+      },
+      {
+        term: 'Pending Qty',
+        text: 'Units already ordered from suppliers and not yet received, net of part deliveries. It does not move with the date range: an open PO has no "as at" date.',
+      },
+      {
+        term: 'DTL',
+        text: 'Days to last - roughly how long the warehouse can keep issuing, counting what is already on order.',
+        formula: 'MAX(0, SOH + Pending Qty) / Per day qty',
+        example:
+          'Shown as a whole number; the underlying value keeps its decimals, so figures derived from it do not shift. It moves with the range length, because that sets the daily rate.',
+      },
+      {
+        term: 'Forecasted OOS Date',
+        text: 'The day stock is expected to run out. Everything in the Order group is counted back from here.',
+        formula: 'TODAY + DTL',
+      },
+    ],
   },
-  planorder: { label: 'Order', help: 'How much to request, and the last date it can be requested for.' },
-  plansplit: { label: 'Deliveries', help: 'The request split across the first two deliveries.' },
+  planorder: {
+    label: 'Order',
+    help: [
+      {
+        term: 'Target Cover',
+        text: 'The days of cover still to be bought: the gap between running out and the end of the plan, plus the buffer that has to survive it.',
+        formula: 'last selected date - Forecasted OOS Date + SS days',
+        example:
+          'Legitimately NEGATIVE when stock already outlasts the range - that is the signal nothing needs ordering. Only the quantity is floored at zero.',
+      },
+      {
+        term: 'Req Qty',
+        text: 'How much to order.',
+        formula: 'MAX(0, Target Cover x Per day qty)',
+      },
+      {
+        term: 'Req Date',
+        text: 'The latest day the order can be placed, counted back from the stock-out date through the lead time and the buffer.',
+        formula: 'Forecasted OOS Date - Lead Time - SS days',
+        example:
+          'Frequently in the past, and that is the finding rather than an error: 7 days of stock against a 30-day lead time means the order is already late. Those are marked red.',
+      },
+      {
+        term: 'Lead Time, Delivery Freq',
+        text: 'Days from order to receipt, and how many scheduled deliveries the article gets. Both as written on the planning sheet; the sheet does not say over what period the frequency runs, so no unit is shown.',
+      },
+    ],
+  },
+  plansplit: {
+    label: 'Deliveries',
+    help: [
+      {
+        term: '1st delivery by',
+        text: 'A DEADLINE, not a plan - the last day the first delivery can land without eating into the safety buffer.',
+        formula: 'first day of the selected range + (DTL - SS days)',
+        example:
+          'The only date in this table counted from the range start rather than from today, which is how the source spreadsheet does it. One consequence: its gap from Forecasted OOS Date is not exactly the safety stock.',
+      },
+      {
+        term: '1st delivery qty',
+        text: 'How much of the request comes in that delivery.',
+        formula: 'Req Qty / Delivery Freq',
+      },
+      {
+        term: '2nd delivery by',
+        text: 'The first deadline pushed out by however long the first delivery lasts. Blank when there is no second delivery.',
+        formula: 'TODAY + ((1st delivery qty / Per day qty) + DTL - SS days)',
+        example:
+          'On a Delivery Freq of 1 the whole request arrives once, so the remainder is nought and no second date is shown.',
+      },
+      {
+        term: '2nd delivery qty',
+        text: 'Whatever is left after the first delivery.',
+        formula: 'Req Qty - 1st delivery qty',
+      },
+    ],
+  },
   planbuffered: {
     label: 'Buffered view',
-    help: 'The forecast with safety stock added, against everything the warehouse has had available. New ACC% is a coverage ratio, not an accuracy score.',
+    help: [
+      {
+        term: 'Total SOH',
+        text: 'Everything the warehouse has had available across the range.',
+        formula: 'SOH + Pending Qty + Outbound',
+      },
+      {
+        term: 'New WH Forecast',
+        text: 'The requirement with the buffer added. A test figure - the live warehouse forecast is unchanged by it.',
+        formula: 'WH Forecast + SS Qty',
+      },
+      {
+        term: 'New ACC%',
+        text: 'How much of that buffered requirement is covered. A COVERAGE RATIO, not an accuracy score.',
+        formula: 'Total SOH / New WH Forecast',
+        example:
+          'It can exceed 100%, which is why it is not comparable with the ACC% or WH ACC% columns and sits in its own group.',
+      },
+    ],
   },
 }
 

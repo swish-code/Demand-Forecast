@@ -226,6 +226,14 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
   if (!article) return null
 
   const rows = data?.rows ?? []
+  /*
+   * The count comes from the server, not from `rows.length`.
+   *
+   * An account that may see only the count is now sent only the count - the
+   * rows are withheld rather than merely hidden - so counting the array would
+   * report nought menu items for exactly the readers the count is for.
+   */
+  const used = Number.isFinite(Number(data?.count)) ? Number(data.count) : rows.length
   const total = rows.reduce((a, r) => a + (Number(r.Qty_Per_Unit) || 0), 0)
   // One string per row: the table sorts, searches and exports values, and an
   // array of paths is none of those things.
@@ -256,7 +264,7 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
             <ErrorBanner error={error} onRetry={reload} />
           ) : loading ? (
             <ChartSkeleton height={220} />
-          ) : !rows.length ? (
+          ) : !used ? (
             <Empty title="No menu item uses this article">
               Nothing in the recipe tree names it. Articles like this reach the shops without a
               recipe behind them — the warehouse columns are where they are measured.
@@ -272,15 +280,15 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
               * same data, through the same endpoint.
               */
             <div className="usage__count">
-              <span className="usage__countnum">{fmtInt(rows.length)}</span>
+              <span className="usage__countnum">{fmtInt(used)}</span>
               <span className="usage__countlabel">
-                menu {rows.length === 1 ? 'item uses' : 'items use'} this article
+                menu {used === 1 ? 'item uses' : 'items use'} this article
               </span>
             </div>
           ) : (
             <>
               <p className="usage__lead">
-                {fmtInt(rows.length)} menu {rows.length === 1 ? 'item uses' : 'items use'} this
+                {fmtInt(used)} menu {used === 1 ? 'item uses' : 'items use'} this
                 article
                 {total > 0 && (
                   <>

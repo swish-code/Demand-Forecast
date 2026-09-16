@@ -15,7 +15,7 @@ import { cached, clearCache } from '../cache.js'
 import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings, missingWarehouse } from '../config.js'
-import { allowedPages, seesStockDetail } from '../departments.js'
+import { allowedPages, seesStockDetail, seesRecipeDetail } from '../departments.js'
 import * as cube from '../cube/query.js'
 import {
   consumptionByArticle,
@@ -1859,7 +1859,21 @@ SUMMARIZECOLUMNS(
         b.Qty_Per_Unit - a.Qty_Per_Unit
     )
 
-  res.json({ rows })
+  /*
+   * A count, and not the rows, for accounts that may only see the count.
+   *
+   * The panel has always drawn either the full breakdown or a bare count
+   * depending on the reader, but the rows travelled either way - so "just the
+   * count" was a decision about the screen and not about the data, and anybody
+   * who opened the response could read the recipe out of it. Gated here from
+   * 16 Sep 2026 so the two agree: no recipe detail, no recipe rows.
+   *
+   * `count` is sent alongside because the panel counted `rows.length`, which
+   * would report nought once the rows are withheld.
+   */
+  if (!seesRecipeDetail(req.user)) return res.json({ rows: [], count: rows.length })
+
+  res.json({ rows, count: rows.length })
 }))
 
 

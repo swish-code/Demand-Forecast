@@ -210,7 +210,19 @@ export function DataTable({
    */
   const titleOf = (key) => {
     const g = groups?.[key]
-    return typeof g === 'string' ? { label: g, help: null } : (g ?? { label: '', help: null })
+    if (typeof g === 'string') return { label: g, help: null }
+    const held = g ?? { label: '', help: null }
+    /*
+     * Only a real list counts as help.
+     *
+     * `help` is mapped over below, so anything else - most plausibly a single
+     * string, which is what the Replenishment Planning groups were written with
+     * - rendered the information icon and then threw on the click. One bad
+     * value in a group definition took the whole page down to the error
+     * boundary. Coerced here instead: a malformed `help` shows no icon, which
+     * is a missing explanation rather than a broken page.
+     */
+    return Array.isArray(held.help) ? held : { ...held, help: null }
   }
 
   const hasGroupRow = Boolean(groups) && groupRuns.some((r) => r.group && titleOf(r.group).label)

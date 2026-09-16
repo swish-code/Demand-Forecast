@@ -8,7 +8,7 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
-import { allowedPages, worksAtBrandLevel, seesStockDetail } from '../departments.js'
+import { allowedPages, seesStockDetail, seesRecipeDetail } from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -61,7 +61,7 @@ async function sessionPayload(user) {
        * is exactly how "Warehouse" and "Warehouse " become different things —
        * the server owns the rule and says yes or no.
        */
-      fullDetail: user.role === 'admin' || worksAtBrandLevel(user.department),
+      fullDetail: seesRecipeDetail(user),
       /*
        * Whether this account sees the warehouse stock columns and the
        * Replenishment Planning table.
