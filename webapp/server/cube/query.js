@@ -175,6 +175,32 @@ export function dateRangeFor(brand) {
   }
 }
 
+/**
+ * The latest date any brand has actual sales for.
+ *
+ * The same `cal_last_actual` `dateRangeFor` hands to the client as
+ * `dateRange.lastActual`, off the same cache - not a second source and not a
+ * second way of working the date out. This exists because the caller that needs
+ * it, the article status stamp, runs after the per-brand fan-out has been merged
+ * and so has no brand to ask for.
+ *
+ * The maximum rather than the minimum: the question is "what is the latest day
+ * we have real data for", and a brand whose extract is a day behind should not
+ * drag the others back with it. In practice they agree - all nine read
+ * 2026-09-15 when this was written.
+ *
+ * Null when no brand has recorded one, which leaves every caller to carry on
+ * exactly as it did before this existed.
+ */
+export function lastActualDate() {
+  let latest = null
+  for (const cover of coverageCache.values()) {
+    const d = cover?.cal_last_actual ? String(cover.cal_last_actual).slice(0, 10) : null
+    if (d && (!latest || d > latest)) latest = d
+  }
+  return latest
+}
+
 /** WHERE fragment and bindings for one brand's slice. */
 function where(brand, f = {}) {
   const sql = ['brand = ?']

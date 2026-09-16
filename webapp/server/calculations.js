@@ -28,6 +28,16 @@
 const PBI = 'Power BI measure'
 const LOCAL = 'Calculated by this app'
 const COPY = 'Read from the local copy'
+/*
+ * A column read straight out of a model, rather than a measure evaluated in it.
+ *
+ * Added 16 Sep 2026 for the replenishment planning sheet, which is a table of
+ * typed settings - safety stock days, lead time, supplier - not arithmetic.
+ * Calling those "measures" would send somebody looking for DAX that does not
+ * exist; calling them local would suggest this app decides them, and it does
+ * not. They are somebody's decisions, read as written.
+ */
+const TABLE = 'Read from a Power BI table'
 
 export const CALCULATIONS = [
   /* ------------------------------------------------ Overview ------------- */
@@ -261,6 +271,243 @@ WH forecast  = constant * forecast sales for the window on screen`,
     source: LOCAL,
     expression: 'WH ACC% < 40%',
     tunable: 'The 40% line.',
+  },
+
+  /* ------------------------------- Replenishment Planning ---------------- *
+   *
+   * The table below Article Detail. Every formula here was specified against a
+   * working spreadsheet and checked against its own printed figures before the
+   * table was built, so these are that sheet's definitions rather than a
+   * reinterpretation of it. Two deliberate departures from it are marked where
+   * they occur: the day count, and the second delivery date.
+   *
+   * Nothing in this block feeds the warehouse forecast or Store SOH. It reads
+   * them; it never changes them.
+   */
+  {
+    id: 'plan-grain',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — one row per article',
+    label: 'How rows are folded',
+    source: LOCAL,
+    expression: `group the Article Detail rows by Item No., then per article:
+  WH Forecast, Outbound          = summed across its rows
+  SOH, Pending, SS, Lead, Freq   = taken once, never summed
+  ACC%                           = re-scored on the folded totals`,
+    detail:
+      'Article Detail is one row per recipe line, so an article appears once per recipe group and ' +
+      'again for the catch-all row its warehouse figures arrive on. A purchase order is placed ' +
+      'once for the article, not once per recipe. Quantities are summed, which also sums an ' +
+      'article shared by several brands — one warehouse buys it once, so that is the right ' +
+      'total. The per-article settings are stamped identically on every one of those rows by the ' +
+      'server, so adding them would report an article in three brands as holding three times the ' +
+      'stock.',
+  },
+  {
+    id: 'plan-sheet',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Supplier name, Purchase Unit, Base Unit, SS days, Lead time, Delivery freq',
+    label: 'The planning sheet lookups',
+    source: TABLE,
+    expression: `SUMMARIZECOLUMNS(
+  'Replan Planning'[Code],
+  'Replan Planning'[SS],
+  'Replan Planning'[LEAD TIME],
+  'Replan Planning'[DeliveryFreq],
+  'Replan Planning'[last Supplier Name],
+  'Replan Planning'[PURCH UNIT],
+  'Replan Planning'[BASE UNIT]
+)
+
+matched on  [Code] = Item No.`,
+    detail:
+      'One query against the FM Sales model, cached, and one row per article — 2,246 rows, 2,224 ' +
+      'distinct codes each appearing exactly once, plus 22 rows carrying no code which are ' +
+      'dropped. 2,154 match the article master. No mapping table and no fuzzy matching: the ' +
+      'values are trimmed and an empty string becomes a dash. SS is DAYS, not a quantity, ' +
+      'despite its name — it holds eight distinct values of which "OnDemand" (608 rows) and ' +
+      '"NoNeed" (447) are words rather than numbers. Delivery freq is a count of deliveries and ' +
+      'the source does not say over what period, so no unit is shown.',
+  },
+  {
+    id: 'plan-perday',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Per day qty',
+    label: 'Per day qty',
+    source: LOCAL,
+    expression: 'Per day qty = WH Forecast / days in the selected range',
+    detail:
+      'Days are counted INCLUSIVELY: 15 Sep to 5 Nov is 52 days, not 51. That is one of the two ' +
+      'departures from the source spreadsheet, which counted end minus start; inclusive matches ' +
+      'every other window calculation in this dashboard. Blank rather than zero when the forecast ' +
+      'is zero or missing, because this is the divisor for almost everything to its right and a ' +
+      'zero divisor is what would put Infinity on the screen. Note this column does double duty: ' +
+      'widening the range lowers the daily rate, so the same stock appears to last longer.',
+  },
+  {
+    id: 'plan-ssqty',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — SS Qty',
+    label: 'Safety stock quantity',
+    source: LOCAL,
+    expression: 'SS Qty = SS days * Per day qty',
+    detail:
+      'Derived from the FORECAST rather than from Outbound, deliberately: outbound is the thing ' +
+      'being judged elsewhere on the page, and sizing a buffer from it would shrink the buffer ' +
+      'every time the warehouse had a bad month. "NoNeed" is zero days, so zero units — answered ' +
+      'without needing a forecast at all. "OnDemand" is blank, not zero: there is no standing ' +
+      'cover to size, and zero would read as "no buffer needed", which is a different statement.',
+  },
+  {
+    id: 'plan-soh',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — SOH',
+    label: 'Warehouse SOH (current)',
+    source: TABLE,
+    expression: `VAR AsOf = MAXX(ALL(cc_daily_inventory), cc_daily_inventory[Movement Date])
+RETURN
+SUMMARIZECOLUMNS(
+  cc_daily_inventory[Article No.],
+  FILTER(ALL(cc_daily_inventory[Movement Date]), cc_daily_inventory[Movement Date] = AsOf),
+  FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {<warehouse locations>}),
+  "SOH", SUM(cc_daily_inventory[Closing Stock Qty]),
+  "AsOf", AsOf
+)`,
+    detail:
+      'The warehouse balance as the feed last knew it, NOT the selected window’s closing balance. ' +
+      'DTL asks when stock runs out from where it stands today: a window that has not finished ' +
+      'has no closing balance, and a window in the past has one that has since been overtaken. ' +
+      'The as-of date is shown in the panel heading rather than implied. Note it is a CURRENT ' +
+      'balance, and the dates beside it are counted from today for that reason. Warehouse ' +
+      'locations only ' +
+      '— this is never Store SOH, which is the shops’ stock and cannot be issued by the ' +
+      'warehouse. A dash means the feed has never seen the article there, which is not zero.',
+  },
+  {
+    id: 'plan-pending',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Pending Qty; Article Detail — Pending PO',
+    label: 'Pending PO quantity',
+    source: TABLE,
+    expression: `SUM('CC Open PO Core'[Open PO Base Qty])
+  - SUM('CC PO Receipt Core'[Received Base Qty])
+
+joined in this app on [PO Article Location Key], warehouse locations only`,
+    detail:
+      'The model column is the GROSS order, so receipts are netted off here — otherwise a ' +
+      'delivered quantity would count twice, once as still on order and again as stock on hand. ' +
+      'The two tables have no relationship in the model, so the join is done in this app. Clamped ' +
+      'at zero per article. It does not move with the date range: an open PO has no "as at" date.',
+  },
+  {
+    id: 'plan-dtl',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — DTL',
+    label: 'DTL (days to last)',
+    source: LOCAL,
+    expression: 'DTL = MAX(0, Warehouse SOH + Pending Qty) / Per day qty',
+    detail:
+      'How long the WAREHOUSE can keep issuing, counting what is already bought. Store SOH is ' +
+      'deliberately excluded: stock sitting in the shops is not available for the warehouse to ' +
+      'issue, and including it would overstate cover by exactly the amount already distributed. ' +
+      'Negative stock is a posting fault, not negative cover, so it is floored at zero. Shown as ' +
+      'a whole number; the underlying value keeps its precision, so figures derived from it do ' +
+      'not shift.',
+  },
+  {
+    id: 'plan-cover',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Forecasted OOS Date, Target Cover',
+    label: 'Forecasted OOS Date, and Target Cover',
+    source: LOCAL,
+    expression: `stock-out date = TODAY + DTL
+Target Cover   = (last selected date - stock-out date) + SS days`,
+    detail:
+      'The days of cover still to be bought: the gap between running out and the end of the plan, ' +
+      'plus the buffer that has to survive it. Legitimately NEGATIVE when stock already outlasts ' +
+      'the selected range, and shown that way — it is the reader’s signal that nothing needs ' +
+      'ordering. Only the quantity below is floored at zero. Blank on "OnDemand", which has no ' +
+      'day count to add.',
+  },
+  {
+    id: 'plan-reqqty',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Req Qty',
+    label: 'Requested quantity',
+    source: LOCAL,
+    expression: 'Req Qty = MAX(0, Target Cover * Per day qty)',
+    detail: 'Floored at zero: a negative cover means nothing needs ordering, not a negative order.',
+  },
+  {
+    id: 'plan-reqdate',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Req Date',
+    label: 'Requested date',
+    source: LOCAL,
+    expression: `Req Date = (TODAY + DTL) - Lead Time - SS days`,
+    detail:
+      'The latest day the order can be placed. Counted BACKWARDS from the day stock runs out, ' +
+      'allowing for the lead time and the buffer. Anchored on TODAY, the system date — the ' +
+      'stock it divides is a current balance, so the clock has to start where the stock was ' +
+      'counted. It therefore lands in ' +
+      'the past whenever Lead Time + SS days exceeds DTL, and that is the finding rather than an ' +
+      'error: the order is already late. Those rows are marked red with a warning. Worked example: ' +
+      '7.4 days of stock against a 30-day lead time and a 15-day buffer needs 45 days of notice, ' +
+      'so the order was due about 38 days ago. Blank without a lead time or a day count.',
+  },
+  {
+    id: 'plan-d1',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — 1st delivery by, 1st delivery qty',
+    label: 'First delivery',
+    source: LOCAL,
+    expression: `1st delivery by  = first selected date + (DTL - SS days)
+1st delivery qty = Req Qty / Delivery Freq`,
+    detail:
+      'The ONLY date in this table counted from the first day of the selected range rather than ' +
+      'from today — changed 16 Sep 2026 to reproduce the source spreadsheet, which anchors this ' +
+      'one cell on the slicer start and its other three on TODAY(). One consequence: the gap ' +
+      'between Forecasted OOS Date and this column is no longer exactly the safety stock, but ' +
+      'SS + (today - first selected day). ' +
+      'A DEADLINE, not a plan — which is why the header says "by". It is the day stock falls TO ' +
+      'the safety buffer rather than to nothing, so it is the last date the first delivery can ' +
+      'land without eating into the buffer. Negative offsets are common and mean the deadline has ' +
+      'passed; the date is shown with the day offset in its tooltip. Blank quantity when Delivery ' +
+      'Freq is zero, missing, "NoNeed" or "OnDemand" — none of those is a number to divide by.',
+  },
+  {
+    id: 'plan-d2',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — 2nd delivery by, 2nd delivery qty',
+    label: 'Second delivery',
+    source: LOCAL,
+    expression: `2nd delivery qty = Req Qty - 1st delivery qty
+2nd delivery by  = TODAY + ((1st delivery qty / Per day qty) + DTL - SS days)
+                   shown only while 2nd delivery qty > 0`,
+    detail:
+      'The first deadline pushed out by however long the first delivery lasts at the daily rate. ' +
+      'The "only while the quantity is positive" guard is the second departure from the source ' +
+      'spreadsheet, added 16 Sep 2026: on a Delivery Freq of 1 — the commonest setting, 928 rows ' +
+      'of the sheet — the whole request arrives once, the remainder is nought, and the sheet still ' +
+      'printed an offset for it. A stray number in a spare cell is harmless; a date under a column ' +
+      'headed "2nd delivery by" reads as a commitment. The quantity is left exactly as specified ' +
+      'and still reads 0, because that is a true remainder.',
+  },
+  {
+    id: 'plan-buffered',
+    page: 'Stock Article',
+    visual: 'Replenishment Planning — Total SOH, New WH Forecast, New ACC%',
+    label: 'Buffered view',
+    source: LOCAL,
+    expression: `Total SOH       = Warehouse SOH + Pending Qty + Outbound
+New WH Forecast = WH Forecast + SS Qty
+New ACC%        = Total SOH / New WH Forecast`,
+    detail:
+      'Everything the warehouse has had available across the range, against the requirement with ' +
+      'the buffer added. New ACC% is a COVERAGE RATIO, not an accuracy score: it can exceed 100%, ' +
+      'and it is not comparable with the ACC% or WH ACC% columns, which is why it sits in its own ' +
+      'column group. New WH Forecast is a test figure — the live warehouse forecast is unchanged ' +
+      'by it and by everything else in this table.',
   },
 ]
 

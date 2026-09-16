@@ -25,6 +25,7 @@ import {
   YAxis,
 } from 'recharts'
 import { api, fmtInt, fmtQty, fmtPct, fmtDate, downloadCsv } from '../api.js'
+import { averageScore, weightedScore } from '../scores.js'
 import { useData } from '../useData.js'
 import { DataTable } from '../components/DataTable.jsx'
 import {
@@ -487,8 +488,30 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       }
     }
 
+    /*
+     * The same two figures the Stock Article card reports, from the same
+     * helpers — changed 16 Sep 2026.
+     *
+     * This card used to compare the two totals: 1 - |sum forecast - sum
+     * outbound| / the larger. That reads high for a reason worth knowing, and
+     * it is not that the forecast is good: one article's over-forecast cancels
+     * another's under-forecast, so the measure improves as the errors become
+     * more evenly balanced. It read 94.8% on a page whose own band chart shows
+     * how much of the volume sits far from its forecast.
+     *
+     * The volume-weighted mean cannot cancel that way — each article's error
+     * counts, weighted by how much of it actually moved — and the average
+     * article underneath it answers the other honest question. `accuracy` is
+     * kept for anything that still wants the totals comparison.
+     */
+    const whAvg = averageScore(focused, 'WH_Accuracy')
+    const whVol = weightedScore(focused, 'WH_Accuracy', 'Consumed_Qty')
+
     return {
       forecast,
+      whMeasured: whAvg?.count ?? 0,
+      whOverall: whAvg?.value ?? null,
+      whOverallByVolume: whVol?.value ?? null,
       outbound,
       articles: focused.length,
       withOutbound,
@@ -591,11 +614,27 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         <MetricCard
           label="WH ACC%"
           calc="card-warehouse,wh-acc"
-          accent={kpi.accuracy === null ? 'slate' : kpi.accuracy >= 0.85 ? 'green' : 'amber'}
-          progress={kpi.accuracy ?? 0}
+          accent={
+            kpi.whOverallByVolume === null
+              ? 'slate'
+              : kpi.whOverallByVolume >= 0.9
+                ? 'green'
+                : 'amber'
+          }
+          progress={kpi.whOverallByVolume ?? 0}
           loading={busy}
-          value={kpi.accuracy === null ? '–' : fmtPct(kpi.accuracy, 1)}
-          foot={`Totals compared · ${fmtInt(kpi.scored)} scored`}
+          value={kpi.whOverallByVolume === null ? '–' : fmtPct(kpi.whOverallByVolume, 1)}
+          foot={
+            kpi.whOverall === null ? (
+              'Needs warehouse history to compare against'
+            ) : (
+              <>
+                Volume weighted · {fmtInt(kpi.whMeasured)} scored
+                <br />
+                Average article · {fmtPct(kpi.whOverall, 1)}
+              </>
+            )
+          }
         />
       </div>
 

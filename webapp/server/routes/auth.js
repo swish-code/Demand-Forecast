@@ -8,7 +8,7 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
-import { allowedPages, worksAtBrandLevel } from '../departments.js'
+import { allowedPages, worksAtBrandLevel, seesStockDetail } from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -62,6 +62,18 @@ async function sessionPayload(user) {
        * the server owns the rule and says yes or no.
        */
       fullDetail: user.role === 'admin' || worksAtBrandLevel(user.department),
+      /*
+       * Whether this account sees the warehouse stock columns and the
+       * Replenishment Planning table.
+       *
+       * Separate from `fullDetail` above and not a duplicate of it: that one
+       * says "this department works across every branch", which is true of
+       * Production and Bakery too. This one says "this department places the
+       * orders", which was asked for on 16 Sep 2026 for Warehouse and Supply
+       * Chain alone. Decided by the server for the same reason fullDetail is -
+       * one owner of the rule, and no department names to match on the client.
+       */
+      stockDetail: seesStockDetail(user),
     },
     brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })),
     scope: {

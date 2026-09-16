@@ -3,11 +3,13 @@ import { api, fmtInt, fmtQty, fmtPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
+import { averageScore, weightedScore } from '../scores.js'
 import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { ArticleUsage } from '../components/ArticleUsage.jsx'
 import { ArticleFinder } from '../components/ArticleFinder.jsx'
+import ReplenishmentPlanning from '../components/ReplenishmentPlanning.jsx'
 import { IconDownload } from '../components/Icons.jsx'
 
 /**
@@ -602,6 +604,7 @@ const COLUMNS = [
   {
     key: 'WH_Opening_SOH',
     label: 'WH opening',
+    hint: 'Warehouse stock on hand the day before the selected date range began.',
     autoWidth: true,
     num: true,
     group: 'whstock',
@@ -622,6 +625,7 @@ const COLUMNS = [
   {
     key: 'WH_Closing_SOH',
     label: 'WH closing',
+    hint: 'Warehouse stock on hand on the last day of the selected date range. Opening minus closing should be roughly what went out.',
     autoWidth: true,
     num: true,
     group: 'whstock',
@@ -669,7 +673,8 @@ const COLUMNS = [
    */
   {
     key: 'Open_PO_Qty',
-    label: 'Pending PO qty',
+    label: 'Pending PO',
+    hint: 'Units already ordered from suppliers but not yet received, after taking off anything part-delivered. Warehouse only, and it does not move with the date range.',
     autoWidth: true,
     num: true,
     group: 'whstock',
@@ -689,81 +694,35 @@ const COLUMNS = [
         </span>
       ),
   },
-  {
-    key: 'Open_PO_Value',
-    label: 'Pending PO value',
-    autoWidth: true,
-    num: true,
-    group: 'whstock',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v) =>
-      v === null || v === undefined ? (
-        <span
-          className="muted"
-          title="Nothing outstanding: the warehouse has no open purchase order for this article. A blank rather than a zero, so a column of noughts does not bury the articles that do have one."
-        >
-          –
-        </span>
-      ) : (
-        <span title="Value still outstanding on open purchase orders at the warehouse. A money figure, not units. It does not change with the date range - an open PO is the book as it stands - and it does not reconcile with the Inventory Control dashboard's headline pending-PO figure.">
-          {fmtQty(v)}
-        </span>
-      ),
-  },
+  /*
+   * Pending PO VALUE and NEW REQUIRED QTY were both removed on 16 Sep 2026.
+   *
+   * The value column was the only money figure among a run of unit columns, and
+   * the quantity beside it already answers the question the group is for. New
+   * required qty was explicitly a test of MAX(0, forecast - closing - pending):
+   * it worked arithmetically and was withdrawn because its inputs sit on
+   * different time bases - the order book runs about 5.7 months ahead of a
+   * one-month forecast, which drove 68.8% of articles to zero. The server still
+   * computes both; only the columns are gone, so either can come back by
+   * restoring a definition here.
+   */
 
   /*
-   * A TEST column, not a replacement for anything.
+   * SS DAYS, SS QTY, LEAD TIME and DELIVERY FREQ were removed from this table
+   * on 16 Sep 2026, the day after they were added.
    *
-   * Asked for on 15 Sep 2026 so the existing WH forecast can be compared
-   * against a net-requirement rule:
+   * Not because they were wrong, but because they were in the wrong table.
+   * Every one of them is a planning setting - how much buffer to hold, how long
+   * an order takes, how often it is delivered - and none of them says anything
+   * about what this article needed or what the warehouse issued, which is what
+   * Article Detail is for. They are inputs to a decision rather than a record
+   * of one.
    *
-   *   New required qty = MAX(0, WH forecast - WH closing SOH - pending PO qty)
-   *
-   * WH forecast, the accuracy figures and the cards are all untouched. Every
-   * input sits on the same row, so the arithmetic can be checked by eye.
-   *
-   * Two limits worth knowing, both measured when this was built.
-   *
-   * The warehouse is one pool serving every brand, while the forecast is only
-   * the brands selected - and the deduction is applied in full on every brand's
-   * row. Across August that overstated the stock taken off by x1.55, because
-   * 214 of 967 articles are forecast for more than one brand.
-   *
-   * The bigger one is a unit-of-time mismatch. Pending PO came to 74,518,364
-   * units against a whole month's forecast of 12,998,765 - the order book runs
-   * about 5.7 months ahead, because purchasing buys in bulk. Subtracting it
-   * from one month's requirement drives 68.8% of articles to zero. Staleness is
-   * NOT the cause: only 10.2% of the pending quantity is past its delivery
-   * date. The rule is arithmetically right and the inputs are on different
-   * time bases, which is the thing to decide about before adopting it.
+   * All four are still shown, and still used, in the Replenishment Planning
+   * table below, which is the decision they belong to. The server continues to
+   * stamp them on every row, so nothing was lost on the way here - see
+   * `withSafetyStock` in `server/routes/api.js`.
    */
-  {
-    key: 'New_Required_Qty',
-    label: 'New required qty',
-    autoWidth: true,
-    num: true,
-    group: 'whstock',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v, row) =>
-      v === null || v === undefined ? (
-        <span
-          className="muted"
-          title="No warehouse forecast for this article, so there is no requirement to net down. A blank rather than a zero: nothing forecast is not the same as nothing needed."
-        >
-          –
-        </span>
-      ) : (
-        <span
-          title={`MAX(0, ${fmtQty(row?.WH_Constant_Forecast_Qty)} forecast - ${fmtQty(
-            Math.max(0, Number(row?.WH_Closing_SOH) || 0)
-          )} closing stock - ${fmtQty(Math.max(0, Number(row?.Open_PO_Qty) || 0))} pending PO) = ${fmtQty(v)}. A test figure - the WH forecast beside it is unchanged.`}
-        >
-          {fmtQty(v)}
-        </span>
-      ),
-  },
 
   /*
    * What the shops are holding on the last day of the selected range.
@@ -783,17 +742,25 @@ const COLUMNS = [
   {
     key: 'Store_SOH',
     label: 'Store SOH',
+    hint: "Closing stock in the shops on the last day of the selected date range. This is the shops' own stock, not the warehouse's, and it is never used in any warehouse calculation.",
     autoWidth: true,
     num: true,
     /*
-     * No group, deliberately — removed 15 Sep 2026.
+     * Inside the Stock group, from 16 Sep 2026.
      *
-     * "Store inventory" is wider than the one column under it, so the heading
-     * was clipped to "STORE INVENT". A group heading earns its place when it
-     * spans several columns; over a single one it only costs width. The heading
-     * comes back with `STORE_COLUMNS_ON`, which is what puts Stock cover and
-     * SOH status beside this and gives it something to span.
+     * It was deliberately ungrouped the day before: its own "Store inventory"
+     * heading spanned one column and was clipped to "STORE INVENT", and a
+     * heading over a single column only costs width. Joining the warehouse
+     * columns under one heading called "Stock" solves that the other way - the
+     * heading now spans eight columns and earns its place, and the two stock
+     * readings a reader compares sit under the same title instead of one of them
+     * floating outside it.
+     *
+     * The group is a heading, not a claim that these figures are
+     * interchangeable. Store SOH is the shops' stock and cannot be issued by the
+     * warehouse; every tooltip in the group says which side it describes.
      */
+    group: 'whstock',
     total: 'sum',
     renderTotal: fmtQty,
     render: (v) =>
@@ -948,16 +915,17 @@ const COLUMN_ORDER = [
   // What the warehouse had at each end of the window, and how long it lasts.
   'WH_Opening_SOH',
   'WH_Closing_SOH',
-  // What has been bought and not yet arrived, then the test figure derived
-  // from it. Last of the block, because they look forward rather than
-  // reporting a balance.
+  // What has been bought and not yet arrived. After the balances, because it
+  // looks forward rather than reporting a balance.
   'Open_PO_Qty',
-  'Open_PO_Value',
-  'New_Required_Qty',
-  // What the shops hold, then what that implies should be sent. Read left to
-  // right the five blocks are: what was needed, what moved, what the warehouse
-  // had, what the shops have, what to do about it.
+  // What the shops hold, immediately after the warehouse's own readings so the
+  // two stock figures can be compared without looking away. Last of the Stock
+  // group: the four planning settings that used to follow it now live in the
+  // Replenishment Planning table, where they are acted on.
   'Store_SOH',
+  // What the shops' stock implies should be sent. Read left to right the four
+  // blocks are: what was needed, what moved, what is in stock and on order,
+  // what to do about it.
   'Stock_Cover',
   'SOH_Status',
   'Required_Shipment',
@@ -988,19 +956,17 @@ const COLUMN_ORDER = [
 const STORE_COLUMNS_ON = false
 
 /*
- * Warehouse stock, kept apart from the store block on purpose.
+ * The Stock group, kept apart from the store-replenishment block on purpose.
  *
  * Gated on the reader being an administrator, but NOT on STORE_COLUMNS_ON -
  * these come from the warehouse locations, whose data is sound, and they should
  * not disappear the next time the store figures have to be switched off.
+ *
+ * Store_SOH is NOT in this set even though it now sits in the same group: it
+ * keeps its own STORE_SOH_ON switch, because it is the one column here that the
+ * posting gap can affect. Sharing a heading is not sharing a gate.
  */
-const WH_STOCK_COLUMNS = new Set([
-  'WH_Opening_SOH',
-  'WH_Closing_SOH',
-  'Open_PO_Qty',
-  'Open_PO_Value',
-  'New_Required_Qty',
-])
+const WH_STOCK_COLUMNS = new Set(['WH_Opening_SOH', 'WH_Closing_SOH', 'Open_PO_Qty'])
 
 /*
  * Replenishment is off, asked for on 14 Sep 2026.
@@ -1137,89 +1103,6 @@ function BandChart({ label, bands, counts, active, total, onPick }) {
  * a recipe row?" by different means is how a card and a column start
  * disagreeing.
  */
-/**
- * The average article's score, one entry per article.
- *
- * Per article rather than per row: the requirement is split across every recipe
- * group that uses an article and the score is a property of the article, so
- * averaging rows would weight a component used by nine recipes nine times.
- *
- * Unweighted, which is the point — a 12-unit article counts the same as a
- * 600,000-unit one. That is a different question from comparing the totals, and
- * the answer is usually lower: totals let one article's over-forecast cancel
- * another's under-forecast, and this does not.
- *
- * A mean, with each article's contribution floored at zero.
- *
- * The score divides by what actually moved, so it has no lower bound: Pepsi
- * Cola Can, forecast at 40,345 against four units issued since that line
- * stopped in July, scores -1,008,417%. Twelve articles like it out of 1,085
- * pulled the mean of an otherwise healthy set to -1087%, which describes
- * nothing and contradicted the band chart directly below it.
- *
- * Zero is the floor because zero is what "completely wrong" is worth to an
- * average. Below it the figure stops grading the forecast and starts grading
- * how small the denominator happened to be — one article that moved four units
- * would outvote a thousand good ones for ever.
- *
- * The column keeps its true signed value: a single row has space for
- * -1,008,417%, and that figure is a finding about a discontinued product. It is
- * only the average across articles that cannot carry it.
- *
- * Used by the cards and by the column footers from one place, so the figure at
- * the top of the page and the one at the bottom of the table cannot drift.
- */
-const averageScore = (rows, key) => {
-  const seen = new Map()
-  for (const r of rows) {
-    const v = r[key]
-    if (v === null || v === undefined) continue
-    const article = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
-    if (!article || seen.has(article)) continue
-    seen.set(article, Number(v))
-  }
-  if (!seen.size) return null
-  let sum = 0
-  for (const v of seen.values()) sum += Math.max(0, v)
-  return { value: sum / seen.size, count: seen.size }
-}
-
-/**
- * The same average, weighted by how much of the article actually moved.
- *
- * Two numbers answering two different questions, which is why both are shown.
- * The plain average asks "how did the typical article do", and counts a
- * packaging item that ships forty units a quarter exactly as heavily as
- * sunflower oil. Weighted by volume it asks "how did the units we actually ship
- * do", which is the question an order is judged on.
- *
- * Measured over five backtested months the two read 56.7% and 81.6% on the same
- * forecast — a 25-point gap, all of it the long tail of tiny articles. Showing
- * one without the other invites a reader to draw the wrong conclusion from
- * whichever they happen to see.
- *
- * Deliberately the same rows and the same de-duplication as `averageScore`, so
- * the pair always covers exactly the same set of articles.
- */
-const weightedScore = (rows, key, weightKey) => {
-  const seen = new Map()
-  for (const r of rows) {
-    const v = r[key]
-    if (v === null || v === undefined) continue
-    const article = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
-    if (!article || seen.has(article)) continue
-    seen.set(article, { score: Math.max(0, Number(v)), weight: Math.max(0, Number(r[weightKey]) || 0) })
-  }
-  let sum = 0
-  let total = 0
-  for (const { score, weight } of seen.values()) {
-    sum += score * weight
-    total += weight
-  }
-  // No volume at all is not a zero-accuracy answer, it is no answer.
-  return total > 0 ? { value: sum / total, weight: total } : null
-}
-
 /*
  * What each column means, for the person reading the number rather than the
  * one who wrote it.
@@ -1246,27 +1129,26 @@ const HELP = {
         'Kids Fries Sleeves read 5,000 on 13 Sep - down 2,500, which is exactly what Outbound says went out.',
     },
     {
-      term: 'Pending PO qty',
+      term: 'Pending PO',
       text: 'Units ordered from suppliers and not yet received.',
       formula:
         "Sum of 'CC Open PO Core'[Open PO Base Qty] minus 'CC PO Receipt Core'[Received Base Qty], joined on PO Article Location Key, warehouse locations only.",
       example:
-        'The model column is the GROSS order, so receipts are taken off here - otherwise a delivered quantity would count twice, once as still on order and again as stock on hand.',
+        'The model column is the GROSS order, so receipts are taken off here - otherwise a delivered quantity would count twice, once as still on order and again as stock on hand. It does not move with the date range: an open PO has no "as at" date.',
     },
     {
-      term: 'New required qty',
-      text: 'A TEST figure: what would still need supplying after stock and orders already in hand.',
-      formula: 'MAX(0, WH forecast - WH closing SOH - Pending PO qty)',
-      example:
-        'Forecast 1,000, stock 300, pending 200 gives 500. Forecast 1,000, stock 700, pending 500 gives 0 rather than -200. WH forecast beside it is unchanged - this column is for comparison only. It reads high with a brand filter on, because the warehouse pool serves every brand.',
-    },
-    {
-      term: 'Pending PO value',
-      text: 'The value still outstanding on open purchase orders at the warehouse - bought, not yet arrived.',
+      term: 'Store SOH',
+      text: "What the shops of the brands on screen are holding, added together. The shops' stock, not the warehouse's.",
       formula:
-        "Sum of 'CC Open PO Core'[Open PO Value] for this article, warehouse locations only.",
+        'Closing stock qty in the inventory model, shop locations only, on the LAST day of the selected range.',
       example:
-        'Blank means nothing is on order. Two warnings: it does not move with the date range, because an open PO has no "as at" date; and it does not tie to the Inventory Control dashboard total, which is a company-wide card figure that cannot be split by article.',
+        'Never used in any warehouse figure in this group - the warehouse cannot issue stock that is already sitting in a shop. A dash means the model has no reading, which is not the same as none in stock. It can read negative where consumption was posted against stock the system had already run out of.',
+    },
+    {
+      term: 'Safety stock, lead time, delivery frequency',
+      text: 'Moved out of this table on 16 Sep 2026 - they are planning settings rather than a record of what happened.',
+      example:
+        'All four are in the Replenishment Planning table below, where they are acted on: SS days and SS qty, Lead time and Delivery freq.',
     },
   ],
   fcst: [
@@ -1374,7 +1256,27 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
 
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
-export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded, onDrill, isAdmin, fullDetail }) {
+export function ComponentLevel({
+  filters,
+  options,
+  ready,
+  refreshNonce,
+  onLoaded,
+  onDrill,
+  isAdmin,
+  fullDetail,
+  /*
+   * Who may see the Stock group and the Replenishment Planning table.
+   *
+   * Administrators, Warehouse and Supply Chain - decided by the server and
+   * sent with the session, so this never matches on a department name. It
+   * replaced `isAdmin` on these gates on 16 Sep 2026: the two departments
+   * that place the orders are already granted this page, and gating the
+   * figures they order from on `admin` meant they could open it and not see
+   * them. `isAdmin` still guards everything that is genuinely administrative.
+   */
+  stockDetail,
+}) {
   /*
    * Which extra dimensions the reader has switched on.
    *
@@ -1710,14 +1612,29 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       const key = visibleDims.map((k) => String(r[k] ?? '')).join('')
       const held = out.get(key)
       if (!held) {
-        out.set(key, { ...r, __articles: new Set([String(r['Item No.'] ?? '').trim()]) })
+        // `__n` counts how many rows went into this one. Whether the fold
+        // combined anything is what decides if the derived columns below have
+        // to be worked out again — see the note there.
+        out.set(key, { ...r, __n: 1, __articles: new Set([String(r['Item No.'] ?? '').trim()]) })
         continue
       }
+      held.__n += 1
       held.Component_Forecast_Qty = add(held.Component_Forecast_Qty, r.Component_Forecast_Qty)
       held.Component_Actual_Qty = add(held.Component_Actual_Qty, r.Component_Actual_Qty)
       held.Consumed_Qty = add(held.Consumed_Qty, r.Consumed_Qty)
       held.Live_Outbound_MTD = add(held.Live_Outbound_MTD, r.Live_Outbound_MTD)
       held.WH_Constant_Forecast_Qty = add(held.WH_Constant_Forecast_Qty, r.WH_Constant_Forecast_Qty)
+      /*
+       * Safety stock quantity sums, unlike the policy beside it.
+       *
+       * It is stamped once per article, on the row carrying that article's
+       * warehouse figures, so folding an article's recipe rows together adds
+       * nothing to it. Across several articles it adds up to the buffer the
+       * group as a whole is meant to hold, which is the figure the row now
+       * describes. It is not re-derived from the summed forecast below because
+       * the merged articles need not share a policy.
+       */
+      held.Safety_Stock_Qty = add(held.Safety_Stock_Qty, r.Safety_Stock_Qty)
       held.__articles.add(String(r['Item No.'] ?? '').trim())
       // Measured anywhere in the group means measured, so one unmatched article
       // does not blank a row that has a real figure in it.
@@ -1725,9 +1642,42 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
     }
 
     return [...out.values()].map((r) => {
-      const articles = [...r.__articles].filter(Boolean)
+      /*
+       * A policy belongs to one article, so it is withheld once a row stops
+       * being one article.
+       *
+       * Safety stock policy, lead time and delivery frequency are per-article
+       * settings, not quantities: they cannot be added and there is no sense in
+       * which a group of articles has "a" lead time. Showing whichever one the
+       * fold happened to keep would read as the group's own.
+       */
+      const oneArticle = r.__articles.size <= 1
       delete r.__articles
-      if (articles.length <= 1) return r
+      const folded = r.__n > 1
+      delete r.__n
+      if (!oneArticle) {
+        r.Safety_Stock_Days = null
+        r.Lead_Time_Days = null
+        r.Delivery_Freq = null
+      }
+
+      /*
+       * Re-derive whenever rows were actually combined.
+       *
+       * This used to test whether the fold spanned more than one ARTICLE, and
+       * that missed the commonest case on this page. An article's warehouse
+       * figures arrive on their own row - "No recipe - from outbound" - beside
+       * its recipe rows, all under the same article number. Folding those sums
+       * the quantities onto one line but the article count stays at one, so the
+       * early return fired and every derived column kept the first row's value.
+       *
+       * Eggs was the case that showed it: article 102100003, whose warehouse
+       * side sits almost entirely in the catch-all bucket. The folded row
+       * showed WH forecast and Outbound correctly and then a dash for WH ACC%,
+       * Forecast variance and Actual variance, because the row it copied them
+       * from was the recipe row, where all three are null by design.
+       */
+      if (!folded) return r
 
       const c = r.Consumed_Qty
       const known = c !== null && c !== undefined
@@ -1765,6 +1715,29 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             : 1 -
               Math.abs(Number(r.Component_Actual_Qty) - Number(r.Component_Forecast_Qty)) /
                 Number(r.Component_Actual_Qty),
+        /*
+         * The two variances, on the folded row's own totals.
+         *
+         * They were missing from this list entirely - added 16 Sep 2026 - so a
+         * folded row carried whichever value the first row happened to hold.
+         * Worked out here exactly as they are per article: both sides have to be
+         * present, and a missing side leaves the cell blank rather than reading
+         * as a variance equal to the side that is there.
+         */
+        Forecast_Variance:
+          r.Component_Forecast_Qty === null ||
+          r.Component_Forecast_Qty === undefined ||
+          r.WH_Constant_Forecast_Qty === null ||
+          r.WH_Constant_Forecast_Qty === undefined
+            ? null
+            : Number(r.Component_Forecast_Qty) - Number(r.WH_Constant_Forecast_Qty),
+        Actual_Variance:
+          r.Component_Actual_Qty === null ||
+          r.Component_Actual_Qty === undefined ||
+          r.Consumed_Qty === null ||
+          r.Consumed_Qty === undefined
+            ? null
+            : Number(r.Component_Actual_Qty) - Number(r.Consumed_Qty),
       }
     })
   }, [priced, visibleDims])
@@ -1929,6 +1902,32 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
       return Boolean(n) && shownKeys.has(n)
     })
   }, [priced, shownKeys])
+
+  /*
+   * Distinct articles, not rows — corrected 16 Sep 2026.
+   *
+   * The card is labelled "Articles" and was counting `focused.length`, which is
+   * rows: one per brand per recipe group per unit, so an article used by three
+   * recipes counted three times. It read 1,834 while the CSV beside it held
+   * 1,187, and both were right about different things — the card counted rows
+   * before the table folds them, the download exports them after.
+   *
+   * Counting articles makes the label true and makes the figure stable: it no
+   * longer moves when somebody hides Recipe Group in Build view and the rows
+   * collapse underneath it.
+   *
+   * Keyed the same way the per-article roll-up is — article number, falling
+   * back to the name for kitchen steps, which have no number and are still one
+   * thing each.
+   */
+  const articleCount = useMemo(() => {
+    const seen = new Set()
+    for (const r of focused) {
+      const k = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
+      if (k) seen.add(k)
+    }
+    return seen.size
+  }, [focused])
 
   const top = useMemo(
     () => [...focused].sort((a, b) => b.Component_Forecast_Qty - a.Component_Forecast_Qty)[0],
@@ -2240,12 +2239,12 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
      * the control itself — without it a reader would get five permanently empty
      * columns and two group headings over nothing.
      */
-    if (!STORE_COLUMNS_ON || !isAdmin) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
-    if (!STORE_SOH_ON || !isAdmin) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
-    if (!isAdmin) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
+    if (!STORE_COLUMNS_ON || !stockDetail) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
+    if (!STORE_SOH_ON || !stockDetail) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
+    if (!stockDetail) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
     if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
     return list
-  }, [future, isAdmin])
+  }, [future, stockDetail])
 
   /*
    * What the CSV holds.
@@ -2409,7 +2408,7 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
           accent="slate"
           progress={0.72}
           loading={busy}
-          value={fmtInt(focused.length)}
+          value={fmtInt(articleCount)}
           foot={`${fmtInt(groups)} recipe group${groups === 1 ? '' : 's'}`}
         />
         <MetricCard
@@ -2493,11 +2492,42 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
             onRowClick={(row) => setUsage(row)}
+            /*
+              * The table scrolls inside itself, from 16 Sep 2026.
+              *
+              * It used to grow to whatever its page of rows needed. At the
+              * default fifty rows that is about 1,800px of table, and every one
+              * of those pixels sat between this table and the Replenishment
+              * Planning table below it - so reaching the second table meant
+              * scrolling the whole of the first, past rows nobody was reading.
+              *
+              * Capped instead, with its own scrollbar. Nothing about the table
+              * changes: same rows, same page size, same sort, search, grouping
+              * and totals, and the header stays stuck to the top of its own
+              * scroll area so the columns are still labelled wherever you are
+              * in it. 620px is roughly seventeen rows, which is enough to read
+              * a band of articles without the page itself moving.
+              *
+              * `fill` is what has to go rather than be tuned: it makes the
+              * table a flex item that grows to its content, and `maxHeight`
+              * is only honoured when it is off.
+              */
+            maxHeight={620}
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
-              ...(isAdmin ? { whstock: { label: 'Warehouse stock', help: HELP.whstock } } : {}),
-              ...(STORE_COLUMNS_ON && isAdmin
+              /*
+                * "Stock", renamed 16 Sep 2026.
+                *
+                * It was "Warehouse stock" while every column under it was the
+                * warehouse's. Store SOH now sits in the same run, so the
+                * heading has to cover both sides - and each column's own
+                * tooltip says which side it describes, which is where that
+                * distinction belongs rather than in a heading nobody can fit
+                * it into.
+                */
+              ...(stockDetail ? { whstock: { label: 'Stock', help: HELP.whstock } } : {}),
+              ...(STORE_COLUMNS_ON && stockDetail
                 ? {
                     stock: { label: 'Store inventory', help: HELP.stock },
                     ...(REPL_COLUMNS_ON
@@ -2506,10 +2536,25 @@ export function ComponentLevel({ filters, options, ready, refreshNonce, onLoaded
                   }
                 : {}),
             }}
-            fill
           />
         )}
       </Panel>
+      {/*
+        * Replenishment Planning, directly below Article Detail.
+        *
+        * Asked for on 16 Sep 2026 as a SEPARATE table, not as more columns on
+        * Article Detail: it is one row per article rather than per recipe line,
+        * and it answers a different question - what to order and when, rather
+        * than what was needed and what moved. It is fed the same rows, so the
+        * two tables cannot disagree about a forecast.
+        *
+        * Admin only, on the same footing as the warehouse stock columns it
+        * builds on, and withheld on a future window because a plan made from a
+        * forecast the engine had to extrapolate would read as firmer than it is.
+        */}
+      {stockDetail && !future && (
+        <ReplenishmentPlanning rows={priced} filters={filters} busy={busy} />
+      )}
       {/*
         * One card per unit, three of them, none of them scrolling.
         *

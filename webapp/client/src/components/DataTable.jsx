@@ -806,6 +806,17 @@ export function DataTable({
                       key={c.key}
                       scope="col"
                       className={`${c.num ? 'num th--num' : ''} ${groupClass(c)}`.trim()}
+                      /*
+                       * A column can explain itself on hover.
+                       *
+                       * Asked for on 16 Sep 2026. Shortening a header to "SS
+                       * qty" or "DTL" only works if the long version is still
+                       * reachable, and the header is where a reader looks for
+                       * it - the cell tooltips underneath explain one value,
+                       * not what the column is. Optional, so every existing
+                       * table is unaffected.
+                       */
+                      title={c.hint || undefined}
                       onClick={() => toggle(c.key)}
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                     >

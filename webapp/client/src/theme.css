@@ -4784,6 +4784,64 @@ table.dt td.dt--repl {
   background: color-mix(in srgb, #8b5cf6 3.5%, var(--surface));
 }
 
+/* Stock, asked for on 16 Sep 2026 to stand out from the groups either side.
+
+   Red, and a little stronger than the 3.5% the others use. Two reasons it
+   cannot simply join them at the same faintness: the group to its left is
+   orange, and red at 3.5% against orange at 3.5% is not a distinction anybody
+   would notice; and this is the one group the request asked to be visually
+   distinct rather than merely grouped. 6% is still light enough to read
+   tabular numbers over in both themes — it is mixed against --surface, so it
+   follows the theme rather than being a fixed pink. */
+table.dt th.dt--whstock,
+table.dt td.dt--whstock {
+  background: color-mix(in srgb, #dc2626 6%, var(--surface));
+}
+
+/* --- Replenishment Planning ------------------------------------------------
+
+   Asked for on 16 Sep 2026: the same treatment Article Detail has, so the five
+   blocks of that table read as five. Same mechanism, same 3.5% faintness, same
+   color-mix against --surface so they follow the theme rather than being fixed
+   pastels.
+
+   The hues are ordered so no two touching blocks sit near each other on the
+   wheel — orange, then sky, then green, then violet, then rose. Rose is last
+   precisely because it would be hard to tell from the orange at the other end.
+
+   The identity block (planid) is deliberately left untinted. Article Detail
+   does the same with its own Item / BU / Item No. columns: the columns you read
+   ACROSS are the spine of the table, and tinting them too would leave nothing
+   plain to measure the tinted blocks against. Its group heading still renders.
+
+   Prefixed `plan` rather than reusing `need`/`stock`/`order`: the class is
+   `dt--<group key>` and it is global, so a bare `stock` here picked up the
+   Store-inventory blue from Article Detail by accident. */
+table.dt th.dt--planneed,
+table.dt td.dt--planneed {
+  background: color-mix(in srgb, #f97316 3.5%, var(--surface));
+}
+
+table.dt th.dt--planstock,
+table.dt td.dt--planstock {
+  background: color-mix(in srgb, #0ea5e9 3.5%, var(--surface));
+}
+
+table.dt th.dt--planorder,
+table.dt td.dt--planorder {
+  background: color-mix(in srgb, #16a34a 3.5%, var(--surface));
+}
+
+table.dt th.dt--plansplit,
+table.dt td.dt--plansplit {
+  background: color-mix(in srgb, #8b5cf6 3.5%, var(--surface));
+}
+
+table.dt th.dt--planbuffered,
+table.dt td.dt--planbuffered {
+  background: color-mix(in srgb, #e11d48 3.5%, var(--surface));
+}
+
 /* The row naming the groups, above the one naming the columns.
    Its cells carry the same tint, so the title and its columns read as one
    block from the top of the table down. */
@@ -4849,7 +4907,13 @@ table.dt td.dt--gend {
 table.dt tbody tr:hover td.dt--fcst,
 table.dt tbody tr:hover td.dt--wh,
 table.dt tbody tr:hover td.dt--stock,
-table.dt tbody tr:hover td.dt--repl {
+table.dt tbody tr:hover td.dt--repl,
+table.dt tbody tr:hover td.dt--whstock,
+table.dt tbody tr:hover td.dt--planneed,
+table.dt tbody tr:hover td.dt--planstock,
+table.dt tbody tr:hover td.dt--planorder,
+table.dt tbody tr:hover td.dt--plansplit,
+table.dt tbody tr:hover td.dt--planbuffered {
   background: var(--sunken);
 }
 

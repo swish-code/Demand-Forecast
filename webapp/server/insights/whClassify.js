@@ -130,6 +130,33 @@ const daysBetween = (from, to) =>
   Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY)
 
 /**
+ * The date a status may be measured to, which can never be in the future.
+ *
+ * Fixed on 16 Sep 2026. The status is measured from the last shipment to the
+ * end of the selected window, and nothing stopped that end being a date which
+ * has not happened - so selecting a range that ran into November counted idle
+ * days nobody had lived through yet.
+ *
+ * Article 100400109 is the case that found it. It last shipped on 2 Sep 2026,
+ * which is 14 days idle as things stand. Selecting a window ending 2 Nov made
+ * it 61 days idle and relabelled it Slow-Moving, and with the Status slicer set
+ * to Active the row vanished from the table altogether. The article had not
+ * changed; the question had been asked about a future that has not occurred.
+ *
+ * `lastActual` is the latest date with real sales in it - MAX of
+ * Forecast_Product_Table[Date] where Actual_Qty > 0, recorded by the extract as
+ * `cube_coverage.cal_last_actual`. Idle days can only be counted up to there.
+ *
+ * Returns `selected` untouched when it is on or before that date, which is
+ * every historical window, and when no last-actual date is known at all.
+ */
+export function clampAsAt(selected, lastActual) {
+  if (!selected) return null
+  if (!lastActual) return selected
+  return selected > lastActual ? lastActual : selected
+}
+
+/**
  * One article's status from its shipping record.
  *
  * Split out from the query so it can be reasoned about, and tested, without a

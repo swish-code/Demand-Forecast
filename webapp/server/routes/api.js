@@ -15,7 +15,7 @@ import { cached, clearCache } from '../cache.js'
 import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings, missingWarehouse } from '../config.js'
-import { allowedPages } from '../departments.js'
+import { allowedPages, seesStockDetail } from '../departments.js'
 import * as cube from '../cube/query.js'
 import {
   consumptionByArticle,
@@ -27,10 +27,14 @@ import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
-import { classifyArticles, classifyOne, statusOf } from '../insights/whClassify.js'
+import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
-import { storeStock, stockColumnsFor } from '../insights/storeStock.js'
+import { storeStock, stockColumnsFor, warehouseStockNow } from '../insights/storeStock.js'
 import { openPoByArticle } from '../insights/openPo.js'
+import {
+  safetyStockByArticle,
+  safetyStockQty,
+} from '../insights/replanPlanning.js'
 import { salesRunRate } from '../insights/salesRunRate.js'
 import {
   allowedBrands,
@@ -1026,7 +1030,21 @@ const RECIPE_KIND = (r) =>
  * used: looking at March must show what was true in March.
  */
 async function withStatus(rows, filters) {
-  const asAt = filters?.dateTo || new Date().toISOString().slice(0, 10)
+  /*
+   * Measured to the end of the window, but never past the last real day.
+   *
+   * `filters.dateTo` was used as it came, so a window ending in the future
+   * counted idle days that had not happened - see `clampAsAt` for the article
+   * that found it. A window ending on or before the last actual date is
+   * unchanged by the clamp, which is every historical range; only a forward
+   * window moves, and it moves to the last day there is evidence for.
+   *
+   * With no date filter at all the previous expression stands untouched, rather
+   * than being clamped a day back to the last actual - that path was not the
+   * defect and nothing is gained by disturbing it.
+   */
+  const selected = filters?.dateTo ? String(filters.dateTo).slice(0, 10) : null
+  const asAt = clampAsAt(selected, cube.lastActualDate()) ?? new Date().toISOString().slice(0, 10)
   const classes = await classifyArticles({ asAt }).catch(() => new Map())
 
   const labelled = rows.map((r) => {
@@ -1135,6 +1153,15 @@ const REPL_COLUMNS_ON = process.env.WH_REPL_COLUMNS === '1'
  * separately from both of them.
  */
 const OPEN_PO_COLUMN_ON = process.env.WH_OPEN_PO !== '0'
+
+/*
+ * Safety stock, on its own switch. WH_SAFETY_STOCK=0 withholds it.
+ *
+ * Two columns from one source: the policy as the planning sheet writes it, and
+ * the quantity that policy implies at the window's own rate. See
+ * `insights/replanPlanning.js` for why it is not one column.
+ */
+const SAFETY_STOCK_ON = process.env.WH_SAFETY_STOCK !== '0'
 const REPLENISHMENT_FIELDS = ['Required_Shipment', 'Shipment_Status']
 
 /*
@@ -1150,6 +1177,92 @@ const REPLENISHMENT_FIELDS = ['Required_Shipment', 'Shipment_Status']
  * they could not already see: admin only, and silent under the grains that make
  * a warehouse-wide figure meaningless on a row.
  */
+/*
+ * Planning policy per article: safety stock, lead time, delivery frequency.
+ *
+ * Asked for on 16 Sep 2026. Keyed on the article number, one row per article in
+ * the source, so this is a lookup rather than an aggregation. All three come
+ * from one row of one sheet, so they are stamped in one pass.
+ *
+ * The quantity needs the window's length, which is why this takes `filters`
+ * where the open-PO stamp beside it does not: a policy of 15 days is a
+ * different number of units over a week than over a quarter.
+ */
+async function withSafetyStock(rows, filters, grain, admin) {
+  if (!SAFETY_STOCK_ON || !admin) return rows
+  if (grain.date || grain.location) return rows
+
+  /*
+   * Two lookups, both window-independent, fetched together.
+   *
+   * `warehouseStockNow` is the warehouse balance as the feed last knew it, and
+   * it is here rather than beside the opening and closing columns because it
+   * answers a different question - see the note on the function itself. The
+   * planning table below Article Detail needs it for DTL; nothing already on
+   * the page can stand in for it.
+   */
+  const [held, now] = await Promise.all([
+    safetyStockByArticle().catch((err) => {
+      console.warn(`  [safety-stock] ${err.message.slice(0, 90)}`)
+      return null
+    }),
+    warehouseStockNow().catch((err) => {
+      console.warn(`  [wh-stock-now] ${err.message.slice(0, 90)}`)
+      return null
+    }),
+  ])
+  if (!held) return rows
+
+  const windowDays =
+    filters?.dateFrom && filters?.dateTo
+      ? Math.max(
+          1,
+          Math.round(
+            (Date.parse(`${filters.dateTo}T00:00:00Z`) - Date.parse(`${filters.dateFrom}T00:00:00Z`)) /
+              86_400_000
+          ) + 1
+        )
+      : null
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    /*
+     * On the row carrying the warehouse figures, and only that one - the same
+     * rule the stock and open-PO stamps follow. A per-article policy repeated
+     * on every recipe line would be counted once per recipe by any total.
+     */
+    const carries =
+      (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
+      (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
+    if (!article || !carries) return r
+
+    /*
+     * The current warehouse balance is stamped even for an article with no
+     * planning row, because DTL can be answered without a policy - stock and a
+     * forecast are enough - and a blank there would read as "no stock".
+     */
+    const nowSoh = now?.soh?.has(article) ? now.soh.get(article) : null
+    const stock =
+      nowSoh === null ? null : { WH_SOH_Now: nowSoh, WH_SOH_As_Of: now.asOf ?? null }
+
+    const policy = held.get(article)
+    if (!policy) return stock ? { ...r, ...stock } : r
+    return {
+      ...r,
+      ...stock,
+      // All three as written in the sheet: "15", "NoNeed", "OnDemand", "3".
+      Safety_Stock_Days: policy.ss.text,
+      Safety_Stock_Qty: safetyStockQty(policy.ss.days, r.WH_Constant_Forecast_Qty, windowDays),
+      Lead_Time_Days: policy.lead.text,
+      Delivery_Freq: policy.freq.text,
+      // Descriptive columns for the planning table, from the same sheet row.
+      Supplier_Name: policy.supplier,
+      Purchase_Unit: policy.purchaseUnit,
+      Base_Unit: policy.baseUnit,
+    }
+  })
+}
+
 async function withOpenPo(rows, grain, admin) {
   if (!OPEN_PO_COLUMN_ON || !admin) return rows
   if (grain.date || grain.location) return rows
@@ -1589,7 +1702,18 @@ api.all('/article-usage', handle(async (req, res) => {
       for (const r of rows) {
         const plu = String(r.Clean_ItemID ?? '').trim()
         if (!plu) continue
-        held.set(plu, (held.get(plu) ?? 0) + (Number(r.Forecast_Qty) || 0))
+        /*
+         * Forecast and actual together, from one set of rows.
+         *
+         * `productLevel` already returns both - asked for on 16 Sep 2026, and
+         * the actual side was simply not being read. No extra query, no second
+         * source, and the two figures cannot disagree about scope because they
+         * come off the same row.
+         */
+        const seen = held.get(plu) ?? { forecast: 0, actual: 0 }
+        seen.forecast += Number(r.Forecast_Qty) || 0
+        seen.actual += Number(r.Actual_Qty) || 0
+        held.set(plu, seen)
       }
       forecastByDataset.set(p.ds, held)
     })
@@ -1666,7 +1790,7 @@ SUMMARIZECOLUMNS(
     const qty = Number(r.Qty_Per_Unit) || 0
     if (!held) {
       const plu = String(r['Product PLU'] ?? '').trim()
-      const forecast = forecastByDataset.get(r.__ds)?.get(plu)
+      const sold = forecastByDataset.get(r.__ds)?.get(plu)
       out.set(key, {
         CHAINID: r.CHAINID,
         Product: r['Product Name'] ?? '',
@@ -1681,7 +1805,15 @@ SUMMARIZECOLUMNS(
          * property of the menu item, so adding it once per path would multiply
          * the product's sales by the number of ways it reaches the article.
          */
-        Item_Forecast_Qty: forecast === undefined ? null : forecast,
+        Item_Forecast_Qty: sold === undefined ? null : sold.forecast,
+        /*
+         * What the menu item actually sold, set once for the same reason.
+         *
+         * Zero is a real answer here and must not become a blank: a menu item
+         * forecast to sell and then selling none is exactly the case a reader
+         * is looking for. Only "no figure available at all" is null.
+         */
+        Item_Actual_Qty: sold === undefined ? null : sold.actual,
         Paths: r['Recipe Path'] ? [r['Recipe Path']] : [],
       })
       continue
@@ -1707,6 +1839,17 @@ SUMMARIZECOLUMNS(
         r.Item_Forecast_Qty === null || r.Item_Forecast_Qty === undefined
           ? null
           : r.Qty_Per_Unit * r.Item_Forecast_Qty,
+      /*
+       * The same multiplication on the measured side.
+       *
+       * Added 16 Sep 2026. Summed over the rows it should land on the article's
+       * Actual qty in the table behind this panel, exactly as the forecast pair
+       * lands on Forecast qty - which is what makes both checkable by eye.
+       */
+      Article_Actual_Qty:
+        r.Item_Actual_Qty === null || r.Item_Actual_Qty === undefined
+          ? null
+          : r.Qty_Per_Unit * r.Item_Actual_Qty,
     }))
     // Largest requirement first, since that is the question the panel answers.
     // Rows with no forecast sort last rather than to the top as a zero.
@@ -1927,22 +2070,27 @@ api.all('/component-level', handle(async (req, res) => {
     return res.json({
       sales,
       rows: withRecipeKind(
-        await withOpenPo(
-          await withStoreStock(
-            await withStatus(
-              await withSupply(
-                await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+        await withSafetyStock(
+          await withOpenPo(
+            await withStoreStock(
+              await withStatus(
+                await withSupply(
+                  await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
+                  window
+                ),
                 window
               ),
-              window
+              window,
+              buckets,
+              grain,
+              seesStockDetail(req.user)
             ),
-            window,
-            buckets,
             grain,
-            req.user?.role === 'admin'
+            seesStockDetail(req.user)
           ),
+          window,
           grain,
-          req.user?.role === 'admin'
+          seesStockDetail(req.user)
         ),
         window
       ),
@@ -1953,28 +2101,33 @@ api.all('/component-level', handle(async (req, res) => {
   res.json({
     sales,
     rows: withRecipeKind(
-      await withOpenPo(
-        await withStoreStock(
-          await withStatus(
-            await withSupply(
-              await addWarehouseWide(
-                // Split by brand, the brands are the answer, so they are not added up.
-                grain.brand ? results.flat() : merged(results),
-                window,
-                grain,
-                mtdAll?.get(OTHER_BUCKET)
+      await withSafetyStock(
+        await withOpenPo(
+          await withStoreStock(
+            await withStatus(
+              await withSupply(
+                await addWarehouseWide(
+                  // Split by brand, the brands are the answer, so they are not added up.
+                  grain.brand ? results.flat() : merged(results),
+                  window,
+                  grain,
+                  mtdAll?.get(OTHER_BUCKET)
+                ),
+                window
               ),
               window
             ),
-            window
+            window,
+            buckets,
+            grain,
+            seesStockDetail(req.user)
           ),
-          window,
-          buckets,
           grain,
-          req.user?.role === 'admin'
+          seesStockDetail(req.user)
         ),
+        window,
         grain,
-        req.user?.role === 'admin'
+        seesStockDetail(req.user)
       ),
       window
     ),

@@ -26,6 +26,10 @@ import { Pill } from './ui.jsx'
 
 const TONE = {
   'Power BI measure': 'blue',
+  // A typed column in a model rather than a measure evaluated in it — the
+  // planning sheet's settings. Blue like the measure above, because it comes
+  // from the same place; the words are what distinguish them.
+  'Read from a Power BI table': 'blue',
   'Calculated by this app': 'green',
   'Read from the local copy': 'slate',
 }

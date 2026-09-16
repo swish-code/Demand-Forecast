@@ -151,6 +151,41 @@ const BRAND_LEVEL = new Set(BRAND_LEVEL_DEPARTMENTS.map(norm))
 /** Does this department work across every branch of the brands it holds? */
 export const worksAtBrandLevel = (department) => BRAND_LEVEL.has(norm(department))
 
+/**
+ * Departments that see the Stock Article page in full, including the
+ * Replenishment Planning table.
+ *
+ * Asked for on 16 Sep 2026. The warehouse stock columns and the planning table
+ * were gated on `role === 'admin'`, which was the safe default for a new
+ * feature and the wrong rule for this one: the two departments that place the
+ * orders could open the page and not see the figures they place them from.
+ * `DEPARTMENT_PAGES` above already grants both of them this page - it said they
+ * belong here and then the columns said otherwise.
+ *
+ * NOT the same list as BRAND_LEVEL_DEPARTMENTS, deliberately. That list answers
+ * "does this department's work span every branch", and Production and Bakery
+ * belong to it because they produce for every branch. This list answers "should
+ * this department see supplier names, pending purchase orders and order
+ * deadlines", and only the two named were asked for. Widening it is a decision
+ * for somebody who can say yes - the same rule the brand-level list states
+ * about itself.
+ */
+export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Supply Chain']
+
+const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
+
+/**
+ * May this account see the stock and planning columns?
+ *
+ * Takes the whole user rather than the department, because the answer is "admin
+ * OR one of those departments" and both halves belong in one place. The server
+ * enforces it on the data and the client asks the same function's answer
+ * through the session, so the columns and the figures behind them can never
+ * disagree about who is allowed them.
+ */
+export const seesStockDetail = (user) =>
+  user?.role === 'admin' || STOCK_DETAIL.has(norm(user?.department))
+
 const PAGES_BY_NAME = byNormalisedName(DEPARTMENT_PAGES)
 
 /** The pages this department may see by default, or null for all of them. */

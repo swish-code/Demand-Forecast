@@ -225,6 +225,62 @@ SUMMARIZECOLUMNS(
 }
 
 /**
+ * The warehouse's stock as it stands now, with the day it was read.
+ *
+ * Separate from `warehouseStock` above, which reads the SELECTED window and is
+ * the right source for the opening and closing columns. Replenishment planning
+ * asks a different question - "when do I run out from where I am today" - and
+ * for that the window's closing balance is the wrong number twice over: on a
+ * window that has not finished there is no closing balance at all, and on a
+ * window in the past it answers with a balance that has since been overtaken.
+ * Asked for on 16 Sep 2026, and the as-of date travels with the figure so the
+ * table can say which day it is planning from rather than implying "now".
+ *
+ * The date is not passed in: it is whatever the feed's last day is, taken from
+ * the model in the same round trip as the balances. Hard-coding today's date
+ * would return an empty map every time the overnight load was late.
+ */
+export async function warehouseStockNow() {
+  if (!isConfigured()) return null
+
+  const map = await destinationBuckets()
+  if (!map?.size) return null
+  const locations = []
+  for (const [location, bucket] of map) if (bucket === SUPPLY_SOURCE) locations.push(location)
+  if (!locations.length) return null
+
+  /*
+   * Cached on nothing but itself. There is no window in the question, so every
+   * caller wants the same answer, and it changes once a day at most.
+   */
+  return cached('warehouse-stock-now', async () => {
+    const rows = await executeQuery(
+      `EVALUATE
+VAR AsOf = MAXX(ALL(cc_daily_inventory), cc_daily_inventory[Movement Date])
+RETURN
+SUMMARIZECOLUMNS(
+  cc_daily_inventory[Article No.],
+  FILTER(ALL(cc_daily_inventory[Movement Date]), cc_daily_inventory[Movement Date] = AsOf),
+  FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {${literal(locations)}}),
+  "SOH", SUM(cc_daily_inventory[Closing Stock Qty]),
+  "AsOf", AsOf)`,
+      config.inventory.datasetId,
+      { bulk: true, workspace: config.inventory.workspaceId }
+    )
+
+    const soh = new Map()
+    let asOf = null
+    for (const r of rows) {
+      const article = String(r['Article No.'] ?? '').trim()
+      if (!asOf && r.AsOf) asOf = String(r.AsOf).slice(0, 10)
+      if (!article) continue
+      soh.set(article, (soh.get(article) ?? 0) + (Number(r.SOH) || 0))
+    }
+    return { soh, asOf }
+  })
+}
+
+/**
  * Everything the store-inventory and replenishment columns need, for one window.
  *
  * Null when there is no inventory model, so the caller leaves the columns off

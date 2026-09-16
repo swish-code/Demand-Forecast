@@ -1,0 +1,791 @@
+/**
+ * Replenishment Planning — one row per article, below Article Detail.
+ *
+ * Asked for on 16 Sep 2026, specified against a working spreadsheet, and built
+ * as a SEPARATE table on purpose. Article Detail answers "what did we need and
+ * what moved"; this answers "what should I order and when". They share their
+ * inputs and nothing else: every column here is either already on the Article
+ * Detail row or derived from those, and neither the warehouse forecast nor
+ * Store SOH is touched by anything in this file.
+ *
+ * WHY ITS OWN GRAIN
+ *
+ * Article Detail is one row per recipe line, so an article appears many times -
+ * once per recipe group, and again for the catch-all row its warehouse figures
+ * arrive on. A purchase order is placed once for the article, not once per
+ * recipe, so the rows are folded to one per article here.
+ *
+ * Quantities are summed across those rows, which also sums an article shared by
+ * several brands - TISSUE Z FOLD is forecast separately for TBL and MM. That is
+ * the right total, because there is one warehouse buying it once. The
+ * per-article figures - stock, pending, policy, supplier - are stamped
+ * identically on each of those rows by the server, so they are taken once
+ * rather than added, or an article in three brands would appear to hold three
+ * times the stock.
+ *
+ * STORE SOH IS NOT HERE
+ *
+ * Deliberately, and it is worth saying twice. DTL asks how long the WAREHOUSE
+ * can keep issuing, and stock already sitting in the shops is not available for
+ * the warehouse to issue. Including it would overstate cover by exactly the
+ * amount already distributed, which is the opposite of the reading the column
+ * is for.
+ */
+import { useMemo } from 'react'
+import { fmtQty, fmtPct, downloadCsv } from '../api.js'
+import { Panel, Pill, ChartSkeleton } from '../components/ui.jsx'
+import { DataTable } from '../components/DataTable.jsx'
+import { IconDownload } from '../components/Icons.jsx'
+import { planFor, windowDays } from '../replenishment.js'
+
+/**
+ * A planning date, with its year.
+ *
+ * Not `fmtDate` from api.js, which drops the year: these dates routinely land
+ * in another year - a 90-day lead time on a November plan asks for an order in
+ * June - and "14 Jun" beside "29 Jan" with no year is unreadable. Same shape as
+ * the source spreadsheet, so the two can be compared line by line.
+ */
+const fmtPlanDate = (ms) => {
+  if (ms === null || ms === undefined || !Number.isFinite(Number(ms))) return '–'
+  return new Date(Number(ms)).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: '2-digit',
+    timeZone: 'UTC',
+  })
+}
+
+/**
+ * Days, as whole days.
+ *
+ * Shown to one decimal until 16 Sep 2026. The decimal was honest - both figures
+ * are quotients and rarely land on a whole number - and it was noise: nobody
+ * plans a delivery to a tenth of a day, and "3.4" beside "5.9" in a narrow
+ * column is harder to scan than "3" beside "6". The underlying value keeps its
+ * full precision, so everything computed from it is unaffected; only the
+ * display rounds.
+ */
+const fmtDays = (v) => {
+  if (v === null || v === undefined || !Number.isFinite(Number(v))) return '–'
+  return String(Math.round(Number(v)))
+}
+
+const dash = (title) => (
+  <span className="muted" title={title}>
+    –
+  </span>
+)
+
+/**
+ * A date the reader is meant to act on, which may already have passed.
+ *
+ * A requested date in the past is the most useful thing this table produces -
+ * it means the order is already late - so it is marked rather than hidden. The
+ * source spreadsheet annotates these by hand; here the row says it itself.
+ */
+const actionDate = (ms, today, overdueHint) => {
+  if (ms === null || ms === undefined) return dash('Needs a stock reading, a lead time and a safety stock policy.')
+  const late = today !== null && ms < today
+  return (
+    <span
+      title={late ? overdueHint : `${fmtPlanDate(ms)} — on this basis the order is not yet due.`}
+      style={late ? { color: 'var(--red, #c0392b)', fontWeight: 600 } : undefined}
+    >
+      {fmtPlanDate(ms)}
+      {late ? ' ⚠' : ''}
+    </span>
+  )
+}
+
+/**
+ * A delivery date, held as a day offset and shown as a date.
+ *
+ * The source sheet prints the offset - "-3", "50.00" - which is unreadable as a
+ * date and negative surprisingly often. The date is shown and the offset said
+ * in the tooltip, so the sheet can still be checked against this table.
+ */
+const deliveryDate = (ms, offset, none, from = 'today') => {
+  if (ms === null || ms === undefined) {
+    return dash(none ?? 'Needs a DTL and a safety stock policy in days.')
+  }
+  const n = Number(offset)
+  const when =
+    n < 0
+      ? `${Math.abs(n).toFixed(1)} days ago — this delivery is already overdue`
+      : `in ${n.toFixed(1)} days`
+  return (
+    <span
+      title={`${when}. Counted from ${from}, as the planning sheet does.`}
+      style={n < 0 ? { color: 'var(--red, #c0392b)', fontWeight: 600 } : undefined}
+    >
+      {fmtPlanDate(ms)}
+    </span>
+  )
+}
+
+const COLUMNS = (today, asOf) => [
+  {
+    key: 'Item No.',
+    label: 'Article No',
+    hint: 'The article number the order will be placed against.',
+    width: 104,
+    group: 'planid',
+  },
+  {
+    key: 'Item',
+    label: 'Article',
+    hint: 'The article name.',
+    /*
+     * Measured and draggable, matching the Article column in Article Detail.
+     *
+     * It was a fixed 240px, which gave it no resize grip - the grip is rendered
+     * only for columns the measurer sizes, because a column with a hard-coded
+     * width has nothing to fall back to when a drag is reset. Same options as
+     * Article Detail uses so the two tables behave identically: sized to fit
+     * 95% of names exactly, no ceiling, and the long tail wraps rather than
+     * being cut off.
+     */
+    autoWidth: { min: 140, max: null, percentile: 0.95 },
+    wrap: true,
+    strong: true,
+    group: 'planid',
+  },
+  {
+    key: 'Supplier_Name',
+    // "Last Supplier Name" until 16 Sep 2026. The source column is
+    // [last Supplier Name] and "last" is true of it, but it read as a sort
+    // order rather than as "most recent supplier" - the tooltip says which.
+    label: 'Supplier name',
+    hint:
+      'Who last supplied this article, as recorded on the replenishment planning sheet. Some articles list several suppliers.',
+    /*
+     * Sized to almost every name, and wrapping for the rest. Fixed 16 Sep 2026.
+     *
+     * A flat 190px cut every long name off with an ellipsis. Widening to fit
+     * them all is not an option here: measured across the 2,224 names, the
+     * median is 11 characters and the 95th percentile 40, but the longest is
+     * 181 - "United Partners, Alrawdah Paper & Nylon Product Co. W.L.L., Nile
+     * National Company, ..." - a list of six suppliers on one article. Sizing
+     * the column to that would mean roughly 1,150px of mostly empty space on
+     * every other row and would push the rest of the table off the screen.
+     *
+     * So the width fits the 95th percentile and the column WRAPS. A long name
+     * takes two or three lines and is read in full; nothing is ever truncated,
+     * and no row pays for the one article with six suppliers. That is the same
+     * arrangement the article-name columns elsewhere use, and for the same
+     * reason: "never cut off" and "never wider than it needs" cannot both hold
+     * without a second line.
+     */
+    autoWidth: { min: 200, max: 360, percentile: 0.95 },
+    wrap: true,
+    group: 'planid',
+    render: (v) => v || dash('Not recorded on the planning sheet.'),
+  },
+  {
+    /*
+     * Sized to the LONGEST value, so nothing is ever cut off.
+     *
+     * 108px, then a fixed 168px, both truncated - "Packet 100...", "CTN 24
+     * Packet 150 P...", "CTN 100 Packet 100 p..." - and the cut fell exactly
+     * where the information is. The pack size is the whole point of the column:
+     * "CTN" alone does not tell anybody how much arrives.
+     *
+     * Unlike the supplier name beside it this one can simply be fitted.
+     * Measured across the 2,108 values, the longest is 26 characters - "CTN 12
+     * X 12 Packet 36.8 GM" - so no percentile and no wrapping is needed: the
+     * measurer sizes the column to its widest value and every one of them sits
+     * on a single line. Still draggable if a reader wants it narrower.
+     */
+    key: 'Purchase_Unit',
+    label: 'Purchase Unit',
+    hint: 'The pack the article is bought in, including the pack size — for example "Ctn 2500 Pcs" is a carton of 2,500 pieces.',
+    autoWidth: { min: 120 },
+    group: 'planid',
+    render: (v) => v || dash('Not recorded on the planning sheet.'),
+  },
+  {
+    key: 'Base_Unit',
+    label: 'Base Unit',
+    hint: 'The unit every quantity in this table is counted in. All the figures to the right are in this unit, not in purchase packs.',
+    width: 92,
+    group: 'planid',
+    render: (v) => v || dash('Not recorded on the planning sheet.'),
+  },
+
+  /* What the article needs and what it has. All reused, none recalculated. */
+  {
+    key: 'WH_Constant_Forecast_Qty',
+    label: 'WH Forecast',
+    hint:
+      'How much the warehouse is expected to issue over the selected dates. Taken straight from the Article Detail table above — nothing in this table changes it.',
+    autoWidth: true,
+    num: true,
+    group: 'planneed',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) => (
+      <span title="The warehouse forecast for the selected range, exactly as Article Detail shows it. Nothing in this table changes it.">
+        {fmtQty(v)}
+      </span>
+    ),
+  },
+  {
+    key: 'Consumed_Qty',
+    label: 'Outbound',
+    hint:
+      'How much actually left the warehouse over the selected dates.',
+    autoWidth: true,
+    num: true,
+    group: 'planneed',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) => fmtQty(v),
+  },
+  {
+    key: 'WH_Accuracy',
+    label: 'ACC%',
+    hint:
+      'How close the WH Forecast came to what actually went out. 100% means they matched.',
+    width: 88,
+    num: true,
+    group: 'planneed',
+    render: (v) => (v === null || v === undefined ? dash('Nothing shipped to measure against.') : fmtPct(v)),
+  },
+  {
+    key: 'Safety_Stock_Days',
+    label: 'SS days',
+    hint:
+      'How many days of buffer stock this article is meant to hold. "NoNeed" means no buffer is wanted; "OnDemand" means it is ordered only when needed.',
+    width: 92,
+    group: 'planneed',
+    render: (v) => {
+      if (v === null || v === undefined || v === '') return dash('Not on the planning sheet.')
+      if (/^noneed$/i.test(v)) return <Pill tone="slate" title="Deliberately held without safety stock.">NoNeed</Pill>
+      if (/^ondemand$/i.test(v)) return <Pill tone="amber" title="Ordered when needed — no standing cover, so no cover-based planning.">OnDemand</Pill>
+      return <span title={`${v} days of cover, from Replan Planning[SS].`}>{v}</span>
+    },
+  },
+  {
+    key: 'Per_Day_Qty',
+    label: 'Per day qty',
+    hint:
+      'The average daily requirement: WH Forecast divided by the number of days selected. Every figure to the right is built on this.',
+    autoWidth: true,
+    num: true,
+    group: 'planneed',
+    render: (v) =>
+      v === null ? (
+        dash('No forecast for this range, so there is no daily rate.')
+      ) : (
+        <span title="WH Forecast ÷ days in the selected range. Every figure to the right is built on this.">
+          {Number(v).toFixed(1)}
+        </span>
+      ),
+  },
+  {
+    key: 'SS_Qty',
+    label: 'SS Qty',
+    hint:
+      'The buffer in units: SS days multiplied by the per-day quantity.',
+    autoWidth: true,
+    num: true,
+    group: 'planneed',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null ? (
+        dash('No day count to work from — the policy is OnDemand, or there is no forecast.')
+      ) : (
+        <span title={`${row.Safety_Stock_Days} days × ${Number(row.Per_Day_Qty ?? 0).toFixed(1)} per day.`}>
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+
+  /* Where the warehouse stands, and how long that lasts. */
+  {
+    key: 'Plan_WH_SOH',
+    label: 'SOH',
+    hint:
+      'How much the WAREHOUSE is holding right now, as at the date in this panel\'s heading. Not the shops\' stock — shop stock cannot be issued by the warehouse.',
+    autoWidth: true,
+    num: true,
+    group: 'planstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null ? (
+        dash('The inventory feed has never seen this article at the warehouse.')
+      ) : (
+        <span
+          title={`Warehouse stock on hand${asOf ? ` as at ${fmtPlanDate(Date.parse(`${asOf}T00:00:00Z`))}` : ''}. The warehouse's own balance, not the shops' — Store SOH is not used anywhere in this table.`}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Open_PO_Qty',
+    label: 'Pending Qty',
+    hint:
+      'Units already ordered from suppliers but not yet received.',
+    autoWidth: true,
+    num: true,
+    group: 'planstock',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        dash('No open purchase orders found for this article.')
+      ) : (
+        <span title="Ordered and not yet received, net of part deliveries.">{fmtQty(v)}</span>
+      ),
+  },
+  {
+    key: 'DTL',
+    label: 'DTL',
+    hint:
+      'Days to last — roughly how many days the warehouse stock will last from today, counting what is already on order. Worked out as (SOH + Pending) ÷ per-day quantity.',
+    width: 84,
+    num: true,
+    group: 'planstock',
+    render: (v) =>
+      v === null ? (
+        dash('Needs both a stock reading and a daily rate.')
+      ) : (
+        <span
+          title="Days to last: (Warehouse SOH + Pending Qty) ÷ Per day qty. Warehouse stock only — the shops' stock cannot be issued by the warehouse."
+          style={v < 7 ? { color: 'var(--red, #c0392b)', fontWeight: 600 } : undefined}
+        >
+          {fmtDays(v)}
+        </span>
+      ),
+  },
+  /*
+   * FORECASTED OOS DATE - removed on 16 Sep 2026 and put back the same day.
+   *
+   * Taken out because it is the DTL column beside it expressed as a date: the
+   * same fact twice. Asked for again so the table can be read against the
+   * source spreadsheet line by line, which is the better reason - the value was
+   * never removed, only the column, so this is a display change and nothing is
+   * recalculated. It remains the date Req Date and both delivery deadlines are
+   * measured back from, which is the other argument for showing it: with it on
+   * screen, every date to its right can be checked by subtraction.
+   */
+  {
+    key: 'OOS_Date',
+    label: 'Forecasted OOS Date',
+    hint: 'The day warehouse stock is expected to run out: today plus DTL. Everything to the right is counted back from here.',
+    width: 150,
+    group: 'planstock',
+    render: (v) =>
+      v === null || v === undefined
+        ? dash('Needs a stock reading and a daily rate — the same two figures DTL needs.')
+        : actionDate(v, today, 'Stock has already run out on this basis.'),
+  },
+
+  /* What to order, how much, and when. */
+  {
+    key: 'Target_Cover',
+    label: 'Target Cover',
+    hint:
+      'How many extra days of stock are needed to reach the end of the selected period and still hold the safety buffer. A negative number means stock already lasts beyond the period, so nothing needs ordering.',
+    width: 116,
+    num: true,
+    group: 'planorder',
+    render: (v) =>
+      v === null ? (
+        dash('Needs a DTL and a safety stock policy in days.')
+      ) : (
+        <span
+          title="Last selected date − (today + DTL) + SS days. Negative means stock already outlasts the selected range, so nothing needs ordering."
+          style={v < 0 ? { color: 'var(--muted, #888)' } : undefined}
+        >
+          {fmtDays(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Req_Qty',
+    label: 'Req Qty',
+    hint:
+      'How much to order: Target Cover multiplied by the per-day quantity. Never below zero.',
+    autoWidth: true,
+    num: true,
+    group: 'planorder',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null ? (
+        dash('Needs a target cover and a daily rate.')
+      ) : (
+        <span
+          title="Target Cover × Per day qty, floored at zero — a negative cover is not a negative order."
+          style={v > 0 ? { fontWeight: 600 } : undefined}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Req_Date',
+    label: 'Req Date',
+    hint:
+      'The latest date the order should be placed. Counted back from the day stock runs out, allowing for the lead time and the safety buffer. A date in the past means the order is already overdue.',
+    width: 116,
+    group: 'planorder',
+    render: (v) =>
+      actionDate(
+        v,
+        today,
+        'This order date has already passed — on this lead time the request is overdue.'
+      ),
+  },
+  {
+    key: 'Lead_Time_Days',
+    label: 'Lead Time',
+    hint:
+      'How many days it takes from placing an order to receiving it.',
+    width: 96,
+    num: true,
+    group: 'planorder',
+    render: (v) =>
+      v === null || v === undefined || v === ''
+        ? dash('Not on the planning sheet.')
+        : <span title={`${v} days from order to receipt.`}>{v}</span>,
+  },
+  {
+    key: 'Delivery_Freq',
+    label: 'Delivery Freq',
+    hint:
+      'How many scheduled deliveries this article gets. The source does not state over what period, so no unit is shown.',
+    width: 116,
+    group: 'planorder',
+    render: (v) => {
+      if (v === null || v === undefined || v === '') return dash('Not on the planning sheet.')
+      if (/^noneed$/i.test(v)) return <Pill tone="slate" title="No scheduled deliveries.">NoNeed</Pill>
+      if (/^ondemand$/i.test(v)) return <Pill tone="amber" title="Delivered on request, not on a schedule.">OnDemand</Pill>
+      return <span title="Scheduled deliveries, as written on the planning sheet. The sheet does not state the period, so none is shown.">{v}</span>
+    },
+  },
+
+  /* Splitting the order across the first two deliveries. */
+  /*
+   * "D1 Date" and "D2 Date" renamed on 16 Sep 2026.
+   *
+   * The old names were the spreadsheet's column letters, which say nothing to
+   * anybody who has not seen the spreadsheet. What the figures actually are:
+   *
+   *   D1 = DTL - SS days, the day stock falls TO the safety buffer rather than
+   *        to nothing. That is the last day the first delivery can arrive
+   *        without eating into the buffer, so it is a deadline, not a plan.
+   *   D2 = the same deadline pushed out by however long the first delivery
+   *        lasts (D1 Qty / per-day), so it is when the second one has to land.
+   *
+   * Both are deadlines, which is why the names say "by" rather than "on".
+   * Calculations unchanged - only the labels and the hints.
+   */
+  {
+    key: 'D1_Date',
+    label: '1st delivery by',
+    hint: 'The last day the first delivery can arrive without dipping into the safety stock: the FIRST DAY OF THE SELECTED RANGE plus (DTL - SS days). This one column counts from the range start; every other date here counts from today, which is how the source spreadsheet does it. A date in the past means it is already late.',
+    width: 130,
+    group: 'plansplit',
+    render: (v, row) =>
+      deliveryDate(v, row.D1_Offset, undefined, 'the first day of the selected range'),
+  },
+  {
+    key: 'D1_Qty',
+    label: '1st delivery qty',
+    hint: 'How much of the requested quantity should come in the first delivery: Req Qty ÷ Delivery Freq.',
+    autoWidth: true,
+    num: true,
+    group: 'plansplit',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null
+        ? dash('Needs a requested quantity and a numeric delivery frequency.')
+        : <span title="Req Qty ÷ Delivery Freq.">{fmtQty(v)}</span>,
+  },
+  {
+    key: 'D2_Date',
+    label: '2nd delivery by',
+    hint: 'The last day the second delivery can arrive. It is the first deadline pushed out by however long the first delivery lasts at the daily rate.',
+    width: 130,
+    group: 'plansplit',
+    render: (v, row) =>
+      deliveryDate(
+        v,
+        row.D2_Offset,
+        row.D1_Qty !== null && row.D1_Qty !== undefined
+          ? 'No second delivery — the whole request arrives in the first one, so there is nothing left to schedule.'
+          : 'Needs a requested quantity and a numeric delivery frequency.'
+      ),
+  },
+  {
+    key: 'D2_Qty',
+    label: '2nd delivery qty',
+    hint: 'Whatever is left of the requested quantity after the first delivery: Req Qty − 1st delivery qty.',
+    autoWidth: true,
+    num: true,
+    group: 'plansplit',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null ? dash('Needs a D1 quantity.') : <span title="Req Qty minus the first delivery.">{fmtQty(v)}</span>,
+  },
+
+  /*
+   * The three figures from the third screenshot. Kept in their own group
+   * because New ACC% is a coverage RATIO, not an accuracy score, and must not
+   * be read alongside the ACC% column on its left.
+   */
+  {
+    key: 'Total_SOH',
+    label: 'Total SOH',
+    hint:
+      'Everything the warehouse has had available across the selected dates: stock on hand, plus what is on order, plus what it has already issued.',
+    autoWidth: true,
+    num: true,
+    group: 'planbuffered',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null
+        ? dash('No stock reading and no outbound.')
+        : <span title="Warehouse SOH + Pending Qty + Outbound — everything the warehouse has had available across the range.">{fmtQty(v)}</span>,
+  },
+  {
+    key: 'New_WH_Forecast',
+    label: 'New WH Forecast',
+    hint:
+      'The requirement with the safety buffer added: WH Forecast + SS Qty. A test figure — the live forecast is unchanged.',
+    autoWidth: true,
+    num: true,
+    group: 'planbuffered',
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null
+        ? dash('No warehouse forecast for this range.')
+        : <span title="WH Forecast + SS Qty. A test figure — the live forecast is unchanged.">{fmtQty(v)}</span>,
+  },
+  {
+    key: 'New_ACC',
+    label: 'New ACC%',
+    hint:
+      'How much of that buffered requirement is covered: Total SOH ÷ New WH Forecast. A coverage ratio, so it can go above 100% — it is not an accuracy score and does not compare with ACC%.',
+    width: 106,
+    num: true,
+    group: 'planbuffered',
+    render: (v) =>
+      v === null ? (
+        dash('Needs a buffered forecast above zero.')
+      ) : (
+        <span title="Total SOH ÷ New WH Forecast. A coverage ratio, so it can exceed 100% — not comparable with the ACC% column.">
+          {fmtPct(v)}
+        </span>
+      ),
+  },
+]
+
+const GROUPS = {
+  planid: { label: 'Article', help: 'Identity and units, from the replenishment planning sheet.' },
+  planneed: {
+    label: 'Requirement',
+    help: 'The warehouse forecast for the selected range, its daily rate, and the safety stock that rate implies. The forecast is reused exactly as Article Detail shows it.',
+  },
+  planstock: {
+    label: 'Warehouse position',
+    help: "Warehouse stock on hand plus what is on order, and how many days that lasts. Warehouse stock only — the shops' Store SOH is not used in any of these figures.",
+  },
+  planorder: { label: 'Order', help: 'How much to request, and the last date it can be requested for.' },
+  plansplit: { label: 'Deliveries', help: 'The request split across the first two deliveries.' },
+  planbuffered: {
+    label: 'Buffered view',
+    help: 'The forecast with safety stock added, against everything the warehouse has had available. New ACC% is a coverage ratio, not an accuracy score.',
+  },
+}
+
+/**
+ * One planning row per article.
+ *
+ * `rows` are the Article Detail rows for the same window and filters, so the
+ * two tables can never disagree about a forecast: there is one figure and this
+ * reads it.
+ */
+export default function ReplenishmentPlanning({ rows, filters, busy }) {
+  const today = useMemo(() => Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`), [])
+
+  const planned = useMemo(() => {
+    if (!rows?.length) return []
+
+    const held = new Map()
+    for (const r of rows) {
+      const article = String(r['Item No.'] ?? '').trim()
+      // No article number, nothing to order. Prep steps are not purchased.
+      if (!article) continue
+
+      const seen = held.get(article)
+      if (!seen) {
+        held.set(article, {
+          'Item No.': article,
+          Item: r.Item ?? null,
+          Supplier_Name: r.Supplier_Name ?? null,
+          Purchase_Unit: r.Purchase_Unit ?? null,
+          Base_Unit: r.Base_Unit ?? null,
+          Safety_Stock_Days: r.Safety_Stock_Days ?? null,
+          Lead_Time_Days: r.Lead_Time_Days ?? null,
+          Delivery_Freq: r.Delivery_Freq ?? null,
+          // Per-article, stamped the same on every row of the article: taken
+          // once, never added. See the note at the top of this file.
+          WH_SOH_Now: r.WH_SOH_Now ?? null,
+          WH_SOH_As_Of: r.WH_SOH_As_Of ?? null,
+          Open_PO_Qty: r.Open_PO_Qty ?? null,
+          // Summed across the article's rows, brands included.
+          WH_Constant_Forecast_Qty: r.WH_Constant_Forecast_Qty ?? null,
+          Consumed_Qty: r.Consumed_Qty ?? null,
+        })
+        continue
+      }
+      const add = (a, b) => {
+        if ((a === null || a === undefined) && (b === null || b === undefined)) return null
+        return (Number(a) || 0) + (Number(b) || 0)
+      }
+      seen.WH_Constant_Forecast_Qty = add(seen.WH_Constant_Forecast_Qty, r.WH_Constant_Forecast_Qty)
+      seen.Consumed_Qty = add(seen.Consumed_Qty, r.Consumed_Qty)
+      // First non-null wins for everything per-article: only one row of the
+      // article carries them, and which one is not knowable from here.
+      for (const k of [
+        'Item',
+        'Supplier_Name',
+        'Purchase_Unit',
+        'Base_Unit',
+        'Safety_Stock_Days',
+        'Lead_Time_Days',
+        'Delivery_Freq',
+        'WH_SOH_Now',
+        'WH_SOH_As_Of',
+        'Open_PO_Qty',
+      ]) {
+        if ((seen[k] === null || seen[k] === undefined) && r[k] !== null && r[k] !== undefined)
+          seen[k] = r[k]
+      }
+    }
+
+    const todayIso = new Date(today).toISOString().slice(0, 10)
+    return [...held.values()].map((r) => {
+      const plan = planFor(r, {
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+        today: todayIso,
+      })
+      /*
+       * Accuracy is re-derived here rather than carried over, because the
+       * forecast and outbound above were summed across the article's rows and a
+       * ratio taken from one of them would not describe the row on screen.
+       */
+      const c = r.Consumed_Qty
+      const f = plan.New_WH_Forecast === null ? null : r.WH_Constant_Forecast_Qty
+      const bigger = c === null || f === null ? null : Math.max(Number(c), Number(f))
+      return {
+        ...r,
+        ...plan,
+        WH_Accuracy:
+          bigger === null || bigger <= 0 ? null : 1 - Math.abs(Number(f) - Number(c)) / bigger,
+      }
+    })
+  }, [rows, filters?.dateFrom, filters?.dateTo, today])
+
+  const days = windowDays(filters?.dateFrom, filters?.dateTo)
+  const asOf = planned.find((r) => r.WH_SOH_As_Of)?.WH_SOH_As_Of ?? null
+  const columns = useMemo(() => COLUMNS(today, asOf), [today, asOf])
+
+  return (
+    <Panel
+      /*
+       * Every formula behind this table, declared for the Calculations panel.
+       *
+       * Listed in the order the columns read left to right, so the drawer walks
+       * the table rather than an alphabet. The first three are the existing
+       * warehouse entries - this table reads them and defines nothing about
+       * them, so it points at the same catalogue entries Article Detail does
+       * rather than describing them a second time and letting the two drift.
+       */
+      calc={[
+        'plan-grain',
+        'plan-sheet',
+        'wh-forecast',
+        'outbound',
+        'wh-acc',
+        'plan-perday',
+        'plan-ssqty',
+        'plan-soh',
+        'plan-pending',
+        'plan-dtl',
+        'plan-cover',
+        'plan-reqqty',
+        'plan-reqdate',
+        'plan-d1',
+        'plan-d2',
+        'plan-buffered',
+      ].join(',')}
+      title="Replenishment Planning"
+      count={busy ? undefined : `${planned.length.toLocaleString()} articles`}
+      sub={
+        days
+          ? `What to order and when, over the ${days} day${days === 1 ? '' : 's'} selected` +
+            (asOf ? ` · warehouse stock as at ${fmtPlanDate(Date.parse(`${asOf}T00:00:00Z`))}` : '')
+          : 'Select a date range to plan over'
+      }
+      flush
+      fill
+      tools={
+        <button
+          type="button"
+          className="btn"
+          disabled={!planned.length}
+          onClick={() =>
+            downloadCsv(
+              'replenishment-planning',
+              planned,
+              columns.map(({ key, label }) => ({ key, label }))
+            )
+          }
+        >
+          <IconDownload size={12} />
+          CSV
+        </button>
+      }
+    >
+      {busy && !planned.length ? (
+        <div style={{ padding: 16 }}>
+          <ChartSkeleton height={320} />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={planned}
+          totals
+          initialSort={{ key: 'Req_Qty', dir: 'desc' }}
+          searchPlaceholder="Search article or supplier…"
+          tableId="replenishment-planning-v1"
+          groups={GROUPS}
+          /*
+           * Bounded for the same reason Article Detail is, from 16 Sep 2026.
+           *
+           * This table is not the bottom of the page - the accuracy band charts
+           * sit under it - so a table that grows to its full page of rows puts
+           * them a couple of thousand pixels down. Shorter than Article Detail
+           * because this is the table you scan for the handful of articles that
+           * need ordering, having sorted by Req Qty, rather than one you read
+           * down.
+           */
+          maxHeight={520}
+        />
+      )}
+    </Panel>
+  )
+}

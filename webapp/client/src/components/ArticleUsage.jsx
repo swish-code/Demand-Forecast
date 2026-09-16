@@ -40,29 +40,43 @@ const COLUMNS = [
   {
     key: 'Product',
     label: 'Menu item',
+    hint: 'The dish or product whose recipe uses this article.',
     strong: true,
     required: true,
     autoWidth: { min: 180, max: null, percentile: 0.95 },
     wrap: true,
     flex: true,
   },
-  { key: 'PLU', label: 'PLU', width: 96, hiddenByDefault: true },
+  {
+    key: 'PLU',
+    label: 'PLU',
+    hint: "The menu item's till code, used to match it to sales.",
+    width: 96,
+    hiddenByDefault: true,
+  },
   {
     key: 'CHAINID',
     label: 'Brand',
+    hint: 'The brand that sells this menu item.',
     width: 110,
     render: (v) => (v ? <Pill tone="slate">{v}</Pill> : '–'),
   },
   {
     key: 'Qty_Per_Unit',
-    label: 'Qty per unit',
+    label: 'Qty/unit',
+    hint: 'How much of this article one single menu item uses, in the unit shown beside it.',
     autoWidth: true,
     num: true,
     total: 'sum',
     render: perUnit,
     renderTotal: perUnit,
   },
-  { key: 'BU', label: 'Unit', autoWidth: true },
+  {
+    key: 'BU',
+    label: 'Unit',
+    hint: 'The unit the quantities on this row are counted in.',
+    autoWidth: true,
+  },
   /*
    * What the menu item is forecast to sell, and what that asks of this article.
    *
@@ -76,7 +90,8 @@ const COLUMNS = [
    */
   {
     key: 'Item_Forecast_Qty',
-    label: 'Menu item forecast',
+    label: 'Menu fcst',
+    hint: 'How many of this menu item we expect to sell over the selected dates.',
     autoWidth: true,
     num: true,
     total: 'sum',
@@ -95,7 +110,8 @@ const COLUMNS = [
   },
   {
     key: 'Article_Required_Qty',
-    label: 'Article required',
+    label: 'Article req',
+    hint: 'How much of this article that forecast asks for: Qty/unit × Menu fcst. Adding this column up gives the article’s Forecast qty in the table behind this panel.',
     strong: true,
     autoWidth: true,
     num: true,
@@ -116,9 +132,74 @@ const COLUMNS = [
         </span>
       ),
   },
+  /*
+   * The measured side of the same two columns.
+   *
+   * Asked for on 16 Sep 2026. The panel showed only what the forecast asks of
+   * the article, which cannot answer the question a reader arrives with - did
+   * the requirement come from the forecast being wrong, or from the dish
+   * genuinely selling that much? These two put the actual beside the forecast
+   * so the comparison is on one row.
+   *
+   * No new source: `productLevel` already returns Actual_Qty next to
+   * Forecast_Qty, and the server was reading only one of them.
+   */
+  {
+    key: 'Item_Actual_Qty',
+    label: 'Menu actual',
+    hint: 'How many of this menu item actually sold over the selected dates.',
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No sales figure available for this menu item in the selected window. Product sales cannot be split by branch, so this is blank while a branch filter or a branch-limited account is in play."
+        >
+          –
+        </span>
+      ) : (
+        <span
+          title={
+            row?.Item_Forecast_Qty === null || row?.Item_Forecast_Qty === undefined
+              ? 'Units actually sold in the selected window.'
+              : `${fmtQty(v)} sold against ${fmtQty(row.Item_Forecast_Qty)} forecast.`
+          }
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
+  {
+    key: 'Article_Actual_Qty',
+    label: 'Article actual',
+    hint: 'How much of this article the sales that actually happened used up: Qty/unit × Menu actual. Adding this column up gives the article’s Actual qty in the table behind this panel.',
+    strong: true,
+    autoWidth: true,
+    num: true,
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="Needs the menu item's actual sales to work out.">
+          –
+        </span>
+      ) : (
+        <span
+          title={`${perUnit(row?.Qty_Per_Unit)} ${row?.BU || ''} per unit multiplied by ${fmtQty(
+            row?.Item_Actual_Qty
+          )} units sold`}
+        >
+          {fmtQty(v)}
+        </span>
+      ),
+  },
   {
     key: 'Path',
     label: 'Through',
+    hint: 'The recipe route from the menu item down to this article. "Directly" means the menu item uses it with no intermediate recipe.',
     width: 260,
     render: (v) => <span className="usage__path">{v || 'Directly'}</span>,
   },
@@ -207,9 +288,10 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
                     · {perUnit(total)} {article.BU || ''} in total, per one unit of each
                   </>
                 )}
-                {' · '}quantities are per <strong>one unit</strong> of the menu item, and{' '}
-                <strong>Article required</strong> is that rate times each item&rsquo;s forecast{' '}
-                for the selected window
+                {' · '}quantities are per <strong>one unit</strong> of the menu item;{' '}
+                <strong>Article req</strong> is that rate times each item&rsquo;s forecast and{' '}
+                <strong>Article actual</strong> the same rate times what it actually sold, over the
+                selected window. Hover any column heading for what it means.
               </p>
 
               <DataTable
