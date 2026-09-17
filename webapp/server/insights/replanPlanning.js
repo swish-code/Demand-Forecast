@@ -103,7 +103,8 @@ SUMMARIZECOLUMNS(
   'Replan Planning'[DeliveryFreq],
   'Replan Planning'[last Supplier Name],
   'Replan Planning'[PURCH UNIT],
-  'Replan Planning'[BASE UNIT]
+  'Replan Planning'[BASE UNIT],
+  'Replan Planning'[CURRENT STOCK WAC]
 )`,
       fm.datasetId,
       { bulk: true, workspace: fm.workspaceId || undefined }
@@ -128,6 +129,33 @@ SUMMARIZECOLUMNS(
         supplier: String(r['last Supplier Name'] ?? '').trim() || null,
         purchaseUnit: String(r['PURCH UNIT'] ?? '').trim() || null,
         baseUnit: String(r['BASE UNIT'] ?? '').trim() || null,
+        /*
+         * Average cost per BASE UNIT, at article level.
+         *
+         * Asked for on 17 Sep 2026 as sourced from the recipe table. It is not
+         * there: 'RECIPE TABLE' has fourteen columns and not one of them is a
+         * cost. Nor is it on PRODUCTS, PRODUCTS (2) or ITEM TABLE - those are
+         * keyed on a different code space entirely ("TL210060", "yp1447"), and
+         * zero of their 9,803 SKUs match an article number.
+         *
+         * This is the article-level cost, and this sheet is the safest place it
+         * could come from: one row per article, 2,224 of them, none with a
+         * second value, and NO MENU ITEM DIMENSION AT ALL. A menu-item cost
+         * cannot be read out of a table that does not know what a menu item is.
+         * The recipe table is the one place where a cost column WOULD have been
+         * per menu item, which is exactly what was to be avoided.
+         *
+         * Per base unit, verified rather than assumed: where it differs from
+         * [Last PP] the ratio between them is the pack size exactly - "CTN 24
+         * Packet 10 PCS" gives 240.0, "CTN 5 Packet 12 pcs" gives 60.0, "CTN 4
+         * Packet 2.5 KG" gives 10.0 - so WAC is per base unit and Last PP per
+         * purchase pack. On the 814 articles bought in their base unit the two
+         * are identical. That matters because every quantity in the
+         * replenishment table is in the base unit too.
+         */
+        avgCost: Number.isFinite(Number(r['CURRENT STOCK WAC'])) && Number(r['CURRENT STOCK WAC']) > 0
+          ? Number(r['CURRENT STOCK WAC'])
+          : null,
       }
       /*
        * Only if the row says something. An article listed on the sheet with all

@@ -316,7 +316,8 @@ WH forecast  = constant * forecast sales for the window on screen`,
   'Replan Planning'[DeliveryFreq],
   'Replan Planning'[last Supplier Name],
   'Replan Planning'[PURCH UNIT],
-  'Replan Planning'[BASE UNIT]
+  'Replan Planning'[BASE UNIT],
+  'Replan Planning'[CURRENT STOCK WAC]
 )
 
 matched on  [Code] = Item No.`,
@@ -324,7 +325,15 @@ matched on  [Code] = Item No.`,
       'One query against the FM Sales model, cached, and one row per article — 2,246 rows, 2,224 ' +
       'distinct codes each appearing exactly once, plus 22 rows carrying no code which are ' +
       'dropped. 2,154 match the article master. No mapping table and no fuzzy matching: the ' +
-      'values are trimmed and an empty string becomes a dash. SS is DAYS, not a quantity, ' +
+      'values are trimmed and an empty string becomes a dash. [CURRENT STOCK WAC] is read on the ' +
+      'same query and stamped as Avg_Cost, though no column shows it since 17 Sep 2026: it is ' +
+      "[CURRENT STOCK WAC], the weighted average cost of ONE BASE UNIT at ARTICLE level - not a " +
+      'menu-item or recipe cost, and it cannot be one: this sheet has no menu-item dimension. It ' +
+      'was asked for from the recipe table, which has no cost column at all, and none of ' +
+      'PRODUCTS, PRODUCTS (2) or ITEM TABLE key on an article (zero of 9,803 SKUs match). Per ' +
+      'base unit rather than per pack, verified: where it differs from [Last PP] the ratio is ' +
+      'the pack size exactly, and on the 814 articles bought in their base unit the two agree. ' +
+      'SS is DAYS, not a quantity, ' +
       'despite its name — it holds eight distinct values of which "OnDemand" (608 rows) and ' +
       '"NoNeed" (447) are words rather than numbers. Delivery freq is a count of deliveries and ' +
       'the source does not say over what period, so no unit is shown.',
@@ -388,16 +397,29 @@ SUMMARIZECOLUMNS(
     page: 'Stock Article',
     visual: 'Replenishment Planning — Pending Qty; Article Detail — Pending PO',
     label: 'Pending PO quantity',
-    source: TABLE,
-    expression: `SUM('CC Open PO Core'[Open PO Base Qty])
-  - SUM('CC PO Receipt Core'[Received Base Qty])
-
-joined in this app on [PO Article Location Key], warehouse locations only`,
+    source: PBI,
+    expression: `SUMMARIZECOLUMNS(
+  'CC Item Location'[Article No.],
+  FILTER(ALL('CC Item Location'[Location]),
+         'CC Item Location'[Location] IN {<warehouse locations>}),
+  FILTER(ALL('CC Date'[Movement Date]),
+         'CC Date'[Movement Date] <= <end of selected range>),
+  "Qty",   [CC Open PO Qty],
+  "Value", [CC Open PO Pending Value]
+)`,
     detail:
-      'The model column is the GROSS order, so receipts are netted off here — otherwise a ' +
-      'delivered quantity would count twice, once as still on order and again as stock on hand. ' +
-      'The two tables have no relationship in the model, so the join is done in this app. Clamped ' +
-      'at zero per article. It does not move with the date range: an open PO has no "as at" date.',
+      'The Inventory Control model’s own measures, so this column and that dashboard cannot ' +
+      'disagree. They net receipts through fact_po_period_lifecycle where Inbound Match Status is ' +
+      '"Matched", MAXX of PO Base Qty against SUMX of Allocated GRN Base Qty per PO, each floored ' +
+      'at zero. Switched to them on 17 Sep 2026, replacing a hand-rolled join of CC Open PO Core ' +
+      'to CC PO Receipt Core: the two agreed on 399 of 411 articles to the unit, and the model’s ' +
+      'own allocation is the one the business reconciles to. Grouped on CC Item Location[Article ' +
+      'No.] because that is where the measures read their filter context - grouped anywhere else ' +
+      'they answer with the company-wide total on every row. It now MOVES WITH THE DATE RANGE: ' +
+      "[CC End Date] is MAXX(ALLSELECTED('CC Date'[Movement Date])), so the window is filtered " +
+      "onto 'CC Date' - filtering cc_daily_inventory does nothing, because CC Date is a " +
+      'calculated DISTINCT table. POs raised on or before the end of the range count, and a ' +
+      'range ending past the inventory feed clamps to the feed’s last day.',
   },
   {
     id: 'plan-dtl',

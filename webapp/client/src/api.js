@@ -425,7 +425,7 @@ export const fmtLongDate = (iso) => {
 }
 
 /** Download an array of row objects as CSV. */
-export function downloadCsv(filename, rows, columns) {
+export function downloadCsv(filename, rows, columns, notes) {
   if (!rows?.length) return
   const cols = columns ?? Object.keys(rows[0]).map((key) => ({ key, label: key }))
   const escape = (v) => {
@@ -433,9 +433,26 @@ export function downloadCsv(filename, rows, columns) {
     const s = String(v)
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
+  /*
+   * Rows appended after the table, for a download that has to explain itself.
+   *
+   * Added 17 Sep 2026 for the Replenishment Planning export, whose figures are
+   * almost all derived - "Target Cover 58" means nothing in a spreadsheet
+   * without the arithmetic behind it, and a reader who opens the file a week
+   * later has no tooltips to hover.
+   *
+   * Each entry is one CSV row, so the caller decides the layout rather than
+   * this function imposing one. Optional, so every existing download is
+   * byte-for-byte unchanged.
+   */
+  const extra = Array.isArray(notes)
+    ? notes.map((line) => (Array.isArray(line) ? line.map(escape).join(',') : escape(line)))
+    : []
+
   const csv = [
     cols.map((c) => escape(c.label)).join(','),
     ...rows.map((r) => cols.map((c) => escape(r[c.key])).join(',')),
+    ...extra,
   ].join('\n')
 
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))

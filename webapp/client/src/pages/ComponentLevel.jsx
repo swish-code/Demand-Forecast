@@ -674,7 +674,7 @@ const COLUMNS = [
   {
     key: 'Open_PO_Qty',
     label: 'Pending PO',
-    hint: 'Units already ordered from suppliers but not yet received, after taking off anything part-delivered. Warehouse only, and it does not move with the date range.',
+    hint: 'Units already ordered from suppliers but not yet received, after taking off anything part-delivered. Warehouse only, as at the end of the selected date range.',
     autoWidth: true,
     num: true,
     group: 'whstock',
@@ -689,7 +689,7 @@ const COLUMNS = [
           –
         </span>
       ) : (
-        <span title="Units ordered from suppliers and not yet received, in the article's base unit. Net of receipts - the model's own column is the gross order, so anything already delivered is taken off here. Warehouse locations only, and it does not move with the date range.">
+        <span title="Units ordered from suppliers and not yet received, in the article's base unit. From the Inventory Control model's own [CC Open PO Qty] measure, which nets deliveries off through the PO lifecycle. Warehouse locations only, counting POs raised on or before the end of the selected range.">
           {fmtQty(v)}
         </span>
       ),
@@ -1132,9 +1132,9 @@ const HELP = {
       term: 'Pending PO',
       text: 'Units ordered from suppliers and not yet received.',
       formula:
-        "Sum of 'CC Open PO Core'[Open PO Base Qty] minus 'CC PO Receipt Core'[Received Base Qty], joined on PO Article Location Key, warehouse locations only.",
+        "[CC Open PO Qty], grouped on 'CC Item Location'[Article No.], warehouse locations only, with 'CC Date'[Movement Date] filtered to the end of the selected range.",
       example:
-        'The model column is the GROSS order, so receipts are taken off here - otherwise a delivered quantity would count twice, once as still on order and again as stock on hand. It does not move with the date range: an open PO has no "as at" date.',
+        'The Inventory Control model’s own [CC Open PO Qty] measure, which nets deliveries off through the PO lifecycle - so this column and that dashboard agree by construction. Switched to it on 17 Sep 2026 from a hand-rolled join that agreed with it on 399 of 411 articles. It DOES move with the date range: POs raised on or before the end of the selected range count, clamped to the last day the inventory feed holds.',
     },
     {
       term: 'Store SOH',
@@ -1635,6 +1635,31 @@ export function ComponentLevel({
        * the merged articles need not share a policy.
        */
       held.Safety_Stock_Qty = add(held.Safety_Stock_Qty, r.Safety_Stock_Qty)
+      /*
+       * The stock columns, which the fold used to drop entirely.
+       *
+       * Fixed 17 Sep 2026. Every one of these is stamped by the server on ONE
+       * row per article - the row carrying the warehouse figures - and the fold
+       * copied the FIRST row of the group and merged only the quantities. When
+       * the first row was a recipe line rather than the carrying one, all four
+       * columns kept its nulls and the folded row showed a dash for stock it
+       * demonstrably had. Beef Ground Chuck Mr.Cleaver was the case that found
+       * it: WH opening, WH closing, Pending PO and Store SOH all blank on one
+       * folded row, with a real pending PO of 2,250 sitting on the row the fold
+       * had discarded.
+       *
+       * Added rather than taken once, for the same reason Safety_Stock_Qty is:
+       * each article contributes its figure exactly once, on its own carrying
+       * row, so summing gives that article's value when the group is one
+       * article and the group's total when it is several. `add` keeps null as
+       * null, so "no reading" survives and does not become a zero.
+       */
+      held.WH_Opening_SOH = add(held.WH_Opening_SOH, r.WH_Opening_SOH)
+      held.WH_Closing_SOH = add(held.WH_Closing_SOH, r.WH_Closing_SOH)
+      held.Open_PO_Qty = add(held.Open_PO_Qty, r.Open_PO_Qty)
+      held.Open_PO_Value = add(held.Open_PO_Value, r.Open_PO_Value)
+      held.Store_SOH = add(held.Store_SOH, r.Store_SOH)
+      held.New_Required_Qty = add(held.New_Required_Qty, r.New_Required_Qty)
       held.__articles.add(String(r['Item No.'] ?? '').trim())
       // Measured anywhere in the group means measured, so one unmatched article
       // does not blank a row that has a real figure in it.

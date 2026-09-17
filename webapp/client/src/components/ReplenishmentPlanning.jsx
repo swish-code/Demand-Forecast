@@ -37,6 +37,8 @@ import { Panel, Pill, ChartSkeleton } from '../components/ui.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { IconDownload } from '../components/Icons.jsx'
 import { planFor, windowDays } from '../replenishment.js'
+import { downloadXlsx } from '../xlsx.js'
+import { planningSheets } from '../replenishmentXlsx.js'
 
 /**
  * A planning date, with its year.
@@ -204,6 +206,14 @@ const COLUMNS = (today, asOf) => [
     group: 'planid',
     render: (v) => v || dash('Not recorded on the planning sheet.'),
   },
+  /*
+   * AVG COST was removed on 17 Sep 2026, the day after it was added.
+   *
+   * The server still stamps `Avg_Cost` - see `insights/replanPlanning.js`, which
+   * reads it from 'Replan Planning'[CURRENT STOCK WAC] on the query it was
+   * already making - so the column comes back by restoring a definition here.
+   * Nothing else about the article cost changed.
+   */
   {
     key: 'Base_Unit',
     label: 'Base Unit',
@@ -329,7 +339,7 @@ const COLUMNS = (today, asOf) => [
     key: 'Open_PO_Qty',
     label: 'Pending Qty',
     hint:
-      'Units already ordered from suppliers but not yet received.',
+      'Units already ordered from suppliers but not yet received, as at the end of the selected date range.',
     autoWidth: true,
     num: true,
     group: 'planstock',
@@ -339,7 +349,7 @@ const COLUMNS = (today, asOf) => [
       v === null || v === undefined ? (
         dash('No open purchase orders found for this article.')
       ) : (
-        <span title="Ordered and not yet received, net of part deliveries.">{fmtQty(v)}</span>
+        <span title="Ordered and not yet received, net of part deliveries. POs raised on or before the end of the selected range.">{fmtQty(v)}</span>
       ),
   },
   {
@@ -603,6 +613,85 @@ const COLUMNS = (today, asOf) => [
  * Same shape as `HELP` in `pages/ComponentLevel.jsx`, which is where the
  * contract is set and where these read well next to.
  */
+/**
+ * What each column is, per column key, for the CSV to carry with it.
+ *
+ * Asked for on 17 Sep 2026: almost every figure in this table is derived, and a
+ * downloaded "Target Cover 58" is unreadable without the arithmetic. On screen
+ * the header tooltips and the group help answer that; in a spreadsheet opened a
+ * week later there is nothing to hover, so the formulas travel with the file.
+ *
+ * Keyed on the column key rather than written into each column definition, so
+ * the export and the columns stay in step: `csvNotes` below walks the columns
+ * being exported and looks each one up, and the test asserts the two sets match
+ * exactly - a column added without a formula, or a formula left behind after a
+ * column is removed, both fail rather than going unnoticed.
+ *
+ * Kept deliberately terse. The prose lives in GROUPS below and in
+ * `server/calculations.js`; this is the arithmetic only.
+ */
+const FORMULAS = {
+  'Item No.': "The ERP article number. Source: 'RECIPE TABLE'[Item No.]",
+  Item: 'The article name',
+  Supplier_Name: "Source: 'Replan Planning'[last Supplier Name]",
+  Purchase_Unit: "Source: 'Replan Planning'[PURCH UNIT]",
+  Base_Unit: "Source: 'Replan Planning'[BASE UNIT]. Every quantity below is in this unit",
+  WH_Constant_Forecast_Qty:
+    'Reused from Article Detail: six-month outbound-per-sales rate x forecast sales for the range. Unchanged by this table',
+  Consumed_Qty: 'Reused from Article Detail: what actually left the Central Warehouse in the range',
+  WH_Accuracy: '1 - ABS(WH Forecast - Outbound) / MAX(WH Forecast, Outbound)',
+  Safety_Stock_Days:
+    "Source: 'Replan Planning'[SS]. A number of DAYS, or the words NoNeed (no buffer wanted) / OnDemand (no standing cover)",
+  Per_Day_Qty: 'WH Forecast / days in the selected range, counted inclusively',
+  SS_Qty: 'SS days x Per day qty. NoNeed gives 0; OnDemand is blank',
+  Plan_WH_SOH:
+    "Warehouse closing stock on the inventory feed's last day, warehouse locations only. A CURRENT balance, not the range's closing balance. Never the shops' Store SOH",
+  Open_PO_Qty:
+    "Source: [CC Open PO Qty] in the Inventory Control model, grouped on 'CC Item Location'[Article No.], warehouse locations only, POs raised on or before the end of the selected range",
+  DTL: 'MAX(0, SOH + Pending Qty) / Per day qty. Warehouse stock only',
+  OOS_Date: 'TODAY + DTL',
+  Target_Cover:
+    'last selected date - Forecasted OOS Date + SS days. Negative means stock already outlasts the range',
+  Req_Qty: 'MAX(0, Target Cover x Per day qty)',
+  Req_Date:
+    'Forecasted OOS Date - Lead Time - SS days. A date in the past means the order is already overdue',
+  Lead_Time_Days: "Source: 'Replan Planning'[LEAD TIME], in days",
+  Delivery_Freq:
+    "Source: 'Replan Planning'[DeliveryFreq], a count of deliveries. The source does not state the period",
+  D1_Date:
+    'first day of the selected range + (DTL - SS days). The only date counted from the range start rather than from today',
+  D1_Qty: 'Req Qty / Delivery Freq',
+  D2_Date:
+    'TODAY + ((1st delivery qty / Per day qty) + DTL - SS days). Blank when there is no second delivery',
+  D2_Qty: 'Req Qty - 1st delivery qty',
+  Total_SOH: 'SOH + Pending Qty + Outbound',
+  New_WH_Forecast: 'WH Forecast + SS Qty. A test figure - the live WH Forecast is unchanged',
+  New_ACC: 'Total SOH / New WH Forecast. A coverage ratio, so it can exceed 100%',
+}
+
+/**
+ * The block appended under the exported table.
+ *
+ * The window and the two anchor dates come first, because half the formulas
+ * below refer to them: "days in the selected range" and "TODAY" are not
+ * self-evident in a file opened later, and the stock as-of date is a different
+ * day again from both.
+ */
+export function csvNotes(cols, { dateFrom, dateTo, days, asOf, today }) {
+  const out = [
+    [],
+    ['How this table was produced'],
+    ['Selected range', dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : 'none selected'],
+    ['Days in range (inclusive)', days ?? ''],
+    ['TODAY, as used by the date formulas', today ?? ''],
+    ['Warehouse stock as at', asOf ?? 'not available'],
+    [],
+    ['Column', 'Formula or source'],
+  ]
+  for (const c of cols) out.push([c.label, FORMULAS[c.key] ?? ''])
+  return out
+}
+
 const GROUPS = {
   planid: {
     label: 'Article',
@@ -667,7 +756,7 @@ const GROUPS = {
       },
       {
         term: 'Pending Qty',
-        text: 'Units already ordered from suppliers and not yet received, net of part deliveries. It does not move with the date range: an open PO has no "as at" date.',
+        text: 'Units already ordered from suppliers and not yet received, net of part deliveries. As at the end of the selected range: POs raised on or before it count.',
       },
       {
         term: 'DTL',
@@ -898,21 +987,69 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
       flush
       fill
       tools={
+        <>
+        {/*
+          * Two downloads, because they answer different questions.
+          *
+          * Excel carries the calculated columns as LIVE FORMULAS against real
+          * cells, with the window constants on a second sheet - so a planner
+          * can change the stock figure or the safety stock days and watch the
+          * order quantity and the dates move. CSV stays a flat snapshot with
+          * the formulas written out underneath as text, which is what you want
+          * if you are feeding it to something else rather than reading it.
+          */}
         <button
           type="button"
           className="btn"
           disabled={!planned.length}
+          title="The table with every calculated column as a working Excel formula"
+          onClick={() =>
+            downloadXlsx(
+              'replenishment-planning',
+              planningSheets(planned, columns.map(({ key, label }) => ({ key, label })), {
+                dateFrom: filters?.dateFrom,
+                dateTo: filters?.dateTo,
+                days,
+                asOf,
+                today: new Date(today).toISOString().slice(0, 10),
+              })
+            )
+          }
+        >
+          <IconDownload size={12} />
+          Excel
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!planned.length}
+          title="A flat snapshot, with the formulas listed as text underneath"
           onClick={() =>
             downloadCsv(
               'replenishment-planning',
               planned,
-              columns.map(({ key, label }) => ({ key, label }))
+              columns.map(({ key, label }) => ({ key, label })),
+              /*
+               * The formulas ride along under the table.
+               *
+               * Built from the columns actually being exported, so a hidden
+               * column does not leave an orphan formula and an added one cannot
+               * arrive without its arithmetic.
+               */
+              csvNotes(columns, {
+                dateFrom: filters?.dateFrom,
+                dateTo: filters?.dateTo,
+                days,
+                asOf,
+                today: new Date(today).toISOString().slice(0, 10),
+              })
             )
           }
         >
           <IconDownload size={12} />
           CSV
         </button>
+        </>
       }
     >
       {busy && !planned.length ? (

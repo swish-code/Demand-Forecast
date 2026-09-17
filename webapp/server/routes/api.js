@@ -1259,15 +1259,25 @@ async function withSafetyStock(rows, filters, grain, admin) {
       Supplier_Name: policy.supplier,
       Purchase_Unit: policy.purchaseUnit,
       Base_Unit: policy.baseUnit,
+      // Article-level, per base unit. Never a menu-item cost - see the note in
+      // `insights/replanPlanning.js` for why that is structurally impossible.
+      Avg_Cost: policy.avgCost,
     }
   })
 }
 
-async function withOpenPo(rows, grain, admin) {
+async function withOpenPo(rows, filters, grain, admin) {
   if (!OPEN_PO_COLUMN_ON || !admin) return rows
   if (grain.date || grain.location) return rows
 
-  const held = await openPoByArticle().catch((err) => {
+  /*
+   * As at the end of the selected range, from 17 Sep 2026.
+   *
+   * The measure honours it through `[CC End Date]`; see the header of
+   * `insights/openPo.js` for why the filter has to land on 'CC Date' and what
+   * happens when the range runs past the inventory feed.
+   */
+  const held = await openPoByArticle(filters?.dateTo ?? null).catch((err) => {
     console.warn(`  [open-po] ${err.message.slice(0, 90)}`)
     return null
   })
@@ -2099,6 +2109,7 @@ api.all('/component-level', handle(async (req, res) => {
               grain,
               seesStockDetail(req.user)
             ),
+            window,
             grain,
             seesStockDetail(req.user)
           ),
@@ -2136,6 +2147,7 @@ api.all('/component-level', handle(async (req, res) => {
             grain,
             seesStockDetail(req.user)
           ),
+          window,
           grain,
           seesStockDetail(req.user)
         ),
