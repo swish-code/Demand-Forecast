@@ -25,6 +25,15 @@ const SLICERS = [
   { id: 'item', key: 'items', label: 'Article', options: 'items', placeholder: 'All' },
   { id: 'nodeType', key: 'nodeTypes', label: 'Prod. type', options: 'nodeTypes', placeholder: 'All' },
   /*
+   * What kind of thing the article is — Food, Packaging, Uniform and the rest.
+   *
+   * From the Inventory Control article master, so it is the same list the
+   * category slicers elsewhere offer. Items the kitchen makes rather than buys
+   * are "Prepared", which the master has no category for and which is a real
+   * answer rather than a gap.
+   */
+  { id: 'category', key: 'categories', label: 'Category', options: 'categories', placeholder: 'All' },
+  /*
    * Where an article's stock comes from.
    *
    * Two fixed values rather than a list read from a model: it is derived from
@@ -69,6 +78,7 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       items: [],
       recipeGroups: [],
       nodeTypes: [],
+      categories: [],
       supply: [],
       prepStatus: [],
       dateFrom: f.defaultFrom,

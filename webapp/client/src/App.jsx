@@ -77,7 +77,7 @@ const PAGES = [
     // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
     // the table; only the slicer is gone. Put 'recipeGroup' back in this list
     // and its row back in FilterBar's SLICERS to restore it.
-    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'supply', 'recipeKind', 'status'],
+    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'category', 'supply', 'recipeKind', 'status'],
   },
   {
     id: 'warehouse',
@@ -163,6 +163,7 @@ const EMPTY_OPTIONS = {
   items: [],
   recipeGroups: [],
   nodeTypes: [],
+  categories: [],
   // Fixed, not fetched: the two answers are computed from the outbound copy.
   supply: ['Warehouse', 'Direct Supply'],
   // Fixed too: a row either has a recipe behind it or it does not.
@@ -284,6 +285,7 @@ export default function App({ session, onSignedOut }) {
     items: [],
     recipeGroups: [],
     nodeTypes: [],
+    categories: [],
     supply: [],
     recipeKinds: [],
     statuses: [],
@@ -402,6 +404,7 @@ export default function App({ session, onSignedOut }) {
     item: { list: 'items', filter: 'items' },
     recipeGroup: { list: 'recipeGroups', filter: 'recipeGroups' },
     nodeType: { list: 'nodeTypes', filter: 'nodeTypes' },
+    category: { list: 'categories', filter: 'categories' },
     supply: { list: 'supply', filter: 'supply' },
     recipeKind: { list: 'recipeKinds', filter: 'recipeKinds' },
     status: { list: 'statuses', filter: 'statuses' },
@@ -547,6 +550,7 @@ export default function App({ session, onSignedOut }) {
         items: trim(f.items, slicers.data.items),
         recipeGroups: trim(f.recipeGroups, slicers.data.recipeGroups),
         nodeTypes: trim(f.nodeTypes, slicers.data.nodeTypes),
+        categories: trim(f.categories, slicers.data.categories),
       }
 
       // Only commit when something actually moved, or this fires on every load.

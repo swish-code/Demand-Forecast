@@ -443,6 +443,24 @@ CREATE TABLE IF NOT EXISTS cube_sales_daily (
   PRIMARY KEY (brand, date)
 );
 
+-- What actually sold, as opposed to what the day is expected to sell.
+--
+-- The value column above is 'FORECAST (2)'[Totalsale], actual for a day that
+-- has happened and FORECAST for one that has not. That is the right series for
+-- planning and the wrong one to put on screen under the word "sales": measured
+-- on 20 Sep 2026, between a fifth and a third of each brand's "2026 sales" had
+-- not happened yet - BBT 5,971,402 was 4,276,285 traded and 1,695,117 still
+-- forecast.
+--
+-- So the model's own [Actual Sales] is carried beside it. Null, not 0, for a
+-- day with no reading: a future day has no actual, and writing nought would
+-- make it indistinguishable from a day that traded nothing.
+--
+-- Only the display uses this. Everything that scales by base-year sales still
+-- reads the value column, because a window's product quantities belong to that
+-- series and mixing the two would size a mix against a total it did not make.
+ALTER TABLE cube_sales_daily ADD COLUMN IF NOT EXISTS actual DOUBLE PRECISION;
+
 -- A sales figure somebody typed in, for a year the models do not cover.
 --
 -- The forecast models end on 31 Dec 2026: 'FORECAST (2)' has no 2027 row, and

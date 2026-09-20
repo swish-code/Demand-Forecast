@@ -349,12 +349,38 @@ async function salesValuesIfEmpty() {
     .slice(0, 10)
 
   const per = await pg.all(
-    'SELECT brand, COUNT(*)::int AS n, MIN(date) AS lo, MAX(date) AS hi FROM cube_sales_daily GROUP BY brand'
+    `SELECT brand, COUNT(*)::int AS n, MIN(date) AS lo, MAX(date) AS hi,
+            COUNT(actual)::int AS acted,
+            MAX(CASE WHEN actual IS NOT NULL THEN date END) AS act_hi
+       FROM cube_sales_daily GROUP BY brand`
   )
   const held = new Map(per.map((r) => [String(r.brand), r]))
   const short = config.brands.filter((b) => {
     const r = held.get(b.code)
-    return !r || !r.lo || String(r.lo) > oldest
+    if (!r || !r.lo || String(r.lo) > oldest) return true
+    /*
+     * A third trap, caught 20 Sep 2026: depth alone passes a brand whose rows
+     * are all there but whose `actual` is not.
+     *
+     * The hourly refresh rewrites only the last few days, so when the actual
+     * column was added every brand ended up with actuals for three days and
+     * nulls for the other 259 - and this check, looking only at row count and
+     * earliest date, called that "deep enough" and skipped for ever. The page
+     * then showed three days of sales under a heading of the year: BBT read
+     * 75,363 where the year is 4,258,610.
+     *
+     * So a brand whose actuals do not reach back through its own history is
+     * short too, and one full refresh repairs it.
+     */
+    const acted = Number(r.acted ?? 0)
+    if (!acted) return true
+    const reach = r.act_hi ? String(r.act_hi) : null
+    if (!reach) return true
+    // Days from the brand's earliest row to its latest actual. Far fewer
+    // actuals than that means the middle of the series was never written.
+    const span =
+      Math.round((Date.parse(`${reach}T00:00:00Z`) - Date.parse(`${String(r.lo)}T00:00:00Z`)) / 86400000) + 1
+    return acted < span
   })
 
   if (!short.length) {

@@ -19,6 +19,10 @@ import {
   planShape,
   planMonthlyValues,
   loadSalesPlans,
+  MAIN_PLAN_BRANDS,
+  OTHERS_KEY,
+  isMainPlanBrand,
+  splitAcrossBrands,
 } from '../insights/salesPlan.js'
 import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
 import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
@@ -1082,14 +1086,38 @@ admin.post(
  */
 function planRow(brand, year, entered, totals) {
   const plan = entered.get(`${brand.code}|${year}`) ?? null
-  const baseTotal = totals.get(brand.code) ?? 0
+  const base = totals.get(brand.code) ?? {
+    total: 0,
+    actual: null,
+    actualTo: null,
+    actualDays: 0,
+    expectedDays: 0,
+    actualComplete: false,
+  }
+  const baseTotal = base.total
   const shape = planShape(brand.code, year)
   const values = planMonthlyValues(brand.code, year)
 
   return {
     code: brand.code,
     label: brand.label ?? brand.code,
+    /*
+     * Both readings of the base year, and they are not interchangeable.
+     *
+     * `baseActual` is what the brand has actually sold and is what the page
+     * shows. `baseTotal` is the Totalsale series - part forecast - and stays
+     * because it is what the growth figure and the usability gate have always
+     * meant, and what every scaling calculation divides by.
+     */
     baseTotal,
+    baseActual: base.actual,
+    baseActualTo: base.actualTo,
+    // Coverage, so a part-year sum is never shown as the year. See
+    // `baseYearTotals` for the 74,647-against-4,258,610 case that made this
+    // necessary.
+    baseActualDays: base.actualDays,
+    baseExpectedDays: base.expectedDays,
+    baseActualComplete: base.actualComplete,
     value: plan?.value ?? null,
     ratio: plan?.ratio ?? null,
     updatedAt: plan?.updatedAt ?? null,
@@ -1119,6 +1147,64 @@ function planRow(brand, year, entered, totals) {
   }
 }
 
+/** The brands that are planned together rather than one at a time. */
+const otherBrands = () => config.brands.filter((b) => !isMainPlanBrand(b.code))
+
+/**
+ * The Others bucket as one row, built from its members' rows.
+ *
+ * Every figure is a sum of the members, so the row says the same thing the
+ * brands inside it say - there is no second calculation that could drift from
+ * them. `members` travels with it so the page can show what the bucket holds
+ * and how a target was divided.
+ */
+function othersRow(year, entered, totals) {
+  const members = otherBrands().map((b) => planRow(b, year, entered, totals))
+  const withValue = members.filter((m) => m.value !== null && m.value !== undefined)
+  const withActual = members.filter((m) => m.baseActual !== null && m.baseActual !== undefined)
+  const withMonths = members.filter((m) => Array.isArray(m.months))
+
+  const months = withMonths.length
+    ? Array.from({ length: 12 }, (_, i) => withMonths.reduce((n, m) => n + m.months[i], 0))
+    : null
+  const monthTotal = months ? months.reduce((n, v) => n + v, 0) : 0
+
+  const baseTotal = members.reduce((n, m) => n + (Number(m.baseTotal) || 0), 0)
+  const value = withValue.length ? withValue.reduce((n, m) => n + Number(m.value), 0) : null
+
+  return {
+    code: OTHERS_KEY,
+    label: 'Others',
+    isGroup: true,
+    members: members.map((m) => ({
+      code: m.code,
+      label: m.label,
+      value: m.value,
+      baseTotal: m.baseTotal,
+      shapeSource: m.shapeSource,
+    })),
+    baseTotal,
+    baseActual: withActual.length ? withActual.reduce((n, m) => n + Number(m.baseActual), 0) : null,
+    baseActualTo: members.map((m) => m.baseActualTo).filter(Boolean).sort().pop() ?? null,
+    baseActualDays: Math.min(...members.map((m) => m.baseActualDays ?? 0)),
+    baseExpectedDays: Math.max(...members.map((m) => m.baseExpectedDays ?? 0)),
+    baseActualComplete: members.every((m) => m.baseActualComplete),
+    value,
+    // Growth for the bucket, against the same base its members use.
+    ratio: value !== null && baseTotal > 0 ? value / baseTotal : null,
+    updatedAt: members.map((m) => m.updatedAt).filter(Boolean).sort().pop() ?? null,
+    updatedBy: withValue[0]?.updatedBy ?? null,
+    usable: members.some((m) => m.usable),
+    canPlan: baseTotal > 0,
+    hasShape: members.some((m) => m.hasShape),
+    // Each member keeps its own seasonality, so the bucket has no single
+    // source. The months below are what those shapes add up to.
+    shapeSource: withMonths.length ? 'group' : null,
+    months,
+    shares: months && monthTotal > 0 ? months.map((v) => v / monthTotal) : null,
+  }
+}
+
 admin.get(
   '/sales-plan',
   handle(async (req, res) => {
@@ -1130,7 +1216,15 @@ admin.get(
     res.json({
       baseYear: base,
       year,
+      // Every brand, unchanged, for anything that wants the full list.
       brands: config.brands.map((b) => planRow(b, year, entered, totals)),
+      // What the page puts an input box against: five brands and one bucket.
+      groups: [
+        ...MAIN_PLAN_BRANDS.map((code) => config.brands.find((b) => b.code === code))
+          .filter(Boolean)
+          .map((b) => planRow(b, year, entered, totals)),
+        othersRow(year, entered, totals),
+      ],
     })
   })
 )
@@ -1141,9 +1235,68 @@ admin.post(
     const brand = String(req.body?.brand ?? '').trim()
     const year = Number(req.body?.year)
     const raw = req.body?.value
+    const blank = raw === null || raw === undefined || String(raw).trim() === ''
 
-    if (!config.brands.some((b) => b.code === brand)) {
+    if (brand !== OTHERS_KEY && !config.brands.some((b) => b.code === brand)) {
       return res.status(400).json({ error: 'That is not one of the configured brands.' })
+    }
+
+    /*
+     * A figure against the bucket is divided and stored per brand.
+     *
+     * Split here, on the way in, rather than held as a group row and divided on
+     * every read: everything downstream already works one brand at a time, and
+     * this way not a line of it has to learn what a group is.
+     */
+    if (brand === OTHERS_KEY) {
+      const members = otherBrands()
+      const totalsNow = await baseYearTotals()
+      try {
+        if (blank) {
+          for (const b of members) await clearSalesPlan(b.code, year)
+        } else {
+          const target = Number(String(raw).replace(/[,\s]/g, ''))
+          if (!Number.isFinite(target) || target < 0) {
+            return res.status(400).json({ error: 'The sales figure has to be a number, and not negative.' })
+          }
+          const weights = new Map(members.map((b) => [b.code, totalsNow.get(b.code)?.total ?? 0]))
+          const split = splitAcrossBrands(target, weights)
+          if (!split.size) {
+            return res.status(400).json({
+              error: 'None of the brands in Others has base-year sales, so a target cannot be divided across them.',
+            })
+          }
+          for (const b of members) {
+            const slice = split.get(b.code)
+            // A member with no base-year sales gets no plan rather than a zero,
+            // which would read as a deliberate forecast of nothing.
+            if (!(slice > 0)) {
+              await clearSalesPlan(b.code, year)
+              continue
+            }
+            await ensurePlanShape(b.code, year)
+            await saveSalesPlan(b.code, year, slice, req.user?.email ?? null)
+          }
+        }
+        await loadCoverage()
+      } catch (err) {
+        return res.status(400).json({ error: err.message })
+      }
+
+      const totals = await baseYearTotals()
+      const entered = new Map(salesPlans().map((p) => [`${p.brand}|${p.year}`, p]))
+      return res.json({
+        saved: true,
+        baseYear: salesPlanBaseYear(),
+        year,
+        brands: config.brands.map((b) => planRow(b, year, entered, totals)),
+        groups: [
+          ...MAIN_PLAN_BRANDS.map((code) => config.brands.find((b) => b.code === code))
+            .filter(Boolean)
+            .map((b) => planRow(b, year, entered, totals)),
+          othersRow(year, entered, totals),
+        ],
+      })
     }
 
     try {
@@ -1174,6 +1327,12 @@ admin.post(
       baseYear: salesPlanBaseYear(),
       year,
       brands: config.brands.map((b) => planRow(b, year, entered, totals)),
+      groups: [
+        ...MAIN_PLAN_BRANDS.map((code) => config.brands.find((b) => b.code === code))
+          .filter(Boolean)
+          .map((b) => planRow(b, year, entered, totals)),
+        othersRow(year, entered, totals),
+      ],
     })
   })
 )

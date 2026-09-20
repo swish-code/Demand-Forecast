@@ -31,6 +31,7 @@ import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/
 import { sohTrend } from '../insights/sohTrend.js'
 import { storeStock, stockColumnsFor, warehouseStockNow } from '../insights/storeStock.js'
 import { openPoByArticle } from '../insights/openPo.js'
+import { categoryByArticle, categoryOptions, PREPARED } from '../insights/articleCategory.js'
 import {
   safetyStockByArticle,
   safetyStockQty,
@@ -57,7 +58,17 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
 // everything below it requires a session.
 
 
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'supply', 'recipeKinds', 'statuses']
+/*
+ * Every multi-select the client can send.
+ *
+ * `parseFilters` builds its filter object from this list and nothing else, so a
+ * slicer missing from it is dropped in silence - the request arrives, the key
+ * is ignored, and the page renders unfiltered as though the filter did nothing.
+ * That is how the category slicer behaved on the day it was added: the column
+ * was stamped on every row, the dropdown read "Food", and every category was
+ * still on screen.
+ */
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -364,6 +375,12 @@ api.all('/slicers', handle(async (req, res) => {
     items: mergeOptions(results.map((r) => r.items)),
     recipeGroups: mergeOptions(results.map((r) => r.recipeGroups)),
     nodeTypes: mergeOptions(results.map((r) => r.nodeTypes)),
+    /*
+     * Brand-independent, so asked once rather than merged per brand: an
+     * article's category is a property of the article master and does not
+     * change with which brand is selected.
+     */
+    categories: await categoryOptions().catch(() => []),
     prepStatus: mergeOptions(results.map((r) => r.prepStatus)),
     dateRange: mergeDateRange(results.map((r) => r.dateRange)),
   })
@@ -1266,6 +1283,59 @@ async function withSafetyStock(rows, filters, grain, admin) {
   })
 }
 
+/**
+ * What kind of thing each article is, and the slicer that filters on it.
+ *
+ * Stamps `Category` from the Inventory Control article master - see
+ * `insights/articleCategory.js` for why a plain lookup is safe and what the
+ * master does not cover.
+ *
+ * Unlike the warehouse stamps beside it, this goes on EVERY row rather than on
+ * the one carrying the warehouse figures. Category is a property of the
+ * article, not a quantity, so repeating it across an article's recipe lines
+ * cannot be double-counted by a total - and the filter has to see it on every
+ * row or it would drop the lines it did not stamp.
+ *
+ * Three ways a row gets its category:
+ *
+ *   the master has the article      -> whatever the master says
+ *   a PA item, or a kitchen step    -> `Prepared`, because "we make this" is a
+ *                                      real answer and a dash would read as
+ *                                      missing data
+ *   anything else                   -> null
+ *
+ * That last case is two articles out of 1,217. A bought-in article the master
+ * has never heard of is genuinely uncategorised, and calling it Prepared would
+ * be a guess dressed as a fact.
+ *
+ * Filtering happens here, after the stamp, because the category lives in a
+ * different model from the rows and cannot be a predicate in the query that
+ * fetched them. A row with no category matches no category filter, which is
+ * what "uncategorised" should do.
+ */
+async function withCategory(rows, filters) {
+  const map = await categoryByArticle().catch((err) => {
+    console.warn(`  [category] ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!map) return rows
+
+  const wanted = filters?.categories?.length
+    ? new Set(filters.categories.map((c) => String(c)))
+    : null
+
+  const out = []
+  for (const r of rows) {
+    const article = String(r['Item No.'] ?? '').trim()
+    const held = article ? map.get(article) : null
+    const madeHere = !article || String(r['Node Type'] ?? '').trim().toUpperCase() === 'PA'
+    const category = held ?? (madeHere ? PREPARED : null)
+    if (wanted && !(category && wanted.has(category))) continue
+    out.push(r === undefined ? r : { ...r, Category: category })
+  }
+  return out
+}
+
 async function withOpenPo(rows, filters, grain, admin) {
   if (!OPEN_PO_COLUMN_ON || !admin) return rows
   if (grain.date || grain.location) return rows
@@ -2093,7 +2163,7 @@ api.all('/component-level', handle(async (req, res) => {
   if (g.single)
     return res.json({
       sales,
-      rows: withRecipeKind(
+      rows: await withCategory(withRecipeKind(
         await withSafetyStock(
           await withOpenPo(
             await withStoreStock(
@@ -2118,14 +2188,14 @@ api.all('/component-level', handle(async (req, res) => {
           seesStockDetail(req.user)
         ),
         window
-      ),
+      ), window),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
     sales,
-    rows: withRecipeKind(
+    rows: await withCategory(withRecipeKind(
       await withSafetyStock(
         await withOpenPo(
           await withStoreStock(
@@ -2156,7 +2226,7 @@ api.all('/component-level', handle(async (req, res) => {
         seesStockDetail(req.user)
       ),
       window
-    ),
+    ), window),
   })
 }))
 

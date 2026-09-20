@@ -199,6 +199,36 @@ const COLUMNS = [
     width: 96,
     render: (v) => (v ? <Pill tone={TYPE_TONE[v] ?? 'slate'}>{v}</Pill> : '–'),
   },
+  /*
+   * What kind of thing the article is, from the Inventory Control article
+   * master — the same list the category slicers elsewhere are fed from.
+   *
+   * "Prepared" is this app's word, not the master's: a PURCHASING master has no
+   * category for something the kitchen makes rather than buys, and 359 of the
+   * 389 PA items on this page are in that position. A dash would read as
+   * missing data where "we make this" is the actual answer.
+   *
+   * A genuine dash is left for the two bought-in articles the master has never
+   * heard of, because calling those Prepared would be a guess dressed as a fact.
+   */
+  {
+    key: 'Category',
+    label: 'Category',
+    autoWidth: true,
+    hint:
+      'What kind of article this is, from the Inventory Control article master. ' +
+      '"Prepared" means the kitchen makes it rather than buying it, so the ' +
+      'purchasing master has no category for it. A dash means the master does ' +
+      'not hold the article at all.',
+    render: (v) =>
+      v ? (
+        <Pill tone={v === 'Prepared' ? 'slate' : 'blue'}>{v}</Pill>
+      ) : (
+        <span className="muted" title="The purchasing article master does not hold this article.">
+          –
+        </span>
+      ),
+  },
   { key: 'BU', label: 'Unit', autoWidth: true },
   // The ERP article number: the key the warehouse knows this component by, and
   // the reason a consumption figure can be put beside a recipe figure at all.
@@ -1591,7 +1621,7 @@ export function ComponentLevel({
    * several articles is re-scored on its own totals, which is the only figure
    * that matches what the row now shows.
    */
-  const DIMENSIONS = ['Date', 'LocationID', 'CHAINID', 'Source', 'Recipe Group', 'Item', 'Node Type', 'BU', 'Item No.']
+  const DIMENSIONS = ['Date', 'LocationID', 'CHAINID', 'Source', 'Recipe Group', 'Item', 'Node Type', 'Category', 'BU', 'Item No.']
 
   const visibleDims = useMemo(
     () => DIMENSIONS.filter((k) => !hiddenCols.includes(k)),

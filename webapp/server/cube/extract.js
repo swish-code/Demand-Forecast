@@ -234,7 +234,8 @@ SUMMARIZECOLUMNS('FORECAST (2)'[Date],
   FILTER(ALL('FORECAST (2)'[Brand]), 'FORECAST (2)'[Brand] = "${code}"),
   FILTER(ALL('FORECAST (2)'[Date]),
     'FORECAST (2)'[Date] >= ${d(window.from)} && 'FORECAST (2)'[Date] <= ${d(window.to)}),
-  "Value", SUM('FORECAST (2)'[Totalsale]))`,
+  "Value", SUM('FORECAST (2)'[Totalsale]),
+  "Actual", SUM('FORECAST (2)'[Actual Sales]))`,
     brand.datasetId,
     { bulk: true }
   )
@@ -252,12 +253,23 @@ async function writeSalesValue(brand, rows, scope) {
     }
     await insertBatched(
       'cube_sales_daily',
-      ['brand', 'date', 'value'],
+      ['brand', 'date', 'value', 'actual'],
       ['brand', 'date'],
       rows,
       (r) => {
         const k = Object.keys(r)
-        return [brand, String(r[k[0]] ?? '').slice(0, 10), Number(r.Value) || 0]
+        /*
+         * Null rather than 0 when the model has no actual for the day.
+         *
+         * A day still ahead has no actual, and a 0 would be indistinguishable
+         * from a day that traded nothing - which would drag a brand's
+         * actual-to-date total down by every remaining day of the year.
+         */
+        const raw = r.Actual ?? r['[Actual]']
+        const actual = raw === null || raw === undefined || !Number.isFinite(Number(raw))
+          ? null
+          : Number(raw)
+        return [brand, String(r[k[0]] ?? '').slice(0, 10), Number(r.Value) || 0, actual]
       }
     )
 

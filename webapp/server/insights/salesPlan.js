@@ -83,6 +83,41 @@ const MONTHS = 12
 const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate()
 
 /**
+ * The brands somebody plans one at a time, and the bucket for the rest.
+ *
+ * Five brands carry most of the business and get a figure each; the remainder
+ * are planned together, because arguing over a target for a brand worth 4% of
+ * the group is time nobody has.
+ *
+ * Only the INPUT is grouped. A saved Others figure is split across its members
+ * immediately and stored per brand, so `cube_sales_plan`, `planWindow`,
+ * `planMix` and everything downstream see exactly what they saw before: one
+ * target per brand, each with its own seasonal shape. Nothing below this line
+ * knows the bucket exists.
+ */
+export const MAIN_PLAN_BRANDS = ['BBT', 'SS', 'YP', 'MM', 'TBL']
+export const OTHERS_KEY = '__others__'
+export const isMainPlanBrand = (code) => MAIN_PLAN_BRANDS.includes(String(code))
+
+/**
+ * Divide a group target across its members by their share of the base year.
+ *
+ * Weighted by base-year sales rather than split evenly, because the members
+ * differ by a factor of fifteen - PAT turns over 1,593,982 against BUR's
+ * 107,786 - and an even split would hand each the same target and make both
+ * wrong.
+ *
+ * A member with no base-year sales gets nothing: there is no mix to borrow for
+ * it, so a target against it could not become products or articles anyway.
+ */
+export function splitAcrossBrands(target, weights) {
+  const usable = [...weights].filter(([, w]) => Number(w) > 0)
+  const total = usable.reduce((s, [, w]) => s + Number(w), 0)
+  if (!(total > 0)) return new Map()
+  return new Map(usable.map(([code, w]) => [code, (Number(target) * Number(w)) / total]))
+}
+
+/**
  * The last whole year the models actually cover.
  *
  * Derived rather than hard-coded: it is the year of the latest day in
@@ -393,13 +428,67 @@ export async function clearSalesPlan(brand, year) {
   await loadSalesPlans()
 }
 
-/** The base-year total a ratio would be measured against, for the page. */
+/**
+ * What the base year comes to, both ways, for the page.
+ *
+ * `total` is 'FORECAST (2)'[Totalsale] over the year: actual for days that have
+ * happened and FORECAST for days that have not. It is what every scaling
+ * calculation divides by, because the product quantities of a window belong to
+ * that same series.
+ *
+ * `actual` is the model's own [Actual Sales] over the days that have one, and
+ * `actualTo` is the last of those days. This is the pair the page shows, because
+ * "2026 sales" meaning a number a third of which has not been sold yet is how
+ * the column was read as wrong - on 20 Sep 2026 BBT's 5,971,402 was 4,276,285
+ * traded and 1,695,117 still forecast.
+ */
 export async function baseYearTotals() {
   if (!baseYear) return new Map()
   const rows = await pg.all(
-    `SELECT brand, SUM(value) AS total FROM cube_sales_daily
+    `SELECT brand,
+            SUM(value)  AS total,
+            SUM(actual) AS actual,
+            COUNT(actual) AS actual_days,
+            MIN(CASE WHEN actual IS NOT NULL THEN date END) AS actual_from,
+            MAX(CASE WHEN actual IS NOT NULL THEN date END) AS actual_to
+       FROM cube_sales_daily
       WHERE date >= ? AND date <= ? GROUP BY brand`,
     [`${baseYear}-01-01`, `${baseYear}-12-31`]
   )
-  return new Map(rows.map((r) => [String(r.brand), Number(r.total) || 0]))
+
+  const DAY = 86400000
+  return new Map(
+    rows.map((r) => {
+      const days = Number(r.actual_days) || 0
+      const to = r.actual_to ? String(r.actual_to).slice(0, 10) : null
+      /*
+       * How many days the year SHOULD have an actual for, against how many it
+       * has. The hourly refresh rewrites only a few recent days, so after this
+       * column was added every brand had actuals for that handful and nulls
+       * for the rest - and summing those few under a heading of "2026 actual"
+       * read as the year. BBT showed 74,647 where the year is 4,258,610.
+       *
+       * So coverage travels with the figure, and the page refuses to present a
+       * part-year sum as a year until a full sales refresh has filled it in.
+       */
+      const expected = to
+        ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${baseYear}-01-01T00:00:00Z`)) / DAY) + 1
+        : 0
+      return [
+        String(r.brand),
+        {
+          total: Number(r.total) || 0,
+          // Null, not 0, until an extract has run since the column was added -
+          // so the page can say "not read yet" rather than claim nothing sold.
+          actual: r.actual === null || r.actual === undefined ? null : Number(r.actual),
+          actualFrom: r.actual_from ? String(r.actual_from).slice(0, 10) : null,
+          actualTo: to,
+          actualDays: days,
+          expectedDays: expected,
+          // Every day from 1 January to the last reading has one.
+          actualComplete: days > 0 && days >= expected,
+        },
+      ]
+    })
+  )
 }

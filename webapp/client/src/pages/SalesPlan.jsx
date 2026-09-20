@@ -20,6 +20,17 @@ const cleaned = (s) => String(s ?? '').replace(/[,\s]/g, '')
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+/*
+ * The rows the page puts a box against: five brands and one Others bucket.
+ *
+ * `groups` is what the server sends for exactly this; `brands` is the fallback
+ * so the page still renders against an older response.
+ */
+const rowsOf = (d) => d?.groups ?? d?.brands ?? []
+
+const draftOf = (d) =>
+  Object.fromEntries(rowsOf(d).map((b) => [b.code, b.value === null || b.value === undefined ? '' : String(b.value)]))
+
 const pct = (r) => {
   if (r === null || r === undefined) return '–'
   const n = (Number(r) - 1) * 100
@@ -40,9 +51,7 @@ export function SalesPlan() {
     try {
       const d = await api.admin.salesPlan()
       setData(d)
-      setDraft(
-        Object.fromEntries(d.brands.map((b) => [b.code, b.value === null ? '' : String(b.value)]))
-      )
+      setDraft(draftOf(d))
     } catch (err) {
       setError(err)
     } finally {
@@ -62,13 +71,11 @@ export function SalesPlan() {
     try {
       const d = await api.admin.saveSalesPlan(code, data.year, cleaned(draft[code]))
       setData({ ...data, ...d })
-      setDraft(
-        Object.fromEntries(d.brands.map((b) => [b.code, b.value === null ? '' : String(b.value)]))
-      )
+      setDraft(draftOf(d))
       setNote(
         cleaned(draft[code]) === ''
-          ? `${code} removed — that brand is back on the existing forecast logic.`
-          : `${code} saved. ${data.year} product and article forecasts now follow it.`
+          ? `${code === '__others__' ? 'Others' : code} removed — back on the existing forecast logic.`
+          : `${code === '__others__' ? 'Others saved and divided across its brands.' : `${code} saved.`} ${data.year} product and article forecasts now follow it.`
       )
     } catch (err) {
       setError(err)
@@ -122,22 +129,38 @@ export function SalesPlan() {
 
   const totals = useMemo(() => {
     if (!data) return null
-    const base = data.brands.reduce((n, b) => n + (Number(b.baseTotal) || 0), 0)
-    const planned = data.brands.reduce((n, b) => n + (Number(b.value) || 0), 0)
-    const entered = data.brands.filter((b) => b.value !== null).length
-    return { base, planned, entered }
+    // Summed over the brands that HAVE an actual, so the total says the same
+    // thing as the column above it rather than quietly treating a brand that
+    // has not been read as one that sold nothing.
+    const list = data.groups ?? data.brands
+    const read = list.filter((b) => b.baseActual !== null && b.baseActual !== undefined)
+    const base = read.reduce((n, b) => n + (Number(b.baseActual) || 0), 0)
+    const planned = list.reduce((n, b) => n + (Number(b.value) || 0), 0)
+    const entered = list.filter((b) => b.value !== null).length
+    // A total of part-year sums is a part-year total, so it is withheld rather
+    // than printed as the year's actual.
+    const partial = read.some((b) => !b.baseActualComplete)
+    return { base, planned, entered, read: read.length, partial, count: list.length }
+  }, [data])
+
+  // The last day any brand has an actual for — the column header says "to" this.
+  const actualTo = useMemo(() => {
+    const days = (data?.groups ?? data?.brands ?? []).map((b) => b.baseActualTo).filter(Boolean).sort()
+    return days.length ? days[days.length - 1] : null
   }, [data])
 
   // Only brands whose figure actually drives something: a target with no shape
   // has no months to show, and a row of blanks would read as twelve zeros.
   const planned = useMemo(
-    () => (data?.brands ?? []).filter((b) => b.months && b.shares && b.value !== null),
+    () => (data?.groups ?? data?.brands ?? []).filter((b) => b.months && b.shares && b.value !== null),
     [data]
   )
 
   if (error && !data) return <ErrorBanner error={error} onRetry={load} />
   if (busy && !data) return <ChartSkeleton height={280} />
   if (!data) return <Empty title="Nothing to plan yet">No brands are configured.</Empty>
+
+  const rows = rowsOf(data)
 
   return (
     <>
@@ -160,17 +183,18 @@ export function SalesPlan() {
                 <th
                   scope="col"
                   className="num"
-                  title={`Last year's actual sales, shown for comparison only. It is NOT what shapes ${data.year} — the months come from the brand's own seasonal shape. It is used for one thing: reading which products make up the sales, because there is no ${data.year} product data to read a mix from.`}
+                  title={`What each brand has actually sold in ${data.baseYear} so far — the model's own Actual Sales, counting only days that have traded. Shown for reference; it is NOT what shapes ${data.year}.`}
                 >
-                  {data.baseYear} sales <span className="muted">(reference)</span>
+                  {data.baseYear} actual
+                  {actualTo ? <span className="muted"> (to {actualTo})</span> : null}
                 </th>
                 <th scope="col" className="num">{data.year} sales plan</th>
                 <th
                   scope="col"
                   className="num"
-                  title={`How much bigger the ${data.year} target is than ${data.baseYear}'s actual sales. A comparison, not an input — nothing is multiplied by it.`}
+                  title={`The ${data.year} target against ${data.baseYear}'s FULL-YEAR figure — actual so far plus the model's forecast for the rest. Measured against the part-year actual beside it the number would be meaningless, because a whole year would be compared with nine months. A comparison, not an input: nothing is multiplied by it.`}
                 >
-                  Growth
+                  Growth <span className="muted">vs full year</span>
                 </th>
                 <th
                   scope="col"
@@ -183,15 +207,58 @@ export function SalesPlan() {
               </tr>
             </thead>
             <tbody>
-              {data.brands.map((b) => (
+              {rows.map((b) => (
                 <tr key={b.code}>
                   <td>
-                    <strong>{b.code}</strong>
-                    {b.label && b.label !== b.code ? (
-                      <span className="muted"> · {b.label}</span>
-                    ) : null}
+                    {b.isGroup ? (
+                      <>
+                        <strong>{b.label}</strong>
+                        <br />
+                        <span
+                          className="muted"
+                          title={`A target typed here is divided across these brands by their share of ${data.baseYear}, and each keeps its own seasonality.`}
+                        >
+                          {b.members.map((m) => m.code).join(' · ')}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <strong>{b.code}</strong>
+                        {b.label && b.label !== b.code ? (
+                          <span className="muted"> · {b.label}</span>
+                        ) : null}
+                      </>
+                    )}
                   </td>
-                  <td className="num">{fmtQty(b.baseTotal)}</td>
+                  <td className="num">
+                    {b.baseActual === null || b.baseActual === undefined ? (
+                      <span
+                        className="muted"
+                        title="Actual sales have not been read yet. Run Admin → Refresh sales values."
+                      >
+                        not read yet
+                      </span>
+                    ) : b.baseActualComplete ? (
+                      fmtQty(b.baseActual)
+                    ) : (
+                      /*
+                       * Deliberately NOT the bare number.
+                       *
+                       * Only some days carry an actual, so the sum is a few days
+                       * rather than the year — and printed plainly it reads as the
+                       * year and is wrong by a factor of fifty. The figure is still
+                       * shown, but labelled with what it actually covers.
+                       */
+                      <span
+                        title={`Only ${b.baseActualDays} of the ${b.baseExpectedDays} days up to ${b.baseActualTo} have been read, so this is those days only — not the year. The hourly refresh rewrites just the last few days; run Admin → Refresh sales values to fill in the rest.`}
+                      >
+                        <span className="muted">{fmtQty(b.baseActual)}</span>{' '}
+                        <Pill tone="amber">
+                          {b.baseActualDays}/{b.baseExpectedDays} days
+                        </Pill>
+                      </span>
+                    )}
+                  </td>
                   <td className="num">
                     <input
                       id={`plan-${b.code}`}
@@ -218,7 +285,9 @@ export function SalesPlan() {
                     )}
                   </td>
                   <td>
-                    {b.shapeSource === 'forecast' ? (
+                    {b.shapeSource === 'group' ? (
+                      <Pill tone="slate">Per brand</Pill>
+                    ) : b.shapeSource === 'forecast' ? (
                       <Pill tone="green">{data.year} forecast</Pill>
                     ) : b.shapeSource === 'seasonal' ? (
                       <Pill tone="blue">Seasonal</Pill>
@@ -262,14 +331,25 @@ export function SalesPlan() {
                   <strong>Total</strong>
                 </td>
                 <td className="num">
-                  <strong>{fmtQty(totals.base)}</strong>
+                  {!totals.read ? (
+                    <strong>–</strong>
+                  ) : totals.partial ? (
+                    <span
+                      className="muted"
+                      title="Some brands have only a few days of actuals read, so a total would not be the year's. Run Admin → Refresh sales values."
+                    >
+                      part-year
+                    </span>
+                  ) : (
+                    <strong>{fmtQty(totals.base)}</strong>
+                  )}
                 </td>
                 <td className="num">
                   <strong>{totals.entered ? fmtQty(totals.planned) : '–'}</strong>
                 </td>
                 <td className="num" colSpan={4}>
                   <span className="muted">
-                    {totals.entered} of {data.brands.length} brands planned
+                    {totals.entered} of {totals.count} planned
                   </span>
                 </td>
               </tr>

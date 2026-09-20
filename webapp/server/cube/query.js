@@ -21,8 +21,13 @@ const SUPPORTED = new Set(['brand', 'brands', 'locations', 'products', 'dateFrom
  * request so the Reset button knows what to go back to, and an allowlist that
  * had never heard of them refused every real request from the browser — the
  * copy answered every test and nothing at all in the actual application.
+ *
+ * `categories` is here as well as in COMPONENT_FILTERS: it narrows articles,
+ * and the brand-level endpoints on the same page - the sales series above all -
+ * are not per article, so it cannot change their answer. Without it those
+ * endpoints refuse the moment the slicer is touched.
  */
-const HARMLESS = new Set(['defaultFrom', 'defaultTo', 'need', 'top', 'supply'])
+const HARMLESS = new Set(['defaultFrom', 'defaultTo', 'need', 'top', 'supply', 'categories'])
 
 /**
  * Can the copy answer this request truthfully?
@@ -659,6 +664,17 @@ const COMPONENT_FILTERS = new Set([
    */
   'recipeKinds',
   'statuses',
+  /*
+   * And the article category, for the same reason again.
+   *
+   * `withCategory` in routes/api.js stamps it from the Inventory Control
+   * article master and filters the assembled rows, so it narrows nothing here.
+   * Left out of this set it read as a filter the copy has no column for, and
+   * selecting a category sent the whole page to a live component query that
+   * knows nothing about categories - which came back with every category on it,
+   * looking exactly like a filter that does nothing.
+   */
+  'categories',
   'brand',
   'brands',
   'dateFrom',
