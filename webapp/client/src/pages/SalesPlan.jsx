@@ -18,6 +18,8 @@ import { Panel, ErrorBanner, ChartSkeleton, Empty, Pill } from '../components/ui
 /** A typed figure, read back as a number. Blank means "remove the plan". */
 const cleaned = (s) => String(s ?? '').replace(/[,\s]/g, '')
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 const pct = (r) => {
   if (r === null || r === undefined) return '–'
   const n = (Number(r) - 1) * 100
@@ -126,6 +128,13 @@ export function SalesPlan() {
     return { base, planned, entered }
   }, [data])
 
+  // Only brands whose figure actually drives something: a target with no shape
+  // has no months to show, and a row of blanks would read as twelve zeros.
+  const planned = useMemo(
+    () => (data?.brands ?? []).filter((b) => b.months && b.shares && b.value !== null),
+    [data]
+  )
+
   if (error && !data) return <ErrorBanner error={error} onRetry={load} />
   if (busy && !data) return <ChartSkeleton height={280} />
   if (!data) return <Empty title="Nothing to plan yet">No brands are configured.</Empty>
@@ -134,7 +143,7 @@ export function SalesPlan() {
     <>
       <Panel
         title={`Brand sales plan — ${data.year}`}
-        sub={`The models stop at 31 Dec ${data.baseYear}, so there is no ${data.year} forecast to read. Type a sales value for a brand and the ${data.year} product and article forecasts follow from it. Leave a box empty and that brand keeps the existing logic.`}
+        sub={`Type a sales value for a brand and the ${data.year} product and article forecasts follow from it. The figure sets the SIZE of the year only — when those sales happen comes from the brand's own seasonal shape, which is never rebuilt from ${data.baseYear} sales. Leave a box empty and that brand keeps the existing logic.`}
       >
         {error ? <ErrorBanner error={error} onRetry={load} /> : null}
         {note ? (
@@ -148,10 +157,27 @@ export function SalesPlan() {
             <thead>
               <tr>
                 <th scope="col">Brand</th>
-                <th scope="col" className="num">{data.baseYear} sales</th>
+                <th
+                  scope="col"
+                  className="num"
+                  title={`Last year's actual sales, shown for comparison only. It is NOT what shapes ${data.year} — the months come from the brand's own seasonal shape. It is used for one thing: reading which products make up the sales, because there is no ${data.year} product data to read a mix from.`}
+                >
+                  {data.baseYear} sales <span className="muted">(reference)</span>
+                </th>
                 <th scope="col" className="num">{data.year} sales plan</th>
-                <th scope="col" className="num">Ratio</th>
-                <th scope="col" className="num">Growth</th>
+                <th
+                  scope="col"
+                  className="num"
+                  title={`How much bigger the ${data.year} target is than ${data.baseYear}'s actual sales. A comparison, not an input — nothing is multiplied by it.`}
+                >
+                  Growth
+                </th>
+                <th
+                  scope="col"
+                  title={`Where the month-to-month shape comes from. "Forecast" is the ${data.year} monthly forecast in the model itself; "Seasonal" is the brand's twelve monthly seasonal factors. Neither is ${data.baseYear} sales.`}
+                >
+                  Shape
+                </th>
                 <th scope="col">Last saved</th>
                 <th />
               </tr>
@@ -171,8 +197,13 @@ export function SalesPlan() {
                       id={`plan-${b.code}`}
                       className="field__input"
                       inputMode="decimal"
-                      placeholder={b.usable ? 'none' : 'no base sales'}
-                      disabled={!b.usable || saving === b.code}
+                      placeholder={b.canPlan ? 'none' : `no ${data.baseYear} sales`}
+                      title={
+                        b.canPlan
+                          ? undefined
+                          : `${b.code} has no ${data.baseYear} sales, so there is no product mix to read, and a figure typed here could not be turned into products or articles.`
+                      }
+                      disabled={!b.canPlan || saving === b.code}
                       value={draft[b.code] ?? ''}
                       onChange={(e) => setDraft({ ...draft, [b.code]: e.target.value })}
                       onKeyDown={(e) => e.key === 'Enter' && save(b.code)}
@@ -180,13 +211,26 @@ export function SalesPlan() {
                     />
                   </td>
                   <td className="num">
-                    {b.ratio === null ? <span className="muted">–</span> : b.ratio.toFixed(4)}
-                  </td>
-                  <td className="num">
                     {b.ratio === null ? (
                       <span className="muted">–</span>
                     ) : (
                       <Pill tone={b.ratio >= 1 ? 'green' : 'amber'}>{pct(b.ratio)}</Pill>
+                    )}
+                  </td>
+                  <td>
+                    {b.shapeSource === 'forecast' ? (
+                      <Pill tone="green">{data.year} forecast</Pill>
+                    ) : b.shapeSource === 'seasonal' ? (
+                      <Pill tone="blue">Seasonal</Pill>
+                    ) : b.canPlan ? (
+                      <span
+                        className="muted"
+                        title={`No shape has been read for ${b.code} yet. One is fetched the moment a figure is saved, so there is nothing to do first.`}
+                      >
+                        on save
+                      </span>
+                    ) : (
+                      <span className="muted">–</span>
                     )}
                   </td>
                   <td>
@@ -203,7 +247,7 @@ export function SalesPlan() {
                     <button
                       type="button"
                       className="btn"
-                      disabled={!b.usable || saving === b.code}
+                      disabled={!b.canPlan || saving === b.code}
                       onClick={() => save(b.code)}
                     >
                       {saving === b.code ? 'Saving…' : 'Save'}
@@ -269,13 +313,21 @@ export function SalesPlan() {
       <Panel title="What a saved figure does" sub="The chain, and the three things it deliberately leaves alone">
         <ul className="guide__list">
           <li>
-            <b>Brand sales.</b> The typed value replaces the {data.year} sales figure for that
-            brand. It is spread across the year using {data.baseYear}&rsquo;s own daily shape, so
-            seasonality is inherited rather than invented.
+            <b>Brand sales.</b> The typed value is the whole of {data.year} for that brand. It is
+            spread across the twelve months by the brand&rsquo;s own seasonal shape — the{' '}
+            {data.year} monthly forecast where the model has one, otherwise the brand&rsquo;s twelve
+            monthly seasonal factors. The months always add back to the figure you typed.
           </li>
           <li>
-            <b>Product level.</b> Every product keeps its {data.baseYear} share of the brand and is
-            scaled by the ratio, so the mix is unchanged and the total lands on the plan.
+            <b>Seasonality is never rebuilt from {data.baseYear}.</b> Changing the target changes
+            every month by the same proportion and leaves each month&rsquo;s share of the year
+            untouched. A target twice as large gives twelve months twice as large, in the same
+            shape.
+          </li>
+          <li>
+            <b>Product level.</b> How big each month is comes from the shape above; which products
+            make it up is read from {data.baseYear}, because there is no {data.year} product data
+            anywhere. Every product keeps its share of that mix, and the total lands on the plan.
           </li>
           <li>
             <b>Article level.</b> The recipe explosion is linear in product quantity, so scaling by
@@ -293,9 +345,53 @@ export function SalesPlan() {
         </ul>
         <p className="usage__note">
           Branch-level detail is the one thing a plan cannot produce: splitting {data.year} by branch
-          has nothing behind it, so it stays empty rather than inventing a split.
+          has nothing behind it, so it stays empty rather than inventing a split. A date range that
+          crosses out of {data.year} is refused rather than half-answered, because one half would be
+          planned and the other measured.
         </p>
       </Panel>
+
+      {planned.length ? (
+        <Panel
+          title={`The ${data.year} months`}
+          sub="What each target becomes once its seasonal shape has spread it. The percentages are the shape itself — they do not move when the target does."
+        >
+          <div className="nrp__scroll">
+            <table className="dt nrp__table">
+              <thead>
+                <tr>
+                  <th scope="col">Brand</th>
+                  {MONTH_NAMES.map((m) => (
+                    <th scope="col" className="num" key={m}>
+                      {m}
+                    </th>
+                  ))}
+                  <th scope="col" className="num">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planned.map((b) => (
+                  <tr key={b.code}>
+                    <td>
+                      <strong>{b.code}</strong>
+                    </td>
+                    {b.months.map((v, i) => (
+                      <td className="num" key={i} title={`${(b.shares[i] * 100).toFixed(2)}% of the year`}>
+                        {fmtQty(v)}
+                        <br />
+                        <span className="muted">{(b.shares[i] * 100).toFixed(1)}%</span>
+                      </td>
+                    ))}
+                    <td className="num">
+                      <strong>{fmtQty(b.months.reduce((n, v) => n + v, 0))}</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
     </>
   )
 }

@@ -1,6 +1,6 @@
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
-import { planWindow, plannedThrough, salesPlans } from '../insights/salesPlan.js'
+import { planWindow, plannedThrough, salesPlans, planBoundaryError } from '../insights/salesPlan.js'
 
 /**
  * Answering the Overview page from the local copy.
@@ -692,23 +692,30 @@ export function canAnswerComponents(brand, filters = {}) {
 }
 
 export async function componentLevel(brand, f, grain = {}) {
+  guardPlanBoundary(brand, f)
   /*
-   * A planned year, scaled the same way the product level is.
+   * A planned year, sized the same way the product level is.
    *
    * This is not a second method. Component_Forecast_Qty is the sum over every
    * recipe naming the article of (product quantity x recipe quantity per unit),
    * which is LINEAR in product quantity — so multiplying each component row by
-   * the brand's ratio gives exactly what re-exploding the scaled products
-   * through the recipe tree would give. The tree is untouched and the arithmetic
-   * is identical.
+   * the same factor gives exactly what re-exploding the sized products through
+   * the recipe tree would give. The tree is untouched and the arithmetic is
+   * identical.
+   *
+   * Linearity is why the seasonal change needed nothing here: swapping an
+   * annual ratio for a window factor changes the number being multiplied, not
+   * the fact that multiplying is valid.
    */
   const plan = planWindow(brand, f)
   if (plan) {
-    const rows = await componentLevel(brand, { ...f, dateFrom: plan.from, dateTo: plan.to }, grain)
+    const mix = await planMix(brand, plan)
+    if (!mix) return []
+    const rows = await componentLevel(brand, { ...f, dateFrom: mix.from, dateTo: mix.to }, grain)
     return rows.map((r) => ({
       ...r,
       Component_Actual_Qty: 0,
-      Component_Forecast_Qty: (Number(r.Component_Forecast_Qty) || 0) * plan.ratio,
+      Component_Forecast_Qty: (Number(r.Component_Forecast_Qty) || 0) * mix.factor,
     }))
   }
 
@@ -1034,47 +1041,113 @@ export async function salesVintage(brand, f, { allBrands = false } = {}) {
 }
 
 /*
- * A planned year's sales, scaled from the base year's own daily shape.
+ * A planned year's sales for a window: the target, spread by the plan's shape.
  *
  * Returns null for every window that is not inside a planned year, which is
  * what keeps the untouched path untouched.
  *
- * The all-brands figure is the catch-all bucket's denominator, and it is summed
- * brand by brand rather than scaled once: each brand has its own typed figure
- * and therefore its own ratio, so one blended multiplier would be wrong for
- * every brand in the mix.
+ * No table is read. Until 19 Sep 2026 this read the equivalent base-year window
+ * and multiplied it by an annual ratio, which made the base year's own monthly
+ * sales the shape of the plan year. The shape now comes from the plan, so the
+ * answer is arithmetic on a figure somebody typed and twelve weights - and it
+ * cannot inherit a base-year January of -1 (BBT) or 0 (CHP), because it no
+ * longer looks at one.
+ *
+ * The all-brands figure is summed brand by brand rather than scaled once: each
+ * brand has its own target AND its own seasonal shape, so neither one blended
+ * multiplier nor one blended shape would be right for any brand in the mix.
  */
+/**
+ * Refuse a window that crosses into a planned year, loudly.
+ *
+ * Thrown rather than returned because every caller here answers with rows or a
+ * number, and there is no value either can carry that means "this question has
+ * no answer". A 400 puts the message in front of whoever picked the dates.
+ */
+function guardPlanBoundary(brand, f) {
+  const message = planBoundaryError(brand, f)
+  if (!message) return
+  const err = new Error(message)
+  err.status = 400
+  throw err
+}
+
 async function plannedSales(brand, f, allBrands) {
   if (allBrands) {
     const year = Number(String(f.dateFrom).slice(0, 4))
-    const scoped = salesPlans().filter((p) => p.year === year && p.ratio)
+    const scoped = salesPlans().filter((p) => p.year === year && p.usable)
     if (!scoped.length) return null
     let total = 0
     for (const plan of scoped) {
       const mapped = planWindow(plan.brand, f)
       if (!mapped) continue
-      const rows = await rowsOf(
-        `SELECT SUM(value) AS forecast FROM cube_sales_daily
-          WHERE brand = ? AND date >= ? AND date <= ?`,
-        [plan.brand, mapped.from, mapped.to]
-      )
-      total += (Number(rows[0]?.forecast) || 0) * mapped.ratio
+      total += mapped.plannedValue
     }
     return total
   }
 
   const plan = planWindow(brand, f)
   if (!plan) return null
-  const rows = await rowsOf(
-    `SELECT SUM(value) AS forecast FROM cube_sales_daily
-      WHERE brand = ? AND date >= ? AND date <= ?`,
-    [brand, plan.from, plan.to]
-  )
-  return (Number(rows[0]?.forecast) || 0) * plan.ratio
+  return plan.plannedValue
+}
+
+/**
+ * Where to read a planned window's PRODUCT MIX from, and how much to scale it.
+ *
+ * The plan says what a window's sales are. It says nothing about which products
+ * make them up, and there is no product data for a planned year -
+ * `Forecast_Product_Table` holds 3,313,002 rows spanning 2025-11-01 to
+ * 2026-12-31 and none at all for 2027. So the mix is borrowed from the base
+ * year and sized to the planned figure:
+ *
+ *   factor = planned sales for the window / base-year sales of the mix window
+ *
+ * Every product keeps its share of that mix window, and the total lands on the
+ * plan. That is the same arithmetic as before; what changed is the numerator,
+ * which used to be the base window's own sales times an annual ratio.
+ *
+ * THE FALLBACK, AND WHY IT IS NOT A FUDGE
+ *
+ * The equivalent base window is the natural mix source - January's mix for
+ * January. But a brand that was not trading then has no mix to lend: CHP opened
+ * in March 2026, so its January sales are 0, and BBT's January is -1. Dividing
+ * by either gives an infinity or a negative, which is exactly how the old path
+ * produced a January of 0 and -2.
+ *
+ * So when the equivalent window has no positive sales, the mix is read from the
+ * whole base year instead. The window still gets its full planned sales; only
+ * the question "what does this brand sell" is answered from a wider period.
+ * Losing within-year mix drift for such a month is the cost, and it is a great
+ * deal cheaper than reporting nothing at all for it.
+ */
+async function planMix(brand, plan) {
+  const salesOf = async (from, to) => {
+    const rows = await rowsOf(
+      `SELECT SUM(value) AS forecast FROM cube_sales_daily
+        WHERE brand = ? AND date >= ? AND date <= ?`,
+      [brand, from, to]
+    )
+    return Number(rows[0]?.forecast) || 0
+  }
+
+  const direct = await salesOf(plan.from, plan.to)
+  if (direct > 0) {
+    return { from: plan.from, to: plan.to, factor: plan.plannedValue / direct, fellBack: false }
+  }
+
+  const wide = await salesOf(plan.fallbackFrom, plan.fallbackTo)
+  if (!(wide > 0)) return null
+  return {
+    from: plan.fallbackFrom,
+    to: plan.fallbackTo,
+    factor: plan.plannedValue / wide,
+    fellBack: true,
+  }
 }
 
 export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
+  if (!allBrands) guardPlanBoundary(brand, f)
   // A typed figure for this year replaces the model's, which is the whole point
   // of the plan. Null here means there is no plan and nothing changes.
   const planned = await plannedSales(brand, f, allBrands)
@@ -1461,25 +1534,31 @@ export function canAnswerArticles(brand, filters = {}) {
 }
 
 export async function productLevel(brand, f) {
+  guardPlanBoundary(brand, f)
   /*
-   * A planned year takes the base year's product mix, scaled.
+   * A planned year takes a base-year product mix, sized to the plan.
    *
-   * Read the equivalent base-year window and multiply every product's forecast
-   * by the brand's ratio. The mix is therefore identical to the year it was
-   * built from — each product keeps its share — and the total lands on the
-   * typed figure's implied quantity.
+   * `planMix` says which base-year window to read the mix from and what to
+   * multiply it by, so that the window's total lands on the sales the plan's
+   * seasonal shape gives it. Every product keeps its share of that mix.
    *
-   * The recursion terminates because the mapped window is in the base year,
-   * where `planWindow` returns null.
+   * The multiplier is no longer the plan's annual ratio. That is what made the
+   * base year's monthly sales the shape of the plan year; the shape now comes
+   * from the plan itself and only the mix is borrowed.
+   *
+   * The recursion terminates because the mix window is in the base year, where
+   * `planWindow` returns null.
    *
    * Actual is zeroed. A planned year has not traded, and zero is the same
    * convention the copy already holds for months that have not happened.
    */
   const plan = planWindow(brand, f)
   if (plan) {
-    const rows = await productLevel(brand, { ...f, dateFrom: plan.from, dateTo: plan.to })
+    const mix = await planMix(brand, plan)
+    if (!mix) return []
+    const rows = await productLevel(brand, { ...f, dateFrom: mix.from, dateTo: mix.to })
     return rows.map((r) => {
-      const forecast = (Number(r.Forecast_Qty) || 0) * plan.ratio
+      const forecast = (Number(r.Forecast_Qty) || 0) * mix.factor
       return {
         ...r,
         Actual_Qty: 0,

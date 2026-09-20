@@ -75,9 +75,12 @@ import { pg } from '../db/accounts.js'
  * which is what lets `planFor` stay synchronous.
  */
 const plans = new Map()
+const shapes = new Map()
 let baseYear = null
 
 const key = (brand, year) => `${String(brand)}|${Number(year)}`
+const MONTHS = 12
+const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate()
 
 /**
  * The last whole year the models actually cover.
@@ -104,7 +107,7 @@ export async function loadSalesPlans() {
   const hi = String(latest[0]?.hi ?? '').slice(0, 10)
   baseYear = hi ? Number(hi.slice(0, 4)) : null
 
-  const [rows, scoped] = await Promise.all([
+  const [rows, scoped, shaped] = await Promise.all([
     pg.all(`SELECT brand, year, value, updated_at, updated_by FROM cube_sales_plan`, []),
     baseYear
       ? pg.all(
@@ -113,8 +116,35 @@ export async function loadSalesPlans() {
           [`${baseYear}-01-01`, `${baseYear}-12-31`]
         )
       : Promise.resolve([]),
+    pg.all(`SELECT brand, year, month, weight, source FROM cube_plan_shape`, []),
   ])
   const base = new Map(scoped.map((r) => [String(r.brand), Number(r.total) || 0]))
+
+  /*
+   * The twelve weights, gathered per brand-year.
+   *
+   * A set with a missing month is dropped rather than part-used: eleven weights
+   * that were normalised as twelve would put the twelfth month's share into the
+   * other eleven and inflate every one of them.
+   */
+  shapes.clear()
+  const gathered = new Map()
+  for (const r of shaped) {
+    const k = key(r.brand, r.year)
+    if (!gathered.has(k)) gathered.set(k, { weights: new Array(MONTHS).fill(null), source: null })
+    const m = Number(r.month)
+    if (!(m >= 1 && m <= MONTHS)) continue
+    gathered.get(k).weights[m - 1] = Number(r.weight)
+    gathered.get(k).source = String(r.source ?? '')
+  }
+  for (const [k, g] of gathered) {
+    if (!g.weights.every((w) => Number.isFinite(w) && w >= 0)) continue
+    const total = g.weights.reduce((s, w) => s + w, 0)
+    if (!(total > 0)) continue
+    // Stored normalised, but re-normalised here so a rounding drift in the
+    // table can never make a year's months miss its target.
+    shapes.set(k, { weights: g.weights.map((w) => w / total), source: g.source })
+  }
 
   plans.clear()
   for (const r of rows) {
@@ -123,20 +153,51 @@ export async function loadSalesPlans() {
     const value = Number(r.value)
     if (!Number.isFinite(value) || value < 0) continue
     const baseTotal = base.get(brand) ?? 0
+    const shape = shapes.get(key(brand, year)) ?? null
     plans.set(key(brand, year), {
       brand,
       year,
       value,
       baseYear,
       baseTotal,
-      // No base-year sales means nothing to scale from, so the plan is recorded
-      // but drives nothing. A null ratio is checked for on every read.
+      /*
+       * `ratio` is the year-on-year growth the typed figure implies, and it is
+       * shown on the page as exactly that. It is NOT what shapes the plan any
+       * more: the months come from `shape` below, and this is not multiplied
+       * through anything.
+       */
       ratio: baseTotal > 0 ? value / baseTotal : null,
+      shape: shape?.weights ?? null,
+      shapeSource: shape?.source ?? null,
+      /*
+       * Two things are needed before a plan drives anything: a shape, which
+       * says when the year's sales happen, and some base-year sales, which is
+       * where the product mix is read from. Missing either, the figure is
+       * recorded and does nothing.
+       */
+      usable: Boolean(shape) && baseTotal > 0,
       updatedAt: r.updated_at ?? null,
       updatedBy: r.updated_by ?? null,
     })
   }
   return plans.size
+}
+
+/** The twelve weights for a brand-year, or null. */
+export function planShape(brand, year) {
+  return shapes.get(key(brand, year)) ?? null
+}
+
+/**
+ * The plan's twelve monthly sales values.
+ *
+ * The target spread across the year by its own shape. These sum to the target
+ * exactly, which is the property the whole design turns on.
+ */
+export function planMonthlyValues(brand, year) {
+  const plan = plans.get(key(brand, year))
+  if (!plan?.usable) return null
+  return plan.shape.map((w) => plan.value * w)
 }
 
 /** Every typed figure, newest first, for the page that edits them. */
@@ -153,7 +214,7 @@ export function salesPlanFor(brand, year) {
 export function plannedThrough(brand) {
   let last = null
   for (const p of plans.values()) {
-    if (p.brand !== brand || !p.ratio) continue
+    if (p.brand !== brand || !p.usable) continue
     const end = `${p.year}-12-31`
     if (!last || end > last) last = end
   }
@@ -176,13 +237,94 @@ const toBaseYear = (iso, from, to) => {
 }
 
 /**
- * Does this window fall inside a plan year, and if so what does it scale from?
+ * How much of each month a window covers.
+ *
+ * Returns one entry per month the window touches, with the fraction of that
+ * month's days it holds. A whole month is 1; 15-30 November is 16/30.
+ *
+ * Days are the split within a month because the shape is monthly and says
+ * nothing finer. That is stated here rather than discovered: a month's sales
+ * are spread evenly across its days, and only the month-to-month pattern is
+ * claimed to be seasonality.
+ */
+function monthCoverage(from, to, year) {
+  const start = Date.parse(`${from}T00:00:00Z`)
+  const end = Date.parse(`${to}T00:00:00Z`)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return []
+
+  const out = []
+  for (let m = 1; m <= MONTHS; m += 1) {
+    const days = daysInMonth(year, m)
+    const mStart = Date.UTC(year, m - 1, 1)
+    const mEnd = Date.UTC(year, m - 1, days)
+    const lo = Math.max(start, mStart)
+    const hi = Math.min(end, mEnd)
+    if (hi < lo) continue
+    const held = Math.round((hi - lo) / 86400000) + 1
+    out.push({ month: m, fraction: held / days, days: held })
+  }
+  return out
+}
+
+/**
+ * A window that spans a planned year and another year, which cannot be answered.
+ *
+ * Returns a message, or null when the window is fine. The two halves come from
+ * different places — one measured, one typed against a shape — and adding them
+ * would report a figure that is part one and part the other without saying so.
+ *
+ * Until 19 Sep 2026 this was claimed to be refused and was not: the plan simply
+ * did not apply and the raw table answered, so 15 Dec 2026 - 15 Jan 2027 came
+ * back as 287,232, which is December alone, with nothing to say January was
+ * missing. It is refused properly now.
+ */
+export function planBoundaryError(brand, filters) {
+  const from = String(filters?.dateFrom ?? '').slice(0, 10)
+  const to = String(filters?.dateTo ?? '').slice(0, 10)
+  if (!from || !to || !baseYear) return null
+  const a = Number(from.slice(0, 4))
+  const b = Number(to.slice(0, 4))
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return null
+
+  // Only a planned year makes a mixed window unanswerable. Two ordinary years
+  // side by side are read from the same table and add up honestly.
+  const touched = []
+  for (let y = Math.min(a, b); y <= Math.max(a, b); y += 1) {
+    if (plans.get(key(brand, y))?.usable) touched.push(y)
+  }
+  if (!touched.length) return null
+
+  return (
+    `A date range cannot cross into ${touched.join(' and ')}, which ${touched.length > 1 ? 'are' : 'is'} a planned year for ${brand}. ` +
+    `Planned years are built from a sales target and a seasonal shape, and measured years are read from the model; ` +
+    `adding the two would give a total that is part plan and part actual without saying which. ` +
+    `Choose a range inside one year.`
+  )
+}
+
+/**
+ * Does this window fall inside a plan year, and if so what shapes it?
  *
  * Returns null — meaning "nothing to do, behave exactly as before" — unless the
- * window lies wholly inside one planned year for this brand and that plan has a
- * usable ratio. A window straddling the boundary is deliberately refused rather
- * than half-answered: the two halves come from different places and adding them
- * would report a figure that is part measured and part typed without saying so.
+ * window lies wholly inside one planned year for this brand and that plan is
+ * usable.
+ *
+ * WHAT CHANGED ON 19 SEP 2026
+ *
+ * This used to return the plan's annual `ratio`, and every caller multiplied
+ * the equivalent base-year window by it. That made the base year's own monthly
+ * sales the shape of the plan year, which is what produced a January of -2 for
+ * BBT and 0 for CHP.
+ *
+ * It now returns `plannedValue`: what the target says this window's sales are,
+ * worked out from the plan's twelve weights. The base-year window is still
+ * returned, but only as the source of the PRODUCT MIX — there is no 2027
+ * product data anywhere, so the mix has to be borrowed. Callers size that mix
+ * to `plannedValue` instead of scaling it by an annual ratio.
+ *
+ * Those two uses of the base year are different things and the distinction is
+ * the point of the change: WHEN the sales happen comes from the plan's shape,
+ * WHAT is sold comes from the mix.
  */
 export function planWindow(brand, filters) {
   const from = String(filters?.dateFrom ?? '').slice(0, 10)
@@ -193,12 +335,32 @@ export function planWindow(brand, filters) {
   if (Number(to.slice(0, 4)) !== y) return null
 
   const plan = plans.get(key(brand, y))
-  if (!plan?.ratio) return null
+  if (!plan?.usable) return null
+
+  const months = monthCoverage(from, to, y)
+  if (!months.length) return null
+
+  /*
+   * The window's share of the year, and therefore its sales.
+   *
+   * Summed over whole and part months alike, so a window of the whole year
+   * sums the twelve weights back to 1 and lands exactly on the typed figure.
+   */
+  const share = months.reduce((s, m) => s + plan.shape[m.month - 1] * m.fraction, 0)
+
   return {
     ...plan,
-    // The equivalent window in the base year, which is what actually gets read.
+    months,
+    share,
+    plannedValue: plan.value * share,
+    // The equivalent window in the base year. The MIX comes from here; the size
+    // does not.
     from: toBaseYear(from, y, baseYear),
     to: toBaseYear(to, y, baseYear),
+    // Where to read a mix from when the equivalent window has no usable sales -
+    // CHP's January, which is zero because the brand opened in March.
+    fallbackFrom: `${baseYear}-01-01`,
+    fallbackTo: `${baseYear}-12-31`,
   }
 }
 

@@ -16,8 +16,12 @@ import {
   clearSalesPlan,
   baseYearTotals,
   salesPlanBaseYear,
+  planShape,
+  planMonthlyValues,
+  loadSalesPlans,
 } from '../insights/salesPlan.js'
 import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
+import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
@@ -1045,6 +1049,76 @@ admin.post(
  * brand's calendar to include a planned year. Without it the date picker would
  * still stop at 31 Dec 2026 and the new figure would be unreachable.
  */
+/*
+ * Re-read every brand's seasonal shape for a year.
+ *
+ * Shapes are fetched once, when a figure is saved, because they change about as
+ * often as a financial year does. This is the way to pick up a change without
+ * re-saving nine figures — most usefully when a brand's plan-year Totalsale
+ * gets populated upstream, which promotes it from the seasonal index to the
+ * model's own forecast.
+ */
+admin.post(
+  '/sales-plan/shapes',
+  handle(async (req, res) => {
+    const year = Number(req.body?.year) || (salesPlanBaseYear() ?? 0) + 1
+    const results = await refreshPlanShapes(year)
+    await loadSalesPlans()
+    await loadCoverage()
+    res.json({ year, results })
+  })
+)
+
+/*
+ * One brand's row on the plan page.
+ *
+ * Shared by the read and the save so the two cannot describe the same plan
+ * differently — they returned identical shapes built twice before.
+ *
+ * `months` is what the target actually becomes once the shape has spread it,
+ * and it is sent whether or not a figure is saved: with one, the twelve values;
+ * without, the twelve shares on their own, so somebody can see the shape their
+ * number is about to be spread by before they commit to it.
+ */
+function planRow(brand, year, entered, totals) {
+  const plan = entered.get(`${brand.code}|${year}`) ?? null
+  const baseTotal = totals.get(brand.code) ?? 0
+  const shape = planShape(brand.code, year)
+  const values = planMonthlyValues(brand.code, year)
+
+  return {
+    code: brand.code,
+    label: brand.label ?? brand.code,
+    baseTotal,
+    value: plan?.value ?? null,
+    ratio: plan?.ratio ?? null,
+    updatedAt: plan?.updatedAt ?? null,
+    updatedBy: plan?.updatedBy ?? null,
+    /*
+     * Two things are needed before a typed figure drives anything: a seasonal
+     * shape, and some base-year sales to read a product mix from. Said here
+     * rather than discovered as a blank column later.
+     */
+    usable: Boolean(shape) && baseTotal > 0,
+    /*
+     * Whether a figure can be TYPED, which is a lower bar than whether one
+     * drives anything - and deliberately so.
+     *
+     * A shape is fetched when a figure is saved, so requiring one before
+     * letting somebody type would deadlock: the box would be disabled until a
+     * save that the disabled box prevents. Only the base-year sales are a real
+     * precondition, because nothing can borrow a product mix without them.
+     */
+    canPlan: baseTotal > 0,
+    hasShape: Boolean(shape),
+    // 'forecast' - the plan year's own monthly forecast, which only MM has.
+    // 'seasonal' - the brand's twelve monthly seasonal factors.
+    shapeSource: shape?.source ?? null,
+    shares: shape?.weights ?? null,
+    months: values ?? null,
+  }
+}
+
 admin.get(
   '/sales-plan',
   handle(async (req, res) => {
@@ -1056,23 +1130,7 @@ admin.get(
     res.json({
       baseYear: base,
       year,
-      brands: config.brands.map((b) => {
-        const plan = entered.get(`${b.code}|${year}`) ?? null
-        const baseTotal = totals.get(b.code) ?? 0
-        return {
-          code: b.code,
-          label: b.label ?? b.code,
-          baseTotal,
-          value: plan?.value ?? null,
-          ratio: plan?.ratio ?? null,
-          updatedAt: plan?.updatedAt ?? null,
-          updatedBy: plan?.updatedBy ?? null,
-          // A brand with no base-year sales has nothing to scale from, so a
-          // figure typed against it is recorded and drives nothing. Said here
-          // rather than discovered as a blank column later.
-          usable: baseTotal > 0,
-        }
-      }),
+      brands: config.brands.map((b) => planRow(b, year, entered, totals)),
     })
   })
 )
@@ -1094,6 +1152,14 @@ admin.post(
       if (raw === null || raw === undefined || String(raw).trim() === '') {
         await clearSalesPlan(brand, year)
       } else {
+        /*
+         * The shape before the figure.
+         *
+         * A target is only half a plan - it says how big the year is, and the
+         * shape says when it happens. Fetching it here means typing a number
+         * is the whole of the job, and `saveSalesPlan` re-reads both.
+         */
+        await ensurePlanShape(brand, year)
         await saveSalesPlan(brand, year, Number(String(raw).replace(/[,\s]/g, '')), req.user?.email ?? null)
       }
       await loadCoverage()
@@ -1107,20 +1173,7 @@ admin.post(
       saved: true,
       baseYear: salesPlanBaseYear(),
       year,
-      brands: config.brands.map((b) => {
-        const plan = entered.get(`${b.code}|${year}`) ?? null
-        const baseTotal = totals.get(b.code) ?? 0
-        return {
-          code: b.code,
-          label: b.label ?? b.code,
-          baseTotal,
-          value: plan?.value ?? null,
-          ratio: plan?.ratio ?? null,
-          updatedAt: plan?.updatedAt ?? null,
-          updatedBy: plan?.updatedBy ?? null,
-          usable: baseTotal > 0,
-        }
-      }),
+      brands: config.brands.map((b) => planRow(b, year, entered, totals)),
     })
   })
 )
@@ -1142,7 +1195,7 @@ const planYearWindow = (year) => ({ dateFrom: `${year}-01-01`, dateTo: `${year}-
 
 const plannedBrands = (year) =>
   salesPlans()
-    .filter((p) => p.year === year && p.ratio)
+    .filter((p) => p.year === year && p.usable)
     .map((p) => config.brands.find((b) => b.code === p.brand))
     .filter(Boolean)
 

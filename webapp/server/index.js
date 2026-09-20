@@ -18,7 +18,35 @@ import { startMailSchedule } from './mail/runner.js'
 import { startPrewarm } from './warm.js'
 import { startCubeSchedule, cubeState } from './cube/schedule.js'
 import { loadCoverage } from './cube/query.js'
-import { loadSalesPlans } from './insights/salesPlan.js'
+import { loadSalesPlans, salesPlans } from './insights/salesPlan.js'
+import { ensurePlanShape } from './cube/planShape.js'
+
+/**
+ * Give every saved plan the seasonal shape it needs, once, at boot.
+ *
+ * Figures typed before the shape existed have none, and without one a plan is
+ * not usable and its year goes quiet. Fetching here means an existing plan
+ * starts working on the first boot after this change rather than waiting for
+ * somebody to re-save it.
+ *
+ * Failures are logged and swallowed. A model that cannot be reached must not
+ * stop the server coming up; the plan simply stays unusable until the next try,
+ * which is the same state it was already in.
+ */
+async function backfillPlanShapes() {
+  const wanted = salesPlans().filter((p) => !p.shape)
+  if (!wanted.length) return
+  for (const plan of wanted) {
+    try {
+      const got = await ensurePlanShape(plan.brand, plan.year)
+      if (got.source) console.log(`  [plan] ${plan.brand} ${plan.year} shape from ${got.source} ${got.from}`)
+      else console.log(`  [plan] ${plan.brand} ${plan.year} ${got.skipped ?? 'no shape'}`)
+    } catch (err) {
+      console.log(`  [plan] ${plan.brand} ${plan.year} shape failed: ${String(err.message).slice(0, 80)}`)
+    }
+  }
+  await loadSalesPlans()
+}
 import { raise, clear, isOpen, loadOpenAlerts } from './insights/alerts.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -37,6 +65,7 @@ await loadOpenAlerts()
 // Plans first: `loadCoverage` widens each brand's calendar to cover a planned
 // year, and it can only do that once the plans are in memory.
 await loadSalesPlans()
+await backfillPlanShapes()
 await loadCoverage()
 await purgeExpiredSessions()
 

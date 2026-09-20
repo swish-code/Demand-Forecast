@@ -467,6 +467,39 @@ CREATE TABLE IF NOT EXISTS cube_sales_plan (
   PRIMARY KEY (brand, year)
 );
 
+-- WHEN a planned year's sales happen: one weight per brand per month.
+--
+-- The typed figure in cube_sales_plan says how big the year is. This says what
+-- shape it has, and the two are deliberately separate - a manual target must
+-- change the SIZE of a plan year, never its SEASONAL SHAPE.
+--
+-- The weight column is that month's share of its brand-year, and the twelve
+-- sum to 1, so any target distributes across them with no remainder and no
+-- drift.
+--
+-- The source column records which of two upstream patterns the weights came
+-- from:
+--
+--   'forecast'  the plan year's own FORECAST (2)[Totalsale], month by month.
+--               Only MM has this today; it is the better source and is
+--               preferred wherever it is populated.
+--   'seasonal'  'Seasonal Effect Branch'[Seasonal Effect], the brand's twelve
+--               monthly factors, normalised. Used for the other eight brands,
+--               whose plan-year Totalsale is blank.
+--
+-- Neither is 2026 sales. Scaling the base year's own monthly sales was the old
+-- method and it is what this table exists to replace: it inherited January
+-- figures of -1 (BBT) and 0 (CHP, which launched in March 2026), and no manual
+-- target could recover from either.
+CREATE TABLE IF NOT EXISTS cube_plan_shape (
+  brand  TEXT NOT NULL,
+  year   INTEGER NOT NULL,
+  month  INTEGER NOT NULL,
+  weight DOUBLE PRECISION NOT NULL,
+  source TEXT NOT NULL,
+  PRIMARY KEY (brand, year, month)
+);
+
 -- The sales forecast as it stood on a given day, kept because the live one
 -- destroys itself.
 --
