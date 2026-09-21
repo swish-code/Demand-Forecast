@@ -390,45 +390,86 @@ export function SalesPlan() {
         )}
       </Panel>
 
-      <Panel title="What a saved figure does" sub="The chain, and the three things it deliberately leaves alone">
-        <ul className="guide__list">
-          <li>
-            <b>Brand sales.</b> The typed value is the whole of {data.year} for that brand. It is
-            spread across the twelve months by the brand&rsquo;s own seasonal shape — the{' '}
-            {data.year} monthly forecast where the model has one, otherwise the brand&rsquo;s twelve
-            monthly seasonal factors. The months always add back to the figure you typed.
+      <Panel
+        title="What a saved figure does"
+        sub={`How one number becomes a ${data.year} plan, and what it deliberately leaves alone`}
+      >
+        {/*
+          * Two kinds of statement, so two groups.
+          *
+          * These were one flat list, which read badly for a reason worth
+          * recording: four of the items are a SEQUENCE — the typed figure
+          * becomes months, months become products, products become articles —
+          * and two are the opposite, promises about what does not move. Mixed
+          * together, and interleaved, the chain was impossible to follow.
+          *
+          * The numbers are not decoration: step 2 genuinely consumes step 1.
+          */}
+        <ol className="chain">
+          <li className="chain__step">
+            <span className="chain__n">1</span>
+            <div>
+              <b className="chain__t">Brand sales</b>
+              <p className="chain__d">
+                The typed value is the whole of {data.year}. It is spread across the twelve months
+                by the brand&rsquo;s own seasonal shape — the {data.year} monthly forecast where the
+                model has one, otherwise its twelve seasonal factors. The months always add back to
+                the figure you typed.
+              </p>
+            </div>
           </li>
+          <li className="chain__step">
+            <span className="chain__n">2</span>
+            <div>
+              <b className="chain__t">Product level</b>
+              <p className="chain__d">
+                How big each month is comes from the shape above. Which products make it up is read
+                from {data.baseYear}, because there is no {data.year} product data anywhere. Every
+                product keeps its share of that mix.
+              </p>
+            </div>
+          </li>
+          <li className="chain__step">
+            <span className="chain__n">3</span>
+            <div>
+              <b className="chain__t">Article level</b>
+              <p className="chain__d">
+                The recipe explosion is linear in product quantity, so scaling by the same ratio
+                gives exactly what re-exploding the scaled products through the recipe tree would
+                give. The tree itself is untouched.
+              </p>
+            </div>
+          </li>
+          <li className="chain__step">
+            <span className="chain__n">4</span>
+            <div>
+              <b className="chain__t">Warehouse forecast</b>
+              <p className="chain__d">
+                Nothing was changed for it. It already multiplies its decayed ratio by the
+                window&rsquo;s sales, so it picks the plan up on the existing method.
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <h4 className="chain__head">What it leaves alone</h4>
+        <ul className="chain__keeps">
           <li>
             <b>Seasonality is never rebuilt from {data.baseYear}.</b> Changing the target changes
             every month by the same proportion and leaves each month&rsquo;s share of the year
-            untouched. A target twice as large gives twelve months twice as large, in the same
-            shape.
-          </li>
-          <li>
-            <b>Product level.</b> How big each month is comes from the shape above; which products
-            make it up is read from {data.baseYear}, because there is no {data.year} product data
-            anywhere. Every product keeps its share of that mix, and the total lands on the plan.
-          </li>
-          <li>
-            <b>Article level.</b> The recipe explosion is linear in product quantity, so scaling by
-            the same ratio gives exactly what re-exploding the scaled products through the recipe
-            tree would give. The tree itself is untouched.
-          </li>
-          <li>
-            <b>Warehouse forecast.</b> Nothing was changed for it. It already multiplies its decayed
-            ratio by the window&rsquo;s sales, so it picks the plan up on the existing method.
+            untouched. A target twice as large gives twelve months twice as large, in the same shape.
           </li>
           <li>
             <b>Nothing else moves.</b> With no figure saved, not one calculation behaves differently
             — the {data.baseYear} figures, the accuracy measures and the cards are all untouched.
           </li>
+          <li>
+            <b>Branch level stays empty.</b> Splitting {data.year} by branch has nothing behind it,
+            so it is left blank rather than invented. A date range crossing out of {data.year} is
+            refused rather than half-answered, because one half would be planned and the other
+            measured.
+          </li>
         </ul>
-        <p className="usage__note">
-          Branch-level detail is the one thing a plan cannot produce: splitting {data.year} by branch
-          has nothing behind it, so it stays empty rather than inventing a split. A date range that
-          crosses out of {data.year} is refused rather than half-answered, because one half would be
-          planned and the other measured.
-        </p>
       </Panel>
 
       {planned.length ? (
@@ -453,7 +494,8 @@ export function SalesPlan() {
                 {planned.map((b) => (
                   <tr key={b.code}>
                     <td>
-                      <strong>{b.code}</strong>
+                      {/* The bucket has a key, not a brand code — show its name. */}
+                      <strong>{b.isGroup ? b.label : b.code}</strong>
                     </td>
                     {b.months.map((v, i) => (
                       <td className="num" key={i} title={`${(b.shares[i] * 100).toFixed(2)}% of the year`}>

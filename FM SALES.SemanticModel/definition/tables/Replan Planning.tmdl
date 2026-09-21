@@ -1,0 +1,662 @@
+table 'Replan Planning'
+	lineageTag: 07ff0a04-eb44-4591-8f9c-e81f1c72fce6
+
+	column Code
+		dataType: int64
+		formatString: 0
+		lineageTag: 35669139-85fa-4d7b-9c16-aae21e004756
+		summarizeBy: count
+		sourceColumn: Code
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'CODE.1'
+		dataType: string
+		lineageTag: db9d5153-8fcf-4b5c-8218-f989a99ca0b6
+		summarizeBy: none
+		sourceColumn: CODE.1
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'ITEM DESCRIPTION'
+		dataType: string
+		lineageTag: 64876a21-bafb-482c-b284-3203106cb211
+		summarizeBy: none
+		sourceColumn: ITEM DESCRIPTION
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'BASE UNIT'
+		dataType: string
+		lineageTag: 2e466fd2-ad26-4b34-8775-07173172fbd2
+		summarizeBy: none
+		sourceColumn: BASE UNIT
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'IS ACTIVE'
+		dataType: string
+		lineageTag: e17e2890-ad2e-4786-ad0a-1dbeea59aad4
+		summarizeBy: none
+		sourceColumn: IS ACTIVE
+
+		annotation SummarizationSetBy = Automatic
+
+	column Designation
+		dataType: string
+		lineageTag: 9285de1c-d090-4631-b7c5-9ab0a3249c1d
+		summarizeBy: none
+		sourceColumn: Designation
+
+		annotation SummarizationSetBy = Automatic
+
+	column SubCAT
+		dataType: string
+		lineageTag: 297d03a5-e2e9-4414-8d08-4baf19850cf1
+		summarizeBy: none
+		sourceColumn: SubCAT
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Current WHS ID'
+		dataType: string
+		lineageTag: 941a87a4-f789-46ac-8099-293d58e39c7a
+		summarizeBy: none
+		sourceColumn: Current WHS ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'ITEM GROUP'
+		dataType: string
+		lineageTag: 84617398-63de-4977-a84b-9566a714731f
+		summarizeBy: none
+		sourceColumn: ITEM GROUP
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'STORAGE TYPE'
+		dataType: string
+		lineageTag: b780ccfc-f0e5-4bd4-aa2f-dbdd4208234a
+		summarizeBy: none
+		sourceColumn: STORAGE TYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PURCH UNIT'
+		dataType: string
+		lineageTag: 5e884797-c827-4954-b9e9-c93c10619414
+		summarizeBy: none
+		sourceColumn: PURCH UNIT
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'CURRENT STOCK WAC'
+		dataType: double
+		lineageTag: cdad5159-ddd6-4853-8e72-4b05ce740844
+		summarizeBy: sum
+		sourceColumn: CURRENT STOCK WAC
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'TOTAL WAC MTD'
+		dataType: double
+		lineageTag: 27e4258c-6f18-4691-b02f-cfaba3180a97
+		summarizeBy: sum
+		sourceColumn: TOTAL WAC MTD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'LEAD TIME'
+		dataType: int64
+		formatString: 0
+		lineageTag: f28d6670-7b10-43d9-850a-e816a44f6397
+		summarizeBy: sum
+		sourceColumn: LEAD TIME
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'open delivery note'
+		dataType: int64
+		formatString: 0
+		lineageTag: cb2b6482-be60-4d85-a474-715252b3ac54
+		summarizeBy: sum
+		sourceColumn: open delivery note
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'TRF OUT Delivered & Declined'
+		dataType: int64
+		formatString: 0
+		lineageTag: 7a11846f-009d-491e-bcdb-2ac4d347b221
+		summarizeBy: sum
+		sourceColumn: TRF OUT Delivered & Declined
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'CURRENT STOCK'
+		dataType: double
+		lineageTag: 79aa0cda-78a6-48cd-b715-2e7ce53dd8bc
+		summarizeBy: sum
+		sourceColumn: CURRENT STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Actual SOH'
+		dataType: double
+		lineageTag: f058ffda-7b2d-402a-899f-3f04cb3e1a10
+		summarizeBy: sum
+		sourceColumn: Actual SOH
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Last PP'
+		dataType: double
+		lineageTag: 115a4540-9f89-4bbf-87b7-9eac07a63959
+		summarizeBy: sum
+		sourceColumn: Last PP
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Last PD'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 4452a972-40d6-4e12-9e63-c0495af25273
+		summarizeBy: none
+		sourceColumn: Last PD
+
+		variation Variation
+			isDefault
+			relationship: d31fca9f-83f6-415b-a0c3-186feb8d654f
+			defaultHierarchy: LocalDateTable_587d4c38-509d-4c81-abfc-539a422e9c47.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Last TR'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 0649a5eb-efcd-4656-9ab7-f559a6e75551
+		summarizeBy: none
+		sourceColumn: Last TR
+
+		variation Variation
+			isDefault
+			relationship: 312b354a-ab68-4d1f-ae62-a3562a134340
+			defaultHierarchy: LocalDateTable_a0af6219-553f-4c6c-b578-b157d16f4bb4.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 26-05-2026
+		dataType: double
+		lineageTag: 7c659ab3-cd89-44b2-8cc5-02f6e78417af
+		summarizeBy: sum
+		sourceColumn: 26-05-2026
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 26-06-2026
+		dataType: double
+		lineageTag: 393dfda5-cdfb-419e-b73d-b44a59c66ad6
+		summarizeBy: sum
+		sourceColumn: 26-06-2026
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 26-07-2026
+		dataType: double
+		lineageTag: 43eb4bdb-84aa-46c9-a668-c5251e59df13
+		summarizeBy: sum
+		sourceColumn: 26-07-2026
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 26-08-2026
+		dataType: double
+		lineageTag: 53dca061-724e-43b9-8ef5-7845e0514511
+		summarizeBy: sum
+		sourceColumn: 26-08-2026
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MIN
+		dataType: double
+		lineageTag: 0a47377c-0382-4a50-9b4d-cb1690b40991
+		summarizeBy: sum
+		sourceColumn: MIN
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MAX
+		dataType: double
+		lineageTag: 8eaf48ef-f2f5-4274-a900-5714095ba3f7
+		summarizeBy: sum
+		sourceColumn: MAX
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'AVG TRANSFER OUT'
+		dataType: double
+		lineageTag: 787001aa-45a4-4554-a48e-2af1b4c01be2
+		summarizeBy: sum
+		sourceColumn: AVG TRANSFER OUT
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'WEIGHT MIN'
+		dataType: double
+		lineageTag: 00ed58c0-23cf-4201-9802-f784ec7bba5a
+		summarizeBy: sum
+		sourceColumn: WEIGHT MIN
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'WEIGHT MAX'
+		dataType: double
+		lineageTag: 7429d1a7-bd3d-4638-a376-8238d5c41830
+		summarizeBy: sum
+		sourceColumn: WEIGHT MAX
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'DAYS TO LAST (DTL)'
+		dataType: int64
+		formatString: 0
+		lineageTag: 63502f12-826d-42e4-b1dd-4fecee9c9de5
+		summarizeBy: sum
+		sourceColumn: DAYS TO LAST (DTL)
+
+		annotation SummarizationSetBy = Automatic
+
+	column ReqDate
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: e29e7ef9-20e3-4c8f-8dcf-332ef44ccf32
+		summarizeBy: none
+		sourceColumn: ReqDate
+
+		variation Variation
+			isDefault
+			relationship: 05813245-7b47-4610-96ed-7c2387325a0b
+			defaultHierarchy: LocalDateTable_9126c92d-890c-44d3-8946-8c121e225175.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column ReceinvgDate
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 9e546bbe-ef0e-4557-b553-3dce74cc189b
+		summarizeBy: none
+		sourceColumn: ReceinvgDate
+
+		variation Variation
+			isDefault
+			relationship: 29c71640-2930-4458-b0b5-b9d9e7e598dd
+			defaultHierarchy: LocalDateTable_93a8abc4-c054-4086-a429-f43a6a4a457a.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'OOS DATE'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 55accd0f-33e9-42a6-aa4d-02512e3705a8
+		summarizeBy: none
+		sourceColumn: OOS DATE
+
+		variation Variation
+			isDefault
+			relationship: 999469d5-fd0c-4ddb-917b-b35f2a0ed0ce
+			defaultHierarchy: LocalDateTable_a837c53e-6346-4e83-897a-79699fdd4f65.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'CURRENT MONTH - MTD TRANSFER'
+		dataType: double
+		lineageTag: 15970dc7-fdb8-4c35-8339-0ae3745bf77f
+		summarizeBy: sum
+		sourceColumn: CURRENT MONTH - MTD TRANSFER
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'MTD XTRAPOL % vs. AVG TRANSFER'
+		dataType: double
+		lineageTag: 0507790c-3a02-412f-837e-e3de02748ee2
+		summarizeBy: sum
+		sourceColumn: MTD XTRAPOL % vs. AVG TRANSFER
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'MTD DAYS TO LAST'
+		dataType: int64
+		formatString: 0
+		lineageTag: f137c34b-2660-4eb1-8f1f-a153c8a83b43
+		summarizeBy: sum
+		sourceColumn: MTD DAYS TO LAST
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'MTD OOS'
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: e355a955-a9a2-4882-b21e-d3503d2c5e10
+		summarizeBy: none
+		sourceColumn: MTD OOS
+
+		variation Variation
+			isDefault
+			relationship: 52e58c60-5011-465b-ae19-558fd2bab56f
+			defaultHierarchy: LocalDateTable_36c6ce2d-9637-4ba7-bead-0aefad40477b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Target Cover'
+		dataType: string
+		lineageTag: 100e27f9-02dc-4c25-b0a8-c3828563e487
+		summarizeBy: none
+		sourceColumn: Target Cover
+
+		annotation SummarizationSetBy = Automatic
+
+	column SS
+		dataType: string
+		lineageTag: be73e86b-80cd-4e7a-9f56-ae92fff5dd35
+		summarizeBy: none
+		sourceColumn: SS
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'MinOOS DTL'
+		dataType: int64
+		formatString: 0
+		lineageTag: 31e6f40a-4218-4a67-b104-97db1ecdf36a
+		summarizeBy: sum
+		sourceColumn: MinOOS DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'QTY MTD'
+		dataType: double
+		lineageTag: a8de5075-d80b-4edb-9bb9-bb46f28fb8b7
+		summarizeBy: sum
+		sourceColumn: QTY MTD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DeliveryFreq
+		dataType: string
+		lineageTag: 17f4b0fe-33e7-4a47-9ef9-22f4b332ffcf
+		summarizeBy: none
+		sourceColumn: DeliveryFreq
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'PIPELINE PENDNG PO'
+		dataType: string
+		lineageTag: 326a7754-59b9-42d3-bc65-2f07d03cd085
+		summarizeBy: none
+		sourceColumn: PIPELINE PENDNG PO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'last Supplier Name'
+		dataType: string
+		lineageTag: 48c913ca-f4ba-4781-a505-668543f344ee
+		summarizeBy: none
+		sourceColumn: last Supplier Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column Status
+		dataType: string
+		lineageTag: 2e046d26-ae83-454c-bb06-1b88a5d5bfa7
+		summarizeBy: none
+		sourceColumn: Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK2 PROJ STOCK AVG'
+		dataType: string
+		lineageTag: a5ce86ee-74b4-435c-b98e-3e68cbc40cdc
+		summarizeBy: none
+		sourceColumn: WEEK2 PROJ STOCK AVG
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK2 PROJ DTL AVG'
+		dataType: string
+		lineageTag: 922db8cb-ec1f-4e93-a2c7-3491030f2af2
+		summarizeBy: none
+		sourceColumn: WEEK2 PROJ DTL AVG
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK4 QTY REPLEN'
+		dataType: string
+		lineageTag: b4ff640a-8735-4114-9538-9766ef3b8887
+		summarizeBy: none
+		sourceColumn: WEEK4 QTY REPLEN
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK4 PROJ STOCK'
+		dataType: string
+		lineageTag: ff19624a-3988-470c-b979-5b2c3cade6a0
+		summarizeBy: none
+		sourceColumn: WEEK4 PROJ STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK4 PROJ DTL'
+		dataType: string
+		lineageTag: 5ddd1383-17ae-4226-a7df-f45ecf66e0ad
+		summarizeBy: none
+		sourceColumn: WEEK4 PROJ DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK6 QTY REPLEN'
+		dataType: string
+		lineageTag: 2223751a-1884-4078-82e6-36431eba5c5a
+		summarizeBy: none
+		sourceColumn: WEEK6 QTY REPLEN
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'W6 PIPELINE PENDNG PO'
+		dataType: string
+		lineageTag: 0f6d5477-0825-4e5c-906f-1bdbba1a9fd7
+		summarizeBy: none
+		sourceColumn: W6 PIPELINE PENDNG PO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK6 PROJ STOCK'
+		dataType: string
+		lineageTag: edc0873a-939c-465c-a898-b2840b04eda6
+		summarizeBy: none
+		sourceColumn: WEEK6 PROJ STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK6 PROJ DTL'
+		dataType: string
+		lineageTag: d08084df-882b-4242-9398-e6967628ff75
+		summarizeBy: none
+		sourceColumn: WEEK6 PROJ DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK8 QTY REPLEN'
+		dataType: string
+		lineageTag: f2bf7c5a-bd66-4128-8568-290d4f701a27
+		summarizeBy: none
+		sourceColumn: WEEK8 QTY REPLEN
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK8 PROJ STOCK'
+		dataType: string
+		lineageTag: df87efeb-c73d-4466-9201-ea5c9be66d1a
+		summarizeBy: none
+		sourceColumn: WEEK8 PROJ STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK8 PROJ DTL'
+		dataType: string
+		lineageTag: 56bf6e3a-4338-4b78-99ff-8f358ae8b3cf
+		summarizeBy: none
+		sourceColumn: WEEK8 PROJ DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK10 QTY REPLEN'
+		dataType: string
+		lineageTag: 6fdbd07f-7518-42da-84c2-42d11dbb972f
+		summarizeBy: none
+		sourceColumn: WEEK10 QTY REPLEN
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'W10 PIPELINE PENDNG PO'
+		dataType: string
+		lineageTag: fa972232-999d-4454-85d4-d7641f0f99ff
+		summarizeBy: none
+		sourceColumn: W10 PIPELINE PENDNG PO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK10 PROJ STOCK'
+		dataType: string
+		lineageTag: 5fc447b6-ba71-43ff-b965-d1a978bdf960
+		summarizeBy: none
+		sourceColumn: WEEK10 PROJ STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK10 PROJ DTL'
+		dataType: string
+		lineageTag: 5a0c4506-e836-4a8f-beb0-6b003a764ae8
+		summarizeBy: none
+		sourceColumn: WEEK10 PROJ DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK12 QTY REPLEN'
+		dataType: string
+		lineageTag: 9c199df5-a436-41d6-836a-c01d5dfa4192
+		summarizeBy: none
+		sourceColumn: WEEK12 QTY REPLEN
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK12 PROJ STOCK'
+		dataType: string
+		lineageTag: 8402a14d-5c03-4cae-8c7d-d2befc858d69
+		summarizeBy: none
+		sourceColumn: WEEK12 PROJ STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'WEEK12 PROJ DTL'
+		dataType: string
+		lineageTag: 0be5a7af-b0e8-416b-9288-db227ce8d867
+		summarizeBy: none
+		sourceColumn: WEEK12 PROJ DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'OOS, <3DTL, <7DTL,<15DTL'
+		dataType: string
+		lineageTag: 78718c49-dd81-4688-91dc-2385788d7353
+		summarizeBy: none
+		sourceColumn: OOS, <3DTL, <7DTL,<15DTL
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Current Common'
+		dataType: string
+		lineageTag: d16acb9d-a8b4-40c8-a439-a4c1bb14a5c7
+		summarizeBy: none
+		sourceColumn: Current Common
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column68
+		dataType: string
+		lineageTag: 8c27ae37-d07e-4490-a08f-3c644732598a
+		summarizeBy: none
+		sourceColumn: Column68
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column69
+		dataType: string
+		lineageTag: 39408d81-f6d0-44b9-ad30-e184ed656601
+		summarizeBy: none
+		sourceColumn: Column69
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Replan Planning' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/farha_swishhh_net/Documents/Swish%20SPS%20V3%202026.xlsm"), null, true),
+				    #"Replen Planning_Sheet" = Source{[Item="Replen Planning",Kind="Sheet"]}[Data],
+				    #"Changed Type" = Table.TransformColumnTypes(#"Replen Planning_Sheet",{{"Column1", type any}, {"Column2", type text}, {"Column3", type text}, {"Column4", type text}, {"Column5", type text}, {"Column6", type any}, {"Column7", type text}, {"Column8", type text}, {"Column9", type text}, {"Column10", type text}, {"Column11", type any}, {"Column12", type any}, {"Column13", type any}, {"Column14", type any}, {"Column15", type any}, {"Column16", type any}, {"Column17", type any}, {"Column18", type any}, {"Column19", type any}, {"Column20", type any}, {"Column21", type any}, {"Column22", type any}, {"Column23", type any}, {"Column24", type any}, {"Column25", type any}, {"Column26", type any}, {"Column27", type any}, {"Column28", type any}, {"Column29", type any}, {"Column30", type any}, {"Column31", type any}, {"Column32", type any}, {"Column33", type any}, {"Column34", type any}, {"Column35", type any}, {"Column36", type any}, {"Column37", type any}, {"Column38", type any}, {"Column39", type any}, {"Column40", type any}, {"Column41", type any}, {"Column42", type any}, {"Column43", type any}, {"Column44", type any}, {"Column45", type text}, {"Column46", type text}, {"Column47", type text}, {"Column48", type text}, {"Column49", type text}, {"Column50", type text}, {"Column51", type text}, {"Column52", type text}, {"Column53", type text}, {"Column54", type text}, {"Column55", type text}, {"Column56", type text}, {"Column57", type text}, {"Column58", type text}, {"Column59", type text}, {"Column60", type text}, {"Column61", type text}, {"Column62", type text}, {"Column63", type text}, {"Column64", type text}, {"Column65", type text}, {"Column66", type text}, {"Column67", type text}, {"Column68", type any}, {"Column69", type any}}),
+				    #"Removed Top Rows" = Table.Skip(#"Changed Type",5),
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Removed Top Rows", [PromoteAllScalars=true]),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Promoted Headers",{{"Code", Int64.Type}, {"CODE", type text}, {"ITEM DESCRIPTION", type text}, {"BASE UNIT", type text}, {"IS ACTIVE", type text}, {"Designation", type any}, {"SubCAT", type text}, {"Current WHS ID", type text}, {"ITEM GROUP", type text}, {"STORAGE TYPE", type text}, {"PURCH UNIT", type any}, {"CURRENT STOCK WAC", type number}, {"TOTAL WAC MTD", type number}, {"LEAD TIME", Int64.Type}, {"open delivery note", Int64.Type}, {"TRF OUT Delivered & Declined", Int64.Type}, {"CURRENT STOCK", type number}, {"Actual SOH", type number}, {"Last PP", type number}, {"Last PD", type date}, {"Last TR", type date}, {"26-05-2026", type number}, {"26-06-2026", type number}, {"26-07-2026", type number}, {"26-08-2026", type number}, {"MIN", type number}, {"MAX", type number}, {"AVG TRANSFER OUT", type number}, {"WEIGHT MIN", type number}, {"WEIGHT MAX", type number}, {"DAYS TO LAST (DTL)", Int64.Type}, {"ReqDate", type date}, {"ReceinvgDate", type date}, {"OOS DATE", type date}, {"CURRENT MONTH - MTD TRANSFER", type number}, {"MTD XTRAPOL % vs. AVG TRANSFER", type number}, {"MTD #(lf)DAYS TO LAST", Int64.Type}, {"MTD OOS", type date}, {"Target Cover", type any}, {"SS", type any}, {"MinOOS DTL", Int64.Type}, {"QTY MTD", type number}, {"Delivery#(lf)Freq", type any}, {"PIPELINE PENDNG PO", type any}, {"last Supplier Name", type text}, {"Status", type text}, {"WEEK2 PROJ STOCK AVG", type text}, {"WEEK2 PROJ DTL AVG", type text}, {"WEEK4 QTY REPLEN", type text}, {"WEEK4 PROJ STOCK", type text}, {"WEEK4 PROJ DTL", type text}, {"WEEK6 QTY REPLEN", type text}, {"W6 PIPELINE PENDNG PO", type text}, {"WEEK6 PROJ STOCK", type text}, {"WEEK6 PROJ DTL", type text}, {"WEEK8 QTY REPLEN", type text}, {"WEEK8 PROJ STOCK", type text}, {"WEEK8 PROJ DTL", type text}, {"WEEK10 QTY REPLEN", type text}, {"W10 PIPELINE PENDNG PO", type text}, {"WEEK10 PROJ STOCK", type text}, {"WEEK10 PROJ DTL", type text}, {"WEEK12 QTY REPLEN", type text}, {"WEEK12 PROJ STOCK", type text}, {"WEEK12 PROJ DTL", type text}, {"OOS, <3DTL, <7DTL,<15DTL", type text}, {"Current Common", type text}, {"Column68", type any}, {"Column69", type any}}),
+				    #"Renamed Columns" = Table.RenameColumns(#"Changed Type1",{{"CODE", "CODE.1"}})
+				in
+				    #"Renamed Columns"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

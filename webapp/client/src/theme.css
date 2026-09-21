@@ -8281,3 +8281,105 @@ table.dt--plain thead th:hover { color: var(--text-muted); }
 .nav--collapsed .nav__logo {
   height: 17px;
 }
+
+/* ------------------------------------------------- sales plan: the chain */
+/*
+ * Four steps that consume one another, then the promises that do not move.
+ *
+ * This replaced a `guide__list` on 21 Sep 2026. That class is a definition
+ * list — a two-column grid expecting dt/dd pairs — and the panel was feeding
+ * it plain `li`s, so the items landed in alternating grid cells: item one in a
+ * 190px column, item two in the rest of the width, and so on down the page.
+ * It looked like a layout bug because it was one.
+ */
+.chain {
+  list-style: none;
+  margin: 0 0 var(--s5);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--s3);
+}
+
+.chain__step {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4) var(--s4);
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+/* The step number carries the sequence, so it reads before the words do. */
+.chain__n {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: var(--w-bold);
+  /*
+   * A fixed light ink, not var(--surface).
+   *
+   * `--brand` is defined once and is the same mid-dark green in both themes,
+   * so a surface-coloured number would be near-black on dark green the moment
+   * the page is read in dark mode.
+   */
+  color: #fff;
+  background: var(--accent);
+}
+
+.chain__t {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.chain__d {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.chain__head {
+  margin: 0 0 var(--s3);
+  font-size: 12px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/*
+ * Deliberately not cards. These are promises rather than steps, so they read
+ * as a list and cannot be mistaken for a fifth and sixth stage of the chain.
+ */
+.chain__keeps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s3);
+}
+
+.chain__keeps li {
+  padding-left: var(--s4);
+  border-left: 2px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.chain__keeps b {
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .chain {
+    grid-template-columns: 1fr;
+  }
+}

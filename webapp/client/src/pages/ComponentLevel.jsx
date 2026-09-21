@@ -402,10 +402,24 @@ const COLUMNS = [
     group: 'wh',
     total: 'sum',
     renderTotal: fmtQty,
-    render: (v) =>
+    /*
+     * A rounded figure is marked, because it is no longer the forecast.
+     *
+     * Where a standard package size exists this is the quantity rounded UP to
+     * whole packs — what you would order. The dot says so at a glance and the
+     * tooltip gives the original, so a reader is never left wondering whether a
+     * number is a prediction or a package.
+     */
+    render: (v, r) =>
       v === null || v === undefined ? (
         <span className="muted" title="No warehouse history for this article in the last six months, so there is no ratio to forecast from.">
           –
+        </span>
+      ) : r?.WH_Rounded ? (
+        <span
+          title={`Rounded up to whole packs of ${r.Pack_Size} ${r.Pack_Unit ?? ''}. The forecast itself was ${fmtQty(r.WH_Forecast_Unrounded)}. WH ACC% is still scored on that unrounded figure.`.replace('  ', ' ')}
+        >
+          {fmtQty(v)} <span className="pill pill--blue">pkg</span>
         </span>
       ) : (
         fmtQty(v)
@@ -544,10 +558,132 @@ const COLUMNS = [
       ) : (
         fmtPct(v, 1)
       ),
-    // The average article, computed exactly as the card above it is.
-    total: (list) => averageScore(list, 'WH_Accuracy')?.value ?? null,
+    /*
+     * Volume weighted, so the footer and the card are the same figure.
+     *
+     * This was the unweighted average article, which is a different and equally
+     * valid question — but the card above the table dropped its "average
+     * article" line on 21 Sep 2026, so the two were left reading 74.4% here and
+     * 85.9% there with nothing on the page to explain the gap. Two answers to
+     * one question in one view is worse than either answer.
+     *
+     * Weighted by what the warehouse actually issued, never by the forecast:
+     * weighting by the forecast would let the thing being judged decide how
+     * much it counts.
+     */
+    total: (list) => weightedScore(list, 'WH_Accuracy', 'Consumed_Qty')?.value ?? null,
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
   },
+
+  /*
+   * Outbound divided by WH forecast, asked for on 21 Sep 2026.
+   *
+   * A different question from WH ACC% beside it, and worth having both.
+   *
+   * WH ACC% divides the gap by the LARGER of the two sides, so it is capped at
+   * 100% and loses the direction of the error: forecast 100 against outbound
+   * 120 scores 83.3%, and against 80 scores 80.0% — near enough alike that the
+   * column cannot tell you which way a forecast missed.
+   *
+   * This keeps the direction, and is not capped. Over 100% the warehouse issued
+   * more than was predicted; under 100% it issued less. Forecast 100 against
+   * outbound 120 reads 120%, against 80 reads 80%.
+   *
+   * Computed from the two columns either side of it, on the figures as
+   * DISPLAYED — so a reader can check it with the numbers in front of them.
+   * That means it uses the rounded WH forecast where rounding applied; the
+   * difference is a rounding step, and a ratio nobody can reproduce by eye is
+   * worse than one that moves by 0.001%.
+   *
+   * The total is the ratio of the two totals, not an average of the ratios.
+   * Averaging ratios would weight an article that shipped forty units the same
+   * as one that shipped six hundred thousand.
+   */
+  {
+    key: 'WH_New_Pct',
+    label: 'New',
+    autoWidth: true,
+    num: true,
+    group: 'wh',
+    hint:
+      'Outbound divided by WH forecast, on the figures shown. Above 100% the ' +
+      'warehouse issued MORE than the forecast predicted; below 100% it issued ' +
+      'less. WH ACC% beside it is capped at 100% and cannot show which way a ' +
+      'forecast missed; this can. The total is total outbound over total forecast.',
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Needs both a warehouse forecast above zero and an outbound figure on the same row."
+        >
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    total: (list) => {
+      let f = 0
+      let c = 0
+      for (const r of list) {
+        const fv = Number(r.WH_Constant_Forecast_Qty)
+        const cv = Number(r.Consumed_Qty)
+        // Both sides, or neither — a row contributing outbound with no forecast
+        // beside it would push the ratio up without belonging to it.
+        if (!Number.isFinite(fv) || !Number.isFinite(cv) || fv <= 0) continue
+        f += fv
+        c += cv
+      }
+      return f > 0 ? c / f : null
+    },
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
+
+  /*
+   * Which rows on this page are showing a package figure rather than a forecast.
+   *
+   * The marker beside WH forecast says it in place; this column exists so the
+   * set can be sorted, filtered and exported — "show me everything that was
+   * rounded" is a question somebody will ask, and scanning for a dot is not an
+   * answer.
+   *
+   * Blank rather than "No" where nothing was rounded: a column of "No" down 98%
+   * of the page is noise, and the absence of a pack size is already what the
+   * dash in the neighbouring columns means.
+   */
+  {
+    key: 'WH_Rounded',
+    label: 'Rounded',
+    autoWidth: true,
+    group: 'wh',
+    hint:
+      'Marks the rows whose WH forecast has been rounded UP to a whole standard ' +
+      'package, so the figure shown is an order quantity rather than the ' +
+      'engine’s forecast. The pack size is given in the cell. Blank means no ' +
+      'standard package size applies, and the forecast is shown as calculated. ' +
+      'WH ACC% is always scored on the unrounded forecast.',
+    render: (v, r) =>
+      v ? (
+        <span
+          className="pill pill--blue"
+          title={`Rounded up from ${fmtQty(r?.WH_Forecast_Unrounded)} to whole packs of ${r?.Pack_Size} ${r?.Pack_Unit ?? ''}`.trim()}
+        >
+          {r?.Pack_Size} {r?.Pack_Unit ?? ''}
+        </span>
+      ) : (
+        <span className="muted">–</span>
+      ),
+    total: (list) => {
+      const n = list.filter((x) => x.WH_Rounded).length
+      return n || null
+    },
+    renderTotal: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted">–</span>
+      ) : (
+        <span className="muted">{v} rounded</span>
+      ),
+  },
+
 
   /*
    * The two methods, subtracted.
@@ -936,6 +1072,7 @@ const COLUMN_ORDER = [
   'Sales_Accuracy',
   // Warehouse: predicted, issued, and the gap between them.
   'WH_Constant_Forecast_Qty',
+  'WH_Forecast_Unrounded',
   'Consumed_Qty',
   'WH_Accuracy',
   // Across the two groups: the recipe answer minus the warehouse answer, on
@@ -1440,7 +1577,17 @@ export function ComponentLevel({
        * score was being computed against about 89.
        */
       if (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined) {
-        held.wh = (held.wh ?? 0) + (Number(r.WH_Constant_Forecast_Qty) || 0)
+        /*
+         * The engine's figure, not the package figure.
+         *
+         * WH ACC% compares the forecast with what the warehouse issued. Once
+         * the displayed forecast is rounded up to a whole pack, scoring against
+         * it grades the packaging rather than the forecast — so the accuracy
+         * side reads `WH_Forecast_Unrounded` wherever rounding happened.
+         */
+        held.wh =
+          (held.wh ?? 0) +
+          (Number(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty) || 0)
       }
       perArticle.set(a, held)
     }
@@ -1550,8 +1697,22 @@ export function ComponentLevel({
         (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
         (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
 
+      /*
+       * Outbound over forecast, on the figures this row shows.
+       *
+       * A real field rather than something the column computes: DataTable reads
+       * `row[key]`, so a column that exists only in a render function sorts
+       * wrongly and exports blank.
+       */
+      const newPct = (() => {
+        const f = Number(r.WH_Constant_Forecast_Qty)
+        const c = Number(r.Consumed_Qty)
+        return Number.isFinite(f) && Number.isFinite(c) && f > 0 ? c / f : null
+      })()
+
       return {
         ...r,
+        WH_New_Pct: newPct,
         // A real value, so the CSV has something to write and the table has
         // something to sort and search on.
         Source: fromRecipe(r) ? 'Recipe' : 'Non-recipe',
@@ -1621,7 +1782,7 @@ export function ComponentLevel({
    * several articles is re-scored on its own totals, which is the only figure
    * that matches what the row now shows.
    */
-  const DIMENSIONS = ['Date', 'LocationID', 'CHAINID', 'Source', 'Recipe Group', 'Item', 'Node Type', 'Category', 'BU', 'Item No.']
+  const DIMENSIONS = ['Date', 'LocationID', 'CHAINID', 'Source', 'Recipe Group', 'Item', 'Node Type', 'Category', 'BU', 'Item No.', 'WH_Rounded', 'Pack_Size', 'Pack_Unit']
 
   const visibleDims = useMemo(
     () => DIMENSIONS.filter((k) => !hiddenCols.includes(k)),
@@ -1752,7 +1913,18 @@ export function ComponentLevel({
           r.Component_Forecast_Qty === null || r.Component_Forecast_Qty === undefined
             ? null
             : rescore(Number(r.Component_Forecast_Qty) || 0),
-        WH_Accuracy: rescore(r.WH_Constant_Forecast_Qty),
+        // Unrounded, for the same reason `held.wh` is: see `priced` above.
+        WH_Accuracy: rescore(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty),
+        /*
+         * Re-divided on the folded row's own totals, not carried over: a merged
+         * row shows summed outbound against summed forecast, so its ratio has
+         * to come from those sums.
+         */
+        WH_New_Pct: (() => {
+          const f = Number(r.WH_Constant_Forecast_Qty)
+          const c = Number(r.Consumed_Qty)
+          return Number.isFinite(f) && Number.isFinite(c) && f > 0 ? c / f : null
+        })(),
         /*
          * Re-scored on the row's own totals, like the other two.
          *
@@ -2180,7 +2352,42 @@ export function ComponentLevel({
     )
     const whByVolume = weightedScore(focused, 'WH_Accuracy', 'Consumed_Qty')
 
+    /*
+     * The `New` column's figure for the whole set: outbound over forecast.
+     *
+     * Summed then divided, never an average of the per-article ratios. An
+     * article that shipped forty units would otherwise count as heavily as one
+     * that shipped six hundred thousand, and one tiny denominator could put the
+     * card into the hundreds of percent on its own.
+     *
+     * Deliberately the same rows as the two scores above it, and the same rule
+     * about needing both sides: a row with outbound but no forecast beside it
+     * would lift the ratio without belonging to it.
+     *
+     * The FORECAST side is the unrounded one. The card is judging the forecast,
+     * and scoring it against a figure lifted to a pack boundary would grade the
+     * packaging — the column in the table uses the displayed figure so a reader
+     * can reproduce it by eye, and the two differ by about a thousandth of a
+     * percent.
+     */
+    let newFc = 0
+    let newOut = 0
+    let newScored = 0
+    for (const r of focused) {
+      const f = Number(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty)
+      const c = Number(r.Consumed_Qty)
+      if (!Number.isFinite(f) || !Number.isFinite(c) || f <= 0) continue
+      newFc += f
+      newOut += c
+      newScored += 1
+    }
+    const newRatio = newFc > 0 ? newOut / newFc : null
+
     return {
+      newRatio,
+      newScored,
+      newFc,
+      newOut,
       forecast,
       actual,
       mixArticles: mix?.count ?? 0,
@@ -2439,10 +2646,49 @@ export function ComponentLevel({
               summary.whOverall === null ? (
                 'Needs warehouse history to compare against'
               ) : (
+                <>Volume weighted · {fmtInt(summary.whMeasured)} scored</>
+              )
+            }
+          />
+        )}
+
+        {/*
+          * The `New` column, for the whole of what the table is showing.
+          *
+          * Outbound over forecast, summed then divided. It answers a question
+          * the card above it cannot: WH accuracy is capped at 100% and loses
+          * the direction of the error, so a warehouse issuing half again what
+          * was predicted and one issuing a third less can score alike. Here
+          * over 100% means more went out than was forecast, under 100% means
+          * less.
+          *
+          * Both directions are a miss, so the accent is green only near 100%
+          * and amber either side — unlike accuracy, higher is NOT better.
+          */}
+        {!future && (
+          <MetricCard
+            label="Outbound vs forecast"
+            calc="wh-forecast,outbound"
+            accent={
+              summary.newRatio === null
+                ? 'slate'
+                : Math.abs(summary.newRatio - 1) <= 0.1
+                  ? 'green'
+                  : 'amber'
+            }
+            /* Clamped: a ratio of 1.5 would otherwise run the bar off its track. */
+            progress={summary.newRatio === null ? 0 : Math.min(1, summary.newRatio)}
+            loading={busy}
+            value={summary.newRatio === null ? '–' : fmtPct(summary.newRatio, 1)}
+            foot={
+              summary.newRatio === null ? (
+                'Needs a forecast and an outbound figure on the same article'
+              ) : (
                 <>
-                  Volume weighted · {fmtInt(summary.whMeasured)} scored
+                  {fmtQty(summary.newOut)} out vs {fmtQty(summary.newFc)} forecast
                   <br />
-                  Average article · {fmtPct(summary.whOverall, 1)}
+                  {fmtInt(summary.newScored)} articles ·{' '}
+                  {summary.newRatio >= 1 ? 'more shipped than forecast' : 'less shipped than forecast'}
                 </>
               )
             }

@@ -32,6 +32,7 @@ import { sohTrend } from '../insights/sohTrend.js'
 import { storeStock, stockColumnsFor, warehouseStockNow } from '../insights/storeStock.js'
 import { openPoByArticle } from '../insights/openPo.js'
 import { categoryByArticle, categoryOptions, PREPARED } from '../insights/articleCategory.js'
+import { packByArticle, canRound, roundToPack } from '../insights/stdPkg.js'
 import {
   safetyStockByArticle,
   safetyStockQty,
@@ -1313,6 +1314,79 @@ async function withSafetyStock(rows, filters, grain, admin) {
  * fetched them. A row with no category matches no category filter, which is
  * what "uncategorised" should do.
  */
+/**
+ * Round the warehouse forecast up to whole standard packages, in place.
+ *
+ * Asked for on 21 Sep 2026. The figure on screen is now what you would order,
+ * not what the engine predicted, for the articles that have a package size.
+ *
+ * WHAT IS PRESERVED, AND WHY IT HAD TO BE
+ *
+ * Rounding the forecast where it stands would have changed two things nobody
+ * asked to change, silently:
+ *
+ *   WH ACC%       is scored by comparing the forecast with what the warehouse
+ *                 actually issued. Scored against a figure deliberately lifted
+ *                 to a pack boundary it no longer grades the forecast — it
+ *                 grades the packaging.
+ *   Replenishment per-day rate, days to last, required quantity and every
+ *                 delivery date divide this number. A rounded-up rate empties
+ *                 stock sooner on paper and pulls every delivery date earlier.
+ *
+ * So the original travels beside the rounded one as `WH_Forecast_Unrounded`,
+ * and those two consumers read it instead. The displayed and summed figure is
+ * the rounded one; the measurement is unchanged.
+ *
+ * `WH_Rounded` marks the rows this happened to, so a reader can tell at a
+ * glance that a quantity is a package figure rather than a forecast, and so the
+ * set can be listed or filtered later.
+ *
+ * Only on the row carrying the warehouse figures, the same rule `withOpenPo`
+ * uses: an article is spread over one row per recipe group, and a per-article
+ * quantity repeated on each of them would be counted once per recipe by any
+ * total.
+ *
+ * Untouched — and therefore honestly blank — in three cases:
+ *
+ *   no entry in STD PKG          93.4% of forecast volume today
+ *   a yield with no number       `PORTION`, `AS PER REQUEST`, blank
+ *   a unit that cannot round it  193 GM against a forecast counted in Each
+ */
+async function withRoundedForecast(rows, admin) {
+  if (!admin) return rows
+  const packs = await packByArticle().catch((err) => {
+    console.warn(`  [std-pkg] ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!packs) return rows
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    const carries = r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined
+    if (!article || !carries) return r
+
+    const held = packs.get(article)
+    if (!held) return r
+    // The pack has to be able to round THIS article's unit. A weight cannot
+    // round a count, and nothing in any model says what one portion weighs.
+    if (!canRound(held.unit, r.BU)) return r
+
+    const rounded = roundToPack(r.WH_Constant_Forecast_Qty, held.pack)
+    if (rounded === null) return r
+
+    return {
+      ...r,
+      WH_Constant_Forecast_Qty: rounded,
+      // The engine's own figure, kept so accuracy and replenishment can go on
+      // reading what was actually predicted.
+      WH_Forecast_Unrounded: Number(r.WH_Constant_Forecast_Qty),
+      WH_Rounded: true,
+      Pack_Size: held.pack,
+      Pack_Unit: held.unit,
+    }
+  })
+}
+
 async function withCategory(rows, filters) {
   const map = await categoryByArticle().catch((err) => {
     console.warn(`  [category] ${String(err.message).slice(0, 90)}`)
@@ -1725,15 +1799,32 @@ api.all('/article-usage', handle(async (req, res) => {
    * Asking each model once removes both faults. The row is labelled with every
    * brand that model covers, which is what the recipe actually applies to.
    */
+  /*
+   * One group per BRAND, not per model — corrected 20 Sep 2026.
+   *
+   * MM and TBL share a model, and this used to ask that model once and label
+   * the answer "MM / TBL", because 'RECIPE TABLE' has no brand column and there
+   * was nothing on the row to tell the two apart. A reader looking at a menu
+   * item could not see which of the two sold it.
+   *
+   * CHAINID on Forecast_Product_Table does tell them apart, and it is already
+   * what scopes the PLU list below. So each brand gets its own query, scoped to
+   * its own chain, and carries its own name.
+   *
+   * The fan-out this replaced was a real fault, but a different one: it asked
+   * the same model twice with the SAME scope and added the identical rows
+   * together. Scoped per chain the two answers are disjoint — measured on the
+   * MM model, MM holds 931 PLUs and TBL 500, and they share NOT ONE. So there
+   * is nothing for a second query to double count.
+   */
   const byDataset = new Map()
   for (const p of g.parts) {
-    if (!byDataset.has(p.ds)) byDataset.set(p.ds, { codes: [], chains: new Set() })
-    const held = byDataset.get(p.ds)
+    const chain = String(p.brand.chain ?? p.brand.code)
+    const key = `${p.ds}|${chain}`
+    if (!byDataset.has(key)) byDataset.set(key, { ds: p.ds, codes: [], chains: new Set() })
+    const held = byDataset.get(key)
     held.codes.push(p.brand.code)
-    // A model can hold two brands, and CHAINID is what separates them inside it.
-    for (const c of p.f.brands?.length ? p.f.brands : [p.brand.chainId ?? p.brand.code]) {
-      if (c) held.chains.add(String(c))
-    }
+    held.chains.add(chain)
   }
 
   /*
@@ -1778,7 +1869,10 @@ api.all('/article-usage', handle(async (req, res) => {
           console.warn(`  [usage] menu item forecast ${p.brand.code}: ${err.message.slice(0, 90)}`)
           return []
         })
-      const held = forecastByDataset.get(p.ds) ?? new Map()
+      // Keyed per brand for the same reason the recipe rows now are: two brands
+      // share a model and their PLU sets are disjoint, so each brand's forecast
+      // belongs to its own row rather than to a combined one.
+      const held = forecastByDataset.get(`${p.ds}|${String(p.brand.chain ?? p.brand.code)}`) ?? new Map()
       for (const r of rows) {
         const plu = String(r.Clean_ItemID ?? '').trim()
         if (!plu) continue
@@ -1795,12 +1889,12 @@ api.all('/article-usage', handle(async (req, res) => {
         seen.actual += Number(r.Actual_Qty) || 0
         held.set(plu, seen)
       }
-      forecastByDataset.set(p.ds, held)
+      forecastByDataset.set(`${p.ds}|${String(p.brand.chain ?? p.brand.code)}`, held)
     })
   )
 
   const parts = await Promise.all(
-    [...byDataset.entries()].map(([ds, { codes, chains }]) => {
+    [...byDataset.values()].map(({ ds, codes, chains }) => {
       const scope = [...chains].sort()
       const plu = scope.length
         ? `TREATAS({${scope.map((c) => `"${c}"`).join(', ')}}, Forecast_Product_Table[CHAINID])`
@@ -1847,7 +1941,7 @@ SUMMARIZECOLUMNS(
       )
         // `__ds` rides along so the merge below can look the menu item
         // forecast up; it is stripped before the response is built.
-        .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / '), __ds: ds })))
+        .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / '), __ds: `${ds}|${[...chains][0]}` })))
         .catch((err) => {
           console.warn(`  [usage] ${codes.join('/')}: ${err.message}`)
           return []
@@ -2163,7 +2257,7 @@ api.all('/component-level', handle(async (req, res) => {
   if (g.single)
     return res.json({
       sales,
-      rows: await withCategory(withRecipeKind(
+      rows: await withRoundedForecast(await withCategory(withRecipeKind(
         await withSafetyStock(
           await withOpenPo(
             await withStoreStock(
@@ -2188,14 +2282,14 @@ api.all('/component-level', handle(async (req, res) => {
           seesStockDetail(req.user)
         ),
         window
-      ), window),
+      ), window), seesStockDetail(req.user)),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
     sales,
-    rows: await withCategory(withRecipeKind(
+    rows: await withRoundedForecast(await withCategory(withRecipeKind(
       await withSafetyStock(
         await withOpenPo(
           await withStoreStock(
@@ -2226,7 +2320,7 @@ api.all('/component-level', handle(async (req, res) => {
         seesStockDetail(req.user)
       ),
       window
-    ), window),
+    ), window), seesStockDetail(req.user)),
   })
 }))
 

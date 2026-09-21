@@ -1,0 +1,83 @@
+table 'STD PKG'
+	lineageTag: 1fc597bb-971c-4018-94af-54da8d47dd74
+
+	column 'Item Group'
+		dataType: string
+		lineageTag: b375a266-c7d5-4dfc-8248-4affd347e7e0
+		summarizeBy: none
+		sourceColumn: Item Group
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Article No.'
+		dataType: int64
+		formatString: 0
+		lineageTag: efbec00f-ff13-4b42-8eee-00b735f52f70
+		summarizeBy: sum
+		sourceColumn: Article No.
+
+		annotation SummarizationSetBy = Automatic
+
+	column Article
+		dataType: string
+		lineageTag: 213991a1-4bf8-4388-85e2-3de0bf84d3cb
+		summarizeBy: none
+		sourceColumn: Article
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'ARTICLE TYPE'
+		dataType: string
+		lineageTag: 77811e9c-1791-4a03-a7c0-c11376cfbbb9
+		summarizeBy: none
+		sourceColumn: ARTICLE TYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'IS ACTIVE'
+		dataType: string
+		lineageTag: 7d977db3-eab5-43a6-91f0-9da4c1cde99d
+		summarizeBy: none
+		sourceColumn: IS ACTIVE
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'ST.PACKAING'
+		dataType: string
+		lineageTag: 17532924-a352-430e-b049-0d6471f38442
+		summarizeBy: none
+		sourceColumn: ST.PACKAING
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'YIELD %'
+		dataType: string
+		lineageTag: d8c9f921-b798-4726-a2b8-bd4d0526a3c5
+		summarizeBy: none
+		sourceColumn: YIELD %
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'STORAGE TYPE'
+		dataType: string
+		lineageTag: 8b4326f8-d0e9-4f17-b6f6-0a5fd525b538
+		summarizeBy: none
+		sourceColumn: STORAGE TYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'STD PKG' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/farha_swishhh_net/Documents/Swish%20SPS%20V3%202026.xlsm"), null, true),
+				    #"STD PKG_Sheet" = Source{[Item="STD PKG",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"STD PKG_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Item Group", type text}, {"Article No.", Int64.Type}, {"Article", type text}, {"ARTICLE TYPE", type text}, {"IS ACTIVE", type text}, {"ST.PACKAING", type text}, {"YIELD %", type text}, {"STORAGE TYPE", type text}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

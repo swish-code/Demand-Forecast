@@ -23,3 +23,33 @@ relationship ea31fb8d-f533-41e0-bbab-10d27b18f50c
 	fromColumn: 'Seasonal Effect test'.Today
 	toColumn: LocalDateTable_fa604c19-ec3f-43ec-a5c3-e6bb2c92d135.Date
 
+relationship d31fca9f-83f6-415b-a0c3-186feb8d654f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Last PD'
+	toColumn: LocalDateTable_587d4c38-509d-4c81-abfc-539a422e9c47.Date
+
+relationship 312b354a-ab68-4d1f-ae62-a3562a134340
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Last TR'
+	toColumn: LocalDateTable_a0af6219-553f-4c6c-b578-b157d16f4bb4.Date
+
+relationship 05813245-7b47-4610-96ed-7c2387325a0b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.ReqDate
+	toColumn: LocalDateTable_9126c92d-890c-44d3-8946-8c121e225175.Date
+
+relationship 29c71640-2930-4458-b0b5-b9d9e7e598dd
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.ReceinvgDate
+	toColumn: LocalDateTable_93a8abc4-c054-4086-a429-f43a6a4a457a.Date
+
+relationship 999469d5-fd0c-4ddb-917b-b35f2a0ed0ce
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'OOS DATE'
+	toColumn: LocalDateTable_a837c53e-6346-4e83-897a-79699fdd4f65.Date
+
+relationship 52e58c60-5011-465b-ae19-558fd2bab56f
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'MTD OOS'
+	toColumn: LocalDateTable_36c6ce2d-9637-4ba7-bead-0aefad40477b.Date
+

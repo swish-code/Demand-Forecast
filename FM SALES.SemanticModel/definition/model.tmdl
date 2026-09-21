@@ -9,7 +9,7 @@ model Model
 
 annotation __PBI_TimeIntelligenceEnabled = 1
 
-annotation PBI_QueryOrder = ["FM SALES PER LOCATION","FM FORECAST","Seasonal Effect test","Store SOH"]
+annotation PBI_QueryOrder = ["FM SALES PER LOCATION","FM FORECAST","Seasonal Effect test","Replan Planning","STD PKG"]
 
 annotation PBI_ProTooling = ["DevMode"]
 
@@ -22,7 +22,14 @@ ref table 'Seasonal Effect test'
 ref table LocalDateTable_3dbaf19b-34eb-454b-878a-f1d74f5fdbd6
 ref table LocalDateTable_97af104a-f7aa-4e34-ae8f-01b89b72603a
 ref table LocalDateTable_fa604c19-ec3f-43ec-a5c3-e6bb2c92d135
-ref table 'Store SOH'
+ref table 'Replan Planning'
+ref table LocalDateTable_587d4c38-509d-4c81-abfc-539a422e9c47
+ref table LocalDateTable_a0af6219-553f-4c6c-b578-b157d16f4bb4
+ref table LocalDateTable_9126c92d-890c-44d3-8946-8c121e225175
+ref table LocalDateTable_93a8abc4-c054-4086-a429-f43a6a4a457a
+ref table LocalDateTable_a837c53e-6346-4e83-897a-79699fdd4f65
+ref table LocalDateTable_36c6ce2d-9637-4ba7-bead-0aefad40477b
+ref table 'STD PKG'
 
 ref cultureInfo en-IN
 
