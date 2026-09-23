@@ -499,11 +499,11 @@ const COLUMNS = (today, asOf) => [
   {
     key: 'D1_Date',
     label: '1st delivery by',
-    hint: 'The last day the first delivery can arrive without dipping into the safety stock: the FIRST DAY OF THE SELECTED RANGE plus (DTL - SS days). This one column counts from the range start; every other date here counts from today, which is how the source spreadsheet does it. A date in the past means it is already late.',
+    hint: 'The last day the first delivery can arrive without dipping into the safety stock: TODAY plus (DTL - SS days). Counted from today, like every other date here, so its gap from Forecasted OOS Date is exactly the safety stock. A date in the past means it is already late.',
     width: 130,
     group: 'plansplit',
     render: (v, row) =>
-      deliveryDate(v, row.D1_Offset, undefined, 'the first day of the selected range'),
+      deliveryDate(v, row.D1_Offset, undefined, 'today'),
   },
   {
     key: 'D1_Qty',
@@ -659,7 +659,7 @@ const FORMULAS = {
   Delivery_Freq:
     "Source: 'Replan Planning'[DeliveryFreq], a count of deliveries. The source does not state the period",
   D1_Date:
-    'first day of the selected range + (DTL - SS days). The only date counted from the range start rather than from today',
+    'TODAY + (DTL - SS days). Counted from today, like every other date in this table',
   D1_Qty: 'Req Qty / Delivery Freq',
   D2_Date:
     'TODAY + ((1st delivery qty / Per day qty) + DTL - SS days). Blank when there is no second delivery',
@@ -806,9 +806,9 @@ const GROUPS = {
       {
         term: '1st delivery by',
         text: 'A DEADLINE, not a plan - the last day the first delivery can land without eating into the safety buffer.',
-        formula: 'first day of the selected range + (DTL - SS days)',
+        formula: 'TODAY + (DTL - SS days)',
         example:
-          'The only date in this table counted from the range start rather than from today, which is how the source spreadsheet does it. One consequence: its gap from Forecasted OOS Date is not exactly the safety stock.',
+          'Counted from today, like every other date here, so its gap from Forecasted OOS Date is exactly the safety stock. The slicer chooses which window to plan, not what day it is.',
       },
       {
         term: '1st delivery qty',

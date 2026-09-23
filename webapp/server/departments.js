@@ -191,7 +191,14 @@ export const worksAtBrandLevel = (department) => BRAND_LEVEL.has(norm(department
  * Splitting the list changes nothing about branch narrowing: all five remain on
  * BRAND_LEVEL_DEPARTMENTS, which is the list that governs it.
  */
-export const RECIPE_DETAIL_DEPARTMENTS = ['Procurement', 'Bakery']
+/*
+ * Management added 21 Sep 2026, asked for directly: Management sees every page
+ * and everything on it, bar the administrator pages. It is the one department
+ * defined by breadth rather than by a task, so the argument that kept Warehouse
+ * and Supply Chain off this list - they need to know an article is used, not
+ * what it is used in - does not apply to it.
+ */
+export const RECIPE_DETAIL_DEPARTMENTS = ['Procurement', 'Bakery', 'Management']
 
 const RECIPE_DETAIL = new Set(RECIPE_DETAIL_DEPARTMENTS.map(norm))
 
@@ -199,7 +206,18 @@ const RECIPE_DETAIL = new Set(RECIPE_DETAIL_DEPARTMENTS.map(norm))
 export const seesRecipeDetail = (user) =>
   user?.role === 'admin' || RECIPE_DETAIL.has(norm(user?.department))
 
-export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Supply Chain']
+/*
+ * Management added 21 Sep 2026, for the same reason and on the same ask.
+ *
+ * Worth recording what the symptom was, because the page rule and this one are
+ * easy to confuse: a Management account could already OPEN Stock Article -
+ * `Management` is absent from DEPARTMENT_PAGES, and that list is a list of
+ * exceptions, so absence means unrestricted. What it could not see was the
+ * warehouse half of the page: the Stock column group, Store SOH, Pending PO and
+ * the whole Replenishment Planning table, all of which hang on this list. The
+ * tab was there and most of the page was not, which reads as the page missing.
+ */
+export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Supply Chain', 'Management']
 
 const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
 

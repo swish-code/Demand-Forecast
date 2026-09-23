@@ -8,6 +8,8 @@ import { refreshAllOutbound } from './outbound.js'
 import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
 import { loadCoverage } from './query.js'
+import { refreshPlanShapes } from './planShape.js'
+import { loadSalesPlans, salesPlans } from '../insights/salesPlan.js'
 import { raise, clear } from '../insights/alerts.js'
 
 /**
@@ -456,6 +458,54 @@ export function startCubeSchedule() {
       })
   }
 
+
+/**
+ * Re-read every brand's seasonal shape for the years that have a plan.
+ *
+ * Shapes were fetched once, when a figure was saved, and never revisited. That
+ * drifted the moment the upstream models gained data: audited on 21 Sep 2026,
+ * BBT, PAT and SLC had each gained a full twelve months of 2027
+ * `FORECAST (2)[Totalsale]` since their shape was cached, and MM's own series
+ * had been revised - so four of the nine brands were still spreading their
+ * target by a fallback pattern while a better source sat unread. BBT's July was
+ * 13% out and MM's February 40%.
+ *
+ * Nothing about the mechanism was wrong; it simply had no trigger. This is the
+ * trigger. It runs with the nightly job rather than hourly because a seasonal
+ * shape changes when somebody edits a model, which is nothing like per hour,
+ * and each run is two Power BI queries per brand.
+ *
+ * Only years that actually have a saved plan are refreshed - there is no point
+ * reading a shape for a year nobody is planning - and a brand whose model
+ * cannot answer keeps the shape it has rather than losing it.
+ */
+async function refreshShapesForPlannedYears() {
+  const years = [...new Set(salesPlans().map((p) => p.year))]
+  if (!years.length) return
+
+  for (const year of years) {
+    const results = await refreshPlanShapes(year).catch((err) => {
+      console.log(`  [plan] shape refresh ${year} failed: ${err.message.slice(0, 100)}`)
+      return []
+    })
+    const moved = results.filter((r) => r.source).map((r) => `${r.brand}:${r.source}@${r.from}`)
+    const skipped = results.filter((r) => r.skipped || r.error)
+    console.log(
+      `  [plan] ${year} shapes: ${moved.length} read${moved.length ? ` (${moved.join(' ')})` : ''}` +
+        `${skipped.length ? `, ${skipped.length} unchanged` : ''}`
+    )
+  }
+
+  /*
+   * Both, in this order. `loadSalesPlans` picks the new weights up, and
+   * `loadCoverage` re-widens each brand's calendar from the plans it then
+   * holds - the same pairing the save path uses.
+   */
+  await loadSalesPlans()
+  await loadCoverage()
+  clearCache()
+}
+
   setTimeout(() => {
     /*
      * The sales value goes first, on its own.
@@ -493,6 +543,8 @@ export function startCubeSchedule() {
     const nightly = () =>
       runBackfill()
         .then(() => runOutbound())
+        // The seasonal shapes, once the models behind them have been read.
+        .then(() => refreshShapesForPlannedYears())
         // Before the vacuum, so the space the prune frees is actually returned.
         .then(() => pruneSalesVintages())
         .then(() => vacuum({ full: true }))

@@ -318,6 +318,22 @@ export async function constantsFor(brand, { anchor, months = 6 } = {}) {
       if (!Number.isFinite(constant) || constant <= 0) continue
 
       /*
+       * The same months again, every one counted alike — for planned years only.
+       *
+       * `constant` above weights 1..6 oldest to newest, so the newest month
+       * carries 28.6% of the answer and the oldest 4.8%. That is deliberate for
+       * the warehouse pages, and it is deliberately NOT wanted by the Sales
+       * Plan: a target twelve months out should not inherit whichever way last
+       * month happened to move. Asked for on 23 Sep 2026.
+       *
+       * Held beside `constant` rather than replacing it, and read only when a
+       * caller passes `flatConstant`. Computing it costs one pass over six
+       * numbers, so every caller carries it and only the Sales Plan uses it.
+       */
+      const constantFlat =
+        detail.reduce((n, d) => n + d.constant, 0) / detail.length
+
+      /*
        * Articles that ship in bursts are forecast a different way.
        *
        * An article that shipped in two months of six has no rate worth applying
@@ -380,6 +396,7 @@ export async function constantsFor(brand, { anchor, months = 6 } = {}) {
 
       out.set(article, {
         constant,
+        constantFlat,
         level,
         salesBase,
         medianAll,
@@ -513,7 +530,7 @@ export function quantityFor(held, sales, windowDays) {
 export async function forecastFromConstants(
   brand,
   filters,
-  { now = new Date(), basis = 'forecast' } = {}
+  { now = new Date(), basis = 'forecast', flatConstant = false } = {}
 ) {
   /*
    * Whole brand or nothing.
@@ -608,6 +625,7 @@ export async function forecastFromConstants(
    */
   const historical = mode === 'historical'
   const read = basis === 'actual' ? cube.actualSales : cube.forecastSales
+
 
   /*
    * A finished month asks the vintage first.
@@ -708,11 +726,22 @@ export async function forecastFromConstants(
      * points of accuracy, so the difference is not cosmetic.
      */
     const sales = salesFor(held)
-    const qty = LEGACY_MODEL
-      ? held.intermittent && held.fixedMonthly > 0
-        ? held.fixedMonthly * (windowDays / DAYS_PER_MONTH)
-        : held.constant * sales
-      : quantityFor(held, sales, windowDays)
+    /*
+     * The flat mean is opt-in, and only the Sales Plan opts in.
+     *
+     * Asked for on 23 Sep 2026, and deliberately NOT inferred from the window:
+     * a warehouse page looking at a 2027 date is still a warehouse page and must
+     * keep its own production model. The caller says which model it wants, so
+     * Stock Article, Warehouse Insights and every 2026 window are reached by
+     * exactly the code that reached them before.
+     */
+    const qty = flatConstant
+      ? (held.constantFlat ?? held.constant) * sales
+      : LEGACY_MODEL
+        ? held.intermittent && held.fixedMonthly > 0
+          ? held.fixedMonthly * (windowDays / DAYS_PER_MONTH)
+          : held.constant * sales
+        : quantityFor(held, sales, windowDays)
 
     /*
      * A forecast of zero is a forecast, and it stays on the page.

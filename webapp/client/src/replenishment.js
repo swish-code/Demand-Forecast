@@ -71,6 +71,10 @@ export function planFor(row, { dateFrom, dateTo, today }) {
    * counts from the slicer start, and that one cell is why its OOS and its
    * first delivery sit 16 days apart on a 15-day safety stock.
    *
+   * That last exception was reproduced here from 16 Sep 2026 and removed on 23
+   * Sep 2026: ALL FOUR dates now count from today. The spreadsheet's quirk made
+   * a deadline depend on which range you happened to be looking through.
+   *
    * It is also the only anchor the arithmetic supports. DTL divides a CURRENT
    * stock balance - `WH_SOH_Now`, read on the feed's last day - and a duration
    * can only be counted from the moment the quantity was measured. Anchoring it
@@ -172,27 +176,19 @@ export function planFor(row, { dateFrom, dateTo, today }) {
   const offsetDate = (off) => (off === null || nowMs === null ? null : nowMs + off * DAY)
 
   /*
-   * The first delivery deadline, and ONLY it, counts from the first day of the
-   * selected range instead of from today.
+   * Every date on this row counts from today, the first delivery included.
    *
-   * Asked for on 16 Sep 2026, narrowly and deliberately. The source spreadsheet
-   * anchors three of its four date cells - Forecasted OOS Date, Target Cover,
-   * Req Date - on TODAY(), and its first-delivery cell on the slicer start.
-   * This reproduces that exactly, so the two can be reconciled cell for cell.
+   * From 16 Sep 2026 this one column alone was anchored on the first day of the
+   * selected range, to reproduce the source spreadsheet cell for cell. Reverted
+   * on 23 Sep 2026: the slicer picks which window to PLAN, not what day it is,
+   * so anchoring a deadline on it made the answer depend on the range chosen to
+   * look at it. Picking a range that started a month ago moved the first
+   * delivery a month into the past.
    *
-   * It is worth being clear about what that costs, because it is not an
-   * oversight in this code: the gap between Forecasted OOS Date and this column
-   * is no longer exactly the safety stock. It becomes SS + (today - first
-   * selected day), so on a range starting yesterday the two columns sit 16 days
-   * apart on a 15-day buffer. Every other column keeps the TODAY anchor, as
-   * instructed, which is what leaves this one out of step with them.
-   *
-   * Falls back to today when no range is selected, which is the only case with
-   * no first day to use.
+   * It also puts the column back in step with the one beside it. The gap
+   * between Forecasted OOS Date and the first delivery is once again exactly
+   * the safety stock, instead of SS + (today - first selected day).
    */
-  const d1Anchored = dateFrom ? Date.parse(`${dateFrom}T00:00:00Z`) : NaN
-  const d1From = Number.isFinite(d1Anchored) ? d1Anchored : nowMs
-  const d1Date = (off) => (off === null || d1From === null ? null : d1From + off * DAY)
 
   /*
    * The three figures from the third screenshot.
@@ -218,8 +214,8 @@ export function planFor(row, { dateFrom, dateTo, today }) {
     Req_Qty: reqQty,
     Req_Date: reqDateMs,
     OOS_Date: oosMs,
-    // The only date anchored on the first selected day - see `d1Date` above.
-    D1_Date: d1Date(d1Off),
+    // Counted from today, like every other date here - see the note above.
+    D1_Date: offsetDate(d1Off),
     D1_Offset: d1Off,
     D1_Qty: d1Qty,
     // Still counted from today, like every other date here.

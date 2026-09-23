@@ -114,8 +114,6 @@ export function SalesPlan() {
           { key: 'article', label: 'Article No.' },
           { key: 'item', label: 'Article' },
           { key: 'unit', label: 'Unit' },
-          { key: 'nodeType', label: 'Type' },
-          { key: 'recipeGroups', label: 'Recipe groups' },
           { key: 'forecastQty', label: `${data.year} forecast qty` },
         ])
         setNote(`${rows.length.toLocaleString()} article rows downloaded.`)
@@ -198,7 +196,7 @@ export function SalesPlan() {
                 </th>
                 <th
                   scope="col"
-                  title={`Where the month-to-month shape comes from. "Forecast" is the ${data.year} monthly forecast in the model itself; "Seasonal" is the brand's twelve monthly seasonal factors. Neither is ${data.baseYear} sales.`}
+                  title={`Where the month-to-month shape comes from. "Seasonal" is the brand's twelve monthly seasonal factors for ${data.year} — the source the plan uses. "${data.year} forecast" is the model's own monthly forecast, used only for a brand with no usable factors. Neither is ${data.baseYear} sales.`}
                 >
                   Shape
                 </th>
@@ -287,10 +285,12 @@ export function SalesPlan() {
                   <td>
                     {b.shapeSource === 'group' ? (
                       <Pill tone="slate">Per brand</Pill>
-                    ) : b.shapeSource === 'forecast' ? (
-                      <Pill tone="green">{data.year} forecast</Pill>
                     ) : b.shapeSource === 'seasonal' ? (
-                      <Pill tone="blue">Seasonal</Pill>
+                      <Pill tone="green">Seasonal</Pill>
+                    ) : b.shapeSource === 'forecast' ? (
+                      <Pill tone="amber" title={`No usable seasonal factors for ${b.code}, so the model's own ${data.year} monthly forecast is being used instead.`}>
+                        {data.year} forecast
+                      </Pill>
                     ) : b.canPlan ? (
                       <span
                         className="muted"
@@ -412,9 +412,9 @@ export function SalesPlan() {
               <b className="chain__t">Brand sales</b>
               <p className="chain__d">
                 The typed value is the whole of {data.year}. It is spread across the twelve months
-                by the brand&rsquo;s own seasonal shape — the {data.year} monthly forecast where the
-                model has one, otherwise its twelve seasonal factors. The months always add back to
-                the figure you typed.
+                by the brand&rsquo;s own twelve {data.year} seasonal factors, each month taking its
+                factor&rsquo;s share of the twelve. The months always add back to the figure you
+                typed.
               </p>
             </div>
           </li>

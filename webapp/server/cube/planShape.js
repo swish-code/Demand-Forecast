@@ -7,20 +7,18 @@
  *
  * TWO SOURCES, IN ORDER OF PREFERENCE
  *
- *   1. The plan year's own `FORECAST (2)[Totalsale]`, month by month.
+ *   1. `'Seasonal Effect Branch'[Seasonal Effect]` — the brand's twelve monthly
+ *      factors, normalised to shares. Chosen on 22 Sep 2026; see
+ *      `planShapeFor` for the measurements behind the choice.
  *
- *      Measured on 19 Sep 2026, only MM has this: 4,422,617 across 2027, months
- *      running 406,365 (Jan) to 329,156 (Feb), shares 7.44%-9.24%. Where it is
- *      populated it is the best answer available, because it is the model's own
- *      forward view rather than an index derived from one.
+ *      The plan year's own factors where it has them, otherwise the newest
+ *      complete set. The factors are branch-uniform, average almost exactly
+ *      1.0, and differ by brand: February is 0.76 for SS, 0.73 for MM, 0.91 for
+ *      BUR.
  *
- *   2. `'Seasonal Effect Branch'[Seasonal Effect]` — the brand's twelve monthly
- *      factors, normalised to shares.
- *
- *      The other eight brands' 2027 `Totalsale` is blank on every row, so this
- *      is what they use. The factors are branch-uniform, average almost exactly
- *      1.0, and differ by brand: February is 0.880 for BBT, 0.800 for YP, 0.870
- *      for CHP.
+ *   2. The plan year's own `FORECAST (2)[Totalsale]`, month by month — kept
+ *      only as a rescue for a brand with no usable factor set, so that such a
+ *      brand can still be planned rather than refused.
  *
  * WHY NOT THE BASE YEAR'S SALES, WHICH IS WHAT THIS REPLACES
  *
@@ -37,11 +35,12 @@
  *
  * THE YEAR STAMP ON THE FACTORS
  *
- * Only MM carries 2027-stamped factors. The other eight are stamped 2026, and
- * this module falls back to the newest year a brand has when the plan year is
- * missing. That is reuse of SEASONALITY, not of base-year sales: "February is a
- * weak month for BBT" is a claim about February, and it does not expire on 31
- * December. `source` records which happened so the page can say so.
+ * All nine brands carry 2027-stamped factors as of 22 Sep 2026, so every brand
+ * is shaped by its own plan-year seasonality. The fallback to the newest year a
+ * brand has remains for the case where a plan year is missing: that is reuse of
+ * SEASONALITY, not of base-year sales - "February is a weak month for SS" is a
+ * claim about February, and it does not expire on 31 December. `from` records
+ * which year was used and `source` which table, so the page can say both.
  */
 import { config } from '../config.js'
 import { pg } from '../db/accounts.js'
@@ -123,39 +122,71 @@ function normalise(values) {
 }
 
 /**
- * Work out one brand's shape for one year, preferring the model's own forecast.
+ * Work out one brand's shape for one year, preferring its seasonal factors.
  *
  * Returns null when neither source can answer, which leaves the brand with no
  * row and therefore no plan — a refusal rather than a guessed shape.
  */
 export async function planShapeFor(brand, year) {
+  /*
+   * The seasonal factors come FIRST, from 22 Sep 2026.
+   *
+   * This used to prefer the plan year's own FORECAST (2)[Totalsale] and reach
+   * the factors only when that was blank - which was the right call while only
+   * MM had a 2027 Totalsale, and the wrong one once every brand had both. Two
+   * things settled it, measured side by side across all nine brands:
+   *
+   *   The two sources disagree about ONE claim, and it is a seasonal one. Seven
+   *   of nine brands diverge most in March, always the same way: the factors put
+   *   March at 1.26-1.46 while Totalsale has it at 8.9-9.3% of the year, barely
+   *   above a flat 8.33%. SS March moves 946,742 -> 1,205,589, MM 684,856 ->
+   *   887,079. Away from March the two agree inside 0.7 pp.
+   *
+   *   Totalsale is flatter for seven of the nine (BBT 1.28 against 1.51 between
+   *   its largest and smallest month) and it is revised often - MM's series
+   *   moved between two audits a day apart. The factors are twelve numbers a
+   *   person maintains, average almost exactly 1.0, and do not drift.
+   *
+   * The deeper reason is that this whole design separates SIZE from SHAPE: the
+   * typed target is the size, and this function answers the shape. Totalsale is
+   * a forecast of size whose shape we were borrowing and whose size we then
+   * discarded. An index is the right kind of thing to ask.
+   */
+  const seasonal = await fetchSeasonalFactors(brand, year).catch(() => null)
+  if (seasonal) {
+    const weights = normalise(seasonal.factors)
+    if (weights) return { weights, source: 'seasonal', from: seasonal.from }
+  }
+
+  /*
+   * Totalsale is kept as the rescue, not the preference.
+   *
+   * A brand with no usable factor set at all would otherwise have no shape and
+   * no plan. Its own monthly forecast is a reasonable second answer, and it is
+   * better than refusing to plan the brand.
+   */
   let forecast = null
   try {
     forecast = await fetchForecastMonths(brand, year)
   } catch {
-    // A model without the table or the columns is not an error here; the
-    // seasonal index is tried next and the brand is only skipped if that fails
-    // too.
+    // A model without the table or the columns is not an error here - the brand
+    // simply has no shape, and the caller leaves it unplannable.
     forecast = null
   }
 
   /*
-   * A forecast is only usable as a shape if every month has something in it.
+   * Only usable if every month has something in it.
    *
-   * A partly-filled year would put the whole target into the months that
-   * happen to be populated, which is a worse answer than the seasonal index
-   * and would look deliberate. All twelve or none.
+   * A partly-filled year would put the whole target into the months that happen
+   * to be populated, which would look deliberate and be wrong. All twelve or
+   * none.
    */
   if (forecast && forecast.slice(1).every((v) => v > 0)) {
     const weights = normalise(forecast)
     if (weights) return { weights, source: 'forecast', from: Number(year) }
   }
 
-  const seasonal = await fetchSeasonalFactors(brand, year).catch(() => null)
-  if (!seasonal) return null
-  const weights = normalise(seasonal.factors)
-  if (!weights) return null
-  return { weights, source: 'seasonal', from: seasonal.from }
+  return null
 }
 
 /**

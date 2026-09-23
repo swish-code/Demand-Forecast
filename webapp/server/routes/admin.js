@@ -24,7 +24,8 @@ import {
   isMainPlanBrand,
   splitAcrossBrands,
 } from '../insights/salesPlan.js'
-import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
+import { loadCoverage, productLevel } from '../cube/query.js'
+import { forecastFromConstants } from '../insights/whConstant.js'
 import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
@@ -1389,34 +1390,45 @@ admin.get(
     const f = planYearWindow(year)
 
     /*
-     * One row per article, not one per recipe group.
+     * The plan's articles come from the warehouse's own history, not a recipe.
      *
-     * `componentLevel` returns a row for every recipe that names an article, so
-     * an article used by four recipes arrives four times. A list of articles to
-     * order wants the article once, with the recipes added together.
+     * Changed on 23 Sep 2026. This used to read `componentLevel`, which scales
+     * the base year's recipe explosion — the path the recipe audit found we
+     * could not reconcile, and which disagreed with the figure the plan is
+     * built on by a factor of two.
+     *
+     * `flatConstant` asks for the six-month EQUAL-WEIGHT ratio rather than the
+     * weighted one the warehouse pages use, and the window's sales are already
+     * the typed plan, so each row is exactly
+     *
+     *     equal-weight six-month constant  x  the year's planned sales
+     *
+     * Only this route and the plan's own table pass the flag; every warehouse
+     * page is untouched.
      */
+    const names = new Map()
+    for (const r of await pg.all('SELECT article, name, unit FROM cube_article')) {
+      names.set(String(r.article), { item: String(r.name ?? ''), unit: String(r.unit ?? '') })
+    }
     const byArticle = new Map()
     for (const brand of plannedBrands(year)) {
-      const list = await componentLevel(brand.code, { ...f, brand: brand.code }, {}).catch(() => [])
-      for (const r of list) {
-        const article = String(r['Item No.'] ?? '').trim()
-        // A kitchen step carries no article number and cannot be ordered.
-        if (!article) continue
-        const qty = Number(r.Component_Forecast_Qty) || 0
+      const got = await forecastFromConstants(brand.code, { ...f, brand: brand.code }, {
+        flatConstant: true,
+      }).catch(() => null)
+      if (!got) continue
+      for (const [article, value] of got) {
+        const code = String(article ?? '').trim()
+        if (!code) continue
+        const qty = Number(value?.qty ?? value) || 0
         if (qty <= 0) continue
-        const key = `${brand.code}|${article}`
-        const held = byArticle.get(key) ?? {
+        const meta = names.get(code) ?? { item: '', unit: '' }
+        byArticle.set(`${brand.code}|${code}`, {
           brand: brand.code,
-          article,
-          item: String(r.Item ?? ''),
-          unit: String(r.BU ?? ''),
-          nodeType: String(r['Node Type'] ?? ''),
-          recipeGroups: 0,
-          forecastQty: 0,
-        }
-        held.recipeGroups += 1
-        held.forecastQty += qty
-        byArticle.set(key, held)
+          article: code,
+          item: meta.item,
+          unit: meta.unit,
+          forecastQty: qty,
+        })
       }
     }
     const rows = [...byArticle.values()]

@@ -498,12 +498,12 @@ CREATE TABLE IF NOT EXISTS cube_sales_plan (
 -- The source column records which of two upstream patterns the weights came
 -- from:
 --
---   'forecast'  the plan year's own FORECAST (2)[Totalsale], month by month.
---               Only MM has this today; it is the better source and is
---               preferred wherever it is populated.
 --   'seasonal'  'Seasonal Effect Branch'[Seasonal Effect], the brand's twelve
---               monthly factors, normalised. Used for the other eight brands,
---               whose plan-year Totalsale is blank.
+--               monthly factors, normalised. The PREFERRED source from 22 Sep
+--               2026, and what every brand uses today.
+--   'forecast'  the plan year's own FORECAST (2)[Totalsale], month by month.
+--               Kept only as a rescue for a brand with no usable factor set,
+--               so such a brand can still be planned rather than refused.
 --
 -- Neither is 2026 sales. Scaling the base year's own monthly sales was the old
 -- method and it is what this table exists to replace: it inherited January

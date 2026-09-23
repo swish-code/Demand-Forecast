@@ -94,13 +94,14 @@ export const FORMULAS = {
     return `IF(OR(NOT(ISNUMBER(${oos})),NOT(ISNUMBER(${lead})),NOT(ISNUMBER(${ss}))),"",${oos}-${lead}-${ss})`
   },
   /*
-   * The one date counted from the range start rather than from today, exactly
-   * as the dashboard and the source spreadsheet do it.
+   * Counted from today, like every other date in this table. It was anchored on
+   * the range start until 23 Sep 2026; see `replenishment.js` for why that was
+   * reverted, and note that this formula must match it cell for cell.
    */
   D1_Date: (c, r) => {
     const dtl = `${c.DTL}${r}`
     const ss = ssDays(c, r)
-    return `IF(OR(NOT(ISNUMBER(${dtl})),NOT(ISNUMBER(${ss}))),"",${B.from}+${dtl}-${ss})`
+    return `IF(OR(NOT(ISNUMBER(${dtl})),NOT(ISNUMBER(${ss}))),"",${B.today}+${dtl}-${ss})`
   },
   D1_Qty: (c, r) => {
     const req = `${c.Req_Qty}${r}`
@@ -138,6 +139,37 @@ export const FORMULAS = {
     const tot = `${c.Total_SOH}${r}`
     const nf = `${c.New_WH_Forecast}${r}`
     return `IF(OR(NOT(ISNUMBER(${tot})),NOT(ISNUMBER(${nf})),${nf}<=0),"",${tot}/${nf})`
+  },
+}
+
+/**
+ * Rows where a formula CANNOT be rebuilt faithfully, and must fall back to the
+ * value this app computed.
+ *
+ * One case, found on 21 Sep 2026 by evaluating every exported formula against
+ * its own cached value: WH ACC% is scored on the UNROUNDED warehouse forecast,
+ * while the WH forecast column in the sheet carries the figure the dashboard
+ * DISPLAYS - which is rounded up to a whole standard package where one exists.
+ * The number the score was taken from is therefore not in the workbook, so a
+ * formula reading the forecast cell cannot reproduce it:
+ *
+ *   forecast displayed  190      formula gives 1 - |190-150|/190 = 78.95%
+ *   forecast scored     185.28   dashboard shows            = 80.96%
+ *
+ * Rather than ship a cell whose formula disagrees with its own cached value,
+ * those rows get the value alone. It is the same fallback the hidden-column
+ * case already uses, and it keeps the brief true: what you download equals
+ * what the dashboard showed.
+ *
+ * This affects only articles with a standard package size - 23 of 1,219 when
+ * measured - and it disappears entirely if the forecast is ever put back to
+ * unrounded, at which point every row becomes live again with no change here.
+ */
+const NOT_REBUILDABLE = {
+  WH_Accuracy: (row) => {
+    const raw = Number(row.WH_Forecast_Unrounded)
+    const shown = Number(row.WH_Constant_Forecast_Qty)
+    return Number.isFinite(raw) && Number.isFinite(shown) && raw !== shown
   },
 }
 
@@ -227,7 +259,13 @@ export function planningSheets(rows, cols, { dateFrom, dateTo, days, today, asOf
          * longer live.
          */
         const f = make(letter, r)
-        const missing = /undefined/.test(f)
+        /*
+         * Two reasons a derived column falls back to a plain value: a column it
+         * references has been hidden, or the figure it was derived from is not
+         * in the sheet at all. Either way the formula would be wrong, and a
+         * wrong formula is worse than a correct dead number.
+         */
+        const missing = /undefined/.test(f) || Boolean(NOT_REBUILDABLE[c.key]?.(row))
         const raw = row[c.key]
         // Exact, so the cached value and the formula's own result are the same
         // number rather than differing by the time of day.
@@ -266,7 +304,7 @@ export function planningSheets(rows, cols, { dateFrom, dateTo, days, today, asOf
     [{ v: 'Values, not formulas:', s: S.LABEL }],
     [
       {
-        v: 'Article, supplier, units, avg cost, WH forecast, outbound, SOH, pending qty, SS days, lead time, delivery freq.',
+        v: 'Article, supplier, units, WH forecast, outbound, SOH, pending qty, SS days, lead time, delivery freq.',
         s: 0,
       },
     ],

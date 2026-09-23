@@ -750,6 +750,56 @@ const COLUMNS = [
   },
 
   /*
+   * The two MEASUREMENTS, scored rather than subtracted.
+   *
+   * Actual variance above says how far apart they are in units, which is the
+   * right answer for one article and a poor one for comparing two: 800 units
+   * apart is a rounding error on a six-figure article and a disaster on a
+   * four-figure one. This is the same comparison as a ratio, so the rows can be
+   * ranked against each other.
+   *
+   * Scored the same way as the two accuracy columns beside it - the gap over
+   * the LARGER of the two sides - so it is capped at 100%, never negative, and
+   * reads on the same scale a reader has already learned here.
+   *
+   * It is a different question from both of them. Sales ACC% asks whether the
+   * SALES forecast was right; WH ACC% asks whether the WAREHOUSE forecast was.
+   * This one involves no forecast at all: it asks whether the two ways of
+   * MEASURING what happened agree with each other. They come from different
+   * places - one from sales exploded through recipes, one from what the
+   * warehouse actually shipped - so a low score means the recipe and the
+   * warehouse disagree about reality, which is a data question rather than a
+   * forecasting one.
+   */
+  {
+    key: 'Actual_Accuracy',
+    label: 'Actual ACC%',
+    autoWidth: true,
+    num: true,
+    hint:
+      'How closely the two MEASUREMENTS agree: Actual qty (sales exploded ' +
+      'through the recipes) against Outbound (what the warehouse really ' +
+      'issued). No forecast is involved. 100% means the two agree exactly; a ' +
+      'low score means the recipe and the warehouse disagree about what ' +
+      'actually happened.',
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Both measurements are needed to compare them. Either no recipe names this article, or the warehouse has no outbound record for it in this window."
+        >
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    // Volume weighted on what the warehouse issued, matching WH ACC% beside it,
+    // so a forty-unit article cannot outvote a six-hundred-thousand-unit one.
+    total: (list) => weightedScore(list, 'Actual_Accuracy', 'Consumed_Qty')?.value ?? null,
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
+
+  /*
    * What the warehouse itself was holding, at each end of the window.
    *
    * Asked for on 14 Sep 2026. The store columns below say whether the shops
@@ -1079,6 +1129,7 @@ const COLUMN_ORDER = [
   // both the predicted and the measured side.
   'Forecast_Variance',
   'Actual_Variance',
+  'Actual_Accuracy',
   // What the warehouse had at each end of the window, and how long it lasts.
   'WH_Opening_SOH',
   'WH_Closing_SOH',
@@ -1758,6 +1809,20 @@ export function ComponentLevel({
           held?.measured
             ? held.implied - held.consumed
             : null,
+        /*
+         * The same pair, as a score. Null exactly where the variance is null -
+         * one measurement alone cannot be compared with anything.
+         */
+        Actual_Accuracy:
+          carriesWarehouse &&
+          held?.implied !== null &&
+          held?.implied !== undefined &&
+          held?.measured
+            ? (() => {
+                const bigger = Math.max(held.implied, held.consumed)
+                return bigger > 0 ? 1 - Math.abs(held.implied - held.consumed) / bigger : null
+              })()
+            : null,
       }
     })
   }, [rows, dayAccuracy])
@@ -1965,6 +2030,21 @@ export function ComponentLevel({
           r.Consumed_Qty === undefined
             ? null
             : Number(r.Component_Actual_Qty) - Number(r.Consumed_Qty),
+        // Re-scored on the folded row's own totals, like every other ratio here.
+        Actual_Accuracy: (() => {
+          if (
+            r.Component_Actual_Qty === null ||
+            r.Component_Actual_Qty === undefined ||
+            r.Consumed_Qty === null ||
+            r.Consumed_Qty === undefined
+          ) {
+            return null
+          }
+          const a = Number(r.Component_Actual_Qty)
+          const c = Number(r.Consumed_Qty)
+          const bigger = Math.max(a, c)
+          return bigger > 0 ? 1 - Math.abs(a - c) / bigger : null
+        })(),
       }
     })
   }, [priced, visibleDims])

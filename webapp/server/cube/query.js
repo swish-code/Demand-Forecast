@@ -1,6 +1,7 @@
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
 import { planWindow, plannedThrough, salesPlans, planBoundaryError } from '../insights/salesPlan.js'
+import { planProductRows } from '../insights/planForecast.js'
 
 /**
  * Answering the Overview page from the local copy.
@@ -1570,21 +1571,28 @@ export async function productLevel(brand, f) {
    */
   const plan = planWindow(brand, f)
   if (plan) {
-    const mix = await planMix(brand, plan)
-    if (!mix) return []
-    const rows = await productLevel(brand, { ...f, dateFrom: mix.from, dateTo: mix.to })
-    return rows.map((r) => {
-      const forecast = (Number(r.Forecast_Qty) || 0) * mix.factor
-      return {
-        ...r,
-        Actual_Qty: 0,
-        Forecast_Qty: forecast,
-        // Worked out exactly as the SQL below does it, so a planned row and a
-        // real one cannot disagree about what variance means.
-        Variance_Qty: 0 - forecast,
-        Variance_Pct: forecast === 0 ? 0 : (0 - forecast) / forecast,
-      }
+    /*
+     * Method C, from 23 Sep 2026. Actuals only, month by month.
+     *
+     * What this replaces scaled the base year's FORECAST rows by one factor for
+     * the whole window. Two things were wrong with that. The forecast column is
+     * sparse in early 2026 — CHP February and TBL March hold none at all — so
+     * six brand-months came out zero or a quarter of the right answer. And one
+     * factor for a window cannot vary the mix by month, which is the only way a
+     * February plan can look like February.
+     *
+     * `planProductRows` reads observed actuals, decides each month's validity
+     * against the brand median, and blends the history with the last 28 days.
+     * It returns the same (article, product) grain the SQL below returns, so
+     * every caller — the page, the download — is unchanged.
+     */
+    const rows = await planProductRows(brand, plan.year ?? Number(String(f.dateFrom).slice(0, 4)), {
+      from: f.dateFrom,
+      to: f.dateTo,
     })
+    if (!f.products?.length) return rows
+    const wanted = new Set(f.products.map(String))
+    return rows.filter((r) => wanted.has(String(r.ProductName_Fixed_Option)))
   }
 
   const filters = { sql: [], args: [] }

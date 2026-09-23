@@ -910,6 +910,30 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
    * window on screen. Added once, after the brands are merged, and only when
    * they are not already on the page under a brand.
    */
+  /*
+   * Not while the page is narrowed to particular articles. Fixed 23 Sep 2026.
+   *
+   * These rows belong to no brand, no recipe and no product, so there is no
+   * column on them for the Article, Recipe, Product or PLU slicer to match
+   * against - and they were appended regardless of it. Selecting one article
+   * gave its single row plus all 763 catch-all articles, and the slicer looked
+   * broken when it had in fact worked: the filtered query returned exactly the
+   * one row asked for, and these were added back afterwards.
+   *
+   * `nonRecipeRows` has always been suppressed this way by its caller; this is
+   * the same guard on the sibling injection that was missing it.
+   *
+   * Only the APPEND is skipped. The merge above still runs, so an article that
+   * IS on the page keeps the catch-all outbound and forecast belonging to it -
+   * filtering must not change the figures on the row you filtered to.
+   */
+  const narrowed =
+    filters?.items?.length ||
+    filters?.recipeGroups?.length ||
+    filters?.products?.length ||
+    filters?.articles?.length
+  if (narrowed) return rows
+
   const names = await cube.articleMaster().catch(() => new Map())
   const already = new Set(
     rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
