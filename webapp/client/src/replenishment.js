@@ -148,8 +148,28 @@ export function planFor(row, { dateFrom, dateTo, today }) {
    * offset in its tooltip.
    */
   const d1Off = dtl === null || ssDays === null ? null : dtl - ssDays
-  const d1Qty = reqQty === null || freq === null || freq <= 0 ? null : reqQty / freq
-  const d2Qty = reqQty === null || d1Qty === null ? null : reqQty - d1Qty
+
+  /*
+   * The whole schedule, not the first two. Asked for on 23 Sep 2026.
+   *
+   * The requirement is split EQUALLY across the frequency, which is what the
+   * first-delivery column always said it did - "Req Qty / Delivery Freq" - and
+   * what the second one did not. `d2Qty` was `Req Qty - d1Qty`, the entire
+   * remainder, so a frequency of 3 put a third in the first delivery and TWO
+   * thirds in the second, and deliveries three and up did not exist at all.
+   * Identical for a frequency of 1 or 2, which is 1,057 of the 1,188 articles
+   * that carry a numeric one and why it went unnoticed; wrong for the 131 that
+   * do not, and the frequencies run to 10.
+   *
+   * Each delivery lasts `qty / per-day` days, so the nth deadline is the first
+   * pushed out by (n-1) of those - the same arithmetic the second deadline
+   * already used, applied all the way down.
+   */
+  const count = freq === null || !(freq > 0) ? null : Math.max(1, Math.round(freq))
+  const d1Qty = reqQty === null || count === null ? null : reqQty / count
+  // A frequency of 1 leaves nothing for a second delivery, and says so with a
+  // zero rather than a blank - the same answer this line has always given.
+  const d2Qty = d1Qty === null ? null : count >= 2 ? d1Qty : 0
   /*
    * No second delivery, no second deadline. Fixed 16 Sep 2026.
    *
@@ -174,6 +194,23 @@ export function planFor(row, { dateFrom, dateTo, today }) {
       : d1Qty / perDay + d1Off
 
   const offsetDate = (off) => (off === null || nowMs === null ? null : nowMs + off * DAY)
+
+  /*
+   * Every delivery, in order, for the column that lists them.
+   *
+   * Built only when there is something to deliver and a rate to space them by.
+   * A zero-quantity requirement produces no schedule at all rather than a row
+   * of dates for deliveries nobody will make, which is the same judgement the
+   * second deadline above makes for a frequency of one.
+   */
+  const step = d1Qty !== null && perDay !== null && perDay > 0 ? d1Qty / perDay : null
+  const deliveries =
+    count === null || d1Qty === null || !(d1Qty > 0) || d1Off === null
+      ? []
+      : Array.from({ length: count }, (_, i) => {
+          const off = i === 0 ? d1Off : step === null ? null : d1Off + i * step
+          return { n: i + 1, offset: off, qty: d1Qty, date: offsetDate(off) }
+        }).filter((d) => d.offset !== null)
 
   /*
    * Every date on this row counts from today, the first delivery included.
@@ -222,6 +259,23 @@ export function planFor(row, { dateFrom, dateTo, today }) {
     D2_Date: offsetDate(d2Off),
     D2_Offset: d2Off,
     D2_Qty: d2Qty,
+    Delivery_Count: deliveries.length,
+    /*
+     * Every delivery as its own three fields: D3_Date, D3_Qty, D3_Offset and so
+     * on, up to whatever the frequency asks for.
+     *
+     * Flattened rather than left as an array because the table, the CSV and the
+     * spreadsheet all read `row[key]` - a column cannot point at the third
+     * element of a list. D1 and D2 are written by this loop too and carry the
+     * identical values the named fields above do, so the two can never drift.
+     */
+    ...Object.fromEntries(
+      deliveries.flatMap((d) => [
+        [`D${d.n}_Date`, d.date],
+        [`D${d.n}_Qty`, d.qty],
+        [`D${d.n}_Offset`, d.offset],
+      ])
+    ),
     Total_SOH: totalSoh,
     New_WH_Forecast: newForecast,
     New_ACC: newAcc,

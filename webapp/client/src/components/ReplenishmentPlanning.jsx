@@ -80,6 +80,20 @@ const dash = (title) => (
 )
 
 /**
+ * 1st, 2nd, 3rd, 4th — for the delivery columns, which are named not numbered.
+ *
+ * The teens are the exception every naive version gets wrong: 11, 12 and 13
+ * take "th" despite ending in 1, 2 and 3. The planning sheet's frequencies stop
+ * at ten so it never bites here, but a column header that reads "11st" the day
+ * somebody types 11 is not worth the two lines it saves.
+ */
+const ordinal = (n) => {
+  const rem100 = n % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`
+}
+
+/**
  * A date the reader is meant to act on, which may already have passed.
  *
  * A requested date in the past is the most useful thing this table produces -
@@ -126,7 +140,7 @@ const deliveryDate = (ms, offset, none, from = 'today') => {
   )
 }
 
-const COLUMNS = (today, asOf) => [
+const COLUMNS = (today, asOf, deliveries = 2) => [
   {
     key: 'Item No.',
     label: 'Article No',
@@ -480,72 +494,70 @@ const COLUMNS = (today, asOf) => [
     },
   },
 
-  /* Splitting the order across the first two deliveries. */
   /*
-   * "D1 Date" and "D2 Date" renamed on 16 Sep 2026.
+   * One pair of columns per delivery, generated from the frequency.
    *
-   * The old names were the spreadsheet's column letters, which say nothing to
-   * anybody who has not seen the spreadsheet. What the figures actually are:
+   * "D1 Date" and "D2 Date" were renamed on 16 Sep 2026 - the old names were
+   * the spreadsheet's column letters, which say nothing to anybody who has not
+   * seen the spreadsheet. What the figures actually are:
    *
-   *   D1 = DTL - SS days, the day stock falls TO the safety buffer rather than
-   *        to nothing. That is the last day the first delivery can arrive
-   *        without eating into the buffer, so it is a deadline, not a plan.
-   *   D2 = the same deadline pushed out by however long the first delivery
-   *        lasts (D1 Qty / per-day), so it is when the second one has to land.
+   *   1st = DTL - SS days, the day stock falls TO the safety buffer rather
+   *         than to nothing. The last day the first delivery can arrive
+   *         without eating into the buffer, so it is a deadline, not a plan.
+   *   nth = the same deadline pushed out by however long the deliveries
+   *         before it last (qty / per-day each).
    *
-   * Both are deadlines, which is why the names say "by" rather than "on".
-   * Calculations unchanged - only the labels and the hints.
+   * They are deadlines, which is why the names say "by" rather than "on".
+   *
+   * Generated rather than written out from 23 Sep 2026. Two fixed pairs could
+   * only ever describe a frequency of two, and the planning sheet runs to ten:
+   * 131 articles ask for three or more and were silently cut off. `count` is
+   * the largest frequency in the rows actually on screen, so a table with
+   * nothing above two still shows exactly the two pairs it always did.
    */
-  {
-    key: 'D1_Date',
-    label: '1st delivery by',
-    hint: 'The last day the first delivery can arrive without dipping into the safety stock: TODAY plus (DTL - SS days). Counted from today, like every other date here, so its gap from Forecasted OOS Date is exactly the safety stock. A date in the past means it is already late.',
-    width: 130,
-    group: 'plansplit',
-    render: (v, row) =>
-      deliveryDate(v, row.D1_Offset, undefined, 'today'),
-  },
-  {
-    key: 'D1_Qty',
-    label: '1st delivery qty',
-    hint: 'How much of the requested quantity should come in the first delivery: Req Qty ÷ Delivery Freq.',
-    autoWidth: true,
-    num: true,
-    group: 'plansplit',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v) =>
-      v === null
-        ? dash('Needs a requested quantity and a numeric delivery frequency.')
-        : <span title="Req Qty ÷ Delivery Freq.">{fmtQty(v)}</span>,
-  },
-  {
-    key: 'D2_Date',
-    label: '2nd delivery by',
-    hint: 'The last day the second delivery can arrive. It is the first deadline pushed out by however long the first delivery lasts at the daily rate.',
-    width: 130,
-    group: 'plansplit',
-    render: (v, row) =>
-      deliveryDate(
-        v,
-        row.D2_Offset,
-        row.D1_Qty !== null && row.D1_Qty !== undefined
-          ? 'No second delivery — the whole request arrives in the first one, so there is nothing left to schedule.'
-          : 'Needs a requested quantity and a numeric delivery frequency.'
-      ),
-  },
-  {
-    key: 'D2_Qty',
-    label: '2nd delivery qty',
-    hint: 'Whatever is left of the requested quantity after the first delivery: Req Qty − 1st delivery qty.',
-    autoWidth: true,
-    num: true,
-    group: 'plansplit',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v) =>
-      v === null ? dash('Needs a D1 quantity.') : <span title="Req Qty minus the first delivery.">{fmtQty(v)}</span>,
-  },
+  ...Array.from({ length: Math.max(2, deliveries) }, (_, i) => {
+    const n = i + 1
+    const ord = ordinal(n)
+    return [
+      {
+        key: `D${n}_Date`,
+        label: `${ord} delivery by`,
+        hint:
+          n === 1
+            ? 'The last day the first delivery can arrive without dipping into the safety stock: TODAY plus (DTL - SS days). Counted from today, like every other date here, so its gap from Forecasted OOS Date is exactly the safety stock. A date in the past means it is already late.'
+            : `The last day the ${ord} delivery can arrive. It is the first deadline pushed out by however long the ${n - 1} ${n === 2 ? 'delivery' : 'deliveries'} before it last at the daily rate.`,
+        width: 130,
+        group: 'plansplit',
+        render: (v, row) =>
+          deliveryDate(
+            v,
+            row[`D${n}_Offset`],
+            n === 1
+              ? undefined
+              : `This article's delivery frequency does not reach a ${ord} delivery.`,
+            'today'
+          ),
+      },
+      {
+        key: `D${n}_Qty`,
+        label: `${ord} delivery qty`,
+        hint: `How much should come in the ${ord} delivery. The requirement is split equally, so every delivery is Req Qty ÷ Delivery Freq.`,
+        autoWidth: true,
+        num: true,
+        group: 'plansplit',
+        total: 'sum',
+        renderTotal: fmtQty,
+        render: (v) =>
+          v === null || v === undefined
+            ? dash(
+                n <= 2
+                  ? 'Needs a requested quantity and a numeric delivery frequency.'
+                  : `This article's delivery frequency does not reach a ${ord} delivery.`
+              )
+            : <span title="Req Qty ÷ Delivery Freq.">{fmtQty(v)}</span>,
+      },
+    ]
+  }).flat(),
 
   /*
    * The three figures from the third screenshot. Kept in their own group
@@ -663,7 +675,7 @@ const FORMULAS = {
   D1_Qty: 'Req Qty / Delivery Freq',
   D2_Date:
     'TODAY + ((1st delivery qty / Per day qty) + DTL - SS days). Blank when there is no second delivery',
-  D2_Qty: 'Req Qty - 1st delivery qty',
+  D2_Qty: 'Req Qty / Delivery Freq',
   Total_SOH: 'SOH + Pending Qty + Outbound',
   New_WH_Forecast: 'WH Forecast + SS Qty. A test figure - the live WH Forecast is unchanged',
   New_ACC: 'Total SOH / New WH Forecast. A coverage ratio, so it can exceed 100%',
@@ -688,7 +700,18 @@ export function csvNotes(cols, { dateFrom, dateTo, days, asOf, today }) {
     [],
     ['Column', 'Formula or source'],
   ]
-  for (const c of cols) out.push([c.label, FORMULAS[c.key] ?? ''])
+  for (const c of cols) {
+    // Delivery columns past the second are generated, so their formula is too:
+    // every delivery is the same share, spaced by however long one lasts.
+    const nth = /^D(\d+)_(Date|Qty)$/.exec(c.key)
+    const generated =
+      nth && Number(nth[1]) > 2
+        ? nth[2] === 'Qty'
+          ? 'Req Qty / Delivery Freq'
+          : `TODAY + (${Number(nth[1]) - 1} x (delivery qty / Per day qty) + DTL - SS days)`
+        : ''
+    out.push([c.label, FORMULAS[c.key] ?? generated])
+  }
   return out
 }
 
@@ -945,7 +968,18 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
 
   const days = windowDays(filters?.dateFrom, filters?.dateTo)
   const asOf = planned.find((r) => r.WH_SOH_As_Of)?.WH_SOH_As_Of ?? null
-  const columns = useMemo(() => COLUMNS(today, asOf), [today, asOf])
+  /*
+   * How many delivery columns this table needs, from the rows it is showing.
+   *
+   * Driven by the data rather than fixed at the sheet's maximum of ten, so a
+   * filtered table asks for exactly the pairs its articles use - selecting one
+   * article on a frequency of three gives three, not ten with seven blank.
+   */
+  const deliveries = useMemo(
+    () => planned.reduce((n, r) => Math.max(n, Number(r.Delivery_Count) || 0), 0),
+    [planned]
+  )
+  const columns = useMemo(() => COLUMNS(today, asOf, deliveries), [today, asOf, deliveries])
 
   return (
     <Panel
@@ -1028,6 +1062,8 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
             downloadCsv(
               'replenishment-planning',
               planned,
+              // The schedule is an array on the row; the sheet takes its
+              // one-line form instead, which reads the same.
               columns.map(({ key, label }) => ({ key, label })),
               /*
                * The formulas ride along under the table.
