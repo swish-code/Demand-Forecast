@@ -75,10 +75,10 @@ table FORECAST
 
 	measure 'MoM Growth %' = ```
 			
-			VAR CurrentMonthValue = SUM('SALES DATA'[Net])
+			VAR CurrentMonthValue = SUM('SALES DATA'[Net_])
 			VAR PreviousMonthValue = 
 			    CALCULATE(
-			        SUM('SALES DATA'[Net]),
+			        SUM('SALES DATA'[Net_]),
 			        PREVIOUSMONTH('SALES DATA'[VoucherDate])
 			    )
 			RETURN 
@@ -126,7 +126,7 @@ table FORECAST
 
 	measure TotalNetAmount = ```
 			
-			SUM('SALES DATA'[Net])
+			SUM('SALES DATA'[Net_])
 			
 			```
 		lineageTag: 9d7ff188-5737-4346-9041-b70b6ef0ce31
@@ -1342,11 +1342,19 @@ table FORECAST
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-	column LOCATIONID
+	column Column15
 		dataType: string
-		lineageTag: 7079c00f-f74c-45f8-985f-c680ec6959ff
+		lineageTag: 8fa1d8ce-de79-4241-83eb-59bb927cdd99
 		summarizeBy: none
-		sourceColumn: LOCATIONID
+		sourceColumn: Column15
+
+		annotation SummarizationSetBy = Automatic
+
+	column Column16
+		dataType: string
+		lineageTag: f1675e27-aee2-44a1-99b7-8d47de3bcf25
+		summarizeBy: none
+		sourceColumn: Column16
 
 		annotation SummarizationSetBy = Automatic
 
@@ -1367,12 +1375,9 @@ table FORECAST
 				    #"Removed Columns3" = Table.RemoveColumns(#"Filtered Rows",{"Column14", "Column13", "Column12", "Target"}),
 				    #"Changed Type3" = Table.TransformColumnTypes(#"Removed Columns3",{{"RRR", Int64.Type}}),
 				    #"Removed Columns4" = Table.RemoveColumns(#"Changed Type3",{"RRR"}),
-				    #"Filtered Rows1" = Table.SelectRows(#"Removed Columns4", each ([Brand] = "PAT")),
-				    #"Appended Query" = Table.Combine({#"Filtered Rows1", #"FORECAST ARD", #"FORECAST ADL", #"FORECAST HWL", #"FORECAST JHR", #"FORECAST MIS", #"FORECAST SAL", #"FORECAST YRD"}),
-				    #"Removed Columns5" = Table.RemoveColumns(#"Appended Query",{"Column15", "Column16"}),
-				    #"Filtered Rows2" = Table.SelectRows(#"Removed Columns5", each ([LOCATIONID] <> null))
+				    #"Filtered Rows1" = Table.SelectRows(#"Removed Columns4", each ([Brand] <> "LVB" and [Brand] <> "YP COOP"))
 				in
-				    #"Filtered Rows2"
+				    #"Filtered Rows1"
 
 	annotation PBI_ResultType = Table
 

@@ -44,6 +44,28 @@ export const config = {
   },
 
   /*
+   * Swish Runrate: where the observed sales come from, for every brand at once.
+   *
+   * Like `warehouse` below and unlike PBI_DATASETS, the brand here is a column
+   * rather than a choice of dataset — 'FORECAST'[Actual Sales] covers all nine
+   * from one expression, so there is a single column to keep right instead of
+   * seven per-brand copies of it that drift apart. They had drifted: CHP, PAT,
+   * SS and SLC-BUR were all found holding zeros, and auditing one article to
+   * the riyal put 29,673.19 of a 46,630.80 variance on the sales denominator.
+   *
+   * Its own workspace, which is why the ids are a pair. Only the actual is read
+   * from here; Totalsale still comes from each brand's own 'FORECAST (2)',
+   * because every window and mix in the app is sized against that series.
+   *
+   * Absent means the three consumers fall back to the per-brand column, which
+   * is exactly what they did before this existed.
+   */
+  masterSales: {
+    workspaceId: process.env.MASTER_SALES_WORKSPACE_ID || '3cc90cbc-6abe-4f53-a817-d6852a40d339',
+    datasetId: process.env.MASTER_SALES_DATASET_ID || '3dd1d302-0f44-47aa-974c-39c6af26c952',
+  },
+
+  /*
    * Warehouse Analytics: one model for the whole company, in its own workspace.
    *
    * Everything else here is per-brand — a brand is chosen before a query runs.

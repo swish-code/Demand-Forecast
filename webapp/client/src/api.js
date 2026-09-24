@@ -216,6 +216,21 @@ const post = (path, body) => send('POST', path, body)
 /** The report queries: reads, whatever verb carries their filters. */
 const query = (path, body, options) => read('POST', path, body, options)
 
+/**
+ * The query string both Sales Plan downloads share.
+ *
+ * Empty values are dropped rather than sent blank, so "all brands, whole year"
+ * is the same request it has always been and the routes keep their defaults.
+ */
+const planQuery = (year, { brand, month } = {}) => {
+  const q = new URLSearchParams()
+  if (year) q.set('year', String(year))
+  if (brand) q.set('brand', String(brand))
+  if (month) q.set('month', String(month))
+  const s = q.toString()
+  return s ? `?${s}` : ''
+}
+
 export const api = {
   /*
    * The session check, with a deadline.
@@ -331,8 +346,12 @@ export const api = {
     saveSalesPlan: (brand, year, value) => post('/admin/sales-plan', { brand, year, value }),
     // The plan exploded to product and article level, for download. Read
     // through the same paths the pages use, so the figures cannot drift.
-    salesPlanProducts: (year) => get(`/admin/sales-plan/products${year ? `?year=${year}` : ''}`),
-    salesPlanArticles: (year) => get(`/admin/sales-plan/articles${year ? `?year=${year}` : ''}`),
+    // `brand` and `month` narrow both the table and the sheet it downloads, so
+    // the two are built by the same call and cannot disagree.
+    salesPlanProducts: (year, opts = {}) =>
+      get(`/admin/sales-plan/products${planQuery(year, opts)}`),
+    salesPlanArticles: (year, opts = {}) =>
+      get(`/admin/sales-plan/articles${planQuery(year, opts)}`),
     refreshSales: (brand) => post('/admin/sales/refresh', { brand }),
     // Refill the value columns the constant divides by, without a whole backfill.
     refillSalesValues: () => post('/admin/cube/sales-values'),

@@ -1,0 +1,26 @@
+table RunRateDateSlicer
+	lineageTag: 83857137-8221-486e-801c-5fba67181321
+
+	column Date
+		formatString: General Date
+		lineageTag: 23d4ecd8-ab52-423f-ae08-12a55dc87499
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		variation Variation
+			isDefault
+			relationship: d632b7c2-c614-4433-991e-1c8668538d05
+			defaultHierarchy: LocalDateTable_2a06431e-98b3-41d7-af97-372dd75bf246.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition RunRateDateSlicer = calculated
+		mode: import
+		source = ```
+				CALENDAR(MIN(DATETABLETODAY[Date]), MAX(DATETABLETODAY[Date]))
+				
+				```
+
+	annotation PBI_Id = 7fc3564e6262416d8dda86a0504fc5e4
+

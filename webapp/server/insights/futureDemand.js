@@ -87,6 +87,7 @@ export async function articlesWithFutureDemand(brandCode, { today = new Date() }
   const to = iso(new Date(today).getTime() + HORIZON_DAYS * 86_400_000)
 
   return cached(`${brand.datasetId}:future-demand:${brand.chainId ?? brand.code}:${from}`, async () => {
+    try {
     /*
      * Products with a forecast ahead, then the articles their recipes name.
      *
@@ -118,12 +119,34 @@ SUMMARIZECOLUMNS(
       const a = String(r['Item No.'] ?? '').trim()
       if (a) out.add(a)
     }
-    // An empty answer is almost certainly a query that matched nothing rather
-    // than a brand that has stopped selling, and acting on it would blank the
-    // whole page. Treated as no opinion.
-    return out.size ? out : null
-  }).catch((err) => {
-    console.warn(`  [future-demand] ${brandCode}: ${err.message}`)
-    return null
+      // An empty answer is almost certainly a query that matched nothing rather
+      // than a brand that has stopped selling, and acting on it would blank the
+      // whole page. Treated as no opinion.
+      return out.size ? out : null
+    } catch (err) {
+      /*
+       * A failure is an answer, and it is cached like one.
+       *
+       * The catch used to sit OUTSIDE `cached`, so a rejection reached
+       * `refresh`, which deletes the key rather than storing it — deliberately,
+       * so a throttle cannot empty a good value. The effect here was that a
+       * query which fails EVERY time was retried on every single request, and
+       * because a 429 buys a sixty-second retry budget, one broken brand cost
+       * the Sales Plan's article table 65 seconds while the other eight
+       * answered in under 80ms each. Measured 24 Sep 2026: BBT 65,176ms
+       * against BUR 45ms, CHP 29ms, SS 77ms.
+       *
+       * BBT's model raises "CONTAINSROW does not support comparing values of
+       * type Text with values of type Integer" on the PLU comparison below —
+       * 'RECIPE TABLE'[Product PLU] is Integer where Clean_ItemID is Text. That
+       * is an upstream model defect and is NOT worked around here: making the
+       * query succeed would start suppressing articles the gate currently lets
+       * through, which would move Warehouse Forecast numbers. Returning null is
+       * exactly what this did before — no opinion, permissive — so the forecast
+       * is unchanged and only the waiting is gone.
+       */
+      console.warn(`  [future-demand] ${brandCode}: ${err.message}`)
+      return null
+    }
   })
 }

@@ -1,0 +1,227 @@
+table 'FORECAST MONTHLY'
+	lineageTag: fad299d7-fa63-4f40-b0d6-edcf3006cc9f
+
+	measure IsCompletedMonth =
+			
+			IF(
+			    'HEADER MONTHLY'[MonthYear] <= EOMONTH(TODAY(), -1),
+			    TRUE(),
+			    FALSE()
+			)
+		lineageTag: 00c9dd53-b761-4788-9c37-187676b0efcc
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 31d01813-a365-4920-989a-4f8654fd2149
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 828f2b1f-34ad-483c-8059-0416f970c899
+			defaultHierarchy: LocalDateTable_b086bfca-fe36-4d84-a965-9007f625ea41.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Weekday
+		dataType: string
+		lineageTag: cae460ee-fdd9-41e2-b3eb-98f9e6961959
+		summarizeBy: none
+		sourceColumn: Weekday
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Forecast %'
+		dataType: double
+		lineageTag: 01aa69ca-07a0-42dc-87da-ea0b09b6f5ed
+		summarizeBy: sum
+		sourceColumn: Forecast %
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Forecast
+		dataType: double
+		lineageTag: 4ac05839-8ce8-4e30-adc7-1df92d293345
+		summarizeBy: sum
+		sourceColumn: Forecast
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Event
+		dataType: string
+		lineageTag: 9e27074b-8a74-4ff5-af57-daa9e59e1f69
+		summarizeBy: none
+		sourceColumn: Event
+
+		annotation SummarizationSetBy = Automatic
+
+	column Effect
+		dataType: string
+		lineageTag: c23c6513-bbde-4b9c-b5d1-b8f78b355436
+		summarizeBy: none
+		sourceColumn: Effect
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Tecnical Issue'
+		dataType: string
+		lineageTag: 4a53093f-6103-4bd4-8bf0-7f848a078201
+		summarizeBy: none
+		sourceColumn: Tecnical Issue
+
+		annotation SummarizationSetBy = Automatic
+
+	column ActualSales =
+			
+			IF(
+			    'FORECAST MONTHLY'[Date] < EOMONTH(TODAY(), -1),
+			    LOOKUPVALUE(
+			        'HEADER MONTHLY'[NetSales],        -- Column from HEADER MONTHLY table to return
+			        'HEADER MONTHLY'[MonthYear],       -- Column from HEADER MONTHLY table to match
+			        'FORECAST MONTHLY'[Date]             -- Column from FORECAST MONTHLY table to match
+			    ),
+			    BLANK()
+			)
+		formatString: #,0
+		lineageTag: 6b933a48-07e5-4e73-8380-7f916e6016d7
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	column IsCompletedMonths =
+			
+			IF(
+			    'FORECAST MONTHLY'[Date] < EOMONTH(TODAY(), -1),
+			    TRUE,
+			    FALSE
+			)
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 7a26208d-e15e-4de9-910e-e4896873d3e1
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthlyRunRate = ```
+			
+			IF (
+			    ISBLANK('FORECAST MONTHLY'[ActualSales]), 
+			    0, 
+			    DIVIDE(
+			        CALCULATE(
+			            SUM('FORECAST MONTHLY'[ActualSales]),
+			            FILTER(
+			                'FORECAST MONTHLY',
+			                'FORECAST MONTHLY'[Date] <= EARLIER('FORECAST MONTHLY'[Date])
+			            )
+			        ),
+			        CALCULATE(
+			            SUM('FORECAST MONTHLY'[Forecast %]),
+			            FILTER(
+			                'FORECAST MONTHLY',
+			                'FORECAST MONTHLY'[Date] <= EARLIER('FORECAST MONTHLY'[Date])
+			            )
+			        )
+			    )
+			)
+			```
+		lineageTag: 1ff60212-50cc-407a-b5f1-68b886984acb
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column YesterdayMonthlyRunRate = ```
+			
+			VAR LastMonthStart = EOMONTH(TODAY(), -2) + 1
+			VAR LastMonthEnd = EOMONTH(TODAY(), -1)
+			VAR LastMonthRunRate = 
+			    CALCULATE(
+			        MAX('FORECAST MONTHLY'[MonthlyRunRate]),
+			        FILTER(
+			            'FORECAST MONTHLY',
+			            'FORECAST MONTHLY'[Date] >= LastMonthStart &&
+			            'FORECAST MONTHLY'[Date] <= LastMonthEnd
+			        )
+			    )
+			RETURN
+			LastMonthRunRate
+			```
+		lineageTag: 2557e466-9fc1-48f3-9f68-2f46dcdf31ab
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column MonthlyRunRates = ```
+			
+			IF(
+			    NOT(ISBLANK('FORECAST MONTHLY'[Forecast %])) && 'FORECAST MONTHLY'[Forecast %] > 0,
+			    IF(
+			        ISBLANK('FORECAST MONTHLY'[ActualSales]) || 'FORECAST MONTHLY'[ActualSales] = 0,
+			        'FORECAST MONTHLY'[Forecast %] * 'FORECAST MONTHLY'[YesterdayMonthlyRunRate],
+			        BLANK()
+			    ),
+			    BLANK()
+			)
+			
+			```
+		lineageTag: 25198fd3-d14d-41f0-b3b4-397f8e6538fb
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TotalSales = 'FORECAST MONTHLY'[ActualSales]+'FORECAST MONTHLY'[MonthlyRunRates]
+		lineageTag: e5fd2c12-f259-45c3-91a4-e7489bc7fa3e
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Excess Target' = [Actuals Minus Forecast Before Current Month With Target]
+		lineageTag: cf3d931a-937e-40b1-9d53-7e1ba0704177
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'FORECAST MONTHLY' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/m_elsayed_swishhh_net/Documents/Yelo%20Run%20Rate.xlsx"), null, true),
+				    Monthly_Sheet = Source{[Item="Monthly",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(Monthly_Sheet, [PromoteAllScalars=true]),
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Weekday", type any}, {"D. Forecast %", type number}, {"Forecast", Int64.Type}, {"Actual", Int64.Type}, {"Monthly RunRate", type number}, {"Current Month Run Rate", type number}, {"Event", type any}, {"Effect", type any}, {"Column1", Int64.Type}, {"Column2", Int64.Type}, {"Column3", Int64.Type}, {"Tecnical Issue", type any}, {"Column14", type any}, {"Column15", type any}, {"Column16", type any}, {"Column17", type any}, {"Column18", type any}, {"Column19", type any}, {"Column20", type any}, {"Column21", type any}, {"Column22", type any}, {"Column23", type any}, {"Column24", type any}, {"Column25", type any}, {"Column26", type any}, {"Column27", type any}, {"Column28", type any}, {"Column29", type any}, {"Column30", type any}, {"Column31", type any}, {"Column32", type any}, {"Column33", type any}, {"Column34", type any}, {"Column35", type any}, {"Column36", type any}, {"Column37", type any}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Changed Type3", each [Date] <> null and [Date] <> ""),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows",{{"Date", type date}}),
+				    #"Renamed Columns" = Table.RenameColumns(#"Changed Type1",{{"D. Forecast %", "Forecast %"}}),
+				    #"Filtered Rows1" = Table.SelectRows(#"Renamed Columns", each [#"Forecast %"] <> null and [#"Forecast %"] <> ""),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows1",{{"Forecast %", type number}, {"Forecast", type number}}),
+				    #"Replaced Value" = Table.ReplaceValue(#"Changed Type",null,"No",Replacer.ReplaceValue,{"Effect"}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Replaced Value",{"Column37", "Column36", "Column35", "Column34", "Column33", "Column32", "Column31", "Column30", "Column29", "Column28", "Column27", "Column26", "Column25", "Column24", "Column23", "Column22", "Column21", "Column20", "Column19", "Column18", "Column17", "Column16", "Column15", "Column14", "Column3", "Column1", "Column2"}),
+				    #"Replaced Value1" = Table.ReplaceValue(#"Removed Columns",null,"No",Replacer.ReplaceValue,{"Tecnical Issue"}),
+				    #"Replaced Value2" = Table.ReplaceValue(#"Replaced Value1","Yes","1",Replacer.ReplaceText,{"Tecnical Issue"}),
+				    #"Replaced Value3" = Table.ReplaceValue(#"Replaced Value2","No","0",Replacer.ReplaceText,{"Tecnical Issue"}),
+				    #"Removed Columns1" = Table.RemoveColumns(#"Replaced Value3",{"Current Month Run Rate", "Actual", "Monthly RunRate"})
+				in
+				    #"Removed Columns1"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

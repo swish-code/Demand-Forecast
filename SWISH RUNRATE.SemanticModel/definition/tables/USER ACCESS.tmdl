@@ -1,0 +1,259 @@
+table 'USER ACCESS'
+	lineageTag: 08a89ab7-f6a3-4b03-8238-5b8005a55950
+
+	measure YesterdayMonthlyRunRate =
+			
+			CALCULATE(
+			    MAX(FORECAST[MonthlyRunRate_MTD]),
+			    FILTER(
+			        FORECAST,
+			        FORECAST[Date] = TODAY() - 1
+			    )
+			)
+		formatString: #,0
+		lineageTag: fde2321a-18c2-4f26-845e-30b17c9a6c3d
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure YesterdayDate = TODAY() - 1
+		formatString: General Date
+		lineageTag: 10018a9d-148d-4b96-ae5e-ae1a28ed944b
+
+	measure Variation_Percentage = ```
+			
+			VAR Variation = DIVIDE(
+			    [RUNRATE_YTD] - [RUNRATE_LastYear],   -- Forecast sales minus last year's sales
+			    [RUNRATE_LastYear],                                 -- Last year's sales (denominator)
+			    0                                                      -- Return 0 if there is an error (e.g., division by zero)
+			) * 100                                                   -- Multiply by 100 to show as percentage
+			RETURN 
+			    FORMAT(Variation, "0.00") & "%"                         -- Format the result as a string with 2 decimal places and add the '%' sign
+			
+			```
+		lineageTag: c7fc7420-4756-436e-9ce7-22b6cbae4247
+
+	measure 'Variation %' = ```
+			
+			VAR ForecastValue = SUM('forecast'[Forecast])
+			VAR YesterdayRate = [YesterdayMonthlyRunrate]
+			VAR Variation = 
+			    DIVIDE(
+			        YesterdayRate - ForecastValue, 
+			        ForecastValue, 
+			        0
+			    ) * 100
+			RETURN 
+			    FORMAT(Variation, "0.00") & " %"
+			
+			```
+		lineageTag: 40316adc-b29a-4b41-b0e0-866d453232d5
+
+	measure TotalSales_ForecastMonth = ```
+			
+			SUM('FORECAST MONTHLY'[TotalSales])
+			
+			```
+		formatString: #,0
+		lineageTag: c21cbef3-64d7-4104-a01c-e79ad15e0a21
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure 'TOT YEAR' = ```
+			
+			VAR Variation = DIVIDE(
+			    [RUNRATE_YTD] - [FORECAST_YTD],   -- Forecast sales minus last year's sales
+			    [FORECAST_YTD],                                 -- Last year's sales (denominator)
+			    0                                                      -- Return 0 if there is an error (e.g., division by zero)
+			) * 100                                                   -- Multiply by 100 to show as percentage
+			RETURN 
+			    FORMAT(Variation, "0.00") & "%"                         -- Format the result as a string with 2 decimal places and add the '%' sign
+			
+			```
+		lineageTag: 5f518e7e-3608-42f0-8b96-b836f2f151ae
+
+	measure SumOfForecast = ```
+			SUM('forecast'[Forecast])
+			
+			```
+		lineageTag: 3d35139a-c1e4-4f85-b5b2-20243534a4fd
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Sales_LastOrCurrentMonth = ```
+			
+			VAR CurrentDate = TODAY()  -- Get the current date
+			VAR IsBeforeOrOn15th = DAY(CurrentDate) <= 14  -- Check if today is on or before the 15th
+			VAR TargetYear = IF(IsBeforeOrOn15th, YEAR(EDATE(CurrentDate, -1)), YEAR(CurrentDate))  -- Adjust year for last month if needed
+			VAR TargetMonth = IF(IsBeforeOrOn15th, MONTH(EDATE(CurrentDate, -1)), MONTH(CurrentDate))  -- Choose last or current month
+			
+			RETURN
+			CALCULATE(
+			    SUM(FORECAST[Actual Sales]) + SUM(FORECAST[CurrentMonthRunRate]),  -- Sum Actual Sales and Run Rate
+			    FILTER(
+			        FORECAST,
+			        YEAR(FORECAST[Date]) = TargetYear &&
+			        MONTH(FORECAST[Date]) = TargetMonth &&
+			        FORECAST[Brand] IN VALUES('Seasonal Effect test'[Brand])  -- Match brands between tables
+			    )
+			)
+			
+			```
+		lineageTag: 783ca550-5ec5-4824-a0b8-d4785b572c15
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure RUNRATE_LastYear = ```
+			
+			VAR SelectedYear = YEAR(MIN('FORECAST'[Date])) -- Dynamically determine the year from the date filter
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = SelectedYear - 1 -- Include all rows for the last year relative to the selected year
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: 6b206b15-eeb6-4d22-b262-3b2731128119
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure RUNRATE_LastMonth = ```
+			
+			VAR SelectedMonth = MONTH(MAX('FORECAST'[Date])) -- Get the month from the maximum date context
+			VAR SelectedYear = YEAR(MAX('FORECAST'[Date])) -- Get the year from the maximum date context
+			VAR LastMonth = SelectedMonth - 1 -- Calculate the previous month
+			VAR LastMonthYear = SelectedYear - IF(LastMonth = 0, 1, 0) -- Adjust the year if LastMonth is December
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = LastMonthYear && MONTH('FORECAST'[Date]) = IF(LastMonth = 0, 12, LastMonth) -- Filter for the last month
+			    )
+			)
+			
+			```
+		lineageTag: 537bd3a9-f593-4e3d-a920-2de3e73c5ef0
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure RUNRATE_CurrentMonthLastYear = ```
+			
+			VAR SelectedMonth = MONTH(MAX('FORECAST'[Date])) -- Get the month from the selected date context
+			VAR SelectedYear = YEAR(MAX('FORECAST'[Date])) -- Get the year from the selected date context
+			VAR LastYear = SelectedYear - 1 -- Calculate the previous year based on selected year
+			RETURN
+			CALCULATE(
+			    SUM('FORECAST'[Totalsale]),
+			    FILTER(
+			        ALL('FORECAST'[Date]), -- Remove any date filter
+			        YEAR('FORECAST'[Date]) = LastYear && MONTH('FORECAST'[Date]) = SelectedMonth -- Filter for the same month from the previous year
+			    )
+			)
+			
+			```
+		formatString: #,0
+		lineageTag: d2ee3c7a-5eb0-4550-bb76-bfd1227d7393
+
+		annotation PBI_FormatHint = {"isDecimal":true}
+
+	measure RRGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [Sales_LastOrCurrentMonth] - [Forecast_CurrentMonth],
+			        [Forecast_CurrentMonth],
+			        0
+			    ) ,
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: c5d118b5-55fa-45e1-bbcc-4984476cbc5c
+
+	measure LYGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [RUNRATE_CurrentMonthLastYear],
+			        [RUNRATE_CurrentMonthLastYear],
+			        0
+			    ) ,
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: e258322a-3f54-4f99-a53a-d28486d646ea
+
+	measure LMGROWTH% = ```
+			
+			FORMAT(
+			    DIVIDE(
+			        [RUNRATE_MTD] - [RUNRATE_LastMonth],
+			        [RUNRATE_LastMonth],
+			        0
+			    ),
+			    "0.00%"
+			)
+			
+			```
+		lineageTag: 90fcdea3-825f-448c-9079-44df3f286a80
+
+	measure Sales_LastOrCurrentMonth2 = ```
+			
+			VAR CurrentDate = TODAY()  -- Get the current date
+			VAR IsBeforeOrOn15th = DAY(CurrentDate) <= 7  -- Check if today is on or before the 15th
+			VAR TargetYear = IF(IsBeforeOrOn15th, YEAR(EDATE(CurrentDate, -1)), YEAR(CurrentDate))  -- Adjust year for last month if needed
+			VAR TargetMonth = IF(IsBeforeOrOn15th, MONTH(EDATE(CurrentDate, -1)), MONTH(CurrentDate))  -- Choose last or current month
+			
+			RETURN
+			CALCULATE(
+			    SUM(FORECAST[Actual Sales]) + SUM(FORECAST[CurrentMonthRunRate]),  -- Sum Actual Sales and Run Rate
+			    FILTER(
+			        FORECAST,
+			        YEAR(FORECAST[Date]) = TargetYear &&
+			        MONTH(FORECAST[Date]) = TargetMonth &&
+			        FORECAST[Brand] IN VALUES('Seasonal Effect test'[Brand])  -- Match brands between tables
+			    )
+			)
+			
+			```
+		lineageTag: 5c0e596f-a5d5-44ac-8208-af621308d988
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column UserName
+		dataType: string
+		lineageTag: 88abb923-9265-4be3-a2c2-1143fd4e3f31
+		summarizeBy: none
+		sourceColumn: UserName
+
+		annotation SummarizationSetBy = Automatic
+
+	column BRAND
+		dataType: string
+		lineageTag: fcf5cf5e-731e-4634-a0b6-275294134932
+		summarizeBy: none
+		sourceColumn: BRAND
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'USER ACCESS' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(Web.Contents("https://etckuwait-my.sharepoint.com/personal/thalbish_swishhh_net/Documents/SWISH%20DASHBOARD%20USERS.xlsx"), null, true),
+				    Table1_Table = Source{[Item="Table1",Kind="Table"]}[Data],
+				    #"Changed Type" = Table.TransformColumnTypes(Table1_Table,{{"BRAND", type text}, {"UserName", type text}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each [UserName] <> null and [UserName] <> ""),
+				    #"Filtered Rows1" = Table.SelectRows(#"Filtered Rows", each [BRAND] <> null and [BRAND] <> "")
+				in
+				    #"Filtered Rows1"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

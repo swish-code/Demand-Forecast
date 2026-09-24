@@ -14,9 +14,21 @@ table AOV_Table
 	measure 'Forecast Accuracy %' =
 			
 			VAR _forecast = [Total_Forecast_Qty]
-			VAR _actual   = [Total_Actual_Qty]
+			VAR _actual = [Total_Actual_Qty]
+			
 			RETURN
-			    1 - ABS( DIVIDE( _actual - _forecast, _forecast, 0 ) )
+			    IF(
+			        _actual = 0,
+			        BLANK(),
+			        IF(
+			            _forecast = 0,
+			            BLANK(),
+			            1 - DIVIDE(
+			                ABS(_actual - _forecast),
+			                _actual
+			            )
+			        )
+			    )
 		formatString: 0.00%;-0.00%;0.00%
 		lineageTag: 2112c5c3-8258-4732-8edb-cfeddc60f357
 
@@ -583,38 +595,6 @@ table AOV_Table
 			)
 		lineageTag: e6415e98-6f03-4d26-b6c6-a99e70c87b8d
 
-	column Brand
-		lineageTag: baec9b91-61da-4417-9320-fa446d46442d
-		summarizeBy: none
-		isNameInferred
-		sourceColumn: HEADER[Brand]
-
-		annotation SummarizationSetBy = Automatic
-
-	column LOCATIONID
-		lineageTag: 65dc1f3b-4c0d-411c-b6b4-5dd0c36e622a
-		summarizeBy: none
-		isNameInferred
-		sourceColumn: HEADER[LOCATIONID]
-
-		annotation SummarizationSetBy = Automatic
-
-	column VOUCHERDATE
-		formatString: Long Date
-		lineageTag: 0d1f72e8-a4a5-4b33-8cd7-428a176ac88f
-		summarizeBy: none
-		isNameInferred
-		sourceColumn: HEADER[VOUCHERDATE]
-
-		variation Variation
-			isDefault
-			relationship: 7794772e-b9cf-49a7-83be-edea57dfd520
-			defaultHierarchy: LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b.'Date Hierarchy'
-
-		annotation SummarizationSetBy = Automatic
-
-		annotation UnderlyingDateTimeDataType = Date
-
 	column Daily_Sales
 		lineageTag: c45e9724-737e-4eba-8187-4fbd67c03451
 		summarizeBy: sum
@@ -644,78 +624,110 @@ table AOV_Table
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
+	column CHAINID
+		lineageTag: cb5dada9-f051-4dad-8931-cc3e4616a5f4
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SALES DATA[CHAINID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column LOCATIONID
+		lineageTag: 4d3219a1-87b4-4c8b-8cbd-5e5638c40ba3
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SALES DATA[LOCATIONID]
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		formatString: General Date
+		lineageTag: d05d2d73-a731-4b7d-a64d-ec6fefe46c51
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: SALES DATA[VOUCHERDATE]
+
+		variation Variation
+			isDefault
+			relationship: a82010ad-6e34-4b4a-9eef-f4d7efc667a3
+			defaultHierarchy: LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
 	partition AOV_Table = calculated
 		mode: import
-		source =
+		source = ```
 				
 				ADDCOLUMNS(
 				    SUMMARIZE(
-				        HEADER,
-				        HEADER[Brand],
-				        HEADER[LOCATIONID],
-				        HEADER[VOUCHERDATE]
+				        'SALES DATA',
+				        'SALES DATA'[CHAINID],
+				        'SALES DATA'[LOCATIONID],
+				        'SALES DATA'[VOUCHERDATE]
 				    ),
 				
 				    "Daily_Sales",
-				    VAR _brand = [Brand]
-				    VAR _loc   = [LOCATIONID]
-				    VAR _date  = [VOUCHERDATE]
+				    VAR _chain = 'SALES DATA'[CHAINID]
+				    VAR _loc   = 'SALES DATA'[LOCATIONID]
+				    VAR _date  = 'SALES DATA'[VOUCHERDATE]
 				    RETURN
 				        CALCULATE(
-				            SUM(HEADER[NetSales]),
+				            SUM('SALES DATA'[NET]),
 				            FILTER(
-				                ALL(HEADER),
-				                HEADER[Brand]       = _brand &&
-				                HEADER[LOCATIONID]  = _loc   &&
-				                HEADER[VOUCHERDATE] = _date
+				                ALL('SALES DATA'),
+				                'SALES DATA'[CHAINID]     = _chain &&
+				                'SALES DATA'[LOCATIONID]  = _loc   &&
+				                'SALES DATA'[VOUCHERDATE] = _date
 				            )
 				        ),
 				
 				    "Daily_Orders",
-				    VAR _brand = [Brand]
-				    VAR _loc   = [LOCATIONID]
-				    VAR _date  = [VOUCHERDATE]
+				    VAR _chain = 'SALES DATA'[CHAINID]
+				    VAR _loc   = 'SALES DATA'[LOCATIONID]
+				    VAR _date  = 'SALES DATA'[VOUCHERDATE]
 				    RETURN
 				        CALCULATE(
-				            SUM(HEADER[TotalOrders]),
+				            COUNTROWS('SALES DATA'),   -- swap for DISTINCTCOUNT('SALES DATA'[UNIQUEKEY]) if each row isn't 1 order
 				            FILTER(
-				                ALL(HEADER),
-				                HEADER[Brand]       = _brand &&
-				                HEADER[LOCATIONID]  = _loc   &&
-				                HEADER[VOUCHERDATE] = _date
+				                ALL('SALES DATA'),
+				                'SALES DATA'[CHAINID]     = _chain &&
+				                'SALES DATA'[LOCATIONID]  = _loc   &&
+				                'SALES DATA'[VOUCHERDATE] = _date
 				            )
 				        ),
 				
 				    "Daily_AOV",
-				    VAR _brand = [Brand]
-				    VAR _loc   = [LOCATIONID]
-				    VAR _date  = [VOUCHERDATE]
+				    VAR _chain = 'SALES DATA'[CHAINID]
+				    VAR _loc   = 'SALES DATA'[LOCATIONID]
+				    VAR _date  = 'SALES DATA'[VOUCHERDATE]
 				
 				    VAR _sales =
 				        CALCULATE(
-				            SUM(HEADER[NetSales]),
+				            SUM('SALES DATA'[NET]),
 				            FILTER(
-				                ALL(HEADER),
-				                HEADER[Brand]       = _brand &&
-				                HEADER[LOCATIONID]  = _loc   &&
-				                HEADER[VOUCHERDATE] = _date
+				                ALL('SALES DATA'),
+				                'SALES DATA'[CHAINID]     = _chain &&
+				                'SALES DATA'[LOCATIONID]  = _loc   &&
+				                'SALES DATA'[VOUCHERDATE] = _date
 				            )
 				        )
 				
 				    VAR _orders =
 				        CALCULATE(
-				            SUM(HEADER[TotalOrders]),
+				            COUNTROWS('SALES DATA'),   -- keep consistent with Daily_Orders above
 				            FILTER(
-				                ALL(HEADER),
-				                HEADER[Brand]       = _brand &&
-				                HEADER[LOCATIONID]  = _loc   &&
-				                HEADER[VOUCHERDATE] = _date
+				                ALL('SALES DATA'),
+				                'SALES DATA'[CHAINID]     = _chain &&
+				                'SALES DATA'[LOCATIONID]  = _loc   &&
+				                'SALES DATA'[VOUCHERDATE] = _date
 				            )
 				        )
 				
 				    RETURN
 				        DIVIDE(_sales, _orders, 0)
 				)
+				
+				```
 
 	annotation PBI_Id = 3432b27a8e86422c92785b057592abbe
 

@@ -55,7 +55,7 @@ relationship 71e77c6e-3e0c-8d0d-3f56-cd6e02f61aa4
 	toColumn: Brand.ChainCode
 
 relationship 2492a0c6-d086-0256-2a0c-956730b7168c
-	fromColumn: 'SALES DATA'.BRAND
+	fromColumn: 'SALES DATA'.CHAINID
 	toColumn: Brand.ChainCode
 
 relationship a479a71d-97f1-4daf-9de2-22875fe48cc4
@@ -117,11 +117,6 @@ relationship AutoDetected_6a2f6cb5-18a8-44da-8ae6-5e01d62d3db8
 	fromColumn: 'PRODUCTS (2)'.SKU
 	toColumn: PRODUCTS.SKU
 
-relationship 7794772e-b9cf-49a7-83be-edea57dfd520
-	joinOnDateBehavior: datePartOnly
-	fromColumn: AOV_Table.VOUCHERDATE
-	toColumn: LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b.Date
-
 relationship 70f7e5e6-afe3-41e8-bd43-70a0cb193556
 	joinOnDateBehavior: datePartOnly
 	fromColumn: Incidence_Denominator.VOUCHERDATE
@@ -142,12 +137,37 @@ relationship 3514dc3e-b8f4-490c-8932-f51361617abf
 	fromColumn: Incidence_Table.VOUCHERDATE
 	toColumn: LocalDateTable_a93eb2ca-817f-4cfb-be50-c8c2f7e1340b.Date
 
-relationship 6d081d67-5990-477f-92c5-717e23e2b717
+relationship d37da009-3aff-38db-5334-aae6ceb0f88b
+	fromColumn: Forecast_Product_Table.Date
+	toColumn: DateTable.Date
+
+relationship 792ffc21-c7a5-416d-b07b-e88703a2efa1
 	joinOnDateBehavior: datePartOnly
 	fromColumn: Forecast_Spine.Date
 	toColumn: LocalDateTable_93fd8f69-89fd-4ec2-bb66-6b361c617b9b.Date
 
-relationship d37da009-3aff-38db-5334-aae6ceb0f88b
-	fromColumn: Forecast_Product_Table.Date
-	toColumn: DateTable.Date
+relationship 52d81abb-2d40-4ebe-99a6-02b4c8870c3c
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'SALES DATA'.ENDTIME
+	toColumn: LocalDateTable_039766b6-4f31-48c1-86b2-687710dbcd5b.Date
+
+relationship f0f2653c-50e5-459a-a83b-c3b288d2fd4a
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'SALES DATA'.STARTTIME
+	toColumn: LocalDateTable_a5a7a0ba-9726-41cf-9c9c-a45c76cbed3f.Date
+
+relationship ca19d2b8-3ed0-4d0d-9f9e-7b02ace8e2cb
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'SALES DATA'.BUSINESS_DATE_IN_UTC
+	toColumn: LocalDateTable_c30b857a-d2ef-446e-a268-1381331e98f8.Date
+
+relationship 4edc5479-8de7-490c-b52d-36989b2de7fb
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'SALES DATA'.UPDATED_AT
+	toColumn: LocalDateTable_55a925f4-0eac-405b-8848-550b5b17bc0c.Date
+
+relationship a82010ad-6e34-4b4a-9eef-f4d7efc667a3
+	joinOnDateBehavior: datePartOnly
+	fromColumn: AOV_Table.VOUCHERDATE
+	toColumn: LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b.Date
 

@@ -8383,3 +8383,211 @@ table.dt--plain thead th:hover { color: var(--text-muted); }
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Sales Plan: the 2027 forecast table's filter bar ------------------- */
+/*
+ * One row of controls above the table, wrapping to two at narrow widths. The
+ * spacer pushes the download to the right so it reads as the end of the row
+ * rather than another filter.
+ */
+/*
+ * The controls read as one object, not as loose widgets floating above a table.
+ *
+ * A sunken, bordered tray does the separating, so the table below needs no
+ * heavy chrome of its own to look like a different thing. The spacer pushes the
+ * actions to the right so they read as the end of the row rather than a filter.
+ */
+.planfx__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  margin-bottom: 16px;
+  padding: 13px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-card);
+}
+.planfx__spacer { flex: 1 1 auto; }
+.planfx__field { display: flex; flex-direction: column; gap: 5px; }
+.planfx__field > span,
+.pick .pick__lbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.planfx__field .field__input { min-width: 150px; }
+/* Controls sit on the tray, so they take the page surface to stay legible. */
+.planfx__bar .field__input { background: var(--surface); }
+
+.planfx__seg {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: flex-end;
+}
+.planfx__tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.planfx__tab + .planfx__tab { border-left: 1px solid var(--line); }
+.planfx__tab:hover:not(.planfx__tab--on) { background: var(--sunken); color: var(--text); }
+.planfx__tab--on { background: var(--accent); color: #fff; }
+.planfx__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/*
+ * What the table below is currently showing, said in words.
+ *
+ * A count and a scope, so a filtered view is never mistaken for the whole
+ * population - the commonest way to misread a table that filters well.
+ */
+.planfx__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.planfx__caption b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.planfx__caption em {
+  font-style: normal;
+  color: var(--text-faint);
+}
+
+/* ---- Sales Plan: summary strip above the brand table ------------------- */
+/*
+ * Three figures of unequal importance, shown as such.
+ *
+ * The year's target is the number the whole page follows from, so it is the one
+ * that carries the accent rail and the larger figure; the other two are counts
+ * that answer "how much of this is filled in" and stay quiet. Giving all three
+ * the same card flattened that, and a reader had to parse the labels to find
+ * out which one mattered.
+ */
+.planstat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+}
+.planstat__item {
+  flex: 1 1 170px;
+  min-width: 150px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  background: var(--surface);
+}
+.planstat__item--lead {
+  background: var(--sunken);
+  border-color: var(--line);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.planstat dt {
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.planstat dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.planstat__item--lead dd { font-size: 23px; letter-spacing: -.01em; }
+.planstat__of { font-size: 12.5px; font-weight: 400; color: var(--text-muted); }
+
+/* A box whose value differs from what is stored, so a page of inputs says
+   which ones are still pending. The left rail carries it; the tint alone was
+   loud across a full-width row and still easy to miss on one cell. */
+.planrow--dirty > td { background: var(--amber-tint); }
+.planrow--dirty > td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+
+/* ---- Picker: a slicer you can search or tick -------------------------- */
+.pick { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.pick__lbl {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pick__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 170px;
+  cursor: pointer;
+  text-align: left;
+}
+.pick__btn--on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.pick__btntext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick__caret { flex: 0 0 auto; opacity: .6; font-size: 10px; }
+.pick__pop {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  width: min(340px, 86vw);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 20, .14);
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pick__search { width: 100%; }
+.pick__list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+.pick__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.pick__row:hover { background: var(--sunken); }
+.pick__row--on { background: var(--green-tint); }
+.pick__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick__code {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.pick__none { margin: 10px 7px; color: var(--text-muted); font-size: 13px; }
+.pick__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  font-size: 12px;
+}

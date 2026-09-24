@@ -61,7 +61,6 @@ ref table LocalDateTable_0777414d-c193-47a2-aa16-8128276b5a4b
 ref table PRODUCTS
 ref table 'PRODUCTS (2)'
 ref table Incidence_Denominator
-ref table LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b
 ref table LocalDateTable_8f30a05f-5113-4ac7-83b5-6fd9e6ba64f2
 ref table 'RECIPE TABLE'
 ref table Forecast_Spine
@@ -72,6 +71,11 @@ ref table Prep_Filter_Options
 ref table 'ITEM TABLE'
 ref table LocalDateTable_a93eb2ca-817f-4cfb-be50-c8c2f7e1340b
 ref table LocalDateTable_93fd8f69-89fd-4ec2-bb66-6b361c617b9b
+ref table LocalDateTable_039766b6-4f31-48c1-86b2-687710dbcd5b
+ref table LocalDateTable_a5a7a0ba-9726-41cf-9c9c-a45c76cbed3f
+ref table LocalDateTable_c30b857a-d2ef-446e-a268-1381331e98f8
+ref table LocalDateTable_55a925f4-0eac-405b-8848-550b5b17bc0c
+ref table LocalDateTable_7e11d4e0-0997-4289-8dd9-2963e9297c7b
 
 ref cultureInfo en-US
 

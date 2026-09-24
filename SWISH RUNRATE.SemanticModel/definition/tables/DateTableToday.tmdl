@@ -1,0 +1,30 @@
+table DateTableToday
+	lineageTag: 0a43d315-dcae-4f9a-ae28-9fbf8766c7b5
+
+	column Date
+		formatString: dddd\, mmmm d\, yyyy
+		lineageTag: 19ebd78f-d2fb-4b5a-a5e9-a66c60f4d909
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		variation Variation
+			isDefault
+			relationship: 88197aa7-e34a-4410-8ab0-7791b5f92e3c
+			defaultHierarchy: LocalDateTable_afd211d1-97e1-4ae3-b747-a04825ca3fb8.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	partition DateTableToday = calculated
+		mode: import
+		source = ```
+				
+				CALENDAR(DATE(2022, 1, 1), TODAY())
+				
+				
+				```
+
+	annotation PBI_Id = f4a42d261e19412ca6be2e216b2d346f
+

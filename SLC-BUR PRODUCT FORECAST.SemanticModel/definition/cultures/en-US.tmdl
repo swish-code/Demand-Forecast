@@ -366,22 +366,6 @@ cultureInfo en-US
 			        }
 			      ]
 			    },
-			    "forecast.locationid": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "FORECAST",
-			          "ConceptualProperty": "LOCATIONID"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "locationid": {
-			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
 			    "forecast.d__forecast_": {
 			      "Definition": {
 			        "Binding": {
@@ -3196,165 +3180,6 @@ cultureInfo en-US
 			        }
 			      ]
 			    },
-			    "sales_data.net_amount": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "NetAmount"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "net amount": {
-			            "State": "Generated"
-			          }
-			        },
-			        {
-			          "NetAmount": {
-			            "Type": "Noun",
-			            "State": "Generated",
-			            "Weight": 0.99
-			          }
-			        },
-			        {
-			          "net quantity": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.5
-			          }
-			        },
-			        {
-			          "net volume": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.5
-			          }
-			        },
-			        {
-			          "net expanse": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.5
-			          }
-			        },
-			        {
-			          "net extent": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.5
-			          }
-			        },
-			        {
-			          "net sum": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.485
-			          }
-			        },
-			        {
-			          "net total": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.485
-			          }
-			        },
-			        {
-			          "net aggregate": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.485
-			          }
-			        }
-			      ]
-			    },
-			    "sales_data.discount": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "Discount"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "discount": {
-			            "State": "Generated"
-			          }
-			        },
-			        {
-			          "reduction": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "markdown": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "concession": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "deduction": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "rebate": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        }
-			      ]
-			    },
 			    "ebitda.monthly_RunRate": {
 			      "Definition": {
 			        "Binding": {
@@ -3906,22 +3731,6 @@ cultureInfo en-US
 			      "Terms": [
 			        {
 			          "cotdeliverycharge": {
-			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
-			    "sales_data.voucherstatus": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "VOUCHERSTATUS"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "voucherstatus": {
 			            "State": "Generated"
 			          }
 			        }
@@ -4482,22 +4291,6 @@ cultureInfo en-US
 			        }
 			      ]
 			    },
-			    "sales_data.startdate": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "STARTDATE"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "startdate": {
-			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
 			    "sales_data.ordertype": {
 			      "Definition": {
 			        "Binding": {
@@ -4509,22 +4302,6 @@ cultureInfo en-US
 			      "Terms": [
 			        {
 			          "ordertype": {
-			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
-			    "sales_data.companyid": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "COMPANYID"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "companyid": {
 			            "State": "Generated"
 			          }
 			        }
@@ -4558,29 +4335,6 @@ cultureInfo en-US
 			        {
 			          "endtime": {
 			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
-			    "sales_data.custaddress_10": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "CUSTADDRESS10"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "custaddress 10": {
-			            "State": "Generated"
-			          }
-			        },
-			        {
-			          "CUSTADDRESS10": {
-			            "Type": "Noun",
-			            "State": "Generated",
-			            "Weight": 0.99
 			          }
 			        }
 			      ]
@@ -4631,27 +4385,11 @@ cultureInfo en-US
 			        }
 			      ]
 			    },
-			    "sales_data.enddate": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "ENDDATE"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "enddate": {
-			            "State": "Generated"
-			          }
-			        }
-			      ]
-			    },
 			    "sales_data.brand": {
 			      "Definition": {
 			        "Binding": {
 			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "BRAND"
+			          "ConceptualProperty": "CHAINID"
 			        }
 			      },
 			      "State": "Generated",
@@ -5047,7 +4785,7 @@ cultureInfo en-US
 			      "Definition": {
 			        "Binding": {
 			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "Net"
+			          "ConceptualProperty": "Net_"
 			        }
 			      },
 			      "State": "Generated",
@@ -5163,7 +4901,7 @@ cultureInfo en-US
 			      "Definition": {
 			        "Binding": {
 			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "OrderSource"
+			          "ConceptualProperty": "OrderSource_"
 			        }
 			      },
 			      "State": "Generated",
@@ -5433,69 +5171,6 @@ cultureInfo en-US
 			              "Agent": "Thesaurus"
 			            },
 			            "Weight": 0.492
-			          }
-			        }
-			      ]
-			    },
-			    "sales_data.day_name": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "DayName"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "day name": {
-			            "State": "Generated"
-			          }
-			        },
-			        {
-			          "DayName": {
-			            "Type": "Noun",
-			            "State": "Generated",
-			            "Weight": 0.99
-			          }
-			        },
-			        {
-			          "day nickname": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.727
-			          }
-			        },
-			        {
-			          "day title": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.727
-			          }
-			        },
-			        {
-			          "day label": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.727
-			          }
-			        },
-			        {
-			          "day tag": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.727
 			          }
 			        }
 			      ]
@@ -21899,7 +21574,7 @@ cultureInfo en-US
 			      "Definition": {
 			        "Binding": {
 			          "ConceptualEntity": "SALES DATA",
-			          "ConceptualProperty": "NETSALES"
+			          "ConceptualProperty": "NETAMOUNT"
 			        }
 			      },
 			      "State": "Generated",
@@ -28168,122 +27843,6 @@ cultureInfo en-US
 			              "Agent": "Thesaurus"
 			            },
 			            "Weight": 0.485
-			          }
-			        }
-			      ]
-			    },
-			    "AOV_table.brand": {
-			      "Definition": {
-			        "Binding": {
-			          "ConceptualEntity": "AOV_Table",
-			          "ConceptualProperty": "Brand"
-			        }
-			      },
-			      "State": "Generated",
-			      "Terms": [
-			        {
-			          "brand": {
-			            "State": "Generated"
-			          }
-			        },
-			        {
-			          "variety": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "marque": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.491
-			          }
-			        },
-			        {
-			          "make": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "kind": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "trademark": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "style": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "class": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "strain": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "cast": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.476
-			          }
-			        },
-			        {
-			          "marker": {
-			            "Type": "Noun",
-			            "State": "Suggested",
-			            "Source": {
-			              "Agent": "Thesaurus"
-			            },
-			            "Weight": 0.466
 			          }
 			        }
 			      ]

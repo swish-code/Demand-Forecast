@@ -1,0 +1,48 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation PBI_QueryOrder = ["FORECAST","HEADER","FORECAST MONTHLY","SALES DATA","EBITDA","SURVEY","Talabat Ratings","Append1","Seasonal Effect test","USER ACCESS","BUR","SLICE","CHP","JUSTC LINE","DELIVERY CHARGES","CHC LINE","SLC LINE","YELO","MISHMASH","YELO LINE","MSH LINE","JUSTC FOODICS","PAT FOODICS","YP FOODICS","GeneralJournalAccountEntryBiEntities","GeneralJournalEntryBiEntities","BBT FOODICS","SS FOODICS","SLICE FOODICS","CHP FOODICS","MSH FOODICS","TBL FOODICS","STANDARDTARGET"]
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_ProTooling = ["WebModelingEdit","DevMode"]
+
+ref table FORECAST
+ref table DateTableTemplate_8ea7b4ec-b701-4943-97a9-2d9e23ad0c5a
+ref table HEADER
+ref table LocalDateTable_2f34e67e-bdbd-47cc-8dca-e1aff8653956
+ref table 'FORECAST MONTHLY'
+ref table 'SALES DATA'
+ref table EBITDA
+ref table LocalDateTable_3cf0566d-ecc1-4978-9a4f-9209939ca69b
+ref table DateTableToday
+ref table SURVEY
+ref table LocalDateTable_575e8e30-daf7-4626-bb6e-28db8dac9503
+ref table 'Talabat Ratings'
+ref table Append1
+ref table LocalDateTable_afd211d1-97e1-4ae3-b747-a04825ca3fb8
+ref table 'Seasonal Effect test'
+ref table LocalDateTable_25b3ba6f-5806-4af9-a2f9-4cda4008b433
+ref table LocalDateTable_2d378d15-89a4-4595-b956-76790432dfdf
+ref table LocalDateTable_2ba6ece9-340b-4a19-ab44-7d7dce6e6321
+ref table Brand
+ref table 'USER ACCESS'
+ref table LocationTable
+ref table LocalDateTable_b086bfca-fe36-4d84-a965-9007f625ea41
+ref table 'DELIVERY CHARGES'
+ref table LocalDateTable_f6cc44db-6182-454d-bfd4-a81c55a1c412
+ref table MISHMASH
+ref table LocalDateTable_ca398ee5-99e5-41d5-a4c2-5ce017dd6af7
+ref table LocalDateTable_60c31837-9dac-4bf4-8810-3870ae0dda02
+ref table STANDARDTARGET
+ref table LocalDateTable_414f4e23-6cad-475c-8c6d-970738dd9810
+ref table RunRateDateSlicer
+ref table LocalDateTable_2a06431e-98b3-41d7-af97-372dd75bf246
+
+ref cultureInfo en-US
+

@@ -109,9 +109,20 @@ export async function planBasis(brand, baseYear = salesPlanBaseYear()) {
     const from = `${baseYear}-01-01`
     const to = `${baseYear}-12-31`
 
+    /*
+     * The base year's observed sales, month by month — the denominator of the
+     * validity ratio (product units / sales) that decides whether a month's own
+     * mix may be used.
+     *
+     * Prefers `actual_fc` — SUM('FORECAST'[Actual Sales]) from the one model
+     * holding every brand — and falls back per day to `actual`, the same
+     * measurement out of the brand's own model, wherever the master has none.
+     * Same source and same COALESCE as the warehouse constant, so the Sales
+     * Plan's two halves are never divided by two different sales figures.
+     */
     const sales = new Array(13).fill(0)
     for (const r of await pg.all(
-      'SELECT LEFT(date, 7) AS m, SUM(actual) AS v FROM cube_sales_daily WHERE brand = ? AND date >= ? AND date <= ? GROUP BY LEFT(date, 7)',
+      'SELECT LEFT(date, 7) AS m, SUM(COALESCE(actual_fc, actual)) AS v FROM cube_sales_daily WHERE brand = ? AND date >= ? AND date <= ? GROUP BY LEFT(date, 7)',
       [brand, from, to]
     )) {
       sales[Number(String(r.m).slice(5, 7))] = Number(r.v) || 0

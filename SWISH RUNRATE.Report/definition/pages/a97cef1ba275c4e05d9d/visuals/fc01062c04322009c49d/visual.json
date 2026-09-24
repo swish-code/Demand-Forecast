@@ -1,0 +1,264 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
+  "name": "fc01062c04322009c49d",
+  "position": {
+    "x": 1051.4819136522754,
+    "y": 9.250574020401249,
+    "z": 10000,
+    "height": 46.252870102006248,
+    "width": 228.18082583656414,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "Datepicker_1687358625",
+    "query": {
+      "queryState": {
+        "categories": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "FORECAST"
+                    }
+                  },
+                  "Property": "Date"
+                }
+              },
+              "queryRef": "FORECAST.Date",
+              "nativeQueryRef": "Date"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "FORECAST"
+                  }
+                },
+                "Property": "Date"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "filter": {
+              "filter": {
+                "Version": 2,
+                "From": [
+                  {
+                    "Name": "f",
+                    "Entity": "FORECAST",
+                    "Type": 0
+                  }
+                ],
+                "Where": [
+                  {
+                    "Condition": {
+                      "And": {
+                        "Left": {
+                          "Comparison": {
+                            "ComparisonKind": 4,
+                            "Left": {
+                              "Column": {
+                                "Expression": {
+                                  "SourceRef": {
+                                    "Source": "f"
+                                  }
+                                },
+                                "Property": "Date"
+                              }
+                            },
+                            "Right": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "Literal": {
+                                    "Value": "datetime'2026-08-31T23:59:59.999'"
+                                  }
+                                },
+                                "TimeUnit": 5
+                              }
+                            }
+                          }
+                        },
+                        "Right": {
+                          "Comparison": {
+                            "ComparisonKind": 2,
+                            "Left": {
+                              "Column": {
+                                "Expression": {
+                                  "SourceRef": {
+                                    "Source": "f"
+                                  }
+                                },
+                                "Property": "Date"
+                              }
+                            },
+                            "Right": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "Literal": {
+                                    "Value": "datetime'2026-08-01T00:00:00'"
+                                  }
+                                },
+                                "TimeUnit": 5
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "selection": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"value\":{\"rangeIndex0\":{\"startDate\":\"2025-12-31T21:00:00.000Z\",\"endDate\":\"2026-05-30T21:00:00.000Z\",\"key\":\"rangeIndex0\"}},\"discreteValues\":[],\"isForceSelectionReset\":true}'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "config": [
+        {
+          "properties": {
+            "calendar": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"calendarView\":\"POPUP\",\"isPopupCentered\":false,\"canvasAlwaysOn\":false,\"hideOnMouseOut\":false,\"rangeCount\":1,\"datePickerType\":\"range\",\"numOfMonth\":\"1\",\"dateFormat\":\"MM/dd/yyyy\",\"customDateFormat\":\"dd/MM/yyyy\",\"backgroundShape\":\"ELLIPSE\",\"multipleRanges\":false,\"autoScale\":true,\"firstDayOfWeek\":\"0\",\"singleDateSelection\":false,\"isoDateStandard\":false}'"
+                }
+              }
+            },
+            "calendarFormatting": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"autoTextSize\":false,\"textSize\":\"10\",\"color\":\"rgba(61, 150, 65, 1)\",\"calendarSidePanelBackgroundColor\":\"rgba(249, 249, 249, 1)\",\"selectedFontColor\":\"rgba(255,255,255,1)\",\"nonSelectedFontColor\":\"rgba(77, 77, 77, 1)\",\"backgroundColor\":\"rgba(255, 255, 255, 1)\",\"middleColor\":\"rgba(77, 77, 77, 1)\",\"middleBackgroundColor\":\"rgba(61, 150, 65, 0.15)\",\"lightenBetweenDates\":true,\"enableBorder\":true,\"borderColor\":\"rgba(219, 219, 219, 1)\",\"borderWidth\":\"1\"}'"
+                }
+              }
+            },
+            "preset": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"SHOW_IN_LEFT_MENU\":true,\"showDefinedRange\":true,\"textSize\":\"10\",\"fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"selectedFontColor\":\"rgba(77, 77, 77, 1)\",\"nonSelectedFontColor\":\"rgba(77, 77, 77, 1)\",\"selectedIndicator\":\"rgba(61, 150, 65, 1)\",\"selectedBackground\":\"rgba(61, 150, 65, 0.15)\",\"hoverFontColor\":\"rgba(77, 77, 77, 1)\",\"hoverBackgroundColor\":\"rgba(239, 239, 239, 1)\",\"sidePanelBackgroundColor\":\"rgba(250, 250, 250, 1)\",\"sideInputBackground\":\"rgba(255, 255, 255, 1)\",\"sideInputBorderColor\":\"rgba(219, 219, 219, 1)\",\"placement\":\"LEFT\",\"presetItems\":[\"today\",\"yesterday\",\"mindate\",\"thisweek\",\"lastweek\",\"thismonth\"],\"allPresetItems\":[{\"label\":\"Yesterday\",\"value\":\"yesterday\"},{\"label\":\"Today\",\"value\":\"today\"},{\"label\":\"Min Date\",\"value\":\"mindate\"},{\"label\":\"Max Date\",\"value\":\"maxdate\"},{\"label\":\"This Week\",\"value\":\"thisweek\"},{\"label\":\"Last Week\",\"value\":\"lastweek\"},{\"label\":\"Max Week\",\"value\":\"maxweek\"},{\"label\":\"This Month\",\"value\":\"thismonth\"},{\"label\":\"Last Month\",\"value\":\"lastmonth\"},{\"label\":\"Max Month\",\"value\":\"maxmonth\"},{\"label\":\"Last Quarter\",\"value\":\"lastquarter\"},{\"label\":\"Max Quarter\",\"value\":\"maxquarter\"},{\"label\":\"Month To Yesterday\",\"value\":\"mty\"},{\"label\":\"MTD\",\"value\":\"mtd\"},{\"label\":\"QTD\",\"value\":\"qtd\"},{\"label\":\"YTD\",\"value\":\"ytd\"}],\"customInputRange\":false,\"customInputRangeDetails\":[],\"styling\":[],\"borderBottomColor\":\"rgb(210,210,210)\",\"enableDaysUptoSection\":true}'"
+                }
+              }
+            },
+            "invalidDates": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"strikeThrough\":true,\"backgroundColor\":\"rgba(255,255,255,0)\",\"fontColor\":\"rgba(139, 139, 139, 1)\",\"selectedBackgroundColor\":\"rgba(61, 150, 65, 0.15)\",\"selectedFontColor\":\"rgba(61, 150, 65, 1)\"}'"
+                }
+              }
+            },
+            "topBarDates": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"SHOW_IN_LEFT_MENU\":true,\"color\":\"rgba(77, 77, 77, 1)\",\"backgroundColor\":\"rgba(255,255,255,0)\",\"editable\":true,\"dateFormat\":\"MM/dd/yyyy\",\"fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"pickerBorderColor\":\"rgba(219, 219, 219, 1)\"}'"
+                }
+              }
+            },
+            "selectionControl": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"position\":\"TOP\",\"clearFontColor\":\"rgba(77, 77, 77, 1)\",\"clearBackgroundColor\":\"rgba(255,255,255,0)\",\"clearFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"clearButtonBorderColor\":\"rgba(219, 219, 219, 1)\",\"clearTextSize\":\"11\",\"applyFontColor\":\"rgba(255,255,255,1)\",\"applyBackgroundColor\":\"rgba(61, 150, 65, 1)\",\"applyFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"applyTextSize\":\"11\",\"applyButtonBorderColor\":\"rgba(219, 219, 219, 0)\",\"gotoTodayEnable\":true,\"gotoTodayFontColor\":\"rgba(61, 150, 65, 1)\",\"gotoTodayBackgroundColor\":\"rgba(61, 150, 65, 0.15)\",\"gotoTodayFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"gotoTodayTextSize\":\"11\",\"gotoTodayButtonBorderColor\":\"rgba(219, 219, 219, 0)\"}'"
+                }
+              }
+            },
+            "dateRangeSlider": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"position\":\"TOP\",\"clearFontColor\":\"rgb(77,77,77)\",\"clearBackgroundColor\":\"rgba(255,255,255,0)\",\"clearFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"clearButtonBorderColor\":\"rgba(219, 219, 219, 1)\",\"clearTextSize\":\"11\",\"applyFontColor\":\"rgb(255,255,255)\",\"applyBackgroundColor\":\"rgb(88, 101, 242)\",\"applyFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"applyTextSize\":\"11\",\"applyButtonBorderColor\":\"rgba(219, 219, 219, 0)\",\"gotoTodayEnable\":true,\"gotoTodayFontColor\":\"rgb(88, 101, 242)\",\"gotoTodayBackgroundColor\":\"rgba(88, 101, 242, 0.1)\",\"gotoTodayFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"gotoTodayTextSize\":\"11\",\"gotoTodayButtonBorderColor\":\"rgba(219, 219, 219, 0)\",\"SHOW_IN_LEFT_MENU\":true,\"enable\":true,\"isContinousRange\":true,\"slideOnColor\":\"rgba(61, 150, 65, 1)\",\"slideOffColor\":\"rgba(61, 150, 65, 0.15)\",\"fontColor\":\"rgba(77, 77, 77, 1)\",\"fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"textSize\":\"12\"}'"
+                }
+              }
+            },
+            "button": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"SHOW_IN_LEFT_MENU\":true,\"inputLabel\":\"Select Date\",\"leftButtonLabel\":\"Start Date\",\"rightButtonLabel\":\"End Date\",\"fillContainer\":false,\"buttonWidth\":\"210\",\"buttonHeight\":\"30\",\"backgroundColor\":\"rgba(255, 255, 255, 1)\",\"fontColor\":\"rgba(77, 77, 77, 1)\",\"borderColor\":\"rgba(219, 219, 219, 1)\",\"textSize\":\"12\",\"fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"dateFormat\":\"MM/dd/yyyy\",\"customDateFormat\":\"dd/MM/yyyy\",\"clearIcon\":true,\"clearIconSize\":\"14\",\"clearIconColor\":\"rgba(224, 74, 56, 1)\",\"clearIconBackgroundColor\":\"rgba(251, 236, 235, 1)\",\"clearIconBorderRadius\":\"4\",\"calendarIconSize\":\"14\",\"calendarIconColor\":\"rgba(138, 138, 138, 1)\",\"styling\":[\"bold\"],\"isThemeSelected\":false}'"
+                }
+              }
+            },
+            "specialDays": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"weekendEnabled\":true,\"weekendTextSize\":10,\"weekendFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"weekendBackgroundColor\":\"rgb(241, 201, 18)\",\"weekendFontColor\":\"rgba(139, 139, 139, 1)\",\"weekendDotEnabled\":false,\"weekendDotSize\":5,\"weekendDotColor\":\"rgb(158, 158, 158)\",\"weekendIcon\":{\"prefix\":\"fas\",\"iconName\":\"circle\",\"icon\":[512,512,[],\"f111\",\"M256 8C119 8 8 119 8 256s111 248 248 248 248-111 248-248S393 8 256 8z\"],\"tabDetails\":{\"type\":\"faicon\",\"tabName\":\"__icons__\"}},\"holidayEnabled\":false,\"holidayTextSize\":10,\"holidayFontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\",\"holidayBackgroundColor\":\"rgb(241, 201, 18)\",\"holidayFontColor\":\"rgba(139, 139, 139, 1)\",\"holidayDotEnabled\":false,\"holidayDotSize\":5,\"holidayDotColor\":\"rgb(158, 158, 158)\",\"holidayIcon\":{\"prefix\":\"fas\",\"iconName\":\"umbrella-beach\",\"icon\":[576,512,[127958],\"f5ca\",\"M346.3 271.8l-60.1-21.9L214 448H32c-17.7 0-32 14.3-32 32s14.3 32 32 32H544c17.7 0 32-14.3 32-32s-14.3-32-32-32H282.1l64.1-176.2zm121.1-.2l-3.3 9.1 67.7 24.6c18.1 6.6 38-4.2 39.6-23.4c6.5-78.5-23.9-155.5-80.8-208.5c2 8 3.2 16.3 3.4 24.8l.2 6c1.8 57-7.3 113.8-26.8 167.4zM462 99.1c-1.1-34.4-22.5-64.8-54.4-77.4c-.9-.4-1.9-.7-2.8-1.1c-33-11.7-69.8-2.4-93.1 23.8l-4 4.5C272.4 88.3 245 134.2 226.8 184l-3.3 9.1L434 269.7l3.3-9.1c18.1-49.8 26.6-102.5 24.9-155.5l-.2-6zM107.2 112.9c-11.1 15.7-2.8 36.8 15.3 43.4l71 25.8 3.3-9.1c19.5-53.6 49.1-103 87.1-145.5l4-4.5c6.2-6.9 13.1-13 20.5-18.2c-79.6 2.5-154.7 42.2-201.2 108z\"],\"tabDetails\":{\"tabName\":\"__icons__\",\"type\":\"faicon\"}}}'"
+                }
+              }
+            },
+            "theme": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"themeStatus\":\"set\",\"type\":\"light\",\"themeName\":\"green\",\"custom_themeName\":\"Custom\",\"custom_primary\":\"rgba(152, 188, 5, 1)\",\"custom_secondary\":\"rgba(240, 245, 219, 1)\",\"custom_activeText\":\"rgba(77, 77, 77, 1)\",\"custom_hoverColor\":\"rgba(239, 239, 239, 1)\",\"custom_mainBackground\":\"rgba(255, 255, 255, 1)\",\"custom_inactiveDate\":\"rgba(224, 74, 56, 1)\",\"custom_weekendHolidays\":\"rgba(60, 171, 239, 1)\",\"custom_sidePanelBackground\":\"rgba(249, 249, 249, 1)\",\"custom_borderColor\":\"rgba(219, 219, 219, 1)\",\"custom_fontFamily\":\"\\\"Segoe UI\\\", wf_segoe-ui_normal, helvetica, arial, sans-serif\"}'"
+                }
+              }
+            },
+            "metaInfo": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"isThemeSelected\":false,\"startDate\":null,\"endDate\":null,\"isStartDateManuallySelected\":false,\"isEndDateManuallySelected\":false,\"isOnboardingDone\":true}'"
+                }
+              }
+            },
+            "defaultSelection": {
+              "expr": {
+                "Literal": {
+                  "Value": "'{\"isForceSelectionReset\":false,\"forceSelection\":\"thisMonth\",\"fieldName\":\"\",\"showTitleInButton\":false}'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "border": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 1,
+                      "Percent": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

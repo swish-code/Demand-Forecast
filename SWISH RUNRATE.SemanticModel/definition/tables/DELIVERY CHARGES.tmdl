@@ -1,0 +1,64 @@
+table 'DELIVERY CHARGES'
+	lineageTag: c6390195-9b65-438c-a520-e11af18037b7
+
+	column CHAINID
+		dataType: string
+		lineageTag: e214c030-6bb9-4f25-8ac1-bedcd7e07715
+		summarizeBy: none
+		sourceColumn: CHAINID
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 54af09ec-80b7-4f37-a90c-43ca7ec0df0c
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		variation Variation
+			isDefault
+			relationship: 209250cb-1ef5-42d7-add5-92de58a4fa7e
+			defaultHierarchy: LocalDateTable_f6cc44db-6182-454d-bfd4-a81c55a1c412.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DeliveryCharges
+		dataType: double
+		lineageTag: 6347a657-6402-46f3-a1c1-eb175325ab68
+		summarizeBy: sum
+		sourceColumn: DeliveryCharges
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'DELIVERY CHARGES' = m
+		mode: import
+		source = ```
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP",Kind="Database"]}[Data],
+				    AIRBYTE_ETCSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_ETCSALES",Kind="Schema"]}[Data],
+				    LINE_Table = AIRBYTE_ETCSALES_Schema{[Name="LINE",Kind="Table"]}[Data],
+				    // Convert all column names to uppercase
+				    #"Uppercase Column Names" = Table.RenameColumns(LINE_Table, List.Zip({Table.ColumnNames(LINE_Table), List.Transform(Table.ColumnNames(LINE_Table), Text.Upper)})),
+				    
+				    // Add custom column for KEY
+				    #"Added Custom" = Table.AddColumn(#"Uppercase Column Names", "KEY", each Text.Combine({Text.From([COMPANYID]), Text.From([CHAINID]), Text.From([LOCATIONID]), Text.From([VOUCHERNO]), Text.From([ORDERNUMBER]), Text.From([VOUCHERDATE])}, "")),
+				    #"Added Custom1" = Table.AddColumn(#"Added Custom", "DeliveryCharge", each [QTY]*[SELLINGPRICE]),
+				    #"Filtered Rows1" = Table.SelectRows(#"Added Custom1", each ([CATEGORYDESCRIPTION] = "CHARGE" or [CATEGORYDESCRIPTION] = "DELIVERY CHARGE" or [CATEGORYDESCRIPTION] = "donation" or [CATEGORYDESCRIPTION] = "Merchandise" or [CATEGORYDESCRIPTION] = "MERCHANDISE" or [CATEGORYDESCRIPTION] = "MERCHANDISE ITEM" or [CATEGORYDESCRIPTION] = "PATTIE TOKENS")),
+				    #"Filtered Rows" = Table.SelectRows(#"Filtered Rows1", each [SALESTATUS] = "S"),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"DeliveryCharge", type number}}),
+				    #"Grouped Rows" = Table.Group(#"Changed Type", {"CHAINID", "VOUCHERDATE"}, {{"DeliveryCharges", each List.Sum([DeliveryCharge]), type nullable number}}),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Grouped Rows",{{"VOUCHERDATE", type datetime}}),
+				    #"Appended Query" = Table.Combine({#"Changed Type1", #"SLC LINE", #"CHC LINE", #"JUSTC LINE", #"YELO LINE", #"MSH LINE"})
+				in
+				    #"Appended Query"
+				```
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

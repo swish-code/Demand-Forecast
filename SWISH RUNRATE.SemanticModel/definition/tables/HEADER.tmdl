@@ -1,0 +1,227 @@
+table HEADER
+	lineageTag: 7ac67320-989e-4f21-9248-c2785a4c9f46
+
+	measure DLC2 = ```
+			
+			DIVIDE (
+			    SUM ( HEADER[TotalDiscounts] ),
+			    SUM ( HEADER[TotalSales] )
+			)
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 9712af88-8078-4665-9700-3d91a943aadb
+
+	column TotalSales
+		dataType: double
+		lineageTag: 377432d2-c744-4ac6-a7d9-0cf8d79c5a3c
+		summarizeBy: sum
+		sourceColumn: TotalSales
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TotalDiscounts
+		dataType: double
+		lineageTag: 2f01461f-13f7-46f2-926a-0fa33239bee5
+		summarizeBy: sum
+		sourceColumn: TotalDiscounts
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column DeliveryCharge
+		dataType: double
+		lineageTag: 9c104cba-516b-43f5-a56e-fd85fef461a3
+		summarizeBy: sum
+		sourceColumn: DeliveryCharge
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column NetSales = HEADER[TotalSales] -( HEADER[TotalDiscounts]+HEADER[DeliveryCharge]+HEADER[ProductDelivery])
+		lineageTag: b7696d8c-6ff9-45fb-8946-ffb7394e695c
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Brand
+		dataType: string
+		lineageTag: 2292ea3b-3d36-4274-b3aa-3aeca93ac2d1
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductDelivery = ```
+			
+			IF(
+			    'HEADER'[VOUCHERDATE] < TODAY(),  -- Check if the date is before today
+			    COALESCE(
+			        LOOKUPVALUE(
+			            'Delivery Charges'[DeliveryCharges],          -- Column from HEADER table to return
+			            'Delivery Charges'[VoucherDate],       -- First column from HEADER table to match
+			            'HEADER'[VOUCHERDATE],            -- First column from FORECAST table to match
+			            'Delivery Charges'[CHAINID],             -- Second column from HEADER table to match
+			            'HEADER'[Brand]            -- Second column from FORECAST table to match
+			        ), 
+			        0  -- If no value is found, return 0
+			    ),
+			    BLANK()  -- Return blank if the date is today or in the future
+			)
+			
+			```
+		lineageTag: 43f7afa1-0d92-4119-8e2f-d4612d9a5c45
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	column VOUCHERDATE
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 20b97627-03c1-4028-9767-ab8ad08285b4
+		summarizeBy: none
+		sourceColumn: VOUCHERDATE
+
+		variation Variation
+			isDefault
+			relationship: 6e7d7306-9192-4355-bd59-183a1d01db98
+			defaultHierarchy: LocalDateTable_60c31837-9dac-4bf4-8810-3870ae0dda02.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+	column DLC = HEADER[TotalDiscounts]/HEADER[TotalSales]
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e6c4ec0b-4419-4aef-91a2-831499b85418
+		summarizeBy: sum
+
+		annotation SummarizationSetBy = Automatic
+
+	partition HEADER = m
+		mode: import
+		source = ```
+				let
+				    // Connect to Snowflake
+				    Source = Snowflake.Databases("UMWIJEO-IF31569.snowflakecomputing.com", "AIRBYTE_WAREHOUSE"),
+				    AIRBYTE_MICROSYSCLOUDERP_Database = Source{[Name="AIRBYTE_MICROSYSCLOUDERP", Kind="Database"]}[Data],
+				    AIRBYTE_ETCSALES_Schema = AIRBYTE_MICROSYSCLOUDERP_Database{[Name="AIRBYTE_ETCSALES", Kind="Schema"]}[Data],
+				    HEADER_Table = AIRBYTE_ETCSALES_Schema{[Name="HEADER", Kind="Table"]}[Data],
+				
+				    // Make column names uppercase
+				    #"Uppercase Column Names" = Table.RenameColumns(
+				        HEADER_Table, 
+				        List.Zip({Table.ColumnNames(HEADER_Table), List.Transform(Table.ColumnNames(HEADER_Table), Text.Upper)})
+				    ),
+				
+				    // Filters
+				    #"Filtered Rows"  = Table.SelectRows(#"Uppercase Column Names", each [ORDERTYPE] <> "SM"),
+				    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows", each [VOUCHERSTATUS] = "S"),
+				
+				    // Discount column
+				    #"Added Custom" = Table.AddColumn(#"Filtered Rows2", "Discount", each [COTDISCOUNTAMOUNT]),
+				    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom", {{"Discount", type number}}),
+				
+				    // Brand column logic
+				    #"Added Custom2" = Table.AddColumn(
+				        #"Changed Type2", 
+				        "Brand", 
+				        each if [CHAINID] = "YP" and [LOCATIONID] = "COOP" 
+				             then [CHAINID] & " " & [LOCATIONID] 
+				             else [CHAINID]
+				    ),
+				    #"Changed Type3" = Table.TransformColumnTypes(#"Added Custom2", {{"Brand", type text}}),
+				
+				    // Remove duplicates
+				    #"Removed Duplicates" = Table.Distinct(#"Changed Type3", {"UNIQUEKEY"}),
+				
+				    // Date types
+				    #"Changed Type" = Table.TransformColumnTypes(#"Removed Duplicates", {{"VOUCHERDATE", type datetime}, {"STARTTIME", type datetime}}),
+				
+				    // Adjusted Voucher Date
+				    #"Added Adjusted VoucherDate" = Table.AddColumn(
+				        #"Changed Type",
+				        "AdjustedVOUCHERDATE",
+				        each
+				            let st = [STARTTIME] in
+				            if [CHAINID] = "SS"
+				               and [LOCATIONID] = "HWL"
+				               and st <> null
+				               and st >= #datetime(2025, 9, 08, 12, 0, 0)
+				               and st <= #datetime(2025, 9, 09, 7, 0, 0)
+				            then #datetime(2025, 9, 08, 0, 0, 0)
+				
+				            else if [CHAINID] = "SS"
+				               and [LOCATIONID] = "HWL"
+				               and st >= #datetime(2025, 9, 09, 12, 0, 0)
+				               and st <= #datetime(2025, 9, 10, 7, 0, 0)
+				            then #datetime(2025, 9, 09, 0, 0, 0)
+				
+				            else if [CHAINID] = "SS"
+				               and [LOCATIONID] = "QRN"
+				               and st >= #datetime(2025, 09, 18, 12, 0, 0)
+				               and st <= #datetime(2025, 09, 19, 7, 0, 0)
+				            then #datetime(2025, 09, 18, 0, 0, 0)
+				
+				            else if [CHAINID] = "SS"
+				               and [LOCATIONID] = "ARD"
+				               and st >= #datetime(2025, 09, 19, 12, 0, 0)
+				               and st <= #datetime(2025, 09, 20, 7, 0, 0)
+				            then #datetime(2025, 09, 19, 0, 0, 0)
+				
+				            else if [CHAINID] = "SS"
+				               and [LOCATIONID] = "SBA"
+				               and st >= #datetime(2025, 09, 18, 12, 0, 0)
+				               and st <= #datetime(2025, 09, 19, 7, 0, 0)
+				            then #datetime(2025, 09, 18, 0, 0, 0)
+				
+				            else [VOUCHERDATE],
+				        type datetime
+				    ),
+				
+				    #"Removed Old VoucherDate" = Table.RemoveColumns(#"Added Adjusted VoucherDate", {"VOUCHERDATE"}),
+				    #"Renamed Adjusted Column" = Table.RenameColumns(#"Removed Old VoucherDate", {{"AdjustedVOUCHERDATE", "VOUCHERDATE"}}),
+				
+				    // FIRST GROUPING by VOUCHERDATE + BRAND
+				    #"Grouped Rows" = Table.Group(
+				        #"Renamed Adjusted Column",
+				        {"VOUCHERDATE", "Brand"},
+				        {
+				            {"TotalSales", each List.Sum([TRXSALES]), type number},
+				            {"TotalDiscounts", each List.Sum([Discount]), type number},
+				            {"DeliveryCharge", each List.Sum([COTDELIVERYCHARGE]), type number}
+				        }
+				    ),
+				
+				    // Append with brand-level queries
+				    #"Appended Query" = Table.Combine({#"Grouped Rows", BUR, SLICE, CHP, MISHMASH, YELO, #"JUSTC FOODICS", #"PAT FOODICS", #"YP FOODICS", #"BBT FOODICS", #"SS FOODICS",#"SLICE FOODICS",#"CHP FOODICS",#"MSH FOODICS",#"TBL FOODICS"}),
+				    #"Changed Type1" = Table.TransformColumnTypes(#"Appended Query",{{"VOUCHERDATE", type datetime}}),
+				
+				    // Sort before final grouping
+				    #"Sorted Rows_PreFinal" = Table.Sort(#"Changed Type1",{{"VOUCHERDATE", Order.Descending}}),
+				
+				    // SECOND GROUPING to remove duplicates & avoid incorrect totals
+				    #"Grouped Final" = Table.Group(
+				        #"Sorted Rows_PreFinal",
+				        {"VOUCHERDATE", "Brand"},
+				        {
+				            {"TotalSales", each List.Sum([TotalSales]), type number},
+				            {"TotalDiscounts", each List.Sum([TotalDiscounts]), type number},
+				            {"DeliveryCharge", each List.Sum([DeliveryCharge]), type number}
+				        }
+				    ),
+				
+				    // Final type fixes & sorting
+				    #"Changed Type_Final" = Table.TransformColumnTypes(#"Grouped Final",{{"VOUCHERDATE", type datetime}})
+				in
+				    #"Changed Type_Final"
+				```
+
+	annotation PBI_ResultType = Exception
+
+	annotation PBI_NavigationStepName = Navigation
+

@@ -77,22 +77,25 @@ table 'FORECAST (2)'
 
 		annotation SummarizationSetBy = Automatic
 
-	column 'Actual Sales' = ```
+	column 'Actual Sales' =
 			
+			VAR CurrentDate = 'FORECAST (2)'[DATE]
+			VAR CurrentChain = 'FORECAST (2)'[BRAND]
+			VAR CurrentLocation = 'FORECAST (2)'[BRANCH]
+			RETURN
 			IF(
-			    'FORECAST (2)'[DATE] < TODAY(),
-			    COALESCE(
-			        LOOKUPVALUE(
-			            'HEADER'[NetSales],
-			            'HEADER'[VoucherDate],    'FORECAST (2)'[DATE],
-			            'HEADER'[Brand],          'FORECAST (2)'[BRAND],
-			            'HEADER'[LOCATIONID],     'FORECAST (2)'[BRANCH]  -- Fixed: added missing quote & comma
-			        ), 
-			        0
-			    ),
+			    CurrentDate < TODAY(),
+			    CALCULATE(
+			        SUM('SALES DATA'[NET]),
+			        FILTER(
+			            'SALES DATA',
+			            'SALES DATA'[VoucherDate] = CurrentDate &&
+			            'SALES DATA'[CHAINID] = CurrentChain &&
+			            'SALES DATA'[LOCATIONID] = CurrentLocation
+			        )
+			    ) + 0,
 			    BLANK()
 			)
-			```
 		lineageTag: 4f68f4d9-0e4c-4713-92de-78752ce742ad
 		summarizeBy: sum
 

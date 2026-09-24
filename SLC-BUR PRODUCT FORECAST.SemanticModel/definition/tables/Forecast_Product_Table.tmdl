@@ -91,22 +91,22 @@ table Forecast_Product_Table
 	column Total_Sales =
 			
 			VAR _chain = [CHAINID]
-			VAR _loc = [LOCATIONID]
-			VAR _date = [Date]
+			VAR _loc   = [LOCATIONID]
+			VAR _date  = [Date]
 			VAR _today = TODAY()
 			RETURN
 			IF(
 			    _date < _today,
-			    -- Past dates: use Month runrate
+			    -- Past dates: SUM of MonthRunrate
 			    CALCULATE(
 			        SUM('FORECAST (2)'[MonthRunrate]),
 			        'FORECAST (2)'[BRAND] = _chain,
 			        'FORECAST (2)'[BRANCH] = _loc,
 			        'FORECAST (2)'[DATE] = _date
 			    ),
-			    -- Today and future dates: use Total sale
+			    -- Today and future dates: SUM (not MAX) of Totalsale / Runrate
 			    CALCULATE(
-			        MAX('FORECAST (2)'[Totalsale]),
+			        SUM('FORECAST (2)'[Totalsale]),
 			        'FORECAST (2)'[BRAND] = _chain,
 			        'FORECAST (2)'[BRANCH] = _loc,
 			        'FORECAST (2)'[DATE] = _date
@@ -181,7 +181,7 @@ table Forecast_Product_Table
 			                SELECTCOLUMNS(
 			                    FILTER(
 			                        AOV_Table,
-			                        AOV_Table[Brand]      = _chain &&
+			                        AOV_Table[CHAINID]      = _chain &&
 			                        AOV_Table[LOCATIONID] = _loc   &&
 			                        WEEKDAY(DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)), 2) = _weekday &&
 			                        DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)) < _currentDate
@@ -197,7 +197,7 @@ table Forecast_Product_Table
 			                    FILTER(
 			                        AOV_Table,
 			                        DATEVALUE(LEFT(AOV_Table[VOUCHERDATE], 10)) = _d &&
-			                        AOV_Table[Brand]      = _chain                   &&
+			                        AOV_Table[CHAINID]      = _chain                   &&
 			                        AOV_Table[LOCATIONID] = _loc
 			                    )
 			                )
@@ -237,24 +237,23 @@ table Forecast_Product_Table
 
 		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-	column Actual_Orders = ```
+	column Actual_Orders =
 			
-			VAR _loc  = Forecast_Product_Table[LOCATIONID]
-			VAR _date = Forecast_Product_Table[Date]
-			VAR _chain = Forecast_Product_Table[CHAINID]
-			
+			VAR _loc     = Forecast_Product_Table[LOCATIONID]
+			VAR _date    = Forecast_Product_Table[Date]
+			VAR _chain   = Forecast_Product_Table[CHAINID]
+			VAR _todayKW = DATE(YEAR(UTCNOW() + TIME(3,0,0)), MONTH(UTCNOW() + TIME(3,0,0)), DAY(UTCNOW() + TIME(3,0,0)))
 			RETURN
-			CALCULATE(
-			    DISTINCTCOUNT('SLC'[KEY]),
-			    FILTER(
-			        'SLC',
-			        'SLC'[CleanLocationID]  = _loc       
-			            && 'SLC'[VOUCHERDATE]  = _date
-			                        && 'SLC'[CHAINID]  = _chain
-			
+			IF(
+			    _date >= _todayKW,
+			    BLANK(),
+			    CALCULATE(
+			        DISTINCTCOUNT('SLC'[KEY]),
+			        'SLC'[CleanLocationID] = _loc,
+			        'SLC'[VOUCHERDATE] = _date,
+			        'SLC'[CHAINID] = _chain
 			    )
 			)
-			```
 		formatString: 0
 		lineageTag: 7535d41a-1043-457d-967f-00c1df6bea04
 		summarizeBy: sum
@@ -290,22 +289,21 @@ table Forecast_Product_Table
 
 		annotation SummarizationSetBy = Automatic
 
-	column 'Actual Sales' = ```
+	column 'Actual Sales' =
 			
 			IF(
 			    'Forecast_Product_Table'[Date] < TODAY(),
-			    COALESCE(
-			        LOOKUPVALUE(
-			            'HEADER'[NetSales],
-			            'HEADER'[VoucherDate],    'Forecast_Product_Table'[Date],
-			            'HEADER'[Brand],          'Forecast_Product_Table'[CHAINID],
-			            'HEADER'[LOCATIONID],     'Forecast_Product_Table'[LOCATIONID]  -- Fixed: added missing quote & comma
-			        ), 
-			        0
-			    ),
+			    CALCULATE(
+			        SUM('SALES DATA'[NET]),
+			        FILTER(
+			            ALL('SALES DATA'),
+			            'SALES DATA'[VOUCHERDATE] = 'Forecast_Product_Table'[Date] &&
+			            'SALES DATA'[CHAINID]     = 'Forecast_Product_Table'[CHAINID] &&
+			            'SALES DATA'[LOCATIONID]  = 'Forecast_Product_Table'[LOCATIONID]
+			        )
+			    ) + 0,
 			    BLANK()
 			)
-			```
 		lineageTag: b9c26d13-6ddc-40da-a15e-29b71931c2d4
 		summarizeBy: sum
 
@@ -437,6 +435,22 @@ table Forecast_Product_Table
 
 		annotation SummarizationSetBy = Automatic
 
+	column Ordersource =
+			
+			MAXX(
+			    FILTER(
+			        'SLC',
+			        'SLC'[CleanNewItemID] = Forecast_Product_Table[Clean_ItemID]
+			            && 'SLC'[CHAINID] = Forecast_Product_Table[CHAINID]
+			            && 'SLC'[CleanLocationID] = Forecast_Product_Table[LocationID]
+			    ),
+			    'SLC'[OrderSource]
+			)
+		lineageTag: 9ab147d2-55bc-4575-a4b8-ebbb6c96ff52
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
 	partition Forecast_Product_Table = calculated
 		mode: import
 		source =
@@ -453,28 +467,6 @@ table Forecast_Product_Table
 				    ADDCOLUMNS(
 				        SUMMARIZE(
 				            Incidence_Table,
-				            Incidence_Table[CleanNewItemID],
-				            Incidence_Table[CleanLocationID],
-				            Incidence_Table[CHAINID]
-				        ),
-				        "ProductName_Fixed_Option",
-				            CALCULATE(
-				                MAX(Incidence_Table[ProductName_Fixed_Option])
-				            )
-				    )
-				
-				-- ==========================================
-				-- ACTIVE Item + Location + Chain combinations
-				-- Only items sold in the last 3 days
-				-- ==========================================
-				VAR _activeCombos =
-				    ADDCOLUMNS(
-				        SUMMARIZE(
-				            FILTER(
-				                Incidence_Table,
-				                Incidence_Table[VOUCHERDATE] >= _today - 3 &&
-				                Incidence_Table[Numerator (Total Qty)] > 0
-				            ),
 				            Incidence_Table[CleanNewItemID],
 				            Incidence_Table[CleanLocationID],
 				            Incidence_Table[CHAINID]
@@ -525,12 +517,12 @@ table Forecast_Product_Table
 				    )
 				
 				-- ==========================================
-				-- Future Rows
+				-- Future Rows (Now using _allCombos instead of _activeCombos)
 				-- ==========================================
 				VAR _futureRows =
 				    GENERATE(
 				        SELECTCOLUMNS(
-				            _activeCombos,
+				            _allCombos,
 				            "Clean_ItemID", [CleanNewItemID],
 				            "LocationID", [CleanLocationID],
 				            "CHAINID", [CHAINID],

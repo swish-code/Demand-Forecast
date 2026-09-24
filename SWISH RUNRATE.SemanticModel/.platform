@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "SWISH RUNRATE"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "1714b0a6-6a82-4990-a37e-fd7b61ea2f58"
+  }
+}

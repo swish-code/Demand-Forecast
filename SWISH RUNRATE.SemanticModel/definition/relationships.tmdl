@@ -1,0 +1,98 @@
+relationship 8bddb4d4-d1bc-47e2-bfd4-e8b18d9626d5
+	joinOnDateBehavior: datePartOnly
+	fromColumn: FORECAST.Yesterday
+	toColumn: LocalDateTable_2f34e67e-bdbd-47cc-8dca-e1aff8653956.Date
+
+relationship 61b07c24-bf18-4ea9-9f46-152509abc796
+	joinOnDateBehavior: datePartOnly
+	fromColumn: EBITDA.Month
+	toColumn: LocalDateTable_3cf0566d-ecc1-4978-9a4f-9209939ca69b.Date
+
+relationship 311ea000-c462-4274-8176-492fc3192bee
+	joinOnDateBehavior: datePartOnly
+	fromColumn: SURVEY.'Submission Date'
+	toColumn: LocalDateTable_575e8e30-daf7-4626-bb6e-28db8dac9503.Date
+
+relationship 6da4a18e-eb05-39f5-65ed-3b99770316a8
+	fromColumn: Append1.'Submission Date'
+	toColumn: DateTableToday.Date
+
+relationship 88197aa7-e34a-4410-8ab0-7791b5f92e3c
+	joinOnDateBehavior: datePartOnly
+	fromColumn: DateTableToday.Date
+	toColumn: LocalDateTable_afd211d1-97e1-4ae3-b747-a04825ca3fb8.Date
+
+relationship 7a396bc2-8cae-41d8-a03d-82aab4e54ffb
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Seasonal Effect test'.Date
+	toColumn: LocalDateTable_25b3ba6f-5806-4af9-a2f9-4cda4008b433.Date
+
+relationship 99c0f57f-2186-4fe9-8906-c3f82f7a8841
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Seasonal Effect test'.Today
+	toColumn: LocalDateTable_2d378d15-89a4-4595-b956-76790432dfdf.Date
+
+relationship 66b2ef13-9422-4be8-ab82-7847c55eb8e0
+	joinOnDateBehavior: datePartOnly
+	fromColumn: FORECAST.Date
+	toColumn: LocalDateTable_2ba6ece9-340b-4a19-ab44-7d7dce6e6321.Date
+
+relationship f1c7a21d-1bed-2560-c023-c7ca0dda471f
+	fromColumn: 'SALES DATA'.LOCATIONID
+	toColumn: LocationTable.LocationID
+
+relationship 828f2b1f-34ad-483c-8059-0416f970c899
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'FORECAST MONTHLY'.Date
+	toColumn: LocalDateTable_b086bfca-fe36-4d84-a965-9007f625ea41.Date
+
+relationship 37af2b27-442d-ff57-7055-7c6d7b35990e
+	isActive: false
+	fromColumn: 'Talabat Ratings'.'Submission Date'
+	toColumn: DateTableToday.Date
+
+relationship fb39c3e0-209b-0c9b-739d-516303aca5a8
+	fromColumn: 'SALES DATA'.VOUCHERDATE
+	toColumn: DateTableToday.Date
+
+relationship 209250cb-1ef5-42d7-add5-92de58a4fa7e
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'DELIVERY CHARGES'.VOUCHERDATE
+	toColumn: LocalDateTable_f6cc44db-6182-454d-bfd4-a81c55a1c412.Date
+
+relationship 5f00c4f9-b1a5-4177-8b22-8f839159b058
+	joinOnDateBehavior: datePartOnly
+	fromColumn: MISHMASH.VOUCHERDATE
+	toColumn: LocalDateTable_ca398ee5-99e5-41d5-a4c2-5ce017dd6af7.Date
+
+relationship 1f3eeb82-1a1c-12b1-7ea1-86713dce98b1
+	fromColumn: 'Talabat Ratings'.Brand
+	toColumn: Brand.ChainName
+
+relationship 5ebd4f8a-38c0-4121-683d-2fe823517609
+	fromColumn: Append1.Brand
+	toColumn: Brand.ChainName
+
+relationship 71e77c6e-3e0c-8d0d-3f56-cd6e02f61aa4
+	fromColumn: FORECAST.Brand
+	toColumn: Brand.ChainCode
+
+relationship 2492a0c6-d086-0256-2a0c-956730b7168c
+	fromColumn: 'SALES DATA'.BRAND
+	toColumn: Brand.ChainCode
+
+relationship 6e7d7306-9192-4355-bd59-183a1d01db98
+	joinOnDateBehavior: datePartOnly
+	fromColumn: HEADER.VOUCHERDATE
+	toColumn: LocalDateTable_60c31837-9dac-4bf4-8810-3870ae0dda02.Date
+
+relationship a479a71d-97f1-4daf-9de2-22875fe48cc4
+	joinOnDateBehavior: datePartOnly
+	fromColumn: STANDARDTARGET.DateColumn
+	toColumn: LocalDateTable_414f4e23-6cad-475c-8c6d-970738dd9810.Date
+
+relationship d632b7c2-c614-4433-991e-1c8668538d05
+	joinOnDateBehavior: datePartOnly
+	fromColumn: RunRateDateSlicer.Date
+	toColumn: LocalDateTable_2a06431e-98b3-41d7-af97-372dd75bf246.Date
+

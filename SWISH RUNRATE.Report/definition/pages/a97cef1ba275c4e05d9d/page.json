@@ -1,0 +1,265 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "a97cef1ba275c4e05d9d",
+  "displayName": "MONTHLY SUMMARY",
+  "displayOption": "FitToPage",
+  "height": 820,
+  "width": 1280,
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "85a32b7277691926c18e",
+        "ordinal": 0,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Brand"
+              }
+            },
+            "Property": "ChainCode"
+          }
+        },
+        "type": "Categorical",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "b",
+              "Entity": "Brand",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Not": {
+                  "Expression": {
+                    "In": {
+                      "Expressions": [
+                        {
+                          "Column": {
+                            "Expression": {
+                              "SourceRef": {
+                                "Source": "b"
+                              }
+                            },
+                            "Property": "ChainCode"
+                          }
+                        }
+                      ],
+                      "Values": [
+                        [
+                          {
+                            "Literal": {
+                              "Value": "null"
+                            }
+                          }
+                        ],
+                        [
+                          {
+                            "Literal": {
+                              "Value": "'YP COOP'"
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true,
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "c1a4c39452e3b731750d",
+        "ordinal": 1,
+        "field": {
+          "HierarchyLevel": {
+            "Expression": {
+              "Hierarchy": {
+                "Expression": {
+                  "PropertyVariationSource": {
+                    "Expression": {
+                      "SourceRef": {
+                        "Entity": "FORECAST"
+                      }
+                    },
+                    "Name": "Variation",
+                    "Property": "Date"
+                  }
+                },
+                "Hierarchy": "Date Hierarchy"
+              }
+            },
+            "Level": "Year"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User",
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "filterSortOrder": "Custom"
+  },
+  "objects": {
+    "outspacePane": [
+      {
+        "properties": {
+          "width": {
+            "expr": {
+              "Literal": {
+                "Value": "202L"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "background": [
+      {
+        "properties": {
+          "color": {
+            "solid": {
+              "color": {
+                "expr": {
+                  "ThemeDataColor": {
+                    "ColorId": 0,
+                    "Percent": -0.1
+                  }
+                }
+              }
+            }
+          },
+          "transparency": {
+            "expr": {
+              "Literal": {
+                "Value": "30D"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "visualInteractions": [
+    {
+      "source": "bbe3e81aeeaa0eaec330",
+      "target": "1dcbdbe964970c557509",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "bbe3e81aeeaa0eaec330",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "f058e056aca70e30d0e3",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "709bbf2040955e3609ed",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "fe438bd708d45e04903b",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "2d4655b0811c6d0cc573",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "6d38fbc002165918a0e4",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "47374ebc126203b64a10",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "4a15abd6e3a034b272d6",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "8bfeac16770355427933",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "93a065d0049251ac6306",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "adf8d9d34e99282e8631",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "5de956ff0016660951cd",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "86629f5727933e9310b5",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "9b83de794903bd1657b2",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "e7010b2c884a9024191b",
+      "type": "NoFilter"
+    },
+    {
+      "source": "1dcbdbe964970c557509",
+      "target": "4171add4600a329b8051",
+      "type": "NoFilter"
+    }
+  ]
+}

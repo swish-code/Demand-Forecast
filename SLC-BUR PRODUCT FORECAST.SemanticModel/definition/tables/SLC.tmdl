@@ -476,6 +476,17 @@ table SLC
 
 		annotation SummarizationSetBy = Automatic
 
+	column Ordersource =
+			
+			LOOKUPVALUE(
+			    'SALES DATA'[ORDERSOURCE],
+			    'SALES DATA'[KEY], SLC[KEY]
+			)
+		lineageTag: 6c3240a2-472f-4fb8-b660-06a6410c0153
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
 	partition SLC = m
 		mode: import
 		source =

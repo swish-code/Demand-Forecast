@@ -971,10 +971,38 @@ export async function monthlySales(brand, months, { allBrands = false } = {}) {
    * together it has a denominator again, and the rate it produces is per item
    * the business sells rather than per item one brand sells.
    */
+  /*
+   * The denominator is the OBSERVED sales, not the model's forecast of them.
+   *
+   * Both fields read `value` until 24 Sep 2026 - SUM('FORECAST (2)'[Totalsale])
+   * - so `actual` was an alias for Totalsale and the column holding the real
+   * actuals was read by nobody. Over a completed month the two are identical,
+   * measured across all nine brands and all six training months, so naming them
+   * honestly moved no figure.
+   *
+   * `actual` is the observed sales, and it is what the constant divides by.
+   * `forecast` is SUM('FORECAST (2)'[Totalsale]) - actual for a day that has
+   * happened, the model's forecast for one that has not. No caller reads it; it
+   * is kept so the row carries both figures.
+   *
+   * From 24 Sep 2026 the actual prefers `actual_fc`, which is
+   * SUM('FORECAST'[Actual Sales]) from the one model covering every brand,
+   * falling back per day to `actual` - SUM('FORECAST (2)'[Actual Sales]) from
+   * the brand's own model - wherever the master has no figure. Per brand, that
+   * column had drifted in four of seven datasets and put 29,673.19 of a
+   * 46,630.80 variance on one audited article's denominator.
+   *
+   * COALESCE per row rather than per month, so a partly-filled master month
+   * still totals correctly instead of falling back wholesale.
+   *
+   * This function has exactly one caller, `constantsFor`, which is what backs
+   * Warehouse Forecast, Stock Article and the Sales Plan's article forecast -
+   * the three places asked to move. Nothing else reads it.
+   */
   const rows = await rowsOf(
     `SELECT LEFT(date, 7) AS month,
-            SUM(value) AS actual,
-            SUM(value) AS forecast
+            SUM(COALESCE(actual_fc, actual)) AS actual,
+            SUM(value)  AS forecast
        FROM cube_sales_daily
       WHERE ${allBrands ? '' : 'brand = ? AND '}LEFT(date, 7) IN (${months.map(() => '?').join(', ')})
       GROUP BY LEFT(date, 7)`,

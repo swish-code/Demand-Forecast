@@ -159,7 +159,7 @@ table Append1
 			VAR AllChainLocations = 
 			    SUMMARIZE(
 			        'SALES DATA',
-			        'SALES DATA'[BRAND],
+			        'SALES DATA'[CHAINID],
 			        'SALES DATA'[LocationID]
 			    )  -- All ChainID-LocationID combinations in the dataset
 			
@@ -169,7 +169,7 @@ table Append1
 			            'SALES DATA',
 			            'SALES DATA'[VoucherDate] = TODAY() - 1
 			        ),
-			        'SALES DATA'[BRAND],
+			        'SALES DATA'[CHAINID],
 			        'SALES DATA'[LocationID]
 			    )  -- ChainID-LocationID combinations with sales yesterday
 			
@@ -182,7 +182,7 @@ table Append1
 			VAR MissingLocationsFormatted = 
 			    CONCATENATEX(
 			        MissingLocationsTable,
-			        'SALES DATA'[BRAND] & " - " & 'SALES DATA'[LocationID],
+			        'SALES DATA'[CHAINID] & " - " & 'SALES DATA'[LocationID],
 			        ", "
 			    )  -- Create a single text value listing missing ChainID-LocationID pairs
 			

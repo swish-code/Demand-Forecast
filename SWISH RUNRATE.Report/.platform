@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "SWISH RUNRATE"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "01e7440b-f6a3-4efe-8fe4-4dd92c2a91a4"
+  }
+}

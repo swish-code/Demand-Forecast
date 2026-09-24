@@ -125,6 +125,22 @@ table 'RECIPE TABLE'
 
 		annotation SummarizationSetBy = Automatic
 
+	column 'AVE Price'
+		dataType: string
+		lineageTag: 2b82f57d-ff7d-4d58-b8f1-462cb911feed
+		summarizeBy: none
+		sourceColumn: AVE Price
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'COS Price'
+		dataType: string
+		lineageTag: 6d162d57-4d06-4bb9-a4be-1af8a7359647
+		summarizeBy: none
+		sourceColumn: COS Price
+
+		annotation SummarizationSetBy = Automatic
+
 	partition 'RECIPE TABLE' = m
 		mode: import
 		source =

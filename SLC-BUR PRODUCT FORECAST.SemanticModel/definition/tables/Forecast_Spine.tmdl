@@ -26,7 +26,7 @@ table Forecast_Spine
 
 		variation Variation
 			isDefault
-			relationship: 6d081d67-5990-477f-92c5-717e23e2b717
+			relationship: 792ffc21-c7a5-416d-b07b-e88703a2efa1
 			defaultHierarchy: LocalDateTable_93fd8f69-89fd-4ec2-bb66-6b361c617b9b.'Date Hierarchy'
 
 		annotation SummarizationSetBy = Automatic
@@ -401,25 +401,20 @@ table Forecast_Spine
 				VAR _today = TODAY()
 				VAR _forecastEnd = _today + 210
 				
-				VAR _activeCombos =
-				    SUMMARIZECOLUMNS(
+				-- All historical combinations (removed last 3 days active filter)
+				VAR _allCombos =
+				    SUMMARIZE(
+				        Incidence_Table,
 				        Incidence_Table[CleanNewItemID],
 				        Incidence_Table[CleanLocationID],
-				        Incidence_Table[CHAINID],
-				        KEEPFILTERS(
-				            FILTER(
-				                ALL(Incidence_Table),
-				                Incidence_Table[VOUCHERDATE] >= _today - 3 &&
-				                Incidence_Table[Numerator (Total Qty)] > 0
-				            )
-				        )
+				        Incidence_Table[CHAINID]
 				    )
 				
 				VAR _futureDates =
 				    CALENDAR(_today, _forecastEnd)
 				
 				RETURN
-				GENERATE(_activeCombos, _futureDates)
+				GENERATE(_allCombos, _futureDates)
 
 	annotation PBI_Id = a89ec026082d49df80f7aff54d82ac1f
 

@@ -1,0 +1,265 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "5efb64c0e0e511b671a2",
+  "displayName": "SALES RUNRATE",
+  "displayOption": "FitToPage",
+  "height": 820,
+  "width": 1280,
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "85a32b7277691926c18e",
+        "ordinal": 0,
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Brand"
+              }
+            },
+            "Property": "ChainCode"
+          }
+        },
+        "type": "Categorical",
+        "filter": {
+          "Version": 2,
+          "From": [
+            {
+              "Name": "b",
+              "Entity": "Brand",
+              "Type": 0
+            }
+          ],
+          "Where": [
+            {
+              "Condition": {
+                "Not": {
+                  "Expression": {
+                    "In": {
+                      "Expressions": [
+                        {
+                          "Column": {
+                            "Expression": {
+                              "SourceRef": {
+                                "Source": "b"
+                              }
+                            },
+                            "Property": "ChainCode"
+                          }
+                        }
+                      ],
+                      "Values": [
+                        [
+                          {
+                            "Literal": {
+                              "Value": "null"
+                            }
+                          }
+                        ],
+                        [
+                          {
+                            "Literal": {
+                              "Value": "'YP COOP'"
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "howCreated": "User",
+        "isHiddenInViewMode": true,
+        "isLockedInViewMode": true,
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "c1a4c39452e3b731750d",
+        "ordinal": 1,
+        "field": {
+          "HierarchyLevel": {
+            "Expression": {
+              "Hierarchy": {
+                "Expression": {
+                  "PropertyVariationSource": {
+                    "Expression": {
+                      "SourceRef": {
+                        "Entity": "FORECAST"
+                      }
+                    },
+                    "Name": "Variation",
+                    "Property": "Date"
+                  }
+                },
+                "Hierarchy": "Date Hierarchy"
+              }
+            },
+            "Level": "Year"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User",
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "filterSortOrder": "Custom"
+  },
+  "objects": {
+    "outspacePane": [
+      {
+        "properties": {
+          "width": {
+            "expr": {
+              "Literal": {
+                "Value": "202L"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "background": [
+      {
+        "properties": {
+          "color": {
+            "solid": {
+              "color": {
+                "expr": {
+                  "ThemeDataColor": {
+                    "ColorId": 0,
+                    "Percent": -0.1
+                  }
+                }
+              }
+            }
+          },
+          "transparency": {
+            "expr": {
+              "Literal": {
+                "Value": "30D"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "visualInteractions": [
+    {
+      "source": "d152e91bafbe0002bb53",
+      "target": "8e9ed42004b7cb09aca4",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "d152e91bafbe0002bb53",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "9d8d5b5c4dc15a9b766d",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "2bf79323b8ad48ba8d76",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "bc846f1c3d43790a5a0b",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "9efa32967642e92dc61b",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "43f4722dca4e19fec887",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "8c1fb99ba860bb871b10",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "b489bc2b0ea17eede4e9",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "b84315d26ce8140ba2dc",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "6e3d2e2409d23bd46f76",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "1c789ece847c6aebfd71",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "8de1628244d400f4c6eb",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "1c9cd3b7dc2b9f005324",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "44ed8c0f40d3ae497cd0",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "4852fc4f8f5a85bce182",
+      "type": "NoFilter"
+    },
+    {
+      "source": "8e9ed42004b7cb09aca4",
+      "target": "85c9298287504392014b",
+      "type": "NoFilter"
+    }
+  ]
+}

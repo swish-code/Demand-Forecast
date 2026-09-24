@@ -1,0 +1,60 @@
+table LocationTable
+	lineageTag: 51a6c75a-8420-44d8-acf3-7910e76f1042
+
+	column Location
+		lineageTag: 1cfeceb2-6ed9-4682-8890-4d6cd2b64bd6
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Location]
+
+		annotation SummarizationSetBy = Automatic
+
+	column LocationID
+		lineageTag: fbfba3b1-1905-42e5-be6a-d9320176d137
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [LocationID]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition LocationTable = calculated
+		mode: import
+		source = ```
+				
+				DATATABLE(
+				    "Location", STRING,
+				    "LocationID", STRING,
+				    {
+				        {"Abdullah Alsalem (Dahiya)", "DHY"},
+				        {"Abu Hasaniya", "VIB"},
+				        {"Adaliya", "ADL"},
+				        {"Ardhiya", "ARD"},
+				        {"Catering", "CAT"},
+				        {"Egaila", "AGL"},
+				        {"Fahaheel", "FHL"},
+				        {"FMCG", "COOP"},
+				        {"Fnaitess", "FNT"},
+				        {"Hawally", "HWL"},
+				        {"Jabriya", "JBR"},
+				        {"Jahra", "JHR"},
+				        {"Jleeb Al-Shuyoukh", "JLB"},
+				        {"Kuwait City", "KWT"},
+				        {"Mishrif", "MIS"},
+				        {"Qortuba", "QTB"},
+				        {"Qurain", "QRN"},
+				        {"Rai", "RAI"},
+				        {"RedTown", "HHG"},
+				        {"Sabah Al-Salem", "SBS"},
+				        {"Salmiya", "SAL"},
+				        {"Salwa", "SLW"},
+				        {"Shamiya", "SMY"},
+				        {"Shuwaikh", "SHK"},
+				        {"Winter Land", "WIN"},
+				        {"Yard", "YRD"}
+				    }
+				)
+				
+				```
+
+	annotation PBI_Id = 95e2a4917c134833901c55c9a93222e1
+

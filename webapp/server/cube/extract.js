@@ -241,6 +241,67 @@ SUMMARIZECOLUMNS('FORECAST (2)'[Date],
   )
 }
 
+/**
+ * What the brand actually sold each day, from the model that holds all brands.
+ *
+ * A second read of the same measurement, and deliberately not a replacement for
+ * `fetchSalesValue`. That one reads 'FORECAST (2)' out of the brand's own model,
+ * where the Actual Sales calculated column is maintained per dataset and has
+ * drifted in four of the seven. This one reads 'FORECAST'[Actual Sales] from the
+ * Swish Runrate model, which covers every brand from one expression.
+ *
+ * Only the actual is taken. Totalsale stays with the per-brand read, because
+ * every window and mix in the app is sized against that series and swapping its
+ * source would move numbers on pages nobody asked to change.
+ *
+ * Grouped and filtered on FORECAST's own Date and Brand, so nothing depends on
+ * how the table is related to the rest of the model — the same reasoning, and
+ * the same shape, as the per-brand read above. Its own workspace, so the
+ * workspace is passed rather than left to default to PBI_WORKSPACE_ID.
+ */
+async function fetchMasterActual(brand, window) {
+  const { datasetId, workspaceId } = config.masterSales
+  if (!datasetId) return []
+  const code = brand.chain ?? brand.code
+  const d = (iso) => {
+    const [y, m, day] = String(iso).slice(0, 10).split('-')
+    return `DATE(${Number(y)},${Number(m)},${Number(day)})`
+  }
+  return executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS('FORECAST'[Date],
+  FILTER(ALL('FORECAST'[Brand]), 'FORECAST'[Brand] = "${code}"),
+  FILTER(ALL('FORECAST'[Date]),
+    'FORECAST'[Date] >= ${d(window.from)} && 'FORECAST'[Date] <= ${d(window.to)}),
+  "Actual", SUM('FORECAST'[Actual Sales]))`,
+    datasetId,
+    { bulk: true, workspace: workspaceId }
+  )
+}
+
+/**
+ * Upsert the master actual onto the days it covers, and touch nothing else.
+ *
+ * No DELETE over the scope, unlike `writeSalesValue`. The rows belong to the
+ * per-brand read; this one contributes a single column to them, and a query
+ * that fails or returns nothing must leave the previous answer standing rather
+ * than blank the column. While 'FORECAST'[Actual Sales] is in an error state
+ * the query raises and this never runs, which is the intended behaviour: the
+ * readers COALESCE back to the per-brand column until the source is repaired.
+ */
+async function writeMasterActual(brand, rows) {
+  if (!rows.length) return
+  await insertBatched('cube_sales_daily', ['brand', 'date', 'actual_fc'], ['brand', 'date'], rows, (r) => {
+    const k = Object.keys(r)
+    const raw = r.Actual ?? r['[Actual]']
+    // Null, not 0, for a day the master has no figure for — see the column's
+    // note in the schema. A 0 here would read as "traded nothing".
+    const actual =
+      raw === null || raw === undefined || !Number.isFinite(Number(raw)) ? null : Number(raw)
+    return [brand, String(r[k[0]] ?? '').slice(0, 10), actual]
+  })
+}
+
 async function writeSalesValue(brand, rows, scope) {
   if (!rows.length && !scope) return
   await pg.tx(async () => {
@@ -674,6 +735,8 @@ async function fillWide(brand, wide) {
     ['branches', async () =>
       writeLocationDaily(brand.code, await fetchLocationDaily(brand, wide), wide)],
     ['sales', async () => writeSalesValue(brand.code, await fetchSalesValue(brand, wide), wide)],
+    ['actual sales', async () =>
+      writeMasterActual(brand.code, await fetchMasterActual(brand, wide))],
     ['components', async () =>
       writeComponents(brand.code, await inSpans(wide, 90, (w) => fetchComponents(brand, w)), wide)],
   ]) {
@@ -741,6 +804,8 @@ export async function refreshRecent(brand) {
     ['articles', async () => writeArticles(brand.code, await fetchArticles(brand, recent), recent)],
     ['branches', async () => writeLocationDaily(brand.code, await fetchLocationDaily(brand, recent), recent)],
     ['sales', async () => writeSalesValue(brand.code, await fetchSalesValue(brand, recent), recent)],
+    ['actual sales', async () =>
+      writeMasterActual(brand.code, await fetchMasterActual(brand, recent))],
     ['components', async () => writeComponents(brand.code, await fetchComponents(brand, recent), recent)],
   ]) {
     try {
@@ -936,6 +1001,45 @@ export async function refreshSalesValues(onBrand = null) {
     await sleep(GAP_MS)
   }
   // The rate is an average over these very numbers, held for the process's life.
+  forgetConstants()
+  return out
+}
+
+/**
+ * Fill `actual_fc` over every brand's whole calendar, from Swish Runrate.
+ *
+ * The per-pass step beside the other writes only covers that pass's window —
+ * ninety days for the wide pass, four for the recent one. The warehouse
+ * constant trains on the six whole months before its anchor, and the Sales
+ * Plan's validity test reads a whole base year, so neither is served by a
+ * ninety-day fill. This covers the same span `refreshSalesValues` does, which
+ * is the brand's own model calendar, and is what makes the new source actually
+ * reach the three consumers rather than sit behind a COALESCE fallback.
+ *
+ * Mirrors `refreshSalesValues` deliberately, including forgetting the constants
+ * at the end — they are an average over exactly these numbers and are held for
+ * the process's life, so a fill without it changes the database and not the page.
+ */
+export async function refreshMasterActual(onBrand = null) {
+  const out = []
+  for (const brand of config.brands) {
+    try {
+      const window = await windowFor(brand)
+      if (!window) {
+        out.push({ brand: brand.code, skipped: 'no calendar' })
+        continue
+      }
+      const rows = await fetchMasterActual(brand, window.wide)
+      await writeMasterActual(brand.code, rows)
+      const total = rows.reduce((n, r) => n + (Number(r.Actual ?? r['[Actual]']) || 0), 0)
+      out.push({ brand: brand.code, rows: rows.length, total, from: window.wide.from, to: window.wide.to })
+      onBrand?.({ brand: brand.code, rows: rows.length, total, from: window.wide.from, to: window.wide.to })
+    } catch (err) {
+      out.push({ brand: brand.code, error: err.message.slice(0, 120) })
+      onBrand?.({ brand: brand.code, error: err.message.slice(0, 120) })
+    }
+    await sleep(GAP_MS)
+  }
   forgetConstants()
   return out
 }

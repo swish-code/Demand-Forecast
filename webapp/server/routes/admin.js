@@ -1351,11 +1351,30 @@ admin.post(
  * no plan-year forecast, and an empty row for it would read as a forecast of
  * nothing rather than as the absence of one.
  */
-const planYearWindow = (year) => ({ dateFrom: `${year}-01-01`, dateTo: `${year}-12-31` })
+/*
+ * The window to explode, whole year or one month of it.
+ *
+ * A month is what somebody ordering actually wants, and both paths below
+ * already take a window - `planProductRows` sums the months it covers and the
+ * article constant multiplies whatever planned sales the window carries. So
+ * the month filter costs nothing beyond reading the parameter.
+ */
+const planYearWindow = (year, month = null) => {
+  const m = Number(month)
+  if (!(m >= 1 && m <= 12)) return { dateFrom: `${year}-01-01`, dateTo: `${year}-12-31` }
+  const mm = String(m).padStart(2, '0')
+  const last = new Date(Date.UTC(year, m, 0)).getUTCDate()
+  return { dateFrom: `${year}-${mm}-01`, dateTo: `${year}-${mm}-${last}` }
+}
 
-const plannedBrands = (year) =>
+/*
+ * The brands to explode. Narrowed to one when asked, so the table and the sheet
+ * it downloads are built from the same call and cannot disagree.
+ */
+const plannedBrands = (year, only = null) =>
   salesPlans()
     .filter((p) => p.year === year && p.usable)
+    .filter((p) => !only || p.brand === only)
     .map((p) => config.brands.find((b) => b.code === p.brand))
     .filter(Boolean)
 
@@ -1363,9 +1382,9 @@ admin.get(
   '/sales-plan/products',
   handle(async (req, res) => {
     const year = Number(req.query?.year) || (salesPlanBaseYear() ?? 0) + 1
-    const f = planYearWindow(year)
+    const f = planYearWindow(year, req.query?.month)
     const rows = []
-    for (const brand of plannedBrands(year)) {
+    for (const brand of plannedBrands(year, req.query?.brand || null)) {
       const list = await productLevel(brand.code, { ...f, brand: brand.code }).catch(() => [])
       for (const r of list) {
         const qty = Number(r.Forecast_Qty) || 0
@@ -1387,7 +1406,7 @@ admin.get(
   '/sales-plan/articles',
   handle(async (req, res) => {
     const year = Number(req.query?.year) || (salesPlanBaseYear() ?? 0) + 1
-    const f = planYearWindow(year)
+    const f = planYearWindow(year, req.query?.month)
 
     /*
      * The plan's articles come from the warehouse's own history, not a recipe.
@@ -1410,11 +1429,27 @@ admin.get(
     for (const r of await pg.all('SELECT article, name, unit FROM cube_article')) {
       names.set(String(r.article), { item: String(r.name ?? ''), unit: String(r.unit ?? '') })
     }
+    /*
+     * Every brand at once, rather than one after another.
+     *
+     * `forecastFromConstants` is local-copy arithmetic once its constants are
+     * built, so the brands do not contend for anything: warm, all nine together
+     * cost about 400ms where the sequential loop cost the sum of them. Any Power
+     * BI call underneath is still serialised by the client's own gate, so this
+     * cannot turn into nine concurrent queries against the capacity.
+     */
+    const planned = plannedBrands(year, req.query?.brand || null)
+    const perBrand = await Promise.all(
+      planned.map(async (brand) => [
+        brand,
+        await forecastFromConstants(brand.code, { ...f, brand: brand.code }, {
+          flatConstant: true,
+        }).catch(() => null),
+      ])
+    )
+
     const byArticle = new Map()
-    for (const brand of plannedBrands(year)) {
-      const got = await forecastFromConstants(brand.code, { ...f, brand: brand.code }, {
-        flatConstant: true,
-      }).catch(() => null)
+    for (const [brand, got] of perBrand) {
       if (!got) continue
       for (const [article, value] of got) {
         const code = String(article ?? '').trim()

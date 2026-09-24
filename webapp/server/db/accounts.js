@@ -461,6 +461,26 @@ CREATE TABLE IF NOT EXISTS cube_sales_daily (
 -- series and mixing the two would size a mix against a total it did not make.
 ALTER TABLE cube_sales_daily ADD COLUMN IF NOT EXISTS actual DOUBLE PRECISION;
 
+-- The same figure again, read from the one model that holds every brand.
+--
+-- The actual column above comes from each brand's OWN model, where the
+-- 'FORECAST (2)'[Actual Sales] calculated column is maintained per dataset and
+-- has drifted: CHP, PAT, SS and SLC-BUR were all found holding zeros against a
+-- LOOKUPVALUE that returns the right number when evaluated live. Auditing one
+-- article to the riyal (100400094, FRIES BOX SMALL BBT) put 29,673.19 of a
+-- 46,630.80 variance on the sales denominator being wrong, not the outbound.
+--
+-- 'FORECAST'[Actual Sales] in the Swish Runrate model covers every brand from
+-- one expression, so there is a single column to keep right rather than seven
+-- per-brand copies of it that drift apart. Held in its
+-- own column rather than overwriting actual, because only three consumers were
+-- asked to move: the warehouse constant (Warehouse Forecast and Stock Article)
+-- and the Sales Plan. Everything else still reads actual and is unaffected.
+--
+-- NULL where the master model has no figure, so a reader COALESCEs back to the
+-- per-brand column and nothing goes blank while the source is being repaired.
+ALTER TABLE cube_sales_daily ADD COLUMN IF NOT EXISTS actual_fc DOUBLE PRECISION;
+
 -- A sales figure somebody typed in, for a year the models do not cover.
 --
 -- The forecast models end on 31 Dec 2026: 'FORECAST (2)' has no 2027 row, and
