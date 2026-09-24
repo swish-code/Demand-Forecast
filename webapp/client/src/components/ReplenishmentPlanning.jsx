@@ -195,7 +195,7 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
      */
     autoWidth: { min: 200, max: 360, percentile: 0.95 },
     wrap: true,
-    group: 'planid',
+    group: 'planref',
     render: (v) => v || dash('Not recorded on the planning sheet.'),
   },
   {
@@ -217,7 +217,7 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
     label: 'Purchase Unit',
     hint: 'The pack the article is bought in, including the pack size — for example "Ctn 2500 Pcs" is a carton of 2,500 pieces.',
     autoWidth: { min: 120 },
-    group: 'planid',
+    group: 'planref',
     render: (v) => v || dash('Not recorded on the planning sheet.'),
   },
   /*
@@ -233,7 +233,7 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
     label: 'Base Unit',
     hint: 'The unit every quantity in this table is counted in. All the figures to the right are in this unit, not in purchase packs.',
     width: 92,
-    group: 'planid',
+    group: 'planref',
     render: (v) => v || dash('Not recorded on the planning sheet.'),
   },
 
@@ -716,13 +716,35 @@ export function csvNotes(cols, { dateFrom, dateTo, days, asOf, today }) {
 }
 
 const GROUPS = {
+  /*
+   * Two sections where there was one, split on 24 Sep 2026.
+   *
+   * They were a single "Article" group of five columns, which made the two
+   * things it held inseparable: the identity of the row, and reference detail
+   * about how the article is bought. Collapsing meant losing the article
+   * number, and freezing the identity columns left the group's title spanning
+   * three columns that had scrolled away.
+   *
+   * So identity stands alone and is what the table freezes by default, and the
+   * supplier and the units become a section of their own that can be put away
+   * when the question is about quantities.
+   */
   planid: {
     label: 'Article',
+    // No collapse control: these two are what identify a row, and a table of
+    // quantities with no article against them is not a shorter table, it is an
+    // unreadable one. Either column can still be hidden from Build view.
+    collapsible: false,
     help: [
       {
         term: 'Article No, Article',
-        text: 'What the order will be placed against, and its name.',
+        text: 'What the order will be placed against, and its name. These two identify the row, so they are what the table freezes by default — use the Freeze control to change that.',
       },
+    ],
+  },
+  planref: {
+    label: 'Supplier & units',
+    help: [
       {
         term: 'Supplier name',
         text: 'Who last supplied this article. Some articles list several suppliers, and the cell wraps rather than cutting them off.',
@@ -1122,16 +1144,19 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           tableId="replenishment-planning-v1"
           groups={GROUPS}
           /*
-           * The five identifying columns stay put while the other 38 scroll.
+           * Article No and Article stay put; everything else scrolls.
            *
-           * Asked for on 24 Sep 2026. At 43 columns the article a row describes
-           * had left the screen long before its delivery dates arrived, so every
-           * comparison meant scrolling back to find out whose row it was. Five,
-           * because that is the whole first section - article number, name,
-           * supplier, purchase unit and base unit - and a reader comparing a
-           * quantity wants the unit it is counted in as much as the name.
+           * At 43 columns the article a row describes had left the screen long
+           * before its delivery dates arrived, so every comparison meant
+           * scrolling back to find out whose row it was. Two rather than the
+           * whole first section, asked for on 24 Sep 2026: the number and the
+           * name are what identify a row, and supplier and units are reference
+           * detail that costs width somebody would rather spend on the figures.
+           *
+           * Only the starting point - the Freeze control in the toolbar changes
+           * it, and the choice is remembered per reader.
            */
-          freeze={5}
+          freeze={2}
           /*
            * Any section can be put away. Eight groups over 43 columns is more
            * than fits, and which ones matter depends entirely on the question

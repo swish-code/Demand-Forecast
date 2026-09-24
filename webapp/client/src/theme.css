@@ -8610,11 +8610,39 @@ table.dt th.dt__frz,
 table.dt td.dt__frz {
   position: sticky;
   background: var(--surface);
-  z-index: 3;
 }
-/* The header's own sticky row must still win over pinned body cells. */
-table.dt thead th.dt__frz { z-index: 5; }
+
+/*
+ * The stacking order, stated in full, because two sticky axes meet here.
+ *
+ * A pinned cell is sticky horizontally; the header rows are sticky vertically.
+ * Where they cross, ONE of them has to win, and the answer is always the
+ * header: a body row that outranks it slides up and paints over the column
+ * titles as the table scrolls, which is exactly what happened when these cells
+ * were given a flat z-index of 3 against the header's 2.
+ *
+ * So every band gets its own level, lowest first:
+ *
+ *   1  pinned body cells   above the scrolling body, below everything in thead
+ *   2  column headers      (existing)
+ *   3  group title row     (existing, sits above the column headers)
+ *   4  pinned column header
+ *   5  pinned group title
+ *
+ * Only the last two are new. The two existing levels are left exactly as they
+ * were, so an unpinned table stacks the way it always has.
+ */
+table.dt tbody td.dt__frz { z-index: 1; }
+table.dt thead tr:last-child th.dt__frz { z-index: 4; }
+table.dt thead tr.dt__grouprow th.dt__frz { z-index: 5; }
+
+/*
+ * A pinned cell is opaque, so it has to repaint every background the row
+ * behind it would have had — otherwise the hover and the row-group heading
+ * stop at the frozen edge and the row reads as two different rows.
+ */
 table.dt tbody tr:hover td.dt__frz { background: var(--sunken); }
+table.dt tbody tr.dt__grouprow-body th.dt__frz { background: var(--sunken); }
 
 /*
  * The edge that says "this stopped moving".
@@ -8726,4 +8754,31 @@ table.dt td.dt__frz--last {
 @media (prefers-reduced-motion: reduce) {
   .replen__spin { animation: none; border-top-color: var(--accent); }
   .replen__tbl--busy table.dt { transition: none; }
+}
+
+/* The totals row is sticky at the bottom (z-index 2); its pinned cells must
+   beat both that and the pinned body cells, so they sit one above it. */
+table.dt tfoot td.dt__frz { z-index: 3; }
+
+/* ---- Toolbar: the freeze control -------------------------------------- */
+/*
+ * Sits beside "Group by" and looks like it, because it is the same kind of
+ * control: it changes how the table is read, not what is in it. It was inside
+ * the Build view panel first and nobody found it — a setting you have to open
+ * something to discover is a setting nobody uses.
+ *
+ * Marked when it is doing something, so a reader can see at a glance that
+ * columns are pinned and where to unpin them.
+ */
+.tfreeze select {
+  max-width: 200px;
+  text-overflow: ellipsis;
+}
+.tfreeze--on > span {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tfreeze--on select {
+  border-color: var(--accent);
+  background: var(--green-tint);
 }

@@ -1943,11 +1943,48 @@ api.all('/article-usage', handle(async (req, res) => {
        * recipe slicers already use — so this answer and the Forecast qty column
        * are now scoped identically.
        */
+      /*
+       * BOTH sides of the PLU match are converted to numbers, because the
+       * models do not agree on the type.
+       *
+       * `'RECIPE TABLE'[Product PLU]` is an INTEGER in BBT's model and TEXT in
+       * all seven others; `Forecast_Product_Table[Clean_ItemID]` is TEXT
+       * everywhere. `IN` compiles to CONTAINSROW, which refuses to compare a
+       * Text with an Integer — so this query worked in seven models and failed
+       * in BBT's with "does not support comparing values of type Text with
+       * values of type Integer". The failure was caught below and returned as
+       * an empty result, so the panel reported "No menu item uses this article"
+       * about every BBT article. 103100002, Bun Glazed Burger 4", is used by 26
+       * menu items and showed none.
+       *
+       * Converting one side would only move the problem: normalising the PLUs
+       * to numbers fixes BBT and breaks the seven that were working, which is
+       * exactly what the first attempt at this did. Both sides go to numbers,
+       * so the comparison holds whichever way round a given model declares
+       * them. Verified against all eight models: BBT goes from a hard failure
+       * to 26 rows and every other model returns precisely what it returned
+       * before.
+       *
+       * The direction matches the documented join, `Product PLU =
+       * VALUE(Clean_ItemID)` — see `recipeSlicer` in powerbi/dax.js.
+       *
+       * Non-numeric values are dropped rather than allowed to raise: VALUE()
+       * throws on the first one it meets and would take the query down exactly
+       * as before. There are none today, 0 of 10,964 distinct PLUs, which is
+       * precisely why an unguarded VALUE() would sit here working until the day
+       * somebody loads a PLU with a letter in it.
+       */
       const dax = `EVALUATE
 VAR PLUs =
-  CALCULATETABLE(
-    VALUES(Forecast_Product_Table[Clean_ItemID])${plu ? `,
-    ${plu}` : ''}
+  SELECTCOLUMNS(
+    FILTER(
+      CALCULATETABLE(
+        VALUES(Forecast_Product_Table[Clean_ItemID])${plu ? `,
+        ${plu}` : ''}
+      ),
+      NOT ISERROR(VALUE(Forecast_Product_Table[Clean_ItemID]))
+    ),
+    "PLU", VALUE(Forecast_Product_Table[Clean_ItemID])
   )
 RETURN
 SUMMARIZECOLUMNS(
@@ -1958,7 +1995,11 @@ SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Node Type],
   'RECIPE TABLE'[BU],
   TREATAS({"${value}"}, ${column}),
-  FILTER(ALL('RECIPE TABLE'[Product PLU]), 'RECIPE TABLE'[Product PLU] IN PLUs),
+  FILTER(
+    ALL('RECIPE TABLE'[Product PLU]),
+    NOT ISERROR(VALUE('RECIPE TABLE'[Product PLU]))
+      && VALUE('RECIPE TABLE'[Product PLU]) IN PLUs
+  ),
   "Qty_Per_Unit", SUM('RECIPE TABLE'[QTY BU])
 )`
 
@@ -1970,8 +2011,21 @@ SUMMARIZECOLUMNS(
         // forecast up; it is stripped before the response is built.
         .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / '), __ds: `${ds}|${[...chains][0]}` })))
         .catch((err) => {
+          /*
+           * A failure is reported as a failure, not as an empty recipe.
+           *
+           * Returning [] here made a broken query indistinguishable from an
+           * article no menu item uses, and the panel then stated the stronger
+           * of the two as fact: "No menu item uses this article. Nothing in the
+           * recipe tree names it." That sentence was wrong for every article in
+           * the model for as long as the PLU comparison above was failing.
+           *
+           * The marker rides back with the rows so a model that answered is
+           * still shown — several are queried and one failing should not blank
+           * the rest — and the caller counts them to decide what it may claim.
+           */
           console.warn(`  [usage] ${codes.join('/')}: ${err.message}`)
-          return []
+          return [{ __failed: `${codes.join('/')}: ${String(err.message).slice(0, 120)}` }]
         })
     })
   )
@@ -1985,7 +2039,14 @@ SUMMARIZECOLUMNS(
    * same path counted twice, which is what the per-brand fan-out was doing.
    */
   const out = new Map()
+  // Models that could not answer at all, kept apart from models that answered
+  // with nothing. Only the second is evidence about the recipe.
+  const failures = []
   for (const r of parts.flat()) {
+    if (r.__failed) {
+      failures.push(r.__failed)
+      continue
+    }
     const key = `${r.CHAINID}|${r['Product PLU'] ?? ''}|${r['Product Name'] ?? ''}`
     const held = out.get(key)
     const qty = Number(r.Qty_Per_Unit) || 0
@@ -2072,9 +2133,15 @@ SUMMARIZECOLUMNS(
    * `count` is sent alongside because the panel counted `rows.length`, which
    * would report nought once the rows are withheld.
    */
-  if (!seesRecipeDetail(req.user)) return res.json({ rows: [], count: rows.length })
+  if (!seesRecipeDetail(req.user)) {
+    return res.json({ rows: [], count: rows.length, partial: failures.length > 0 })
+  }
 
-  res.json({ rows, count: rows.length })
+  /*
+   * `partial` says the answer is incomplete, so the panel can decline to claim
+   * the article is unused when the truth is that nothing could be read.
+   */
+  res.json({ rows, count: rows.length, partial: failures.length > 0, failures })
 }))
 
 

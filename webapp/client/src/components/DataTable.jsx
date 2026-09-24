@@ -180,6 +180,39 @@ export function DataTable({
   /** Column groups the reader has shut. Never persisted — a view, not a setting. */
   const [shutCols, setShutCols] = useState(() => new Set())
 
+  /*
+   * How many leading columns the reader has pinned, or null for the caller's
+   * default.
+   *
+   * Null rather than a number so that "never chosen" stays distinguishable from
+   * "chosen to be the same as the default". A table whose `freeze` prop changes
+   * later should move for the first reader and stay put for the second.
+   *
+   * Remembered per table on this device, beside the column choice, because it
+   * is the same kind of thing: how one person likes to read this table, not
+   * anything about the data.
+   */
+  const freezeKey = tableId ? `df-freeze-${tableId}` : null
+  const [frozen, setFrozen] = useState(() => {
+    if (!freezeKey) return null
+    try {
+      const saved = JSON.parse(localStorage.getItem(freezeKey) ?? 'null')
+      return Number.isInteger(saved) && saved >= 0 ? saved : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (!freezeKey) return
+    try {
+      if (frozen === null) localStorage.removeItem(freezeKey)
+      else localStorage.setItem(freezeKey, JSON.stringify(frozen))
+    } catch {
+      /* a browser refusing storage should not break the table */
+    }
+  }, [freezeKey, frozen])
+
   const shown = useMemo(
     // `Boolean` first, deliberately. A stray comma in a caller's column list
     // leaves a hole in the array, and reading `.required` off the undefined it
@@ -195,6 +228,9 @@ export function DataTable({
         .filter((c) => c.required || !(c.group && shutCols.has(c.group))),
     [columns, hidden, shutCols]
   )
+
+  /** The visible column keys as one string, for effects that react to them. */
+  const shownKey = shown.map((c) => c.key).join('|')
 
   /*
    * Which groups are currently shut, with what they cost — for the chips that
@@ -230,28 +266,6 @@ export function DataTable({
     return map
   }, [shown])
 
-  /*
-   * The header row above the headers: one cell per run of adjacent columns.
-   *
-   * Runs rather than groups, because a group is only a block while its members
-   * are adjacent — and the reader can hide one from the middle. Ungrouped runs
-   * still get a cell so the row has the same number of columns as the one under
-   * it; theirs is simply empty.
-   */
-  const groupRuns = useMemo(() => {
-    const runs = []
-    let at = 0
-    for (const c of shown) {
-      const g = c.group ?? null
-      const last = runs[runs.length - 1]
-      if (last && last.group === g) last.span += 1
-      // `at` is where this run starts among the visible columns, which is what
-      // decides whether it sits wholly inside the pinned prefix.
-      else runs.push({ group: g, span: 1, at })
-      at += 1
-    }
-    return runs
-  }, [shown])
 
   /*
    * A group title is either a string or `{ label, help }`.
@@ -278,7 +292,6 @@ export function DataTable({
     return Array.isArray(held.help) ? held : { ...held, help: null }
   }
 
-  const hasGroupRow = Boolean(groups) && groupRuns.some((r) => r.group && titleOf(r.group).label)
 
   const groupClass = (c) => {
     if (!c.group) return ''
@@ -480,19 +493,134 @@ export function DataTable({
    * which has no fixed left edge to pin anything after it to. Returning the
    * offsets found so far rather than bailing keeps whatever prefix is sound.
    */
-  const freezeLeft = useMemo(() => {
-    if (!(freeze > 0)) return []
-    const out = []
-    let x = 0
-    for (const c of shown.slice(0, freeze)) {
-      const w = widthOf(c)
-      if (!Number.isFinite(Number(w))) break
-      out.push(x)
-      x += Number(w)
+  /*
+   * How far pinning can legally reach, whatever the reader asks for.
+   *
+   * Two hard limits, and neither is a preference. A column with no declared
+   * width — the flex column — has no fixed left edge, so nothing after it can
+   * be offset against it; and pinning every column leaves nothing to scroll,
+   * which is a table that simply cannot be read sideways. So the options stop
+   * one short of the end, and at the flex column if that comes first.
+   */
+  /*
+   * Where every column actually starts, measured off the rendered header.
+   *
+   * This was computed from the declared widths, which put a ceiling on what
+   * could be pinned: the flex column has no declared width, so the sum stopped
+   * there and everything after it was unpinnable. On Article detail the flex
+   * column is the SECOND one, so the only offer was "Up to Recipe" — reported
+   * on 24 Sep 2026, and the reason was this and not anything about the data.
+   *
+   * Measuring removes the ceiling rather than working around it: an auto-width
+   * column has a real width once it is on screen, and that is the number a
+   * sticky offset needs. `offsetWidth` accumulated across the header cells is
+   * used rather than `offsetLeft`, because offsetLeft is relative to whichever
+   * ancestor happens to be positioned and the scroll container is one.
+   */
+  const headRow = useRef(null)
+  const [colLefts, setColLefts] = useState([])
+
+  useEffect(() => {
+    const row = headRow.current
+    if (!row) return
+
+    const measure = () => {
+      let x = 0
+      const lefts = []
+      for (const cell of row.children) {
+        lefts.push(x)
+        x += cell.offsetWidth
+      }
+      // Replace only on a real change, or this sets state on every observer
+      // callback and the observer fires on every layout it causes.
+      setColLefts((prev) =>
+        prev.length === lefts.length && prev.every((v, i) => v === lefts[i]) ? prev : lefts
+      )
     }
-    return out
+
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(measure)
+    ro.observe(row)
+    for (const cell of row.children) ro.observe(cell)
+    return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freeze, shown, autoWidths, widths, flexKey])
+  }, [shownKey, rows.length, widths, autoWidths])
+
+  /*
+   * Pinning still stops one short of the end — freezing every column leaves
+   * nothing to scroll, which is a table that cannot be read sideways.
+   */
+  const freezeMax = Math.max(0, shown.length - 1)
+
+  /*
+   * The reader's choice wins over the caller's default, and the ceiling wins
+   * over both — a stored "freeze 8" must not break the table on a day when
+   * only four columns are shown.
+   */
+  const freezeCount = Math.min(frozen ?? freeze ?? 0, freezeMax)
+
+  /*
+   * Declared after `freezeCount` on purpose: the runs are split at the
+   * frozen edge, so this cannot be computed before that edge is known.
+   * It sat above it for one revision and crashed the page on render —
+   * a `const` read before its declaration is a ReferenceError, and a
+   * useMemo body runs immediately, so the dep array alone was enough.
+   */
+  /*
+   * The header row above the headers: one cell per run of adjacent columns.
+   *
+   * Runs rather than groups, because a group is only a block while its members
+   * are adjacent — and the reader can hide one from the middle. Ungrouped runs
+   * still get a cell so the row has the same number of columns as the one under
+   * it; theirs is simply empty.
+   */
+  const groupRuns = useMemo(() => {
+    const runs = []
+    let at = 0
+    for (const c of shown) {
+      const g = c.group ?? null
+      const last = runs[runs.length - 1]
+      /*
+       * A run is also broken by the frozen edge, not only by a change of group.
+       *
+       * One cell cannot be half pinned and half scrolling — a colspan has a
+       * single left offset — so a group straddling the boundary used to fail
+       * the "is it wholly inside the prefix" test and scroll away in one
+       * piece, leaving a blank band above the columns that had stayed put.
+       * Freezing two of the five Article columns showed it: the title left the
+       * screen and nothing replaced it.
+       *
+       * Splitting at the boundary gives the pinned columns their own titled
+       * cell and the scrolling ones theirs, both carrying the group's tint and
+       * name — so the section reads as one section on both sides of the seam,
+       * which is what AG Grid and Excel do with a split group too.
+       */
+      const boundary = at === freezeCount
+      if (last && last.group === g && !boundary) last.span += 1
+      // `at` is where this run starts among the visible columns, which is what
+      // decides whether it sits wholly inside the pinned prefix.
+      else runs.push({ group: g, span: 1, at })
+      at += 1
+    }
+    return runs
+  }, [shown, freezeCount])
+
+  const hasGroupRow =
+    Boolean(groups) && groupRuns.some((r) => r.group && titleOf(r.group).label)
+
+  /*
+   * The offsets in play: the measured ones, cut to what the reader asked for.
+   *
+   * Empty until the first measurement lands, so nothing is pinned for one
+   * frame after mount. That is the right way round — an unpinned column is
+   * merely unpinned, where a column pinned at a guessed offset overlaps its
+   * neighbour and hides data.
+   */
+  const freezeLeft = useMemo(
+    () => (freezeCount > 0 ? colLefts.slice(0, freezeCount) : []),
+    [freezeCount, colLefts]
+  )
 
   /** Sticky positioning for the i-th visible column, or nothing if not pinned. */
   const freezeCell = (i) =>
@@ -574,7 +702,6 @@ export function DataTable({
    * entirely reasonable. Pagination is deliberately not part of the view: the
    * page you are on is where you are reading, not what you asked for.
    */
-  const shownKey = shown.map((c) => c.key).join('|')
   useEffect(() => {
     onViewChange?.({
       columns: shown.map(({ key, label }) => ({ key, label })),
@@ -742,10 +869,11 @@ export function DataTable({
 
   return (
     <>
-      {(searchable || picker || groupable?.length) && (
+      {(searchable || picker || groupable?.length || freezeMax > 0) && (
         <div className="tbar">
           <div className="pager__spacer" />
           {query && <span className="pager__info">{sorted.length.toLocaleString()} match</span>}
+
           {groupable?.length ? (
             <label className="tgroup">
               <span>Group by</span>
@@ -768,6 +896,38 @@ export function DataTable({
             </label>
           ) : null}
           {picker}
+          {/*
+            * Freezing is a toolbar control, not a setting behind a panel.
+            *
+            * It lived inside "Build view" first and nobody found it — which is
+            * the right verdict: it changes how the table is READ, in the same
+            * way "Group by" does, and both belong where they can be seen
+            * without opening anything.
+            *
+            * Phrased "up to X" because pinning is a prefix: a sticky cell is
+            * offset from the left edge, so freezing the seventh column while
+            * the sixth still scrolls would slide one under the other. Excel and
+            * Sheets say it the same way, for the same reason.
+            */}
+          {freezeMax > 0 ? (
+            <label className={`tgroup tfreeze${freezeCount ? ' tfreeze--on' : ''}`}>
+              <span title="Keep the left-hand columns in place while the rest scroll sideways">
+                Freeze
+              </span>
+              <select
+                value={String(freezeCount)}
+                onChange={(e) => setFrozen(Number(e.target.value))}
+                title="Choose the last column that stays put while the rest scroll"
+              >
+                <option value="0">None</option>
+                {shown.slice(0, freezeMax).map((c, i) => (
+                  <option key={c.key} value={String(i + 1)}>
+                    Up to {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {searchable && (
           <label className="tsearch">
             <IconSearch size={12} />
@@ -865,22 +1025,39 @@ export function DataTable({
             <thead>
               {hasGroupRow && (
                 <tr className="dt__grouprow">
-                  {groupRuns.map((r, i) => (
+                  {groupRuns.map((r, i) => {
+                    /*
+                     * A split group's controls belong to one of its halves.
+                     *
+                     * Splitting at the frozen edge can give one group two
+                     * cells, and rendering the help icon and the collapse
+                     * button on both reads as two sections that happen to
+                     * share a name. The first cell carries them; the second
+                     * carries the title and the tint, which is what says
+                     * "still the same section".
+                     */
+                    const lead = groupRuns.findIndex((x) => x.group === r.group) === i
+                    return (
                     <th
                       key={`${r.group ?? 'none'}-${i}`}
                       colSpan={r.span}
                       scope="colgroup"
                       /*
-                       * A group title is pinned only when every column under it
-                       * is. A run straddling the edge would have to sit half
-                       * still and half scrolling, which no single offset can
-                       * express, so it scrolls like its columns do.
+                       * Pinned when the whole run sits inside the prefix, at
+                       * its own left offset — runs are split at the boundary
+                       * above, so this is now always true or always false for
+                       * a given run, never partly.
                        */
-                      style={r.at === 0 && r.span <= freezeLeft.length ? { left: '0px' } : undefined}
+                      style={
+                        r.at + r.span <= freezeLeft.length
+                          ? { left: `${freezeLeft[r.at]}px` }
+                          : undefined
+                      }
                       className={[
                         r.group ? `dt--${r.group} dt--gstart dt--gend` : '',
                         'dt__grouphead',
-                        r.at === 0 && r.span <= freezeLeft.length ? 'dt__frz dt__frz--last' : '',
+                        r.at + r.span <= freezeLeft.length ? 'dt__frz' : '',
+                        r.at + r.span === freezeLeft.length ? 'dt__frz--last' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -888,7 +1065,7 @@ export function DataTable({
                       {r.group ? (
                         <span className="dt__grouptitle">
                           {titleOf(r.group).label}
-                          {titleOf(r.group).help ? (
+                          {lead && titleOf(r.group).help ? (
                             <Popover
                               align="left"
                               panelClassName="pop--help"
@@ -938,7 +1115,17 @@ export function DataTable({
                               )}
                             />
                           ) : null}
-                          {collapsibleGroups ? (
+                          {/*
+                             * A group may refuse to be collapsible.
+                             *
+                             * The section that identifies the row is the one
+                             * case: putting it away leaves a table of numbers
+                             * with nothing saying what they are about. Its
+                             * columns can still be hidden one at a time from
+                             * Build view, which is a deliberate act rather
+                             * than a side effect of tidying a section away.
+                             */}
+                          {lead && collapsibleGroups && titleOf(r.group).collapsible !== false ? (
                             <button
                               type="button"
                               className="dt__gshut"
@@ -957,10 +1144,11 @@ export function DataTable({
                         ''
                       )}
                     </th>
-                  ))}
+                    )
+                  })}
                 </tr>
               )}
-              <tr>
+              <tr ref={headRow}>
                 {shown.map((c, ci) => {
                   const on = sort.key === c.key
                   const Arrow = sort.dir === 'asc' ? IconArrowUp : IconArrowDown
@@ -1125,7 +1313,12 @@ export function DataTable({
                     return (
                       <td
                         key={c.key}
-                        className={[c.num ? 'num' : '', groupClass(c)].filter(Boolean).join(' ')}
+                        /* Pinned in the totals row too, or the totals slide out
+                           from under the columns they belong to. */
+                        style={freezeCell(i)?.style}
+                        className={[c.num ? 'num' : '', groupClass(c), freezeCell(i)?.className]
+                          .filter(Boolean)
+                          .join(' ')}
                       >
                         {i === 0
                           ? 'Total'

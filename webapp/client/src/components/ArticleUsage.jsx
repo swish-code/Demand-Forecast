@@ -264,6 +264,22 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
             <ErrorBanner error={error} onRetry={reload} />
           ) : loading ? (
             <ChartSkeleton height={220} />
+          ) : !used && data?.partial ? (
+            /*
+              * Nothing came back, but not because nothing is there.
+              *
+              * At least one model failed to answer, so "no menu item uses this"
+              * is a claim the page cannot make. It said it anyway until 24 Sep
+              * 2026, when a Text-against-Integer comparison in the recipe query
+              * was failing every call: article 103100002 is used by 26 menu
+              * items and the panel reported none, in the confident wording
+              * below. An empty result and an unreadable one must not look alike.
+              */
+            <Empty title="Could not read the recipe">
+              The recipe query did not come back for this article, so nothing can be said about
+              which menu items use it. This is a fault, not an empty recipe — try again, and if it
+              persists the model behind it needs looking at.
+            </Empty>
           ) : !used ? (
             <Empty title="No menu item uses this article">
               Nothing in the recipe tree names it. Articles like this reach the shops without a
