@@ -103,6 +103,30 @@ export function DataTable({
    * belong to, which the shading alone cannot.
    */
   groups,
+  /**
+   * Pin this many leading columns while the rest scroll under them.
+   *
+   * For tables wide enough that the identifying columns leave the screen before
+   * the interesting ones arrive — Replenishment Planning is 43 columns, so by
+   * the time a delivery date is in view there is nothing on the row saying
+   * which article it belongs to. Counted in VISIBLE columns, so hiding one
+   * through Build view re-pins whatever moved up into its place.
+   *
+   * Opt-in, and zero everywhere else: sticky cells need an opaque background,
+   * which is wrong for a table narrow enough never to scroll sideways.
+   */
+  freeze = 0,
+  /**
+   * Let the reader shut a whole shaded group of columns from its heading.
+   *
+   * Only useful where `groups` is supplied and there are enough of them to be
+   * worth putting away. A shut group's columns leave the table entirely rather
+   * than collapsing to a stub cell — a stub has to be sized, shaded and
+   * explained, and it still costs the width the reader was trying to reclaim.
+   * They come back from the chips above the table, which is also what tells
+   * somebody a section is missing rather than empty.
+   */
+  collapsibleGroups = false,
   /** Told when the hidden set changes, so a page can react to it. */
   onColumnsChange,
   /**
@@ -153,14 +177,39 @@ export function DataTable({
     onColumnsChange?.([...hidden])
   }, [storeKey, hidden])
 
+  /** Column groups the reader has shut. Never persisted — a view, not a setting. */
+  const [shutCols, setShutCols] = useState(() => new Set())
+
   const shown = useMemo(
     // `Boolean` first, deliberately. A stray comma in a caller's column list
     // leaves a hole in the array, and reading `.required` off the undefined it
     // produces took the entire page down with a blank screen — a whole class of
     // white-screen crash that one guard removes.
-    () => columns.filter(Boolean).filter((c) => c.required || !hidden.has(c.key)),
-    [columns, hidden]
+    () =>
+      columns
+        .filter(Boolean)
+        .filter((c) => c.required || !hidden.has(c.key))
+        // A required column outranks a shut group: it is required because the
+        // row is unreadable without it, and that does not stop being true
+        // because its neighbours were put away.
+        .filter((c) => c.required || !(c.group && shutCols.has(c.group))),
+    [columns, hidden, shutCols]
   )
+
+  /*
+   * Which groups are currently shut, with what they cost — for the chips that
+   * bring them back. Read off `columns` rather than `shown`, because a shut
+   * group is by definition absent from `shown`.
+   */
+  const shutList = useMemo(() => {
+    if (!collapsibleGroups || !shutCols.size) return []
+    const counted = new Map()
+    for (const c of columns.filter(Boolean)) {
+      if (!c.group || !shutCols.has(c.group) || c.required) continue
+      counted.set(c.group, (counted.get(c.group) ?? 0) + 1)
+    }
+    return [...counted.entries()].map(([key, n]) => ({ key, n }))
+  }, [collapsibleGroups, shutCols, columns])
 
   /*
    * Where a shaded group starts and ends, among the columns actually visible.
@@ -191,11 +240,15 @@ export function DataTable({
    */
   const groupRuns = useMemo(() => {
     const runs = []
+    let at = 0
     for (const c of shown) {
       const g = c.group ?? null
       const last = runs[runs.length - 1]
       if (last && last.group === g) last.span += 1
-      else runs.push({ group: g, span: 1 })
+      // `at` is where this run starts among the visible columns, which is what
+      // decides whether it sits wholly inside the pinned prefix.
+      else runs.push({ group: g, span: 1, at })
+      at += 1
     }
     return runs
   }, [shown])
@@ -414,6 +467,41 @@ export function DataTable({
   }
 
   const widthOf = (c) => (c.key === flexKey ? undefined : floorOf(c))
+
+  /*
+   * Where each pinned column sits, in pixels from the left edge.
+   *
+   * Taken from the SAME widths the colgroup declares rather than measured off
+   * the DOM: the table is `table-layout: fixed`, so those widths are what the
+   * browser actually uses, and reading them here means the offsets cannot
+   * disagree with the layout or lag a frame behind a drag.
+   *
+   * A column with no declared width ends the pinning — that is the flex column,
+   * which has no fixed left edge to pin anything after it to. Returning the
+   * offsets found so far rather than bailing keeps whatever prefix is sound.
+   */
+  const freezeLeft = useMemo(() => {
+    if (!(freeze > 0)) return []
+    const out = []
+    let x = 0
+    for (const c of shown.slice(0, freeze)) {
+      const w = widthOf(c)
+      if (!Number.isFinite(Number(w))) break
+      out.push(x)
+      x += Number(w)
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freeze, shown, autoWidths, widths, flexKey])
+
+  /** Sticky positioning for the i-th visible column, or nothing if not pinned. */
+  const freezeCell = (i) =>
+    i < freezeLeft.length
+      ? {
+          className: `dt__frz${i === freezeLeft.length - 1 ? ' dt__frz--last' : ''}`,
+          style: { left: `${freezeLeft[i]}px` },
+        }
+      : null
 
   const startResize = (event, col) => {
     // The header is a sort button; dragging its edge is not a click on it.
@@ -704,6 +792,46 @@ export function DataTable({
         </div>
       )}
 
+      {/*
+        * What has been put away, and the way back.
+        *
+        * A shut group leaves no trace inside the table - that is the point of
+        * shutting it - so without this the columns are simply gone and the only
+        * cure is a reload. The chip carries the count, because "Deliveries" and
+        * "Deliveries (18)" are different offers.
+        */}
+      {shutList.length ? (
+        <div className="dt__shutbar">
+          <span className="dt__shutlbl">Hidden sections</span>
+          {shutList.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              className="dt__shutchip"
+              onClick={() =>
+                setShutCols((prev) => {
+                  const next = new Set(prev)
+                  next.delete(g.key)
+                  return next
+                })
+              }
+              title={`Show the ${titleOf(g.key).label} columns again`}
+            >
+              {titleOf(g.key).label}
+              <span className="dt__shutn">{g.n}</span>
+              <span aria-hidden="true">+</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShutCols(new Set())}
+          >
+            Show all
+          </button>
+        </div>
+      ) : null}
+
       {sorted.length === 0 ? (
         <Empty title="No rows match your search">Clear the search box to see all {rows.length.toLocaleString()} rows.</Empty>
       ) : (
@@ -742,11 +870,20 @@ export function DataTable({
                       key={`${r.group ?? 'none'}-${i}`}
                       colSpan={r.span}
                       scope="colgroup"
-                      className={
-                        r.group
-                          ? `dt--${r.group} dt--gstart dt--gend dt__grouphead`
-                          : 'dt__grouphead'
-                      }
+                      /*
+                       * A group title is pinned only when every column under it
+                       * is. A run straddling the edge would have to sit half
+                       * still and half scrolling, which no single offset can
+                       * express, so it scrolls like its columns do.
+                       */
+                      style={r.at === 0 && r.span <= freezeLeft.length ? { left: '0px' } : undefined}
+                      className={[
+                        r.group ? `dt--${r.group} dt--gstart dt--gend` : '',
+                        'dt__grouphead',
+                        r.at === 0 && r.span <= freezeLeft.length ? 'dt__frz dt__frz--last' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       {r.group ? (
                         <span className="dt__grouptitle">
@@ -801,6 +938,20 @@ export function DataTable({
                               )}
                             />
                           ) : null}
+                          {collapsibleGroups ? (
+                            <button
+                              type="button"
+                              className="dt__gshut"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setShutCols((prev) => new Set(prev).add(r.group))
+                              }}
+                              aria-label={`Hide the ${titleOf(r.group).label} columns`}
+                              title={`Hide the ${titleOf(r.group).label} columns`}
+                            >
+                              &minus;
+                            </button>
+                          ) : null}
                         </span>
                       ) : (
                         ''
@@ -810,14 +961,16 @@ export function DataTable({
                 </tr>
               )}
               <tr>
-                {shown.map((c) => {
+                {shown.map((c, ci) => {
                   const on = sort.key === c.key
                   const Arrow = sort.dir === 'asc' ? IconArrowUp : IconArrowDown
+                  const frz = freezeCell(ci)
                   return (
                     <th
                       key={c.key}
                       scope="col"
-                      className={`${c.num ? 'num th--num' : ''} ${groupClass(c)}`.trim()}
+                      style={frz?.style}
+                      className={`${c.num ? 'num th--num' : ''} ${groupClass(c)} ${frz?.className ?? ''}`.trim()}
                       /*
                        * A column can explain itself on hover.
                        *
@@ -916,10 +1069,11 @@ export function DataTable({
                               className={onRowClick ? 'clickable' : undefined}
                               onClick={onRowClick ? () => onRowClick(row) : undefined}
                             >
-                              {shown.map((c) => (
+                              {shown.map((c, ci) => (
                                 <td
                                   key={c.key}
-                                  className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '', c.wrap ? 'dt--wrap' : '', groupClass(c)]
+                                  style={freezeCell(ci)?.style}
+                                  className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '', c.wrap ? 'dt--wrap' : '', groupClass(c), freezeCell(ci)?.className]
                                     .filter(Boolean)
                                     .join(' ')}
                                   title={exactly(c, row[c.key])}
@@ -938,14 +1092,16 @@ export function DataTable({
                   className={onRowClick ? 'clickable' : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
-                  {shown.map((c) => (
+                  {shown.map((c, ci) => (
                     <td
                       key={c.key}
+                      style={freezeCell(ci)?.style}
                       className={[
                         c.num ? 'num' : '',
                         c.id ? 'id' : '',
                         c.strong ? 'strong' : '',
                         c.wrap ? 'dt--wrap' : '',
+                        freezeCell(ci)?.className,
                         // Columns that belong together are shaded together, so
                         // the relationship reads without a legend.
                         groupClass(c),

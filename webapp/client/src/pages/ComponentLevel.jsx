@@ -1002,6 +1002,50 @@ const COLUMNS = [
   },
   {
     /*
+     * How many days of intake the shops' shelf is currently worth.
+     *
+     *   Combined Purchase = Purchase Qty + Transfer In Qty, over the selected
+     *                       range, summed across the shops in scope
+     *   Average Purchase  = Combined Purchase / calendar days in the range
+     *   Store DTL         = Store SOH / Average Purchase
+     *
+     * It divides the Store SOH beside it — the same figure, not a second
+     * reading of it. Sits next to it deliberately: the numerator is the column
+     * immediately to its left, so the ratio can be checked without looking away.
+     *
+     * Not summable. A total of a ratio is arithmetic on a quantity that does
+     * not add up, so there is no `total` here where Store SOH has one.
+     */
+    key: 'Store_DTL',
+    label: 'Store DTL',
+    hint: "Days of cover at the rate the shops are currently taking stock in: Store SOH divided by the average daily Purchase Qty + Transfer In Qty over the selected date range. Zero-delivery days are counted in the average, so this reads as days. It measures intake, not consumption.",
+    autoWidth: true,
+    num: true,
+    group: 'whstock',
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title={
+            row?.Store_SOH === null || row?.Store_SOH === undefined
+              ? 'No closing-stock reading for this article in these shops, so there is nothing to divide.'
+              : Number(row?.Store_SOH) < 0
+                ? 'The book balance is below zero, which is an accounting artefact rather than stock on a shelf. A negative number of days is not a length of time, so nothing is claimed.'
+                : 'No stock was purchased or transferred in for this article over the selected range, so there is no rate to divide by. That is not infinite cover — it is no answer at all.'
+          }
+        >
+          –
+        </span>
+      ) : (
+        <span
+          title={`${fmtQty(row?.Store_SOH)} in the shops, at the average daily intake over the selected range. Counts days with no delivery, so it reads as calendar days of cover.`}
+        >
+          {Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+        </span>
+      ),
+  },
+  {
+    /*
      * Stock in months of demand, because raw stock says nothing on its own.
      *
      * Ten thousand units is a fortnight of one article and two years of
@@ -1141,6 +1185,9 @@ const COLUMN_ORDER = [
   // group: the four planning settings that used to follow it now live in the
   // Replenishment Planning table, where they are acted on.
   'Store_SOH',
+  // The same figure divided by the rate the shops take stock in — kept beside
+  // its own numerator so the ratio can be checked without looking away.
+  'Store_DTL',
   // What the shops' stock implies should be sent. Read left to right the four
   // blocks are: what was needed, what moved, what is in stock and on order,
   // what to do about it.
@@ -1207,7 +1254,7 @@ const REPL_COLUMNS = new Set(['Required_Shipment', 'Shipment_Status'])
  * is not. Set STORE_COLUMNS_ON back to true for those two.
  */
 const STORE_SOH_ON = true
-const STORE_SOH_COLUMNS = new Set(['Store_SOH'])
+const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
 
 /** The derived store figures, still off. */
 const STOCK_COLUMNS = new Set([
@@ -1940,6 +1987,17 @@ export function ComponentLevel({
         r.Safety_Stock_Days = null
         r.Lead_Time_Days = null
         r.Delivery_Freq = null
+        /*
+         * A ratio does not survive a fold across articles.
+         *
+         * Store SOH above is summed, because units add. Store DTL is days, and
+         * the days of cover of a group is not the days of cover of any article
+         * in it — recomputing it would need the group's combined intake, which
+         * is not carried on the row. Keeping the first article's figure would
+         * silently label the group with one member's number, which is the worse
+         * of the two failures.
+         */
+        r.Store_DTL = null
       }
 
       /*

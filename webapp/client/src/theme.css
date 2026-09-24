@@ -8591,3 +8591,139 @@ table.dt--plain thead th:hover { color: var(--text-muted); }
   padding-top: 8px;
   font-size: 12px;
 }
+
+/* ---- DataTable: pinned leading columns -------------------------------- */
+/*
+ * Opt-in via the `freeze` prop, for tables wide enough that the identifying
+ * columns scroll away before the interesting ones arrive.
+ *
+ * Two things make this work rather than merely look sticky. The cells need an
+ * OPAQUE background, because the scrolling columns pass underneath them and a
+ * transparent cell shows both at once; and they need to outrank their
+ * neighbours on the z axis in both directions, since the header row is already
+ * sticky vertically and the corner cell belongs to both.
+ *
+ * The background is taken from the surface rather than inherited, so a shaded
+ * column group does not leak its tint over the scrolling content behind it.
+ */
+table.dt th.dt__frz,
+table.dt td.dt__frz {
+  position: sticky;
+  background: var(--surface);
+  z-index: 3;
+}
+/* The header's own sticky row must still win over pinned body cells. */
+table.dt thead th.dt__frz { z-index: 5; }
+table.dt tbody tr:hover td.dt__frz { background: var(--sunken); }
+
+/*
+ * The edge that says "this stopped moving".
+ *
+ * A border would take part in the fixed layout and shift every offset by a
+ * pixel; a shadow does not, so the seam costs nothing in width. Kept faint —
+ * it marks a boundary, it is not a divider between two tables.
+ */
+table.dt th.dt__frz--last,
+table.dt td.dt__frz--last {
+  box-shadow: 6px 0 6px -6px rgba(17, 24, 39, .18);
+}
+
+/* ---- DataTable: collapsible column groups ----------------------------- */
+.dt__gshut {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 4px;
+  margin-left: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.dt__gshut:hover { background: var(--line); color: var(--text); }
+.dt__gshut:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.dt__shutbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 0 10px;
+}
+.dt__shutlbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dt__shutchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--sunken);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.dt__shutchip:hover { background: var(--surface); border-style: solid; border-color: var(--accent); }
+.dt__shutn {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Replenishment Planning: refreshing over existing rows ------------ */
+/*
+ * The table stays legible while it reloads, but visibly not current.
+ *
+ * Opacity rather than a covering spinner: the reader keeps their scroll
+ * position and can still read what is there, which matters on a 43-column
+ * table somebody is part-way through comparing. Pointer events stay on — a
+ * stale row is still worth hovering for its tooltip.
+ */
+.replen__tbl { position: relative; }
+.replen__tbl--busy table.dt {
+  opacity: .55;
+  transition: opacity .15s ease;
+}
+.replen__busy {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, .1);
+}
+.replen__spin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: replen-spin .7s linear infinite;
+}
+@keyframes replen-spin { to { transform: rotate(360deg); } }
+/* A reader who has asked for less motion gets a static mark, not a spinner. */
+@media (prefers-reduced-motion: reduce) {
+  .replen__spin { animation: none; border-top-color: var(--accent); }
+  .replen__tbl--busy table.dt { transition: none; }
+}

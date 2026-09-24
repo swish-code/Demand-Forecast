@@ -165,6 +165,72 @@ SUMMARIZECOLUMNS(
 }
 
 /**
+ * What the shops took IN over the window, combined across both supply routes.
+ *
+ * The denominator of Store DTL. Audited 24 Sep 2026 before anything was built,
+ * and every choice below was settled by that audit rather than assumed:
+ *
+ *   Columns    `Purchase Qty` (direct supply) + `Transfer In Qty` (from the
+ *              warehouse). Both are plain source columns of type Number. They
+ *              are COMBINED FIRST and averaged once - never averaged separately
+ *              and then meaned, which is a different and wrong figure.
+ *   Grain      Daily, and provably unique: 6,558,234 rows against 6,558,234
+ *              distinct (Movement Date, Location, Article No.) combinations, so
+ *              there is exactly one reading per article per shop per day and no
+ *              duplicate to guard against.
+ *   Stores     The same locations Store SOH uses - every mapped location that
+ *              is not the warehouse - so the two halves of the ratio cover the
+ *              same shops. Summed across them here, because the page shows one
+ *              row per article with the shops added up.
+ *   Period     The SELECTED date range, matching Store SOH, which reads the
+ *              range's last day. No purchase-averaging rule existed anywhere in
+ *              the codebase, so none was inherited and none was invented; the
+ *              range is what the panel already says it is reporting on.
+ *   Zeros      Zero days are INCLUDED, so the divisor is calendar days. The
+ *              table never stores a blank - "no delivery" is an explicit 0 -
+ *              and including them is what makes the result read as days of
+ *              cover. It matters: over 90 days the median article takes
+ *              delivery on 40 of them, so excluding zeros moved the median DTL
+ *              from 32.04 to 6.60.
+ *
+ * One caveat worth keeping in view: this measures INTAKE, not consumption. The
+ * ratio answers "how many days of receipts is this stock worth", which is not
+ * quite "how long will it last". `Usage Qty` and `Sold Qty` sit in the same
+ * table if that question is ever wanted instead.
+ */
+async function purchasesOver(from, to, buckets) {
+  const map = await destinationBuckets()
+  if (!map?.size) return null
+
+  const wanted = new Set(buckets)
+  const locations = []
+  for (const [location, bucket] of map) {
+    if (wanted.has(bucket)) locations.push(location)
+  }
+  if (!locations.length) return new Map()
+
+  const rows = await executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS(
+  cc_daily_inventory[Article No.],
+  FILTER(ALL(cc_daily_inventory[Movement Date]),
+    cc_daily_inventory[Movement Date] >= ${daxDate(from)} && cc_daily_inventory[Movement Date] <= ${daxDate(to)}),
+  FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {${literal(locations)}}),
+  "Combined", SUM(cc_daily_inventory[Purchase Qty]) + SUM(cc_daily_inventory[Transfer In Qty]))`,
+    config.inventory.datasetId,
+    { bulk: true, workspace: config.inventory.workspaceId }
+  )
+
+  const out = new Map()
+  for (const r of rows) {
+    const article = String(r['Article No.'] ?? '').trim()
+    if (!article) continue
+    out.set(article, (out.get(article) ?? 0) + (Number(r.Combined) || 0))
+  }
+  return out
+}
+
+/**
  * The warehouse's own stock through the window, read week by week.
  *
  * Weekly rather than monthly because a month-end reading hides the case this
@@ -312,9 +378,12 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
      * last day has not happened has no reading, so Store SOH is blank for a
      * current or future period rather than showing the latest known balance.
      */
-    const [store, warehouse] = await Promise.all([
+    const [store, warehouse, purchases] = await Promise.all([
       stockOn(dateTo, buckets).catch(() => null),
       warehouseStock(dateFrom, dateTo, anchor).catch(() => null),
+      // Its own catch: Store DTL is one column, and losing it must not take
+      // Store SOH and the warehouse readings down with it.
+      purchasesOver(dateFrom, dateTo, buckets).catch(() => null),
     ])
     /*
      * Either side is enough to be worth returning.
@@ -335,7 +404,7 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
     // `soh` and `known` first so that a missing store side leaves them null
     // rather than absent: `stockColumnsFor` reads both, and null is the
     // truthful answer for "no reading" either way.
-    return { soh: null, known: null, ...(store ?? {}), warehouse, anchor, days }
+    return { soh: null, known: null, ...(store ?? {}), warehouse, purchases, anchor, days }
   })
 }
 
@@ -350,6 +419,7 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
 export function stockColumnsFor(article, forecast, held) {
   const blank = {
     Store_SOH: null,
+    Store_DTL: null,
     Stock_Cover: null,
     SOH_Status: null,
     Required_Shipment: null,
@@ -417,9 +487,39 @@ export function stockColumnsFor(article, forecast, held) {
 
   const required = monthly === null ? null : Math.max(0, TARGET_COVER_MONTHS * monthly - onHand)
 
+  /*
+   * Store DTL — how many days of intake the shelf is currently worth.
+   *
+   *   Combined Purchase = SUM(Purchase Qty) + SUM(Transfer In Qty)
+   *                       over the selected range, this article, these shops
+   *   Average Purchase  = Combined Purchase / calendar days in the range
+   *   Store DTL         = Store SOH / Average Purchase
+   *
+   * Store SOH is the EXISTING figure above, untouched — this divides it, it
+   * does not recompute it.
+   *
+   * Every blank below is a refusal to state something the data cannot support,
+   * and each is a different refusal:
+   *
+   *   no purchase feed   the query failed or the model is off; unknown, not zero
+   *   average <= 0       nobody ordered it. Not infinite cover — no answer at
+   *                      all. 826 of 2,991 articles over a 90-day window
+   *   soh < 0            a book balance below zero is an accounting artefact,
+   *                      already treated as empty everywhere else here, and a
+   *                      negative number of days is not a length of time
+   *
+   * A Store SOH of exactly zero against real intake is NOT blank: nothing on
+   * the shelf is a true and useful answer, and it reads 0.
+   */
+  const combined = held.purchases ? (held.purchases.get(article) ?? 0) : null
+  const avgPurchase = combined === null ? null : combined / held.days
+  const dtl =
+    avgPurchase === null || !(avgPurchase > 0) || soh < 0 ? null : soh / avgPurchase
+
   return {
     ...wh,
     Store_SOH: soh,
+    Store_DTL: dtl,
     Stock_Cover: cover,
     SOH_Status: status,
     Required_Shipment: required,

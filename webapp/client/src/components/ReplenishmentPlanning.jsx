@@ -1093,6 +1093,26 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           <ChartSkeleton height={320} />
         </div>
       ) : (
+        /*
+         * A refresh says so, rather than leaving the old figures looking current.
+         *
+         * The skeleton above only covers the FIRST load. Changing the date range
+         * or the brand re-fetches while rows are already on screen, and those
+         * rows are the previous window's - so for as long as the request runs the
+         * table is showing numbers that no longer match the controls. Dimming it
+         * and naming the state is the difference between "stale" and "wrong".
+         *
+         * The rows stay readable and interactive on purpose: replacing a full
+         * table with a spinner loses the reader's scroll position and whatever
+         * they were part-way through comparing.
+         */
+        <div className={`replen__tbl${busy ? ' replen__tbl--busy' : ''}`}>
+          {busy ? (
+            <p className="replen__busy" role="status">
+              <span className="replen__spin" aria-hidden="true" />
+              Updating for the new selection…
+            </p>
+          ) : null}
         <DataTable
           columns={columns}
           rows={planned}
@@ -1101,6 +1121,23 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           searchPlaceholder="Search article or supplier…"
           tableId="replenishment-planning-v1"
           groups={GROUPS}
+          /*
+           * The five identifying columns stay put while the other 38 scroll.
+           *
+           * Asked for on 24 Sep 2026. At 43 columns the article a row describes
+           * had left the screen long before its delivery dates arrived, so every
+           * comparison meant scrolling back to find out whose row it was. Five,
+           * because that is the whole first section - article number, name,
+           * supplier, purchase unit and base unit - and a reader comparing a
+           * quantity wants the unit it is counted in as much as the name.
+           */
+          freeze={5}
+          /*
+           * Any section can be put away. Eight groups over 43 columns is more
+           * than fits, and which ones matter depends entirely on the question
+           * being asked - ordering quantities, delivery timing, or stock cover.
+           */
+          collapsibleGroups
           /*
            * Bounded for the same reason Article Detail is, from 16 Sep 2026.
            *
@@ -1113,6 +1150,7 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
            */
           maxHeight={520}
         />
+        </div>
       )}
     </Panel>
   )

@@ -358,10 +358,31 @@ export default function App({ session, onSignedOut }) {
    */
   const pages = useMemo(() => {
     const allowed = session?.scope?.pages ?? null
+    const isAdmin = session?.user?.role === 'admin'
+    /*
+     * An admin-only page can still be reached by an explicit grant, from
+     * 24 Sep 2026 — Finance holds the Sales Plan and nothing else.
+     *
+     * `adminOnly` used to mean two things at once: "this page writes" and "only
+     * administrators may open it". Those came apart when a department was
+     * granted a writing page, and the flag alone would have hidden the only tab
+     * that account has, leaving it signed in with an empty rail.
+     *
+     * The grant is what opens it, not the flag, and the server's own guard on
+     * that router names the same page — so the rail cannot offer a tab the API
+     * would refuse, which is the failure this check exists to prevent.
+     */
+    /*
+     * The Sales Plan is asked by its own flag, not read off `pages`.
+     *
+     * `pages` falls through to every report page for an unrestricted account,
+     * so testing it here would show the tab to Marketing and to anyone with no
+     * department — and the router behind it would refuse them. The server
+     * decides with the same function its guard uses and sends the answer.
+     */
+    const granted = (p) => (p.id === 'sales-plan' ? Boolean(session?.scope?.salesPlan) : false)
     return PAGES.filter(
-      (p) =>
-        (!p.adminOnly || session?.user?.role === 'admin') &&
-        (!allowed || allowed.includes(p.id) || (p.adminOnly && session?.user?.role === 'admin'))
+      (p) => (!p.adminOnly || isAdmin || granted(p)) && (!allowed || allowed.includes(p.id) || isAdmin)
     )
   }, [session])
   const page = useMemo(() => pages.find((p) => p.id === tab) ?? pages[0], [tab, pages])

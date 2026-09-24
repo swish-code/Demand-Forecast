@@ -1168,7 +1168,10 @@ const WH_STOCK_COLUMNS_ON = process.env.WH_WAREHOUSE_STOCK !== '0'
  */
 const STORE_SOH_ON = process.env.WH_STORE_SOH !== '0'
 
-const STORE_SOH_FIELDS = ['Store_SOH']
+// Store DTL divides Store SOH, so it is withheld by the same switch. Showing a
+// ratio whose numerator the page is not allowed to show would be worse than
+// showing neither.
+const STORE_SOH_FIELDS = ['Store_SOH', 'Store_DTL']
 const STORE_DERIVED_FIELDS = ['Stock_Cover', 'SOH_Status']
 const WAREHOUSE_ONLY_FIELDS = ['WH_Opening_SOH', 'WH_Closing_SOH']
 

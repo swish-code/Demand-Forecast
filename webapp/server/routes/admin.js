@@ -7,6 +7,7 @@ import {
   DEPARTMENTS,
   DEPARTMENT_PAGES,
   PAGE_IDS,
+  maySeeSalesPlan,
   isDepartment,
 } from '../departments.js'
 import { calculationsPayload } from '../calculations.js'
@@ -54,8 +55,54 @@ import { config } from '../config.js'
 
 export const admin = Router()
 
-/** Everything here is admin-only; the guard is applied once, at the router. */
-admin.use(requireRole('admin'))
+/**
+ * Admin-only, with one deliberate exception: the Sales Plan.
+ *
+ * The guard is still applied once, at the router, so a new route added here is
+ * admin-only by default — the safe direction for that mistake to fail in.
+ *
+ * Finance was granted the Sales Plan page on 24 Sep 2026, and the page lives on
+ * this router because it WRITES. Granting the page alone would have produced an
+ * account that could open it and then got 403 from every call it made, which
+ * reads as a broken page rather than a refused one.
+ *
+ * So four paths, named individually, are opened to any account whose page grant
+ * includes `sales-plan` — the same `allowedPages` answer the rail and the page
+ * router already use, so a department default, an explicit per-account grant and
+ * this check can never disagree about who may be here.
+ *
+ * `/sales-plan/shapes` is NOT among them. It rewrites the seasonal shape every
+ * brand's whole year is distributed by, which is a different and much larger
+ * act than typing one brand's target, and nobody asked for it.
+ */
+const PLAN_OPEN = new Map([
+  ['/sales-plan', new Set(['GET', 'POST'])],
+  ['/sales-plan/products', new Set(['GET'])],
+  ['/sales-plan/articles', new Set(['GET'])],
+])
+
+admin.use((req, res, next) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' })
+  if (req.user.role === 'admin') return next()
+
+  // Path first, then the grant. An account without the page never reaches the
+  // grant lookup, and a path not on the list is refused whatever it holds.
+  const methods = PLAN_OPEN.get(req.path)
+  if (!methods || !methods.has(req.method)) {
+    return res.status(403).json({ error: 'Not allowed' })
+  }
+
+  /*
+   * `maySeeSalesPlan`, not `allowedPages(...).includes('sales-plan')`.
+   *
+   * The page list falls through to EVERY report page for an unrestricted
+   * account, so testing it here would have opened the plan — reads and writes —
+   * to Marketing, Management and any account with no department set. Access to
+   * this one page has to be granted on purpose; see the note on the helper.
+   */
+  if (maySeeSalesPlan(req.user)) return next()
+  return res.status(403).json({ error: 'Not allowed' })
+})
 
 const ROLES = ['admin', 'stakeholder', 'store', 'viewer']
 const STATUSES = ['pending', 'active', 'suspended', 'disabled']

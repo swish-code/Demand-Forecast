@@ -8,7 +8,7 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
-import { allowedPages, seesStockDetail, seesRecipeDetail } from '../departments.js'
+import { allowedPages, maySeeSalesPlan, seesStockDetail, seesRecipeDetail } from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -83,6 +83,16 @@ async function sessionPayload(user) {
       // What the rail should show. Enforced on the server as well — this is so
       // the shell does not offer a tab that would answer 403.
       pages: allowedPages(user),
+      /*
+       * The Sales Plan is asked separately, because `pages` cannot answer it.
+       *
+       * That list falls through to every report page for an unrestricted
+       * account, so the rail reading it would show the Sales Plan tab to
+       * Marketing and to anyone with no department — and the router behind it
+       * would then refuse them. One rule, owned by the server, decided by the
+       * same function the guard uses, so the tab and the API always agree.
+       */
+      salesPlan: maySeeSalesPlan(user),
     },
   }
 }

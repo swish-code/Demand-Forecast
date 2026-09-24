@@ -93,6 +93,19 @@ export const DEPARTMENT_PAGES = {
   // warehouse's side, so anybody trusted with one is trusted with the other.
   Procurement: ['component', 'warehouse', 'guide'],
   'Supply Chain': ['component', 'warehouse', 'guide'],
+  /*
+   * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
+   *
+   * The narrowest default in this list, and the only one that grants a page
+   * living on the admin router. That router's guard names the three read paths
+   * and the one write path individually, so this grant reaches the plan itself
+   * and no other administrative route — not the Admin page, not the seasonal
+   * shapes, not anything added to that router later.
+   *
+   * No `guide` beside it: the guide is Stock Article's walkthrough, and the
+   * Sales Plan carries its own explanation on the page.
+   */
+  Finance: ['sales-plan'],
 }
 
 /**
@@ -276,6 +289,49 @@ const withGuide = (pages) =>
  * unrestricted. Administrators are never restricted — an admin who could lock
  * themselves out of the admin page would be a support call with no way back.
  */
+/**
+ * May this account use the Sales Plan, which lives on the admin router?
+ *
+ * DELIBERATELY not "does allowedPages include sales-plan". That answer is true
+ * for every unrestricted account, because the fall-through there is the whole
+ * report list — so reading the page grant would have handed Marketing,
+ * Management and every account with no department set both read AND write
+ * access to next year's sales targets, which nobody asked for. Caught on
+ * 24 Sep 2026 while testing the Finance grant that prompted this.
+ *
+ * So access has to be EXPLICIT, by one of exactly two routes:
+ *
+ *   - the account carries a per-account page grant naming `sales-plan`
+ *   - its department has a DEPARTMENT_PAGES default naming `sales-plan`
+ *
+ * Being merely unrestricted is not enough. This is the one page where "no rule
+ * found" must fail closed rather than open, because the router behind it is the
+ * administrative one and every other path on it is admin-only.
+ */
+export function maySeeSalesPlan(user) {
+  if (!user) return false
+  if (user.role === 'admin') return true
+
+  const granted = Array.isArray(user.pages)
+    ? user.pages
+    : typeof user.pages === 'string' && user.pages.trim()
+      ? (() => {
+          try {
+            return JSON.parse(user.pages)
+          } catch {
+            return null
+          }
+        })()
+      : null
+
+  // An explicit grant decides it, in both directions: an account given
+  // ['summary'] is not on the Sales Plan even if its department would be.
+  if (Array.isArray(granted) && granted.length) return granted.includes('sales-plan')
+
+  const dept = pagesFor(user.department)
+  return Array.isArray(dept) && dept.includes('sales-plan')
+}
+
 export function allowedPages(user) {
   if (user?.role === 'admin') return null
 
