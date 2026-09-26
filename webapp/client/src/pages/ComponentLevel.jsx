@@ -7,7 +7,7 @@ import { averageScore, weightedScore } from '../scores.js'
 import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
-import { whAccuracy, coveredByStock } from '../whAccuracy.js'
+import { whAccuracy, coveredByStock, whRatioAccuracy } from '../whAccuracy.js'
 import { ArticleUsage } from '../components/ArticleUsage.jsx'
 import { ArticleFinder } from '../components/ArticleFinder.jsx'
 import ReplenishmentPlanning from '../components/ReplenishmentPlanning.jsx'
@@ -592,6 +592,59 @@ const COLUMNS = [
      */
     total: (list) => weightedScore(list, 'WH_Accuracy', 'Consumed_Qty')?.value ?? null,
     renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
+  {
+    /*
+     * The directional score, beside the symmetric one.
+     *
+     * WH ACC% asks "how close was it", and treats shipping double and shipping
+     * half as the same size of miss. This asks "how much went out against what
+     * we said", so it has a direction: over 100% means more shipped than
+     * forecast, under means less. It is unbounded above - 49 articles are over
+     * 300% on a three-week window - which is why its footer is a plain mean
+     * and not dressed up as an accuracy.
+     *
+     * The stock rule applies here first, exactly as it does to WH ACC%.
+     */
+    key: 'WH_Ratio_Acc',
+    label: 'New WH ACC%',
+    hint:
+      'What actually shipped as a share of what was forecast: Outbound / WH Forecast. Over 100% means more went out than predicted, so higher is not better. A row scores 100% outright when the shops already held at least twice the forecast. This is the figure the Outbound vs forecast card averages.',
+    autoWidth: true,
+    num: true,
+    group: 'wh',
+    render: (v, r) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="No warehouse forecast for this article to divide by.">
+          –
+        </span>
+      ) : r?.WH_Acc_Covered ? (
+        <span
+          className="wh-acc--stock"
+          title="Scored 100% because the shops already held at least twice this forecast, so the warehouse was right not to ship. Not a measure of how accurate the forecast was."
+        >
+          {fmtPct(v, 1)}
+          <span aria-hidden="true"> •</span>
+        </span>
+      ) : (
+        <span title={v > 1 ? 'More shipped than forecast' : 'Less shipped than forecast'}>
+          {fmtPct(v, 1)}
+        </span>
+      ),
+    /*
+     * A plain mean of the rows, which is what the card shows.
+     *
+     * Deliberately NOT volume weighted like WH ACC% beside it: the card was
+     * asked to average the row percentages, and a footer computing it a second
+     * way would put two answers to one question in one view.
+     */
+    total: (list) => {
+      const scored = list.filter(
+        (x) => x.WH_Ratio_Acc !== null && x.WH_Ratio_Acc !== undefined
+      )
+      return scored.length ? scored.reduce((a, x) => a + x.WH_Ratio_Acc, 0) / scored.length : null
+    },
+    renderTotal: (v) => (v === null ? '–' : fmtPct(v, 1)),
   },
 
   /*
@@ -1861,6 +1914,13 @@ export function ComponentLevel({
         // So the column can say WHY a row reads 100%.
         WH_Acc_Covered: carriesWarehouse && coveredByStock(held?.wh ?? null, r.Store_SOH),
         /*
+         * The directional score, beside the symmetric one: what shipped as a
+         * share of what was forecast, with the same stock rule applied first.
+         */
+        WH_Ratio_Acc: carriesWarehouse
+          ? whRatioAccuracy(held?.consumed ?? null, held?.wh ?? null, r.Store_SOH)
+          : null,
+        /*
          * Both sides present, or nothing at all.
          *
          * `held.forecast` and `held.wh` stay null until something contributes
@@ -1991,6 +2051,25 @@ export function ComponentLevel({
       held.Open_PO_Qty = add(held.Open_PO_Qty, r.Open_PO_Qty)
       held.Open_PO_Value = add(held.Open_PO_Value, r.Open_PO_Value)
       held.Store_SOH = add(held.Store_SOH, r.Store_SOH)
+      /*
+       * Store DTL is CARRIED, not added — and it has to be carried, not left
+       * to the spread above.
+       *
+       * The same fault the note above describes, which Store_DTL was added
+       * after and so never got the fix. The server stamps it on ONE row per
+       * article, the fold seeds from the FIRST row of the group, and for a raw
+       * material that first row is a recipe line with no stock columns on it -
+       * so the folded row showed a Store SOH (because that one is summed) and
+       * a dash beside it for cover the article demonstrably had. Flour All
+       * Purpose over 1-31 Aug was the case: Store SOH 10,275.34, intake
+       * 57,930, a real answer of 5.5 days, and a blank cell.
+       *
+       * Taken rather than summed because it is DAYS, not units. Adding the
+       * cover of two articles gives a number that describes neither. Where a
+       * group has merged several articles it is blanked outright further down,
+       * for the same reason.
+       */
+      held.Store_DTL = held.Store_DTL ?? r.Store_DTL
       held.New_Required_Qty = add(held.New_Required_Qty, r.New_Required_Qty)
       held.__articles.add(String(r['Item No.'] ?? '').trim())
       // Measured anywhere in the group means measured, so one unmatched article
@@ -2074,6 +2153,11 @@ export function ComponentLevel({
           r.Store_SOH
         ),
         WH_Acc_Covered: coveredByStock(
+          r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
+          r.Store_SOH
+        ),
+        WH_Ratio_Acc: whRatioAccuracy(
+          c,
           r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
           r.Store_SOH
         ),
@@ -2547,9 +2631,22 @@ export function ComponentLevel({
      * can reproduce it by eye, and the two differ by about a thousandth of a
      * percent.
      */
+    /*
+     * Averaged across articles, not divided as one big total.
+     *
+     * Changed 26 Sep 2026 on request: the card now averages the New WH ACC%
+     * column beneath it, so the headline and the column agree. It used to be
+     * SUM(outbound) / SUM(forecast), which is a different question - that is
+     * the warehouse's overall fill rate, where this is how the typical article
+     * did. On 1-23 Sep the two read 92.9% and 91.7%.
+     *
+     * The quantities are still summed for the footnote, because "7.3m out vs
+     * 7.7m forecast" is worth saying and cannot be recovered from an average.
+     */
     let newFc = 0
     let newOut = 0
     let newScored = 0
+    let newAccSum = 0
     for (const r of focused) {
       const f = Number(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty)
       const c = Number(r.Consumed_Qty)
@@ -2557,8 +2654,12 @@ export function ComponentLevel({
       newFc += f
       newOut += c
       newScored += 1
+      // The row's own score, stock rule included — the same number the column
+      // shows, so the card cannot disagree with the rows it summarises.
+      const a = whRatioAccuracy(c, f, r.Store_SOH)
+      newAccSum += a === null ? 0 : a
     }
-    const newRatio = newFc > 0 ? newOut / newFc : null
+    const newRatio = newScored > 0 ? newAccSum / newScored : null
 
     return {
       newRatio,
@@ -2864,7 +2965,9 @@ export function ComponentLevel({
                 <>
                   {fmtQty(summary.newOut)} out vs {fmtQty(summary.newFc)} forecast
                   <br />
-                  {fmtInt(summary.newScored)} articles ·{' '}
+                  {/* Says what the figure IS, because it is now an average of
+                      articles rather than one big division. */}
+                  average of {fmtInt(summary.newScored)} articles ·{' '}
                   {summary.newRatio >= 1 ? 'more shipped than forecast' : 'less shipped than forecast'}
                 </>
               )
@@ -2960,13 +3063,39 @@ export function ComponentLevel({
             <ChartSkeleton height={420} />
           </div>
         ) : (
+          /*
+           * A reload over rows that are already here says so.
+           *
+           * The skeleton above only covers the first load. Changing a filter -
+           * brand, date, production type - re-fetches while the previous
+           * selection's rows are still on screen, and nothing about them said
+           * they were out of date. Reported on 26 Sep 2026: the half-loaded
+           * table was being read as the finished one.
+           */
+          <div className={`tblwrap${busy ? ' tblwrap--busy' : ''}`}>
+            {busy ? (
+              <p className="tblwrap__note" role="status">
+                <span className="tblwrap__spin" aria-hidden="true" />
+                Loading the new selection…
+              </p>
+            ) : null}
           <DataTable
             columns={columns}
             rows={banded}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search article or group…"
+            // Type three letters and pick the article, rather than typing
+            // enough of its name to be sure you have the right one.
+            suggest={{ label: 'Item', code: 'Item No.' }}
             tableId="component-detail-v2"
+            /*
+             * Any shaded section can be put away, same as Replenishment
+             * Planning. Safe without an opt-out here because the columns that
+             * identify a row - Recipe, Article, Type, Unit, Article No. - carry
+             * no group at all, so no collapse can reach them.
+             */
+            collapsibleGroups
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
             onRowClick={(row) => setUsage(row)}
@@ -3015,6 +3144,7 @@ export function ComponentLevel({
                 : {}),
             }}
           />
+          </div>
         )}
       </Panel>
       {/*

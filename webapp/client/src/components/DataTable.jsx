@@ -127,6 +127,18 @@ export function DataTable({
    * somebody a section is missing rather than empty.
    */
   collapsibleGroups = false,
+  /**
+   * Offer matching values as you type, as `{ label, code }` column keys.
+   *
+   * The search box already narrows the table, but on a few thousand articles
+   * that means typing enough of a name to be sure you have the right one, and
+   * reading the result to find out. Suggesting the actual values turns it into
+   * a choice: type three letters, see what matches, pick one.
+   *
+   * Matched on EITHER field, because an article is known by its name to one
+   * reader and by its number to another — the same rule the Picker uses.
+   */
+  suggest,
   /** Told when the hidden set changes, so a page can react to it. */
   onColumnsChange,
   /**
@@ -141,6 +153,9 @@ export function DataTable({
 }) {
   const [sort, setSort] = useState(initialSort ?? { key: columns[0]?.key, dir: 'asc' })
   const [query, setQuery] = useState('')
+  /** Which suggestion is highlighted, and whether the list is showing. */
+  const [sugOpen, setSugOpen] = useState(false)
+  const [sugAt, setSugAt] = useState(-1)
 
   /*
    * Which field the rows are folded on, and which groups are shut.
@@ -228,6 +243,62 @@ export function DataTable({
         .filter((c) => c.required || !(c.group && shutCols.has(c.group))),
     [columns, hidden, shutCols]
   )
+
+  /*
+   * What to offer for the current query.
+   *
+   * Built from `rows` rather than from the filtered set, so the list is what
+   * the data holds rather than what survived the last keystroke. Two
+   * characters before anything appears - one letter matches most of a
+   * catalogue and reads as noise - and capped at eight, because a list you
+   * have to scroll is the problem this is meant to remove.
+   */
+  const suggestions = useMemo(() => {
+    const labelKey = suggest?.label
+    if (!labelKey) return []
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) return []
+    const codeKey = suggest?.code ?? null
+    const seen = new Map()
+    for (const r of rows) {
+      const label = String(r?.[labelKey] ?? '').trim()
+      if (!label || seen.has(label)) continue
+      const code = codeKey ? String(r?.[codeKey] ?? '').trim() : ''
+      const lc = label.toLowerCase()
+      const cc = code.toLowerCase()
+      if (!lc.includes(q) && !(cc && cc.includes(q))) continue
+      /*
+       * Ranked, not taken in catalogue order.
+       *
+       * Every match is collected and then sorted, rather than stopping at the
+       * first eight: the list is alphabetical, so an exact article number or a
+       * name that starts with what you typed could sit behind eight unrelated
+       * entries and never be offered at all. `103400094` is the case - one
+       * exact match, invisible behind a cut-off.
+       *
+       * 0 an exact code, 1 a name that starts with it, 2 a code that starts
+       * with it, 3 anything else containing it. Full scan of a few thousand
+       * rows per keystroke is nothing next to the render it triggers.
+       */
+      const rank = cc === q ? 0 : lc.startsWith(q) ? 1 : cc.startsWith(q) ? 2 : 3
+      seen.set(label, { label, code, rank })
+    }
+    return [...seen.values()]
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
+      .slice(0, 8)
+  }, [rows, query, suggest])
+
+  // A new query is a new list, so last time's highlight means nothing.
+  useEffect(() => {
+    setSugAt(-1)
+  }, [query])
+
+  /** Take a suggestion: the box becomes that exact value, and the list closes. */
+  const pickSuggestion = (value) => {
+    setQuery(value)
+    setSugOpen(false)
+    setSugAt(-1)
+  }
 
   /** The visible column keys as one string, for effects that react to them. */
   const shownKey = shown.map((c) => c.key).join('|')
@@ -929,25 +1000,93 @@ export function DataTable({
             </label>
           ) : null}
           {searchable && (
+          <div className="tsearchwrap">
           <label className="tsearch">
             <IconSearch size={12} />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setSugOpen(true)
+              }}
+              onFocus={() => setSugOpen(true)}
+              /*
+               * Closed on a delay, not immediately.
+               *
+               * A click on a suggestion blurs the input before the click
+               * lands, so closing on blur removes the thing being clicked.
+               */
+              onBlur={() => setTimeout(() => setSugOpen(false), 120)}
+              onKeyDown={(e) => {
+                if (!suggestions.length || !sugOpen) {
+                  if (e.key === 'Escape') setQuery('')
+                  return
+                }
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setSugAt((i) => (i + 1) % suggestions.length)
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setSugAt((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+                } else if (e.key === 'Enter') {
+                  // Enter with nothing highlighted keeps the typed query, which
+                  // is already filtering the table - it is not an error.
+                  if (sugAt >= 0) {
+                    e.preventDefault()
+                    pickSuggestion(suggestions[sugAt].label)
+                  } else {
+                    setSugOpen(false)
+                  }
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setSugOpen(false)
+                }
+              }}
               placeholder={searchPlaceholder}
               aria-label="Search table"
+              role="combobox"
+              aria-expanded={sugOpen && suggestions.length > 0}
+              aria-autocomplete="list"
             />
             {query && (
               <button
                 type="button"
                 className="btn btn--ghost btn--icon"
-                onClick={() => setQuery('')}
+                onClick={() => {
+                  setQuery('')
+                  setSugOpen(false)
+                }}
                 aria-label="Clear table search"
               >
                 <IconClose size={10} />
               </button>
             )}
           </label>
+          {sugOpen && suggestions.length > 0 ? (
+            <ul className="tsug" role="listbox" aria-label="Matching articles">
+              {suggestions.map((sg, i) => (
+                <li key={sg.label}>
+                  <button
+                    type="button"
+                    className={`tsug__row${i === sugAt ? ' tsug__row--on' : ''}`}
+                    role="option"
+                    aria-selected={i === sugAt}
+                    // mousedown, not click: the input's blur would otherwise
+                    // close the list before a click could land.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      pickSuggestion(sg.label)
+                    }}
+                    onMouseEnter={() => setSugAt(i)}
+                  >
+                    <span className="tsug__name">{sg.label}</span>
+                    {sg.code ? <span className="tsug__code">{sg.code}</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          </div>
           )}
         </div>
       )}

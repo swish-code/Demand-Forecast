@@ -1055,10 +1055,10 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
          * table with a spinner loses the reader's scroll position and whatever
          * they were part-way through comparing.
          */
-        <div className={`replen__tbl${busy ? ' replen__tbl--busy' : ''}`}>
+        <div className={`tblwrap${busy ? ' tblwrap--busy' : ''}`}>
           {busy ? (
-            <p className="replen__busy" role="status">
-              <span className="replen__spin" aria-hidden="true" />
+            <p className="tblwrap__note" role="status">
+              <span className="tblwrap__spin" aria-hidden="true" />
               Updating for the new selection…
             </p>
           ) : null}
@@ -1068,6 +1068,7 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           totals
           initialSort={{ key: 'Req_Qty', dir: 'desc' }}
           searchPlaceholder="Search article or supplier…"
+          suggest={{ label: 'Item', code: 'Item No.' }}
           tableId="replenishment-planning-v1"
           groups={GROUPS}
           /*

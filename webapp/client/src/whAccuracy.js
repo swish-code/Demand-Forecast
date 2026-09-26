@@ -79,3 +79,42 @@ export function whAccuracy(plain, forecast, storeSoh) {
   if (plain === null || plain === undefined) return plain
   return coveredByStock(forecast, storeSoh) ? 1 : plain
 }
+
+/**
+ * The OTHER warehouse score: what shipped as a share of what was forecast.
+ *
+ *   Actual / Forecast, with the same stock rule applied first.
+ *
+ * Asked for on 26 Sep 2026 as a column of its own beside WH ACC%, and as the
+ * figure the "Outbound vs forecast" card averages.
+ *
+ * NOT the same measurement as `whAccuracy` above, and the difference matters:
+ *
+ *   WH ACC%   1 - |f - o| / MAX(f, o)   symmetric, bounded 0-1. Shipping
+ *                                       double and shipping half both score 50%.
+ *   this one  o / f                     directional and UNBOUNDED. Shipping
+ *                                       double scores 200%, shipping half 50%.
+ *
+ * So a high number here is not necessarily good - it can mean the warehouse
+ * issued far more than was predicted. Measured over 1-23 Sep: 461 of 1,467
+ * articles are above 100%, 49 are above 300%, and the largest is 2,757%.
+ *
+ * Left uncapped because that is the formula as specified. It does mean the
+ * average is pulled about by a handful of small articles with enormous ratios,
+ * and it is why applying the stock rule LOWERS the headline rather than
+ * raising it: the rule sets covered rows to exactly 100%, and many of them
+ * were above it. Averages measured on the same window:
+ *
+ *   ratio of totals (what the card did before)   92.9%
+ *   average of rows, no stock rule               95.1%
+ *   average of rows, with the stock rule         91.7%
+ */
+export function whRatioAccuracy(outbound, forecast, storeSoh) {
+  const f = Number(forecast)
+  const o = Number(outbound)
+  // No forecast, no ratio - dividing by nothing is not a score of zero.
+  if (!Number.isFinite(f) || f <= 0) return null
+  if (coveredByStock(f, storeSoh)) return 1
+  if (!Number.isFinite(o)) return null
+  return o / f
+}
