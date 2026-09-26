@@ -53,6 +53,15 @@ import { cached } from '../cache.js'
 
 const source = () => config.salesOnly?.find((b) => b.code === 'FM') ?? null
 
+/**
+ * Which operation's entries are trusted, from the sheet's `FROM` column.
+ *
+ * Confirmed on 26 Sep 2026: the central kitchen's rows are the reviewed ones.
+ * A constant rather than a config value because it is a statement about the
+ * sheet, and changing it should be a decision somebody makes on purpose.
+ */
+const SOURCE = 'CK'
+
 /** Grams are stored as grams and forecast in kilograms. */
 const GRAMS_PER_KG = 1000
 
@@ -82,9 +91,26 @@ const UNIT = /\b(PORTION|PCS|EACH|KG|GM|LOAF)\b/i
  * anything else returns null and the article simply does not round, which is
  * the safe direction to fail in.
  */
-export function readYield(rawYield, rawPackaging) {
-  const y = String(rawYield ?? '').trim()
+/**
+ * A pack size out of ONE cell, or null.
+ *
+ * Deliberately narrow. Every form it accepts is one somebody actually typed;
+ * anything else returns null and the article simply does not round, which is
+ * the safe direction to fail in.
+ */
+function quantityIn(cell, rawPackaging) {
+  const y = String(cell ?? '').trim()
   if (!y) return null
+
+  /*
+   * A dimension or a rate is not a pack size, whichever column it turns up in.
+   *
+   * `35*45 PLASTIC BAG` is centimetres. `40 gm/por` is a per-portion weight
+   * with no pack count behind it. Both contain a perfectly readable number and
+   * neither is the number being asked for, so they are refused before any
+   * pattern gets the chance to find something in them.
+   */
+  if (y.includes('*') || y.includes('/')) return null
 
   // `(24X1)` - a pack of 24. The unit is whatever ST.PACKAING says, because the
   // yield cell itself does not say.
@@ -95,7 +121,8 @@ export function readYield(rawYield, rawPackaging) {
     return { pack: n, unit: unitOf(rawPackaging) ?? 'EACH' }
   }
 
-  // `15 PCS`, `5 KG`, `150 GM`, `18 PORTION`.
+  // `15 PCS`, `5 KG`, `150 GM`, `18 PORTION` - and the revised sheet's
+  // lower-case `2.5 kg`, `500 gm`, which the /i flag already covered.
   const withUnit = y.match(/^(\d+(?:\.\d+)?)\s*(PORTION|PCS|EACH|KG|GM|LOAF)\b/i)
   if (withUnit) {
     const n = Number(withUnit[1])
@@ -107,13 +134,24 @@ export function readYield(rawYield, rawPackaging) {
   }
 
   /*
-   * A bare unit with no number - `PORTION` on its own - means "counted in
-   * portions", not "one portion per pack". No number, no rounding.
+   * A bare unit with no number - `PORTION` or `por` on its own - means
+   * "counted in portions", not "one portion per pack". No number, no rounding.
    *
    * And no fallback to "any digits anywhere": that is exactly what pulled 35
    * out of `35*45 PLASTIC BAG`.
    */
   return null
+}
+
+/**
+ * The pack size for one row, from whichever cell carries it.
+ *
+ * `YIELD %` first, because where both are filled that is the original sheet and
+ * the other cell is the container. `ST.PACKAING` second, which is where the
+ * revised sheet puts it - and where the dimension guard above earns its keep.
+ */
+export function readYield(rawYield, rawPackaging) {
+  return quantityIn(rawYield, rawPackaging) ?? quantityIn(rawPackaging, rawPackaging)
 }
 
 /** A unit out of ST.PACKAING, ignoring anything that looks like a dimension. */
@@ -174,6 +212,7 @@ export async function packByArticle() {
       `EVALUATE
 SUMMARIZECOLUMNS(
   'STD PKG'[Article No.],
+  'STD PKG'[FROM],
   'STD PKG'[ST.PACKAING],
   'STD PKG'[YIELD %]
 )`,
@@ -181,14 +220,37 @@ SUMMARIZECOLUMNS(
       { bulk: true, workspace: fm.workspaceId || undefined }
     )
 
+    /*
+     * Only the rows the central kitchen maintains.
+     *
+     * The sheet gained a `FROM` column on 26 Sep 2026 saying which operation an
+     * entry came from - CK 517 rows, BK 53, FCT 14 - and the business confirmed
+     * that the CK entries are the reviewed ones. The others are left alone
+     * rather than trusted: an unreviewed pack size does not rescue an article
+     * that would otherwise show its plain forecast, and it can silently inflate
+     * an order.
+     *
+     * This also settles the duplicates deterministically. Three articles carry
+     * two rows each - 106400920, 106400921 and 106400662 - one CK with a real
+     * quantity and one FCT with a bare `KG`. Without the filter the winner is
+     * whichever row the query returns last, which is nothing anybody chose.
+     */
     const out = new Map()
+    let skippedSource = 0
     for (const r of rows) {
       const article = String(r['Article No.'] ?? '').trim()
       if (!article) continue
+      if (String(r.FROM ?? '').trim().toUpperCase() !== SOURCE) {
+        skippedSource += 1
+        continue
+      }
       const parsed = readYield(r['YIELD %'], r['ST.PACKAING'])
       if (!parsed) continue
       out.set(article, parsed)
     }
+    console.log(
+      `  [std-pkg] ${rows.length} rows, ${skippedSource} not ${SOURCE}, ${out.size} usable pack sizes`
+    )
     return out.size ? out : null
   })
 }

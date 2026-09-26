@@ -1,9 +1,9 @@
 table 'STD PKG'
-	lineageTag: 1fc597bb-971c-4018-94af-54da8d47dd74
+	lineageTag: 51eba8c3-9dff-4fc4-a67e-fe4b6d1642be
 
 	column 'Item Group'
 		dataType: string
-		lineageTag: b375a266-c7d5-4dfc-8248-4affd347e7e0
+		lineageTag: d264ffec-8646-4ad6-850d-06a5bccb3506
 		summarizeBy: none
 		sourceColumn: Item Group
 
@@ -12,7 +12,7 @@ table 'STD PKG'
 	column 'Article No.'
 		dataType: int64
 		formatString: 0
-		lineageTag: efbec00f-ff13-4b42-8eee-00b735f52f70
+		lineageTag: d155b07e-3439-4ff5-a17e-82163ca6d836
 		summarizeBy: sum
 		sourceColumn: Article No.
 
@@ -20,7 +20,7 @@ table 'STD PKG'
 
 	column Article
 		dataType: string
-		lineageTag: 213991a1-4bf8-4388-85e2-3de0bf84d3cb
+		lineageTag: b3841bd9-7c68-480d-b3e7-10d6c260b5d5
 		summarizeBy: none
 		sourceColumn: Article
 
@@ -28,7 +28,7 @@ table 'STD PKG'
 
 	column 'ARTICLE TYPE'
 		dataType: string
-		lineageTag: 77811e9c-1791-4a03-a7c0-c11376cfbbb9
+		lineageTag: d88f2e62-4919-41d5-a9d9-9f37ea8ef766
 		summarizeBy: none
 		sourceColumn: ARTICLE TYPE
 
@@ -36,7 +36,7 @@ table 'STD PKG'
 
 	column 'IS ACTIVE'
 		dataType: string
-		lineageTag: 7d977db3-eab5-43a6-91f0-9da4c1cde99d
+		lineageTag: 56b63193-2eb2-4370-b876-ec8898672b7e
 		summarizeBy: none
 		sourceColumn: IS ACTIVE
 
@@ -44,7 +44,7 @@ table 'STD PKG'
 
 	column 'ST.PACKAING'
 		dataType: string
-		lineageTag: 17532924-a352-430e-b049-0d6471f38442
+		lineageTag: 03b751ac-2a01-409f-9d92-55c93f9c2f08
 		summarizeBy: none
 		sourceColumn: ST.PACKAING
 
@@ -52,7 +52,7 @@ table 'STD PKG'
 
 	column 'YIELD %'
 		dataType: string
-		lineageTag: d8c9f921-b798-4726-a2b8-bd4d0526a3c5
+		lineageTag: f1ea3fa5-3f34-42f9-87c1-7f9d14032e4a
 		summarizeBy: none
 		sourceColumn: YIELD %
 
@@ -60,9 +60,25 @@ table 'STD PKG'
 
 	column 'STORAGE TYPE'
 		dataType: string
-		lineageTag: 8b4326f8-d0e9-4f17-b6f6-0a5fd525b538
+		lineageTag: cae23e5c-f2ec-4e94-a7b4-54075b311a7f
 		summarizeBy: none
 		sourceColumn: STORAGE TYPE
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'SAFETY STOCK'
+		dataType: string
+		lineageTag: ca2d052c-7ef4-41fa-9695-0c95fcf3519a
+		summarizeBy: none
+		sourceColumn: SAFETY STOCK
+
+		annotation SummarizationSetBy = Automatic
+
+	column FROM
+		dataType: string
+		lineageTag: fd9e3562-0d2b-4703-8a64-63739eb465b9
+		summarizeBy: none
+		sourceColumn: FROM
 
 		annotation SummarizationSetBy = Automatic
 

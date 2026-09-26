@@ -38,6 +38,7 @@ import {
   Pill,
 } from '../components/ui.jsx'
 import { W } from '../columns.js'
+import { whAccuracy } from '../whAccuracy.js'
 
 /**
  * The accuracy bands, and the one measure they are cut on.
@@ -417,7 +418,13 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
          * twice the other scores 50%, and a real forecast against nothing
          * issued scores 0%. Blank only where there is nothing to compare.
          */
-        WH_Accuracy: measured && Math.max(o, f) > 0 ? 1 - Math.abs(f - o) / Math.max(o, f) : null,
+        // Then the stock rule on top: shops already holding twice the forecast
+        // means not shipping was right. See `whAccuracy.js`.
+        WH_Accuracy: whAccuracy(
+          measured && Math.max(o, f) > 0 ? 1 - Math.abs(f - o) / Math.max(o, f) : null,
+          f,
+          r.Store_SOH
+        ),
       }
     })
   }, [rows])

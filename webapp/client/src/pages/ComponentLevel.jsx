@@ -7,6 +7,7 @@ import { averageScore, weightedScore } from '../scores.js'
 import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } from '../components/ui.jsx'
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
+import { whAccuracy, coveredByStock } from '../whAccuracy.js'
 import { ArticleUsage } from '../components/ArticleUsage.jsx'
 import { ArticleFinder } from '../components/ArticleFinder.jsx'
 import ReplenishmentPlanning from '../components/ReplenishmentPlanning.jsx'
@@ -547,13 +548,31 @@ const COLUMNS = [
     autoWidth: true,
     num: true,
     group: 'wh',
-    render: (v) =>
+    hint:
+      'How close the warehouse forecast was to what actually shipped: 1 - |forecast - outbound| / the larger of the two. From 26 Sep 2026 a row also scores 100% when the shops already held at least twice the forecast, because not shipping was then the correct outcome — those rows are marked, since a stock-driven 100% is not the same claim as an accurate forecast.',
+    render: (v, r) =>
       v === null || v === undefined ? (
         <span
           className="muted"
           title="No warehouse forecast for this article, or nothing measured to compare it against."
         >
           –
+        </span>
+      ) : r?.WH_Acc_Covered ? (
+        /*
+         * Marked, not hidden.
+         *
+         * Four rows in five meet the stock condition, so without a mark the
+         * column would read as a near-perfect forecast everywhere and nobody
+         * could tell which figures were earned. The dot says "this 100% came
+         * from the shops being stocked, not from the forecast being right".
+         */
+        <span
+          className="wh-acc--stock"
+          title="Scored 100% because the shops already held at least twice this forecast, so the warehouse was right not to ship. This is not a measure of how accurate the forecast was."
+        >
+          {fmtPct(v, 1)}
+          <span aria-hidden="true"> •</span>
         </span>
       ) : (
         fmtPct(v, 1)
@@ -1830,7 +1849,17 @@ export function ComponentLevel({
          * two blanks. Folding the rows recomputes the score from the summed
          * columns, so the grouped view is unaffected.
          */
-        WH_Accuracy: carriesWarehouse ? score(held?.wh ?? null) : null,
+        /*
+         * The stock rule is applied on top of the ordinary score: where the
+         * shops already hold twice what was forecast, not shipping was right
+         * and the forecast is not marked down for it. See `whAccuracy.js` for
+         * what this does to the figure and the argument against it.
+         */
+        WH_Accuracy: carriesWarehouse
+          ? whAccuracy(score(held?.wh ?? null), held?.wh ?? null, r.Store_SOH)
+          : null,
+        // So the column can say WHY a row reads 100%.
+        WH_Acc_Covered: carriesWarehouse && coveredByStock(held?.wh ?? null, r.Store_SOH),
         /*
          * Both sides present, or nothing at all.
          *
@@ -2037,7 +2066,17 @@ export function ComponentLevel({
             ? null
             : rescore(Number(r.Component_Forecast_Qty) || 0),
         // Unrounded, for the same reason `held.wh` is: see `priced` above.
-        WH_Accuracy: rescore(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty),
+        // The stock rule uses the folded row's own summed Store SOH, so a
+        // group is judged on the stock of the articles actually in it.
+        WH_Accuracy: whAccuracy(
+          rescore(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty),
+          r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
+          r.Store_SOH
+        ),
+        WH_Acc_Covered: coveredByStock(
+          r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
+          r.Store_SOH
+        ),
         /*
          * Re-divided on the folded row's own totals, not carried over: a merged
          * row shows summed outbound against summed forecast, so its ratio has

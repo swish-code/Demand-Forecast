@@ -8782,3 +8782,8 @@ table.dt tfoot td.dt__frz { z-index: 3; }
   border-color: var(--accent);
   background: var(--green-tint);
 }
+
+/* A WH ACC% of 100% that came from the stock rule rather than from the
+   forecast being right. Muted rather than coloured: it is a caveat on the
+   number, not a status, and it appears on roughly four rows in five. */
+.wh-acc--stock { color: var(--text-muted); }

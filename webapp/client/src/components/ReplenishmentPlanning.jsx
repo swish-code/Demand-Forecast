@@ -39,6 +39,7 @@ import { IconDownload } from '../components/Icons.jsx'
 import { planFor, windowDays } from '../replenishment.js'
 import { downloadXlsx } from '../xlsx.js'
 import { planningSheets } from '../replenishmentXlsx.js'
+import { whAccuracy } from '../whAccuracy.js'
 
 /**
  * A planning date, with its year.
@@ -559,58 +560,6 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
     ]
   }).flat(),
 
-  /*
-   * The three figures from the third screenshot. Kept in their own group
-   * because New ACC% is a coverage RATIO, not an accuracy score, and must not
-   * be read alongside the ACC% column on its left.
-   */
-  {
-    key: 'Total_SOH',
-    label: 'Total SOH',
-    hint:
-      'Everything the warehouse has had available across the selected dates: stock on hand, plus what is on order, plus what it has already issued.',
-    autoWidth: true,
-    num: true,
-    group: 'planbuffered',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v) =>
-      v === null
-        ? dash('No stock reading and no outbound.')
-        : <span title="Warehouse SOH + Pending Qty + Outbound — everything the warehouse has had available across the range.">{fmtQty(v)}</span>,
-  },
-  {
-    key: 'New_WH_Forecast',
-    label: 'New WH Forecast',
-    hint:
-      'The requirement with the safety buffer added: WH Forecast + SS Qty. A test figure — the live forecast is unchanged.',
-    autoWidth: true,
-    num: true,
-    group: 'planbuffered',
-    total: 'sum',
-    renderTotal: fmtQty,
-    render: (v) =>
-      v === null
-        ? dash('No warehouse forecast for this range.')
-        : <span title="WH Forecast + SS Qty. A test figure — the live forecast is unchanged.">{fmtQty(v)}</span>,
-  },
-  {
-    key: 'New_ACC',
-    label: 'New ACC%',
-    hint:
-      'How much of that buffered requirement is covered: Total SOH ÷ New WH Forecast. A coverage ratio, so it can go above 100% — it is not an accuracy score and does not compare with ACC%.',
-    width: 106,
-    num: true,
-    group: 'planbuffered',
-    render: (v) =>
-      v === null ? (
-        dash('Needs a buffered forecast above zero.')
-      ) : (
-        <span title="Total SOH ÷ New WH Forecast. A coverage ratio, so it can exceed 100% — not comparable with the ACC% column.">
-          {fmtPct(v)}
-        </span>
-      ),
-  },
 ]
 
 /*
@@ -676,9 +625,6 @@ const FORMULAS = {
   D2_Date:
     'TODAY + ((1st delivery qty / Per day qty) + DTL - SS days). Blank when there is no second delivery',
   D2_Qty: 'Req Qty / Delivery Freq',
-  Total_SOH: 'SOH + Pending Qty + Outbound',
-  New_WH_Forecast: 'WH Forecast + SS Qty. A test figure - the live WH Forecast is unchanged',
-  New_ACC: 'Total SOH / New WH Forecast. A coverage ratio, so it can exceed 100%',
 }
 
 /**
@@ -874,28 +820,6 @@ const GROUPS = {
       },
     ],
   },
-  planbuffered: {
-    label: 'Buffered view',
-    help: [
-      {
-        term: 'Total SOH',
-        text: 'Everything the warehouse has had available across the range.',
-        formula: 'SOH + Pending Qty + Outbound',
-      },
-      {
-        term: 'New WH Forecast',
-        text: 'The requirement with the buffer added. A test figure - the live warehouse forecast is unchanged by it.',
-        formula: 'WH Forecast + SS Qty',
-      },
-      {
-        term: 'New ACC%',
-        text: 'How much of that buffered requirement is covered. A COVERAGE RATIO, not an accuracy score.',
-        formula: 'Total SOH / New WH Forecast',
-        example:
-          'It can exceed 100%, which is why it is not comparable with the ACC% or WH ACC% columns and sits in its own group.',
-      },
-    ],
-  },
 }
 
 /**
@@ -982,8 +906,12 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
       return {
         ...r,
         ...plan,
-        WH_Accuracy:
+        // Stock rule on top, same as the other tables — see `whAccuracy.js`.
+        WH_Accuracy: whAccuracy(
           bigger === null || bigger <= 0 ? null : 1 - Math.abs(Number(f) - Number(c)) / bigger,
+          f,
+          r.Store_SOH
+        ),
       }
     })
   }, [rows, filters?.dateFrom, filters?.dateTo, today])
@@ -1030,7 +958,6 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
         'plan-reqdate',
         'plan-d1',
         'plan-d2',
-        'plan-buffered',
       ].join(',')}
       title="Replenishment Planning"
       count={busy ? undefined : `${planned.length.toLocaleString()} articles`}

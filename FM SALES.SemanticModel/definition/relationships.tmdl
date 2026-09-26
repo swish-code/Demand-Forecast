@@ -53,3 +53,33 @@ relationship 52e58c60-5011-465b-ae19-558fd2bab56f
 	fromColumn: 'Replan Planning'.'MTD OOS'
 	toColumn: LocalDateTable_36c6ce2d-9637-4ba7-bead-0aefad40477b.Date
 
+relationship 3c12e75a-1db3-4d16-bd3f-f4823cb96706
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 1'
+	toColumn: LocalDateTable_73cba80f-558f-4ba2-9e96-97c17e275e7c.Date
+
+relationship 5707ea4e-b745-475e-b105-4b479efd29b5
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 2'
+	toColumn: LocalDateTable_16637335-25a7-415b-9655-4767ec81eee6.Date
+
+relationship d3239ad7-865f-4160-a6b6-1bbcc021aaf5
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 3'
+	toColumn: LocalDateTable_1e51eb16-2a0b-41fa-adc7-099ffab25268.Date
+
+relationship b3ce3ef6-2a39-4d72-acac-77160b7b32cb
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 4'
+	toColumn: LocalDateTable_3fa1cf1e-5071-41ba-9ca9-5d02f526bcf3.Date
+
+relationship ce9c3847-bbab-4db0-9935-765d9247225a
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 5'
+	toColumn: LocalDateTable_ee76e2f4-1264-438f-9546-edcf12aca00c.Date
+
+relationship c60b53ba-7bd2-4132-916e-6656abcd6e84
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Replan Planning'.'Delivery Date 6'
+	toColumn: LocalDateTable_8f7e77c9-4650-4837-962e-6d8a5e32c02a.Date
+
