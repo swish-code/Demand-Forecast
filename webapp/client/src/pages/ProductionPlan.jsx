@@ -239,6 +239,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         </div>
 
         <Panel
+          busy={busy}
           title="Tomorrow's prep vs recent actual"
           sub={byProduct.length ? `Top ${byProduct.length} products by tomorrow's volume` : undefined}
           tools={
@@ -270,6 +271,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
       </div>
 
       <Panel
+        busy={busy}
         title="Production plan"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub={
@@ -326,6 +328,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           the patterns behind the list are what you read afterwards. */}
       <div className="grid2">
         <Panel
+          busy={busy}
           title={`How ${tomorrowLean ? 'each weekday' : 'weekdays'} usually run`}
           sub={
             contextLoading
@@ -345,6 +348,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         </Panel>
 
         <Panel
+          busy={busy}
           title="How each branch has been running"
           sub={
             contextLoading
@@ -367,6 +371,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
       </div>
 
       <Panel
+        busy={busy}
         title="Prep pressure by branch"
         sub="Products on tomorrow's plan, split by which way demand has moved · busiest change first"
         tools={

@@ -982,6 +982,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title="Can we reach 85%?"
         sub="What the target is up against, measured on the articles currently being scored"
       >
@@ -1118,6 +1119,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </div>
 
       <Panel
+        busy={loading}
         title="What makes the difference"
         sub="How many articles are forecast well, grouped four ways. Click any bar to see them."
       >
@@ -1155,6 +1157,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title="Article status"
         sub={
           'Every article by how long since the warehouse last issued it' +
@@ -1185,6 +1188,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
 
       {pat ? (
         <Panel
+          busy={loading}
           title="How often articles actually ship"
           sub={`Measured over the ${pat.weeks} weeks to ${pat.to}, across ${fmtInt(pat.articles)} articles the warehouse issued in that time`}
         >
@@ -1264,6 +1268,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
 
       {pat?.weekday ? (
         <Panel
+          busy={loading}
           title="Which days articles ship on"
           sub="Spreading a forecast evenly across the week guarantees a miss when an article only ships on one day"
         >
@@ -1315,6 +1320,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       ) : null}
 
       <Panel
+        busy={loading}
         title="Articles that are naturally hard to forecast"
         count={hardRows.length}
         sub="Not a forecasting mistake — these articles move too much from month to month for any forecast to follow"
@@ -1419,6 +1425,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title={pick ? `Articles — ${pick.label}` : 'All articles'}
         count={shown.length}
         sub={
@@ -1458,6 +1465,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title="What to fix"
         count={open.length}
         sub="Only problems that are still present. Anything fixed drops off this list on its own."
@@ -1502,6 +1510,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title="What we tested and ruled out"
         count={RULED_OUT.length}
         sub="Sensible theories that were measured and did not hold — kept so they are not proposed again"
@@ -1531,6 +1540,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={loading}
         title="The plan to 85%"
         count={ROUTE.filter((r) => r.state !== 'done').length}
         sub="What to do, in the priority agreed on 8 September — with what is already finished marked as such"

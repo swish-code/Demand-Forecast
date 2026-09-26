@@ -198,6 +198,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
       </MetricFlow>
 
       <Panel
+        busy={busy}
         title="Products detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub={

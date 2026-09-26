@@ -4802,6 +4802,15 @@ table.dt td.dt--whstock {
   background: color-mix(in srgb, #dc2626 6%, var(--surface));
 }
 
+/* The two variance columns and their score, grouped on 26 Sep 2026 so the
+   section can be collapsed. Violet at the same 3.5% as the other faint blocks,
+   which is the only hue not already spoken for — green is the product mix,
+   blue the store, red the warehouse stock. */
+table.dt th.dt--variance,
+table.dt td.dt--variance {
+  background: color-mix(in srgb, #7c3aed 3.5%, var(--surface));
+}
+
 /* --- Replenishment Planning ------------------------------------------------
 
    Asked for on 16 Sep 2026: the same treatment Article Detail has, so the five
@@ -4913,6 +4922,7 @@ table.dt tbody tr:hover td.dt--wh,
 table.dt tbody tr:hover td.dt--stock,
 table.dt tbody tr:hover td.dt--repl,
 table.dt tbody tr:hover td.dt--whstock,
+table.dt tbody tr:hover td.dt--variance,
 table.dt tbody tr:hover td.dt--planneed,
 table.dt tbody tr:hover td.dt--planstock,
 table.dt tbody tr:hover td.dt--planorder,
@@ -8726,10 +8736,14 @@ table.dt td.dt__frz--last {
  * is still worth hovering for its tooltip.
  */
 .tblwrap { position: relative; }
-.tblwrap--busy table.dt {
+.tblwrap--busy table.dt,
+/* A panel dims everything it holds — charts, legends, stat rows — except the
+   note itself, which has to stay readable to do its job. */
+.panel__body.tblwrap--busy > *:not(.tblwrap__note) {
   opacity: .45;
   transition: opacity .15s ease;
 }
+.panel__body.tblwrap--busy > *:not(.tblwrap__note) { pointer-events: none; }
 /* Nothing in the stale table may be clicked: acting on a figure that is being
    replaced is the one mistake the dimming is meant to prevent. */
 .tblwrap--busy table.dt tbody tr { pointer-events: none; }

@@ -618,6 +618,7 @@ export function SalesPlan() {
               <DataTable
                 columns={forecastColumns}
                 rows={shownRows}
+                busy={rowsBusy}
                 tableId={`salesplan-${level}`}
                 initialSort={{ key: 'forecastQty', dir: 'desc' }}
                 totals

@@ -675,6 +675,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </div>
 
       <Panel
+        busy={busy}
         calc="wh-forecast,outbound"
         title="WH forecast against outbound"
         sub="Daily. Bars are what actually left the warehouse; the line is what the six-month rate expected. Follows the slicers above."
@@ -720,6 +721,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={busy}
         title="Sales run rate"
         sub="Total sales value across every brand, month by month. This is the warehouse forecast's own denominator — every WH figure is the rate times this number. Last 12 months, regardless of the date slicer."
       >
@@ -828,6 +830,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={busy}
         title="Stock on hand against what left"
         sub="Weekly. How much of the stock it was holding the typical article shipped — 100% means it shipped exactly what it held. Follows the date slicer."
       >
@@ -944,6 +947,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <Panel
+        busy={busy}
         calc="wh-acc,wh-forecast,outbound"
         title="WH ACC% over time"
         sub="Each day scored the way an article is: symmetric, against the larger of forecast and outbound. A day with neither is left out rather than scored zero."
@@ -991,6 +995,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
 
       <div className="whgrid">
         <Panel
+          busy={busy}
           calc="bands,wh-acc"
           title="WH accuracy groups"
           sub="Articles by WH ACC%. Click a band to narrow the cards, the lists and the table to it."
@@ -1055,6 +1060,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         </Panel>
 
         <Panel
+          busy={busy}
           calc="supply,wh-forecast,outbound"
           title="Warehouse against direct supply"
           sub="Direct supply reaches the CPU or the branch without passing through the warehouse, so it has no outbound by definition. That is the answer, not a gap."
@@ -1115,6 +1121,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
 
       <div id="wh-article-detail" />
       <Panel
+        busy={busy}
         calc="wh-forecast,outbound,wh-acc,variance,supply"
         title={
           band

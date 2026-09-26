@@ -41,7 +41,15 @@ export function KpiCard({ label, value, foot, accent = 'slate', tint, progress, 
  * formulas it is built from cannot drift apart: moving the panel moves the
  * attribute with it, and deleting the panel deletes the claim.
  */
-export function Panel({ title, count, sub, tools, children, flush, fill, calc }) {
+/**
+ * `busy` dims the panel's body and names the state.
+ *
+ * The same treatment DataTable gives a reloading table, available to anything
+ * a panel holds - charts especially, which otherwise sit showing the previous
+ * selection with nothing to say they are out of date. First loads still use a
+ * skeleton; this is for the reloads that come after.
+ */
+export function Panel({ title, count, sub, tools, children, flush, fill, calc, busy }) {
   return (
     <section className={`panel${fill ? ' panel--fill' : ''}`} data-calc={calc || undefined}>
       <header className="panel__head">
@@ -54,7 +62,17 @@ export function Panel({ title, count, sub, tools, children, flush, fill, calc })
         </div>
         {tools ? <div className="panel__tools">{tools}</div> : null}
       </header>
-      <div className={`panel__body${flush ? ' panel__body--flush' : ''}`}>{children}</div>
+      <div
+        className={`panel__body${flush ? ' panel__body--flush' : ''}${busy ? ' tblwrap tblwrap--busy' : ''}`}
+      >
+        {busy ? (
+          <p className="tblwrap__note" role="status">
+            <span className="tblwrap__spin" aria-hidden="true" />
+            Loading…
+          </p>
+        ) : null}
+        {children}
+      </div>
     </section>
   )
 }

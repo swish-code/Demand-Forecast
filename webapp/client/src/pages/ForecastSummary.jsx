@@ -501,6 +501,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
       {/* Demand tracking carries the most detail, so it gets the wider column. */}
       <div className="grid2 grid2--wide">
         <Panel
+          busy={busy}
             title="Demand tracking"
             sub={
               busy
@@ -539,6 +540,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           </Panel>
 
         <Panel
+          busy={busy}
             title="Gap contributors"
             count={busy ? undefined : `${gapPareto.length} products`}
             sub={
@@ -572,6 +574,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
 
       <div className="grid2">
         <Panel
+          busy={busy}
             title="Rolling 7-day accuracy"
             sub={
               busy
@@ -591,6 +594,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           </Panel>
 
         <Panel
+          busy={busy}
             title="Accuracy by day of week"
             sub={
               busy
@@ -612,6 +616,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
 
       <div className="grid2">
         <Panel
+          busy={busy}
             title="Products by quantity"
             count={busy ? undefined : `${productRows.length.toLocaleString()} products`}
             sub="Scroll for the full list · click a bar to open it in Product Level"
@@ -637,6 +642,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           </Panel>
 
         <Panel
+          busy={busy}
             title="By location"
             count={busy ? undefined : `${locationRows.length} branches`}
             sub={

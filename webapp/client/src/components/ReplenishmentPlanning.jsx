@@ -1042,29 +1042,10 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           <ChartSkeleton height={320} />
         </div>
       ) : (
-        /*
-         * A refresh says so, rather than leaving the old figures looking current.
-         *
-         * The skeleton above only covers the FIRST load. Changing the date range
-         * or the brand re-fetches while rows are already on screen, and those
-         * rows are the previous window's - so for as long as the request runs the
-         * table is showing numbers that no longer match the controls. Dimming it
-         * and naming the state is the difference between "stale" and "wrong".
-         *
-         * The rows stay readable and interactive on purpose: replacing a full
-         * table with a spinner loses the reader's scroll position and whatever
-         * they were part-way through comparing.
-         */
-        <div className={`tblwrap${busy ? ' tblwrap--busy' : ''}`}>
-          {busy ? (
-            <p className="tblwrap__note" role="status">
-              <span className="tblwrap__spin" aria-hidden="true" />
-              Updating for the new selection…
-            </p>
-          ) : null}
         <DataTable
           columns={columns}
           rows={planned}
+          busy={busy}
           totals
           initialSort={{ key: 'Req_Qty', dir: 'desc' }}
           searchPlaceholder="Search article or supplier…"
@@ -1103,7 +1084,6 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
            */
           maxHeight={520}
         />
-        </div>
       )}
     </Panel>
   )

@@ -781,6 +781,7 @@ const COLUMNS = [
   {
     key: 'Forecast_Variance',
     label: 'Forecast variance',
+    group: 'variance',
     autoWidth: true,
     num: true,
     total: 'sum',
@@ -802,6 +803,7 @@ const COLUMNS = [
   {
     key: 'Actual_Variance',
     label: 'Actual variance',
+    group: 'variance',
     autoWidth: true,
     num: true,
     total: 'sum',
@@ -846,6 +848,7 @@ const COLUMNS = [
   {
     key: 'Actual_Accuracy',
     label: 'Actual ACC%',
+    group: 'variance',
     autoWidth: true,
     num: true,
     hint:
@@ -1450,6 +1453,23 @@ function BandChart({ label, bands, counts, active, total, onPick }) {
  * is here so a reader can settle a question without leaving the table.
  */
 const HELP = {
+  variance: [
+    {
+      term: 'Forecast variance',
+      text: 'How far apart the two FORECASTS are. Positive means the recipe explosion asks for more than the warehouse’s own history does.',
+      formula: 'Forecast qty − WH forecast',
+    },
+    {
+      term: 'Actual variance',
+      text: 'How far apart the two MEASUREMENTS are: sales exploded through the recipes, against what the warehouse really issued.',
+      formula: 'Actual qty − Outbound',
+    },
+    {
+      term: 'Actual ACC%',
+      text: 'How closely those two measurements agree. It judges the recipes and the outbound data against each other — not the forecast.',
+      formula: '1 − |Actual qty − Outbound| / MAX(Actual qty, Outbound)',
+    },
+  ],
   whstock: [
     {
       term: 'WH opening',
@@ -3063,25 +3083,10 @@ export function ComponentLevel({
             <ChartSkeleton height={420} />
           </div>
         ) : (
-          /*
-           * A reload over rows that are already here says so.
-           *
-           * The skeleton above only covers the first load. Changing a filter -
-           * brand, date, production type - re-fetches while the previous
-           * selection's rows are still on screen, and nothing about them said
-           * they were out of date. Reported on 26 Sep 2026: the half-loaded
-           * table was being read as the finished one.
-           */
-          <div className={`tblwrap${busy ? ' tblwrap--busy' : ''}`}>
-            {busy ? (
-              <p className="tblwrap__note" role="status">
-                <span className="tblwrap__spin" aria-hidden="true" />
-                Loading the new selection…
-              </p>
-            ) : null}
           <DataTable
             columns={columns}
             rows={banded}
+            busy={busy}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search article or group…"
@@ -3124,6 +3129,17 @@ export function ComponentLevel({
               fcst: { label: 'Product mix', help: HELP.fcst },
               wh: { label: 'Warehouse', help: HELP.wh },
               /*
+                * The two comparisons and their score, given a heading of their
+                * own on 26 Sep 2026 so the section can be collapsed.
+                *
+                * They were ungrouped, which meant permanently on screen: the
+                * collapse control works per shaded group, and a column with no
+                * group belongs to none. Grouping them is what makes them
+                * optional, and they read as a set anyway - both variances and
+                * the score derived from the second one.
+                */
+              variance: { label: 'Variance', help: HELP.variance },
+              /*
                 * "Stock", renamed 16 Sep 2026.
                 *
                 * It was "Warehouse stock" while every column under it was the
@@ -3144,7 +3160,6 @@ export function ComponentLevel({
                 : {}),
             }}
           />
-          </div>
         )}
       </Panel>
       {/*

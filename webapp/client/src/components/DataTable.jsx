@@ -139,6 +139,16 @@ export function DataTable({
    * reader and by its number to another — the same rule the Picker uses.
    */
   suggest,
+  /**
+   * The table is reloading over rows it already has.
+   *
+   * Every page has a `busy` flag already and every one of them used it the
+   * same way: a skeleton on the FIRST load, and nothing at all afterwards - so
+   * changing a filter left the previous selection's rows on screen looking
+   * finished. Handling it here rather than in each page means one behaviour
+   * everywhere and one line per caller.
+   */
+  busy = false,
   /** Told when the hidden set changes, so a page can react to it. */
   onColumnsChange,
   /**
@@ -939,7 +949,13 @@ export function DataTable({
   ) : null
 
   return (
-    <>
+    <div className={`tblwrap${busy ? ' tblwrap--busy' : ''}`}>
+      {busy ? (
+        <p className="tblwrap__note" role="status">
+          <span className="tblwrap__spin" aria-hidden="true" />
+          Loading…
+        </p>
+      ) : null}
       {(searchable || picker || groupable?.length || freezeMax > 0) && (
         <div className="tbar">
           <div className="pager__spacer" />
@@ -1511,6 +1527,6 @@ export function DataTable({
           </button>
         </div>
       )}
-    </>
+    </div>
   )
 }

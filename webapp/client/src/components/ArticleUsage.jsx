@@ -321,6 +321,7 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
               <DataTable
                 columns={COLUMNS}
                 rows={tableRows}
+                busy={loading}
                 tableId="article-usage"
                 // The dialog decides the height now — see `.modal__card--wide`
                 // — so this only stops it growing past the space it was given.
