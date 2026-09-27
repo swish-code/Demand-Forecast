@@ -73,6 +73,74 @@ const COLUMNS = [
     },
     renderTotal: (v) => fmtSignedPct(v),
   },
+  {
+    /*
+     * Forecast accuracy per product, as the report's own measure defines it.
+     *
+     *   IF actual = 0    -> blank
+     *   IF forecast = 0  -> blank
+     *   otherwise        -> 1 - |actual - forecast| / actual
+     *
+     * Divided by ACTUAL, not by the larger of the two, because that is what the
+     * DAX does - so this column and the report agree rather than being two
+     * defensible answers to the same question.
+     *
+     * Two consequences worth knowing. It is UNBOUNDED BELOW: a product that
+     * sold 1 against a forecast of 8 scores -600%, and real rows do this. And
+     * both zero cases are blank rather than 0% or 100% - a product that sold
+     * nothing has no accuracy to report, and neither has one nobody forecast.
+     */
+    key: 'Accuracy_Pct',
+    label: 'Accuracy %',
+    width: W.pct,
+    num: true,
+    render: (v, row) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title={
+            Number(row?.Actual_Qty)
+              ? 'Nothing was forecast for this product in the selected range.'
+              : 'Nothing sold for this product in the selected range, so there is no accuracy to measure.'
+          }
+        >
+          –
+        </span>
+      ) : (
+        <span>{fmtPct(v)}</span>
+      ),
+    /*
+     * The footer applies the same measure to the column's totals, which is what
+     * the DAX would evaluate at a grand total row - and it reconciles with the
+     * Actual qty and Forecast qty totals directly above it.
+     */
+    /*
+     * Volume weighted, so the footer and the card are one figure.
+     *
+     * Each product's own score, weighted by what it actually sold: a product
+     * moving 10,000 units counts two thousand times a product moving 5. It was
+     * the measure applied to the totals, which is a different question and gave
+     * a different number in the same view.
+     *
+     * Weighted by ACTUAL, never by the forecast - weighting by the forecast
+     * would let the thing being judged decide how much it counts. That is the
+     * rule WH ACC% follows with `Consumed_Qty`.
+     */
+    total: (rows) => {
+      let w = 0
+      let sum = 0
+      for (const r of rows) {
+        const v = r.Accuracy_Pct
+        if (v === null || v === undefined) continue
+        const a = Number(r.Actual_Qty) || 0
+        if (!(a > 0)) continue
+        w += a
+        sum += a * v
+      }
+      return w > 0 ? sum / w : null
+    },
+    renderTotal: (v) => (v === null ? '–' : fmtPct(v)),
+  },
 ]
 
 /** Mirrors the report's PRODUCT LEVEL page. */
@@ -112,7 +180,39 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
   const kpis = data?.kpis ?? {}
-  const rows = data?.rows ?? []
+  /*
+   * Accuracy is computed onto the row, not only in the cell's renderer.
+   *
+   * It was render-only, so the table showed it and the CSV exported an empty
+   * column: `downloadCsv` reads `row[key]`, and there was no such key. Anything
+   * that has to leave the screen - the export, a sort, a search - needs the
+   * value on the row rather than inside the render.
+   *
+   * Same measure as the report: blank when either side is zero, otherwise
+   * 1 - |actual - forecast| / actual.
+   */
+  const rows = useMemo(() => {
+    const src = data?.rows ?? []
+    return src.map((r) => {
+      const a = Number(r.Actual_Qty) || 0
+      const f = Number(r.Forecast_Qty) || 0
+      /*
+       * Divided by the LARGER of the two, from 27 Sep 2026.
+       *
+       * It divided by actual, which read the same gap two different ways
+       * depending on its direction and sent products with a tiny actual to
+       * absurd negatives - 1 sold against a forecast of 8 scored -600%.
+       * Dividing by MAX means the gap can never exceed the denominator, so the
+       * score is bounded 0-1 by construction: nothing needs flooring and
+       * nothing runs off the scale.
+       *
+       * The same formula WH ACC% uses, and for the same reason - see the note
+       * on `score` in ComponentLevel.jsx, where this was settled first.
+       */
+      const bigger = Math.max(a, f)
+      return { ...r, Accuracy_Pct: a && f ? 1 - Math.abs(a - f) / bigger : null }
+    })
+  }, [data])
   const comparedWith = data?.comparedWith
   const busy = loading || !ready
 
@@ -128,7 +228,10 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
    * no figure; the column goes with it rather than standing empty.
    */
   const drop = [
-    ...(future ? ['Actual_Qty', 'Variance_Qty', 'Variance_Pct', 'Demand_Shift_Pct'] : []),
+    // `Accuracy_Pct` is measured against the actuals, so it drops with them.
+    ...(future
+      ? ['Actual_Qty', 'Variance_Qty', 'Variance_Pct', 'Demand_Shift_Pct', 'Accuracy_Pct']
+      : []),
     ...(grain.includes('date') ? ['Demand_Shift_Pct'] : []),
   ]
   // Memoised on what it is derived from, not rebuilt each render: the table
@@ -141,7 +244,35 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
   const actual = kpis.Actual_Qty ?? 0
   const forecast = kpis.Forecast_Qty ?? 0
   const variance = kpis.Variance_Pct ?? 0
-  const accuracy = kpis.Forecast_Accuracy ?? 0
+  /*
+   * The Accuracy card, volume weighted across products.
+   *
+   * It was `kpis.Forecast_Accuracy` - the server's measure applied to the
+   * totals, `1 - |SUM(A) - SUM(F)| / SUM(A)`. That answers "how well did we
+   * forecast the business", and it is not the same as the average of the
+   * column beneath it, so the card and the footer disagreed.
+   *
+   * Now both are the same figure: each product's own score, weighted by what
+   * it actually sold. A product moving 10,000 units carries two thousand times
+   * the weight of one moving 5, so the tiny-volume rows that score harshly can
+   * no longer move the headline.
+   *
+   * Computed from `rows` rather than from `kpis`, so the card and the table
+   * cannot drift: it is literally the column's total.
+   */
+  const accuracy = useMemo(() => {
+    let w = 0
+    let sum = 0
+    for (const r of rows) {
+      const v = r.Accuracy_Pct
+      if (v === null || v === undefined) continue
+      const a = Number(r.Actual_Qty) || 0
+      if (!(a > 0)) continue
+      w += a
+      sum += a * v
+    }
+    return w > 0 ? sum / w : null
+  }, [rows])
 
   return (
     <>
@@ -153,6 +284,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             {!future && (
               <MetricCard
                 label="Actual qty"
+                calc="actual-qty"
                 accent="green"
                 progress={forecast ? actual / forecast : 0}
                 loading={busy}
@@ -162,6 +294,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             )}
             <MetricCard
               label="Forecast qty"
+              calc="forecast-qty"
               accent="blue"
               progress={1}
               loading={busy}
@@ -172,6 +305,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
         }
       >
         <PerfCard
+          calc="variance-pct,product-acc,product-acc-weighted"
           loading={busy}
           items={future ? [
             {
@@ -189,15 +323,19 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             },
             {
               label: 'Accuracy',
-              state: accuracyState(accuracy),
-              value: fmtPct(accuracy),
-              foot: `Target ${fmtPct(ACCURACY_TARGET, 0)}`,
+              state: accuracy === null ? 'flat' : accuracyState(accuracy),
+              value: accuracy === null ? '–' : fmtPct(accuracy),
+              foot:
+                accuracy === null
+                  ? 'Nothing sold to measure against'
+                  : `Weighted by units sold · target ${fmtPct(ACCURACY_TARGET, 0)}`,
             },
           ]}
         />
       </MetricFlow>
 
       <Panel
+        calc="actual-qty,forecast-qty,variance-pct,product-acc,product-acc-weighted"
         busy={busy}
         title="Products detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}

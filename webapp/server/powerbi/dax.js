@@ -355,6 +355,101 @@ ORDER BY [Component_Forecast_Qty] DESC`
 }
 
 /**
+ * The same table, without the model's own [Component_Forecast_Qty] measure.
+ *
+ * BBT's model cannot evaluate that measure at all. The measure joins
+ * 'RECIPE TABLE'[Product PLU] to Forecast_Product_Table[Clean_ItemID] by
+ * scanning, and in BBT's model alone Product PLU is an INTEGER while
+ * Clean_ItemID is TEXT everywhere - so every evaluation raises "DAX comparison
+ * operations do not support comparing values of type Text with values of type
+ * Integer" from inside the measure, at MdxScript(Model) (9, 17). Measured 27
+ * Sep 2026 across all nine models: BBT fails at every grain, the other eight
+ * succeed at every grain.
+ *
+ * The measure lives in the Power BI model and cannot be edited from here, so
+ * the join is made here instead, with BOTH sides converted to numbers - the
+ * same treatment the recipe-usage query already carries, and for the same
+ * reason: converting one side fixes BBT and breaks the eight that work.
+ *
+ * Non-numeric PLUs are dropped rather than allowed to raise, because VALUE()
+ * throws on the first one it meets and would take the query down exactly as
+ * the measure does.
+ *
+ * This is a FALLBACK, not a replacement. `live.js` reaches for it only after
+ * the measure-based query has failed, so the eight working models keep the
+ * query they have always run and nothing about their figures moves. Verified
+ * against BUR, CHP and SLC at window 1-27 Sep 2026: every row the measure
+ * returns is reproduced here to within 1e-6.
+ */
+export function componentLevelFallbackQuery(f, grain = {}) {
+  // Product-side filters only. The recipe-side ones are predicates on
+  // 'RECIPE TABLE' below, because that table is scanned rather than filtered
+  // through a relationship it does not have.
+  const prodFilters = filterArgs(f, { skip: ['products', 'items', 'recipeGroups', 'nodeTypes'] })
+
+  const recipePred = []
+  for (const [key, col] of [['items', 'Item'], ['recipeGroups', 'Recipe Group'], ['nodeTypes', 'Node Type']]) {
+    const values = f?.[key]
+    if (Array.isArray(values) && values.length) {
+      recipePred.push(`'RECIPE TABLE'[${col}] IN {${values.map(lit).join(', ')}}`)
+    }
+  }
+
+  const grouped = [
+    ...(grain.date ? ['Forecast_Product_Table[Date]'] : []),
+    ...(grain.location ? ['Forecast_Product_Table[LocationID]'] : []),
+  ]
+  const carried = [
+    ...(grain.date ? ['"Date", Forecast_Product_Table[Date]'] : []),
+    ...(grain.location ? ['"LocationID", Forecast_Product_Table[LocationID]'] : []),
+  ]
+  const regrouped = [
+    ...(grain.date ? ['[Date]'] : []),
+    ...(grain.location ? ['[LocationID]'] : []),
+  ]
+
+  return `EVALUATE
+VAR Prods =
+  SELECTCOLUMNS(
+    FILTER(
+      SUMMARIZECOLUMNS(
+        ${[...grouped, 'Forecast_Product_Table[Clean_ItemID]', ...prodFilters].join(',\n        ')},
+        "F", ${M.forecastQty[1]},
+        "A", ${M.actualQty[1]}
+      ),
+      NOT ISERROR(VALUE(Forecast_Product_Table[Clean_ItemID]))
+    ),
+    ${[...carried, '"PLU", VALUE(Forecast_Product_Table[Clean_ItemID])', '"F", [F]', '"A", [A]'].join(',\n    ')}
+  )
+VAR Recipes =
+  SELECTCOLUMNS(
+    FILTER(
+      ALL('RECIPE TABLE'),
+      NOT ISERROR(VALUE('RECIPE TABLE'[Product PLU]))${recipePred.length ? `\n        && ${recipePred.join('\n        && ')}` : ''}
+    ),
+    "PLU", VALUE('RECIPE TABLE'[Product PLU]),
+    "Recipe Group", 'RECIPE TABLE'[Recipe Group],
+    "Item", 'RECIPE TABLE'[Item],
+    "Item No.", 'RECIPE TABLE'[Item No.],
+    "BU", 'RECIPE TABLE'[BU],
+    "Node Type", 'RECIPE TABLE'[Node Type],
+    "QtyBU", 'RECIPE TABLE'[QTY BU]
+  )
+VAR Joined = NATURALINNERJOIN(Recipes, Prods)
+RETURN
+FILTER(
+  GROUPBY(
+    Joined,
+    ${[...regrouped, '[Recipe Group]', '[Item]', '[Item No.]', '[BU]', '[Node Type]'].join(', ')},
+    "Component_Forecast_Qty", SUMX(CURRENTGROUP(), [QtyBU] * [F]),
+    "Component_Actual_Qty", SUMX(CURRENTGROUP(), [QtyBU] * [A])
+  ),
+  NOT ISBLANK([Component_Forecast_Qty]) && [Component_Forecast_Qty] <> 0
+)
+ORDER BY [Component_Forecast_Qty] DESC`
+}
+
+/**
  * PRODUCTION PLAN page "RUNRATE" table.
  *
  * [Tomorrow Forecast Qty] and [Last 2 Weekdays Avg Actual] resolve their own

@@ -77,7 +77,89 @@ const PAGES = [
     // Recipe group came out on 1 Sep 2026 — asked for. The column is still in
     // the table; only the slicer is gone. Put 'recipeGroup' back in this list
     // and its row back in FilterBar's SLICERS to restore it.
-    slicers: ['location', 'product', 'date', 'item', 'nodeType', 'category', 'supply', 'recipeKind', 'status'],
+    /*
+     * RAW only, from 27 Sep 2026.
+     *
+     * The page held all three production types, so a reader asking "what do we
+     * need to BUY" was reading prep steps and prepared articles alongside the
+     * things a supplier delivers - three different questions in one table. The
+     * made-in-house half moved to its own page; `lockNodeTypes` is what keeps
+     * this one to the bought half, whatever the slicer is set to.
+     *
+     * The nodeType slicer goes with them: a slicer that can only pick the one
+     * value already forced is a control that does nothing.
+     */
+    lockNodeTypes: ['RAW'],
+    slicers: ['location', 'product', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
+  },
+  {
+    /*
+     * The other half of what Stock Article used to hold.
+     *
+     * PREP is a kitchen step and PA is a prepared article the ERP stocks. They
+     * belong together and apart from RAW: these are things the kitchens MAKE,
+     * where RAW is what somebody BUYS. The same table and the same figures -
+     * only the population differs - so it reuses the page rather than forking
+     * it, and any fix to one lands on both.
+     *
+     * The nodeType slicer stays, narrowed to these two by `lockNodeTypes`, so
+     * a reader can still look at PREP alone or PA alone.
+     */
+    /*
+     * The id stays `madeinhouse` while the label reads "Production".
+     *
+     * Renamed on 27 Sep 2026. The id is what page grants, saved column choices
+     * and the department rules are keyed on, so changing it would silently
+     * revoke access and reset everyone's Build view. A label is what the
+     * reader sees; an id is what the system remembers, and only one of them is
+     * free to change.
+     *
+     * Worth knowing there is already a page with the ID `production` -
+     * Tomorrow's Prep, whose kicker is "Production plan". Different page,
+     * different id, no clash; just do not read the two as the same thing.
+     */
+    id: 'madeinhouse',
+    label: 'Production',
+    kicker: 'Prep steps and prepared articles',
+    /*
+     * Two words, on request.
+     *
+     * Two longer versions were tried on 27 Sep 2026 and both were wrong in the
+     * same way: the first described the POPULATION ("what the kitchens make
+     * rather than buy"), the second described the MEASURE ("how much of each
+     * prep step the forecast calls for"), and the strip truncates at around
+     * seventy characters anyway, so neither finished its own sentence. The page
+     * is a production plan. The kicker underneath already names the rows.
+     */
+    blurb: 'Production plan',
+    Icon: IconComponent,
+    Component: ComponentLevel,
+    lockNodeTypes: ['PREP', 'PA'],
+    /*
+     * The warehouse half of the page does not apply here.
+     *
+     * Outbound measures what the CENTRAL WAREHOUSE issued to the shops. A prep
+     * step is not a stocked article at all and a prepared article reaches the
+     * shops inside something else, so the warehouse columns are blank or
+     * misleading on almost every row - and the cards built on them were being
+     * read as a performance figure for a process the warehouse never touches.
+     *
+     * Stock Article keeps all of it: that page is the bought half, which is
+     * exactly what the warehouse ships.
+     */
+    noWarehouse: true,
+    /*
+     * Three slicers fewer than Stock Article, dropped on 27 Sep 2026.
+     *
+     * Status is worked out from how long ago the CENTRAL WAREHOUSE last issued
+     * an article, and Category is the warehouse's own grouping - both describe
+     * the shipping side this page has just stopped showing, so they filtered on
+     * evidence the reader could no longer see. Product is the menu item the
+     * forecast came from, which narrows by something the table does not have a
+     * column for: it is a recipe-line table, and Item and Recipe Group are the
+     * two handles on it that do.
+     */
+    slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
   },
   {
     id: 'warehouse',
@@ -409,7 +491,40 @@ export default function App({ session, onSignedOut }) {
    * travels with every request; several brands means several models queried and
    * their results added together.
    */
-  const scoped = useMemo(() => ({ ...filters, brands: brandCodes }), [filters, brandCodes])
+  /*
+   * A page may pin the production types it is about.
+   *
+   * Stock Article is the bought half, Made In-House the made half. The lock is
+   * INTERSECTED with whatever the reader picked rather than replacing it, so a
+   * slicer still narrows within the page and can never widen past it - picking
+   * PA on Made In-House gives PA, and there is no selection that reaches RAW.
+   *
+   * Applied here, on the filters every page and every request reads, so the
+   * table, the cards, the slicer lists and the CSV are all the same population
+   * without any of them knowing a lock exists.
+   */
+
+  const scoped = useMemo(() => {
+    const base = { ...filters, brands: brandCodes }
+    /*
+     * A Warehouse supply selection does not follow the reader onto Production.
+     *
+     * Filter state is shared across pages - that is why the node-type lock below
+     * has to intersect rather than assume. Pick Warehouse on Stock Article, walk
+     * to Production, and the page would apply a filter its own slicer no longer
+     * offers and empty itself. Dropped here, on the same page that hides the
+     * option, so the two cannot disagree.
+     */
+    if (base.supply?.length) {
+      const barred = page?.noWarehouse ? 'Warehouse' : 'Made In-House'
+      base.supply = base.supply.filter((s) => String(s) !== barred)
+    }
+    const lock = page?.lockNodeTypes
+    if (!lock?.length) return base
+    const picked = base.nodeTypes ?? []
+    const within = picked.filter((t) => lock.includes(String(t)))
+    return { ...base, nodeTypes: within.length ? within : lock }
+  }, [filters, brandCodes, page])
 
   /**
    * Which option list belongs to which slicer, and to which filter key.
@@ -499,6 +614,47 @@ export default function App({ session, onSignedOut }) {
     }),
     [slicers.data]
   )
+
+  /*
+   * The production-type slicer offers only what the page admits.
+   *
+   * Without this, Made In-House would still list RAW. Picking it is harmless -
+   * `scoped` intersects the choice with the lock and falls back to the lock -
+   * but an option that cannot change anything is a control that lies about
+   * what it does.
+   */
+  /*
+   * ...and the supply slicer drops Warehouse for the same reason.
+   *
+   * Warehouse supply means RAW. A warehouse issues the chicken, not the brined
+   * chicken breast, so on a page locked to PREP and PA the option can only ever
+   * return nothing - and the server enforces exactly that, narrowing a Warehouse
+   * selection to RAW rows. Offering it there is a control that empties the
+   * table, which is how it was first reported.
+   *
+   * Keyed on the page's own `noWarehouse` flag, which only Production carries,
+   * so no other page's Supply slicer can change because of this.
+   */
+  const shownOptions = useMemo(() => {
+    const lock = page?.lockNodeTypes
+    const next = { ...options }
+    if (lock?.length && options?.nodeTypes?.length) {
+      next.nodeTypes = options.nodeTypes.filter((t) => lock.includes(String(t)))
+    }
+    /*
+     * Warehouse out, Made In-House in - a swap, not a removal.
+     *
+     * Taking Warehouse away left the slicer with a single value, so there was
+     * no way to ask for anything other than Direct Supply. Made In-House is
+     * that other side: the server reads it as "not Direct Supply", which on
+     * this page means the prep steps and prepared articles made on site,
+     * including the ones carrying no supply label at all.
+     */
+    if (page?.noWarehouse && next.supply?.length) {
+      next.supply = [...next.supply.filter((s) => String(s) !== 'Warehouse'), 'Made In-House']
+    }
+    return next
+  }, [options, page])
 
   /**
    * Default the window to the last 30 days once the model's calendar is known.
@@ -681,7 +837,7 @@ export default function App({ session, onSignedOut }) {
           <div className="topbar">
             <FilterBar
               show={page.slicers}
-              options={options}
+              options={shownOptions}
               filters={scoped}
               setFilters={setFilters}
               loading={slicers.loading}
@@ -781,6 +937,8 @@ export default function App({ session, onSignedOut }) {
                * behind it, nor the reverse.
                */
               stockDetail={Boolean(session?.user?.stockDetail)}
+              // Page-scoped: see `noWarehouse` on the Production page.
+              noWarehouse={Boolean(page.noWarehouse)}
             />
           )}
             </>

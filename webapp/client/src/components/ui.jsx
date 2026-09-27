@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react'
 import { fmtPct, fmtSignedPct } from '../api.js'
 import { IconAlert, IconInfo, IconArrowUp, IconArrowDown, IconTable, IconRefresh } from './Icons.jsx'
 
@@ -244,14 +245,89 @@ export function InfoBanner({ children, tone = 'info', icon }) {
  * A plain input metric: muted label, the number as hero, and a thin accent rule
  * along the bottom edge. No tint and no icon — colour is reserved for state.
  */
-export function MetricCard({ label, value, foot, accent = 'green', progress, loading, textValue, calc }) {
+/**
+ * `hint` is one plain sentence saying what the number is, on hover.
+ *
+ * The `calc` drawer already carries the full derivation, but that is a
+ * deliberate trip somewhere else. A card should be able to answer "what am I
+ * looking at" without leaving it.
+ */
+export function MetricCard({
+  label,
+  value,
+  foot,
+  accent = 'green',
+  progress,
+  loading,
+  textValue,
+  calc,
+  hint,
+}) {
   // minHeight, not height: the flow is a stretch grid, so a fixed height left
   // the two input skeletons floating at the top of a row the taller Performance
   // skeleton beside them had already made 208px deep.
+  /*
+   * The hint opens from a small mark, not from the whole card.
+   *
+   * Two goes at this tried to choose a DIRECTION - above covered the filter
+   * bar, below covered Build view and Freeze - and both missed the actual
+   * complaint. The cards sit in a band between the filters and the table
+   * toolbar, so any panel big enough to hold a sentence covers one of them
+   * whichever way it opens. What made that intolerable was the trigger: the
+   * card's entire body opened it, so simply moving the pointer from a slicer
+   * down to the toolbar raised a paragraph across the thing being reached for.
+   *
+   * A deliberate target fixes what a clever direction could not. The hint now
+   * belongs to the little mark beside the label, so it appears when it is
+   * asked for and never on the way past. The measured flip is kept underneath
+   * for the case where the mark itself has no room above it.
+   */
+  const mark = useRef(null)
+  const [below, setBelow] = useState(false)
+  const place = useCallback(() => {
+    const el = mark.current
+    const tip = el?.querySelector('.mtip')
+    if (!tip) return
+    // `visibility: hidden` keeps the box in the layout, so it measures while shut.
+    const needed = tip.offsetHeight + 10
+    const bar = document.querySelector('.filters')
+    const floor = Math.max(8, bar ? bar.getBoundingClientRect().bottom + 4 : 8)
+    setBelow(el.getBoundingClientRect().top - needed < floor)
+  }, [])
+
   if (loading) return <div className="metric skel" style={{ minHeight: 96, border: 'none' }} aria-hidden="true" />
   return (
-    <div className="metric" data-calc={calc || undefined}>
-      <span className="metric__label">{label}</span>
+    <div
+      className={`metric${hint ? ' metric--hint' : ''}`}
+      data-calc={calc || undefined}
+    >
+      <span className="metric__head">
+        <span className="metric__label">{label}</span>
+        {hint ? (
+          /*
+           * A styled tooltip, not the browser's `title`.
+           *
+           * `title` cannot be styled - it renders as whatever box the OS draws,
+           * stretched to the text, after a delay nobody can set, and never
+           * reaches a keyboard. Rendering it means it matches the popovers
+           * everywhere else on the page and appears on focus as well as hover.
+           */
+          <span
+            ref={mark}
+            className={`metric__info${below ? ' metric__info--down' : ''}`}
+            tabIndex={0}
+            role="button"
+            aria-label={`What ${label} means`}
+            onPointerEnter={place}
+            onFocus={place}
+          >
+            <IconInfo size={12} />
+            <span className="mtip" role="tooltip">
+              {hint}
+            </span>
+          </span>
+        ) : null}
+      </span>
       <span className={`metric__value${textValue ? ' metric__value--text' : ''}`} title={textValue ? String(value) : undefined}>
         {value}
       </span>
@@ -267,10 +343,10 @@ export function MetricCard({ label, value, foot, accent = 'green', progress, loa
  * The derived half of a metric flow: one card holding the figures computed from
  * the inputs beside it. White card, coloured figure — the number carries state.
  */
-export function PerfCard({ title = 'Performance', items, loading, height = 208 }) {
+export function PerfCard({ title = 'Performance', items, loading, height = 208, calc }) {
   if (loading) return <div className="perf skel" style={{ minHeight: height, border: 'none' }} aria-hidden="true" />
   return (
-    <div className="perf">
+    <div className="perf" data-calc={calc || undefined}>
       <span className="perf__title">{title}</span>
       <div className="perf__grid">
         {items.map((it) => (

@@ -30,6 +30,42 @@ const single = (rows, fallback = {}) => rows[0] ?? fallback
  */
 const heavy = (grain = {}) => Boolean(grain?.date && grain?.location)
 
+/**
+ * Is this the model's own measure refusing to compare a Text with an Integer?
+ *
+ * Narrow on purpose. Anything else - a throttle, a timeout, a bad filter - has
+ * to keep failing, because retrying those with a different query would turn a
+ * plain error into a slower plain error and hide which one it was.
+ */
+export function isTypeMismatch(err) {
+  const m = String(err?.message ?? '')
+  return m.includes('do not support comparing values of type') || m.includes('does not support comparing values of type')
+}
+
+/**
+ * Component rows, from the model's measure where it works and from our own
+ * join where it does not.
+ *
+ * BBT's [Component_Forecast_Qty] raises on every evaluation - see
+ * `componentLevelFallbackQuery` in powerbi/dax.js for why, and for the
+ * verification that the two agree everywhere the measure can answer at all.
+ * Falling back on the error rather than on the brand means the eight working
+ * models never touch the second query, and any model that breaks the same way
+ * later is covered without anybody noticing it had to be.
+ */
+export async function componentLevelRows(filters, datasetId, grain) {
+  const bulk = { bulk: heavy(grain) }
+  try {
+    return await executeQuery(dax.componentLevelQuery(filters, grain), datasetId, bulk)
+  } catch (err) {
+    if (!isTypeMismatch(err)) throw err
+    console.warn(
+      `  [components] model measure cannot compare Product PLU with Clean_ItemID — rebuilding the join (${datasetId})`
+    )
+    return executeQuery(dax.componentLevelFallbackQuery(filters, grain), datasetId, { bulk: true })
+  }
+}
+
 export const liveProvider = {
   /**
    * Slicer options.
@@ -138,7 +174,7 @@ export const liveProvider = {
   },
 
   componentLevel(filters, datasetId, grain) {
-    return executeQuery(dax.componentLevelQuery(filters, grain), datasetId, { bulk: heavy(grain) })
+    return componentLevelRows(filters, datasetId, grain)
   },
 
   productionPlan(filters, datasetId) {

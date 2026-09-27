@@ -8920,3 +8920,180 @@ table.dt tfoot td.dt__frz { z-index: 3; }
   font-variant-numeric: tabular-nums;
   font-size: 11.5px;
 }
+
+/* ---- Metric card tooltip ---------------------------------------------- */
+/*
+ * A card that explains itself says so with the cursor, and draws its own
+ * tooltip rather than handing the string to `title`.
+ *
+ * `overflow: hidden` on `.metric` exists to clip the progress bar to the card's
+ * rounded corners, and it would clip this too. The bar is given its own bottom
+ * radius instead, so the card can let the tooltip out without the bar's square
+ * corners poking past the curve.
+ */
+.metric--hint {
+  overflow: visible;
+}
+/*
+ * The card itself has to rise, not just the hint.
+ *
+ * `.metric:hover` applies a transform, and a transform makes the card its own
+ * stacking context - which traps the tooltip inside it however high its
+ * z-index goes, so anything later in the page painted straight over the
+ * sentence. Lifting the card lifts the context the tooltip lives in.
+ */
+.metric--hint:hover,
+.metric--hint:focus-within {
+  z-index: 80;
+}
+/* Label and its mark on one line, so the mark cannot push the figure down. */
+.metric__head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+/*
+ * The mark that opens the hint.
+ *
+ * Small and quiet until it is wanted - it sits on a card whose job is the
+ * figure, not the explanation. It is the ONLY trigger: hovering the card does
+ * nothing, which is what stops a paragraph appearing across the toolbar every
+ * time the pointer crosses the cards on its way down the page.
+ */
+.metric__info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-faint, var(--text-muted));
+  opacity: .5;
+  cursor: help;
+  border-radius: 999px;
+  transition: opacity var(--t-fast, .12s) var(--ease, ease), color var(--t-fast, .12s) var(--ease, ease);
+}
+.metric__info:hover,
+.metric__info:focus,
+.metric__info:focus-visible {
+  opacity: 1;
+  color: var(--text);
+  outline: none;
+}
+.metric__info:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(37, 99, 235, .35));
+}
+.metric--hint .metric__bar {
+  border-bottom-left-radius: var(--r-card);
+  border-bottom-right-radius: var(--r-card);
+}
+
+.mtip {
+  position: absolute;
+  /*
+   * ABOVE the card, not below it.
+   *
+   * Below, it covered the row of controls under the cards - the Scoring
+   * slicer, Find an article, the table's own header - so reading a hint meant
+   * hiding the thing you were about to use. Above, it opens into the page
+   * header, which is static.
+   */
+  bottom: calc(100% + 8px);
+  /* Anchored to the mark, which sits at the card's left edge, and nudged back
+     so the panel lines up with the card rather than with the icon. */
+  left: -14px;
+  /*
+   * Above the 60 band, not level with it.
+   *
+   * 60 is shared with the popovers, the modal and the drawer, and a tie is
+   * settled by document order - so a banner or a panel that happens to come
+   * later in the page painted over the hint and swallowed part of the
+   * sentence. The hint is the shortest-lived thing on screen and is dismissed
+   * by moving the pointer, so it can sit above all of them without ever being
+   * in the way of something a reader is trying to use.
+   */
+  z-index: 80;
+  /* Wide enough for a sentence, narrow enough to read in one scan. `max-content`
+     keeps a short hint from being stretched to the cap. */
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, .16);
+  /* Hidden without being removed, so it can fade and stay reachable. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s;
+  pointer-events: none;
+}
+/* The little notch, drawn from the same two tokens so it cannot drift from the
+   panel it belongs to. */
+.mtip::before {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 18px;
+  width: 8px;
+  height: 8px;
+  background: var(--surface);
+  /* The two borders that face outward once it is rotated — now the bottom and
+     right edges, since the notch hangs below the panel rather than above it. */
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+/* The mark opens it - the card does not. */
+.metric__info:hover .mtip,
+.metric__info:focus .mtip,
+.metric__info:focus-within .mtip {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+/* The last card in a row would push its tooltip off the right edge, so that one
+   hangs from the right instead. */
+.unitrow > .metric--hint:last-child .metric__info .mtip,
+.metricflow .metric--hint:last-child .metric__info .mtip {
+  left: auto;
+  right: -14px;
+}
+.unitrow > .metric--hint:last-child .metric__info .mtip::before,
+.metricflow .metric--hint:last-child .metric__info .mtip::before {
+  left: auto;
+  right: 18px;
+}
+/*
+ * The other way up, when there is no room above.
+ *
+ * `MetricCard` measures on open and adds this class when opening upward would
+ * reach over the filter bar or off the top of the window. Only the two edges
+ * change: the panel hangs from the bottom of the card, and the notch moves to
+ * its top and shows the two borders that now face outward.
+ */
+.metric__info--down .mtip {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translateY(-4px);
+}
+.metric__info--down .mtip::before {
+  bottom: auto;
+  top: -5px;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mtip { transition: none; transform: none; }
+  .metric__info--down .mtip { transform: none; }
+}

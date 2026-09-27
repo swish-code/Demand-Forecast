@@ -77,6 +77,35 @@ export const CALCULATIONS = [
     source: PBI,
     expression: '[Forecast Accuracy %]',
   },
+  {
+    id: 'product-acc',
+    page: 'Products',
+    visual: 'Accuracy % column, Performance card — Accuracy',
+    label: 'Product accuracy %',
+    source: LOCAL,
+    expression: '1 - ABS(Actual qty - Forecast qty) / MAX(Actual qty, Forecast qty)',
+    detail:
+      'Per product, then averaged for the card and the column total. Divided by the LARGER ' +
+      'of the two rather than by actual, so the gap can never exceed the denominator and the ' +
+      'score is bounded 0-100% by construction — dividing by actual sent products with a tiny ' +
+      'actual to absurd negatives (1 sold against a forecast of 8 scored -600%). Blank when ' +
+      'either side is zero: a product that sold nothing has no accuracy to report, and neither ' +
+      'has one nobody forecast. Changed 27 Sep 2026; it is the same shape WH ACC% uses.',
+  },
+  {
+    id: 'product-acc-weighted',
+    page: 'Products',
+    visual: 'Performance card — Accuracy, Accuracy % column total',
+    label: 'Overall product accuracy %',
+    source: LOCAL,
+    expression: 'SUM(Actual qty x product accuracy) / SUM(Actual qty)',
+    detail:
+      'Volume weighted, so a product moving 10,000 units counts two thousand times one moving ' +
+      '5 — the low-volume rows that score harshly cannot move the headline. Weighted by ACTUAL, ' +
+      'never by the forecast: weighting by the forecast would let the thing being judged decide ' +
+      'how much it counts. The card and the column total call the same function, so they cannot ' +
+      'disagree. It replaced the measure applied to the totals, 1 - |SUM(A) - SUM(F)| / SUM(A).',
+  },
 
   /* ------------------------------------------- Product mix group --------- */
   {

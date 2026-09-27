@@ -51,6 +51,7 @@ import { planImport, applyImport, templateCsv } from '../mail/bulk.js'
 import { parseSalesCsv, importSales, importedSales } from '../cube/salesImport.js'
 import { refreshAllSalesOnly, forgetSalesSchema } from '../cube/salesOnly.js'
 import { forgetConstants } from '../insights/whConstant.js'
+import { articleNodeTypes } from '../insights/nodeTypes.js'
 import { config } from '../config.js'
 
 export const admin = Router()
@@ -1476,6 +1477,18 @@ admin.get(
     for (const r of await pg.all('SELECT article, name, unit FROM cube_article')) {
       names.set(String(r.article), { item: String(r.name ?? ''), unit: String(r.unit ?? '') })
     }
+
+    /*
+     * Production type, from the recipe master.
+     *
+     * These rows come from the WAREHOUSE's history rather than from a recipe -
+     * that is the whole point of the route, see above - so nothing on the row
+     * itself says whether an article is bought, prepped or prepared. See
+     * `articleNodeTypes` for why the answer comes from 'RECIPE TABLE' and not
+     * from the local component copy, which looked like the obvious source and
+     * silently left a fifth of these rows blank.
+     */
+    const nodeTypes = await articleNodeTypes().catch(() => new Map())
     /*
      * Every brand at once, rather than one after another.
      *
@@ -1509,6 +1522,7 @@ admin.get(
           article: code,
           item: meta.item,
           unit: meta.unit,
+          nodeType: nodeTypes.get(code) ?? '',
           forecastQty: qty,
         })
       }

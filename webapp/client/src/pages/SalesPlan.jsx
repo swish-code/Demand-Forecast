@@ -132,6 +132,7 @@ export function SalesPlan() {
           { key: 'article', label: 'Article No.' },
           { key: 'item', label: 'Article' },
           { key: 'unit', label: 'Unit' },
+          { key: 'nodeType', label: 'Prod. type' },
           { key: 'forecastQty', label: `${data.year} forecast qty` },
         ])
         setNote(`${keep(rows).length.toLocaleString()} article rows downloaded.`)
@@ -304,6 +305,19 @@ export function SalesPlan() {
             { key: 'article', label: 'Article No.', width: 116, required: true },
             { key: 'item', label: 'Article', autoWidth: { min: 180, max: null, percentile: 0.95 }, wrap: true, strong: true },
             { key: 'unit', label: 'Unit', width: 96 },
+            /*
+             * Prod. type, off temporarily - asked for on 27 Sep 2026.
+             *
+             * The column and the route behind it are left intact: the server
+             * still sends `nodeType` on every row and the CSV still carries it,
+             * so putting this line back is the whole of switching it on again.
+             *
+             * Blank where the recipes never name the article - these rows are
+             * the warehouse's, not a recipe's, so a bought good with no recipe
+             * line has no type to take. A dash says "not known here" rather
+             * than implying a fourth type.
+             */
+            // { key: 'nodeType', label: 'Prod. type', width: 104, render: (v) => v || '–' },
             {
               key: 'forecastQty',
               label: `${data?.year ?? ''} forecast qty`,

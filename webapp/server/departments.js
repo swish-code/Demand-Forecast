@@ -86,13 +86,13 @@ export const DEPARTMENT_PAGES = {
    * only people who need them. The "How to use this page" button in the filter
    * bar would have navigated to a page they were not granted.
    */
-  Production: ['component', 'guide'],
-  Bakery: ['component', 'guide'],
-  Warehouse: ['component', 'guide'],
+  Production: ['component', 'madeinhouse', 'guide'],
+  Bakery: ['component', 'madeinhouse', 'guide'],
+  Warehouse: ['component', 'madeinhouse', 'guide'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.
-  Procurement: ['component', 'warehouse', 'guide'],
-  'Supply Chain': ['component', 'warehouse', 'guide'],
+  Procurement: ['component', 'madeinhouse', 'warehouse', 'guide'],
+  'Supply Chain': ['component', 'madeinhouse', 'warehouse', 'guide'],
   /*
    * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
    *
@@ -259,7 +259,21 @@ export const pagesFor = (department) => PAGES_BY_NAME.get(norm(department)) ?? n
  * enforcing. A page added there and not here simply cannot be granted, which is
  * the safe direction for the mistake to fail in.
  */
-export const PAGE_IDS = ['summary', 'product', 'component', 'warehouse', 'production', 'guide', 'admin', 'wh-analysis', 'sales-plan']
+export const PAGE_IDS = [
+  'summary',
+  'product',
+  'component',
+  // Split out of `component` on 27 Sep 2026: Stock Article kept RAW, this took
+  // PREP and PA. Anything that could open the old page is given both, or it
+  // silently loses half the articles it used to see.
+  'madeinhouse',
+  'warehouse',
+  'production',
+  'guide',
+  'admin',
+  'wh-analysis',
+  'sales-plan',
+]
 
 /**
  * The guide travels with the page it documents.

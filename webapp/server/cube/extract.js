@@ -3,6 +3,7 @@ import { refreshAllSalesOnly } from './salesOnly.js'
 import { pg } from '../db/accounts.js'
 import { loadCoverage, forgetRecipeArticles } from './query.js'
 import { executeQuery } from '../powerbi/client.js'
+import { isTypeMismatch } from '../data/live.js'
 import * as dax from '../powerbi/dax.js'
 import { forgetConstants } from '../insights/whConstant.js'
 
@@ -391,9 +392,31 @@ export async function pruneSalesVintages(keepDays = 62) {
   )
 }
 
-/** Component requirement by day, for the Ingredients page. */
+/**
+ * Component requirement by day, for the Ingredients page.
+ *
+ * Same fallback as the live path, and the same reason: BBT's model cannot
+ * evaluate [Component_Forecast_Qty] at all, so this query had been failing for
+ * that brand alone on every extract - which does not empty the copy, it freezes
+ * it, and a frozen copy reads like a working page. See
+ * `componentLevelFallbackQuery` in powerbi/dax.js.
+ */
 async function fetchComponents(brand, window) {
   const filters = brandFilters(brand, { dateFrom: window.from, dateTo: window.to })
+  try {
+    return await fetchComponentsViaMeasure(brand, filters)
+  } catch (err) {
+    if (!isTypeMismatch(err)) throw err
+    console.warn(
+      `  [components] ${brand.code}: model measure cannot compare Product PLU with Clean_ItemID — rebuilding the join`
+    )
+    return executeQuery(dax.componentLevelFallbackQuery(filters, { date: true }), brand.datasetId, {
+      bulk: true,
+    })
+  }
+}
+
+async function fetchComponentsViaMeasure(brand, filters) {
   return executeQuery(
     `EVALUATE
 FILTER(

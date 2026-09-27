@@ -69,6 +69,25 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
  * was stamped on every row, the dropdown read "Food", and every category was
  * still on screen.
  */
+/**
+ * Do these filters still admit RAW rows?
+ *
+ * Two places synthesise rows for articles no recipe names - the warehouse
+ * catch-all and `nonRecipeRows` - and both stamp them `Node Type: 'RAW'`,
+ * because that is what they are. Neither asked whether the page had been
+ * narrowed to a production type, so picking PREP or PA still got a table of
+ * RAW rows appended underneath. Reported 27 Sep 2026.
+ *
+ * Phrased as "does the filter admit RAW" rather than "is any filter set", so
+ * choosing RAW still shows them - they are RAW, and hiding them there would
+ * trade one wrong answer for another.
+ */
+function allowsRaw(filters) {
+  const wanted = filters?.nodeTypes
+  if (!wanted?.length) return true
+  return wanted.some((t) => String(t).trim().toUpperCase() === 'RAW')
+}
+
 const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses']
 
 /**
@@ -933,6 +952,8 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
     filters?.products?.length ||
     filters?.articles?.length
   if (narrowed) return rows
+  // Every row below is RAW, so a page narrowed to PREP or PA must not get them.
+  if (!allowsRaw(filters)) return rows
 
   const names = await cube.articleMaster().catch(() => new Map())
   const already = new Set(
@@ -995,6 +1016,11 @@ async function addWarehouseWide(rows, filters, grain, otherMtd = null) {
  */
 const SUPPLY_WAREHOUSE = 'Warehouse'
 const SUPPLY_DIRECT = 'Direct Supply'
+/*
+ * Offered only where Warehouse is not - see `withSupply` for what it selects.
+ * It is a third CHOICE, not a third label: no row is ever tagged with it.
+ */
+const SUPPLY_IN_HOUSE = 'Made In-House'
 
 /*
  * One set, two callers, so the table and the trend can never disagree.
@@ -1042,7 +1068,25 @@ async function withSupply(rows, filters) {
    */
   const rawOnly = keep.has(SUPPLY_WAREHOUSE) && !keep.has(SUPPLY_DIRECT)
 
+  /*
+   * The other side of Direct Supply, for the pages that have no Warehouse.
+   *
+   * Production offers Direct Supply alone, because Warehouse means RAW and that
+   * page holds none - which left the slicer with one value and no way to ask
+   * for its opposite. This is that opposite: everything the supplier does NOT
+   * deliver straight to the shop.
+   *
+   * Defined as "not Direct Supply" rather than as a label of its own, and that
+   * matters for the rows carrying no label at all. A prep step has no ERP
+   * article number, so there is nothing to look up and `Supply` is null - a
+   * kitchen step is neither warehouse-supplied nor direct-supplied, it is made
+   * on site. Under the two original values those rows dropped out of every
+   * selection; here they are the answer.
+   */
+  const inHouse = keep.has(SUPPLY_IN_HOUSE)
+
   return labelled.filter((r) => {
+    if (inHouse && r.Supply !== SUPPLY_DIRECT) return true
     if (!r.Supply || !keep.has(r.Supply)) return false
     if (rawOnly && String(r['Node Type'] ?? '') !== 'RAW') return false
     return true
@@ -2364,7 +2408,7 @@ api.all('/component-level', handle(async (req, res) => {
      * depends on.
      */
     const extra =
-      grain.date || grain.location || f.items?.length || f.recipeGroups?.length
+      grain.date || grain.location || f.items?.length || f.recipeGroups?.length || !allowsRaw(f)
         ? []
         : await cached(
             `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}`,

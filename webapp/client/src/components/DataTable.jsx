@@ -117,6 +117,16 @@ export function DataTable({
    */
   freeze = 0,
   /**
+   * Whether the reader is offered the Freeze control at all.
+   *
+   * On by default, because a table wide enough to scroll sideways is a table
+   * somebody will want to pin the first columns of. Turned off where the
+   * caller knows the table is narrow enough not to need it: the control then
+   * disappears along with any column the reader had previously pinned, rather
+   * than sitting there doing nothing to a table that never scrolls.
+   */
+  freezable = true,
+  /**
    * Let the reader shut a whole shaded group of columns from its heading.
    *
    * Only useful where `groups` is supplied and there are enough of them to be
@@ -632,7 +642,7 @@ export function DataTable({
    * Pinning still stops one short of the end — freezing every column leaves
    * nothing to scroll, which is a table that cannot be read sideways.
    */
-  const freezeMax = Math.max(0, shown.length - 1)
+  const freezeMax = freezable ? Math.max(0, shown.length - 1) : 0
 
   /*
    * The reader's choice wins over the caller's default, and the ceiling wins

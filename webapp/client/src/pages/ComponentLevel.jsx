@@ -1331,6 +1331,34 @@ const REPL_COLUMNS = new Set(['Required_Shipment', 'Shipment_Status'])
 const STORE_SOH_ON = true
 const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
 
+/*
+ * What the Production page has no use for.
+ *
+ * Every one of these is measured by, or derived from, the central warehouse -
+ * and on a page of prep steps and prepared articles it is either blank or
+ * describes something the warehouse never handled. Status and Category go too:
+ * both describe how an article is SUPPLIED, which is a question about the
+ * bought half.
+ */
+const NO_WAREHOUSE_COLUMNS = new Set([
+  'Consumed_Qty',
+  'WH_Constant_Forecast_Qty',
+  'WH_Accuracy',
+  'WH_Ratio_Acc',
+  'WH_New_Pct',
+  'WH_Rounded',
+  'Live_Outbound_MTD',
+  'WH_Opening_SOH',
+  'WH_Closing_SOH',
+  'Open_PO_Qty',
+  'Open_PO_Value',
+  'Forecast_Variance',
+  'Actual_Variance',
+  'Actual_Accuracy',
+  'Status',
+  'Category',
+])
+
 /** The derived store figures, still off. */
 const STOCK_COLUMNS = new Set([
   'Stock_Cover',
@@ -1633,6 +1661,15 @@ export function ComponentLevel({
    * them. `isAdmin` still guards everything that is genuinely administrative.
    */
   stockDetail,
+  /*
+   * Drop everything the central warehouse measures.
+   *
+   * Set by the Production page, where the articles are made in-house rather
+   * than shipped: outbound, the accuracy built on it, the warehouse stock
+   * readings and the variance columns that compare the two forecasts are all
+   * blank or misleading there. Stock Article leaves it off and keeps them.
+   */
+  noWarehouse = false,
 }) {
   /*
    * Which extra dimensions the reader has switched on.
@@ -2305,6 +2342,18 @@ export function ComponentLevel({
    */
   const [band, setBand] = useState(null)
   const [fcstBand, setFcstBand] = useState(null)
+  /*
+   * Whether to show rows whose 100% came from the stock rule.
+   *
+   * null shows everything. 'stock' shows only the rows that scored 100%
+   * because the shops already held twice the forecast; 'scored' shows only the
+   * rows whose score was actually measured against outbound.
+   *
+   * Worth separating because the two are not the same claim and there are a
+   * lot of the first kind - about four rows in five meet the stock condition -
+   * so a reader checking forecast quality needs to be able to put them aside.
+   */
+  const [covered, setCovered] = useState(null)
 
   const inBand = (row, b, key = 'WH_Accuracy') => {
     const v = row[key]
@@ -2352,9 +2401,21 @@ export function ComponentLevel({
       const b = BANDS.find((x) => x.key === fcstBand)
       if (b) out = out.filter((r) => inBand(r, b, 'Sales_Accuracy'))
     }
+    /*
+     * Only rows that carry a warehouse score can be on either side of this.
+     * A recipe line with no WH ACC% at all is neither stock-covered nor
+     * measured, so it leaves with both choices rather than defaulting into one.
+     */
+    if (covered === 'stock') out = out.filter((r) => r.WH_Acc_Covered === true)
+    if (covered === 'scored') {
+      out = out.filter(
+        (r) =>
+          !r.WH_Acc_Covered && r.WH_Accuracy !== null && r.WH_Accuracy !== undefined
+      )
+    }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps -- BANDS is constant
-  }, [grouped, band, fcstBand])
+  }, [grouped, band, fcstBand, covered])
 
   /*
    * What the table reports it is showing. Declared here rather than beside the
@@ -2388,45 +2449,29 @@ export function ComponentLevel({
   }, [filters?.dateFrom, filters?.dateTo])
 
   /*
-   * What the table is actually showing, fed back to everything above it.
+   * The cards read the table's OWN rows, not a re-selection from the full set.
    *
-   * Search for "Chili Flakes" and the table narrows while the cards keep
-   * reporting the whole warehouse — so the two halves of the screen describe
-   * different things and neither says which. The table already reports its
-   * visible rows through `onViewChange`, for the CSV export; the same set
-   * answers this.
+   * They used to take the article NUMBERS the table was showing and re-filter
+   * `priced` by them. That was close enough while the only filters were the
+   * search box and the accuracy bands, neither of which can keep one brand's
+   * row of an article and drop another's.
    *
-   * Matched on article number or on name, because a row may be either: with
-   * Article No. hidden the table folds same-named articles into one row that
-   * carries only the first one's code, and the name is then the only key that
-   * finds the rest. Over-matching two genuinely different articles that share a
-   * name cannot mislead here — folded, they are already one row on screen.
+   * The Scoring slicer can. Article 101200028 is stock-covered for PAT and BUR
+   * but not for BBT: the table correctly showed the two covered rows, and the
+   * cards dragged the BBT row back in - with 2,456 units of outbound, enough to
+   * dominate the volume weighting. "Stock-covered 100% only" read 100.0% in the
+   * column total and 95.2% on the card. Reported 27 Sep 2026; 41 rows across 32
+   * articles were being pulled back that way.
    *
-   * Band selections come through the same path, so picking 0–20% now moves the
-   * cards too. That was not true before and should have been: a card that
-   * ignores the filter beside it is a card nobody can trust.
+   * Taking `view.rows` directly makes the cards exactly the table's dataset,
+   * whatever narrowed it - filters, bands, the slicer, the search box, or
+   * anything added later. Nothing has to know which filters exist.
+   *
+   * Pagination is deliberately not part of it: `onViewChange` reports the rows
+   * left after the search, not the page being looked at, so paging through the
+   * table does not move the cards.
    */
-  const shownKeys = useMemo(() => {
-    if (!view?.rows) return null
-    const set = new Set()
-    for (const r of view.rows) {
-      const a = String(r['Item No.'] ?? '').trim()
-      if (a) set.add(a)
-      const n = String(r.Item ?? '').trim()
-      if (n) set.add(n)
-    }
-    return set
-  }, [view])
-
-  const focused = useMemo(() => {
-    if (!shownKeys) return priced
-    return priced.filter((r) => {
-      const a = String(r['Item No.'] ?? '').trim()
-      if (a && shownKeys.has(a)) return true
-      const n = String(r.Item ?? '').trim()
-      return Boolean(n) && shownKeys.has(n)
-    })
-  }, [priced, shownKeys])
+  const focused = view?.rows ?? priced
 
   /*
    * Distinct articles, not rows — corrected 16 Sep 2026.
@@ -2820,8 +2865,9 @@ export function ComponentLevel({
     if (!STORE_SOH_ON || !stockDetail) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
     if (!stockDetail) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
     if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
+    if (noWarehouse) list = list.filter((c) => !NO_WAREHOUSE_COLUMNS.has(c.key))
     return list
-  }, [future, stockDetail])
+  }, [future, stockDetail, noWarehouse])
 
   /*
    * What the CSV holds.
@@ -2855,21 +2901,24 @@ export function ComponentLevel({
 
 
       <div className="metrics">
-        <MetricCard
-          label="Outbound"
-          calc="outbound"
-          accent="green"
-          progress={summary.forecast ? Math.min(1, summary.consumedCovered / summary.forecast) : 0}
-          loading={busy}
-          value={summary.outboundArticles ? fmtInt(summary.consumed) : '–'}
-          foot={
-            summary.outboundArticles
-              ? `Left the warehouse, ${fmtInt(summary.outboundArticles)} article${
-                  summary.outboundArticles === 1 ? '' : 's'
-                } measured`
-              : 'No transfers matched this view'
-          }
-        />
+        {noWarehouse ? null : (
+          <MetricCard
+            label="Outbound"
+            calc="outbound"
+            hint="What actually left the Central Warehouse over these dates. Measured, not forecast."
+            accent="green"
+            progress={summary.forecast ? Math.min(1, summary.consumedCovered / summary.forecast) : 0}
+            loading={busy}
+            value={summary.outboundArticles ? fmtInt(summary.consumed) : '–'}
+            foot={
+              summary.outboundArticles
+                ? `Left the warehouse, ${fmtInt(summary.outboundArticles)} article${
+                    summary.outboundArticles === 1 ? '' : 's'
+                  } measured`
+                : 'No transfers matched this view'
+            }
+          />
+        )}
         {/*
           * No accuracy on a window that has not happened.
           *
@@ -2878,10 +2927,21 @@ export function ComponentLevel({
           * absence of evidence. The columns it summarises are already dropped
           * for a future window; the card was the piece left behind.
           */}
+        {/*
+          * Kept on the Production page, unlike the two warehouse cards it sits
+          * between.
+          *
+          * It was gated with them on 27 Sep 2026 and should not have been: it
+          * scores the RECIPE side, Component forecast against Component actual,
+          * and never reads an outbound figure. That is exactly the question a
+          * prep step or a prepared article can answer — the warehouse cards are
+          * the ones with nothing to measure here.
+          */}
         {!future && (
           <MetricCard
             label="Product mix accuracy"
             calc="card-product-mix,component-forecast,outbound"
+            hint="How close the recipe side was, averaged across articles: 1 − |Forecast − Actual| ÷ the larger of the two."
             accent={summary.overall === null ? 'slate' : summary.overall >= 0.9 ? 'green' : 'amber'}
             progress={summary.overall ?? 0}
             loading={busy}
@@ -2941,10 +3001,11 @@ export function ComponentLevel({
           * gap means the long tail is being missed while the volume is fine,
           * which is a different problem from the volume itself being wrong.
           */}
-        {!future && (
+        {!future && !noWarehouse && (
           <MetricCard
             label="Warehouse accuracy"
             calc="card-warehouse,wh-forecast,outbound"
+            hint="How close the WH forecast was to what shipped, weighted by volume: 1 − |Forecast − Outbound| ÷ the larger of the two."
             accent={
               summary.whOverallByVolume === null
                 ? 'slate'
@@ -2980,10 +3041,11 @@ export function ComponentLevel({
           * Both directions are a miss, so the accent is green only near 100%
           * and amber either side — unlike accuracy, higher is NOT better.
           */}
-        {!future && (
+        {!future && !noWarehouse && (
           <MetricCard
             label="Outbound vs forecast"
             calc="wh-forecast,outbound"
+            hint="Outbound ÷ WH forecast. Over 100% shipped more than forecast — higher is not better."
             accent={
               summary.newRatio === null
                 ? 'slate'
@@ -3023,6 +3085,7 @@ export function ComponentLevel({
           */}
         <MetricCard
           label="Articles"
+          hint="Distinct articles in this view, and the recipe groups they come from."
           accent="slate"
           progress={0.72}
           loading={busy}
@@ -3031,6 +3094,7 @@ export function ComponentLevel({
         />
         <MetricCard
           label="Largest requirement"
+          hint="The article the forecast asks for most of, in its own base unit."
           accent="green"
           progress={1}
           loading={busy}
@@ -3063,6 +3127,38 @@ export function ComponentLevel({
         fill
         tools={
           <>
+          {/*
+            * Put the stock-rule rows aside, or look at only them.
+            *
+            * About four rows in five meet the `2 x forecast <= Store SOH`
+            * condition and score 100% without the forecast being measured at
+            * all, so a reader judging forecast quality is mostly reading rows
+            * that say nothing about it. The dot on the cell marks them one at a
+            * time; this takes them out of the table in one go.
+            *
+            * Hidden on a future window, where nothing is scored and every
+            * choice would return the same rows.
+            */}
+          {/*
+            * ...and not where the warehouse columns are gone.
+            *
+            * The slicer sorts rows by whether their WH ACC% was earned or
+            * handed to them by the stock rule. With no WH ACC% column on the
+            * page there is no score to sort, so every choice returns the same
+            * rows - and the two it offers name a column the reader cannot see.
+            */}
+          {!future && stockDetail && !noWarehouse ? (
+            <label className="tgroup">
+              <span title="WH ACC% of 100% can mean the forecast was right, or that the shops were already stocked. This separates the two.">
+                Scoring
+              </span>
+              <select value={covered ?? ''} onChange={(e) => setCovered(e.target.value || null)}>
+                <option value="">All rows</option>
+                <option value="scored">Measured only (exclude stock-covered)</option>
+                <option value="stock">Stock-covered 100% only</option>
+              </select>
+            </label>
+          ) : null}
           {/*
             * The answer to "this article is missing".
             *
@@ -3128,6 +3224,15 @@ export function ComponentLevel({
              * no group at all, so no collapse can reach them.
              */
             collapsibleGroups
+            /*
+             * No Freeze control where the warehouse columns are gone.
+             *
+             * Removing the warehouse and variance groups takes about fifteen
+             * columns off the table, and what is left fits without scrolling
+             * sideways - so there is nothing for a pinned first column to hold
+             * still against.
+             */
+            freezable={!noWarehouse}
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
             onRowClick={(row) => setUsage(row)}
@@ -3154,7 +3259,7 @@ export function ComponentLevel({
             maxHeight={620}
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
-              wh: { label: 'Warehouse', help: HELP.wh },
+              ...(noWarehouse ? {} : { wh: { label: 'Warehouse', help: HELP.wh } }),
               /*
                 * The two comparisons and their score, given a heading of their
                 * own on 26 Sep 2026 so the section can be collapsed.
@@ -3165,7 +3270,7 @@ export function ComponentLevel({
                 * optional, and they read as a set anyway - both variances and
                 * the score derived from the second one.
                 */
-              variance: { label: 'Variance', help: HELP.variance },
+              ...(noWarehouse ? {} : { variance: { label: 'Variance', help: HELP.variance } }),
               /*
                 * "Stock", renamed 16 Sep 2026.
                 *
@@ -3202,7 +3307,7 @@ export function ComponentLevel({
         * builds on, and withheld on a future window because a plan made from a
         * forecast the engine had to extrapolate would read as firmer than it is.
         */}
-      {stockDetail && !future && (
+      {stockDetail && !future && !noWarehouse && (
         <ReplenishmentPlanning rows={priced} filters={filters} busy={busy} />
       )}
       {/*
@@ -3232,14 +3337,23 @@ export function ComponentLevel({
         */}
       {!busy && !future && (
         <div className="bandstack">
-          <BandChart
-            label="WH ACC%"
-            bands={BANDS}
-            counts={bandCounts}
-            active={band}
-            total={grouped.length}
-            onPick={(k) => setBand(band === k ? null : k)}
-          />
+          {/*
+            * The warehouse band goes with the warehouse columns.
+            *
+            * On the Production page it read 889 of 896 articles "Not scored",
+            * which is not a distribution - it is the page saying the warehouse
+            * never ships these, once per article.
+            */}
+          {noWarehouse ? null : (
+            <BandChart
+              label="WH ACC%"
+              bands={BANDS}
+              counts={bandCounts}
+              active={band}
+              total={grouped.length}
+              onPick={(k) => setBand(band === k ? null : k)}
+            />
+          )}
           <BandChart
             label="ACC%"
             bands={BANDS}
