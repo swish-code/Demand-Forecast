@@ -1389,8 +1389,7 @@ async function withRoundedForecast(rows, admin) {
 
   return rows.map((r) => {
     const article = String(r['Item No.'] ?? '').trim()
-    const carries = r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined
-    if (!article || !carries) return r
+    if (!article) return r
 
     const held = packs.get(article)
     if (!held) return r
@@ -1398,19 +1397,60 @@ async function withRoundedForecast(rows, admin) {
     // round a count, and nothing in any model says what one portion weighs.
     if (!canRound(held.unit, r.BU)) return r
 
-    const rounded = roundToPack(r.WH_Constant_Forecast_Qty, held.pack)
-    if (rounded === null) return r
+    const out = { ...r }
+    let touched = false
 
-    return {
-      ...r,
-      WH_Constant_Forecast_Qty: rounded,
-      // The engine's own figure, kept so accuracy and replenishment can go on
-      // reading what was actually predicted.
-      WH_Forecast_Unrounded: Number(r.WH_Constant_Forecast_Qty),
-      WH_Rounded: true,
-      Pack_Size: held.pack,
-      Pack_Unit: held.unit,
+    /*
+     * The warehouse forecast, as before.
+     *
+     * Only on the row carrying it - an article is spread over one row per
+     * recipe group, and a per-article quantity repeated on each would be
+     * counted once per recipe by any total.
+     */
+    if (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined) {
+      const rounded = roundToPack(r.WH_Constant_Forecast_Qty, held.pack)
+      if (rounded !== null) {
+        out.WH_Constant_Forecast_Qty = rounded
+        // The engine's own figure, kept so accuracy and replenishment can go on
+        // reading what was actually predicted.
+        out.WH_Forecast_Unrounded = Number(r.WH_Constant_Forecast_Qty)
+        touched = true
+      }
     }
+
+    /*
+     * And the product-mix forecast, asked for on 27 Sep 2026.
+     *
+     * These are the PA rows of the STD PKG sheet - 517 of its 531 PA entries
+     * are the CK ones this map already holds - and the reasoning is the same
+     * one the warehouse column follows: a prep item is made in whole packs, so
+     * a requirement of 10,656.33 kg against a 4 kg pack is really 2,664 packs,
+     * which is 10,660 kg.
+     *
+     * Measured over 1-27 Sep before building it: 265 articles round, and the
+     * total moves 452,391.60 -> 452,744.07, up 0.08%. Small, because a pack is
+     * small next to a month of demand - it is the individual row that matters,
+     * not the total.
+     *
+     * Unlike the warehouse figure this one sits on EVERY recipe row, because
+     * the mix is per recipe line rather than per article. Each line is rounded
+     * on its own: a line asking for 3.2 packs and another asking for 1.4 are
+     * two orders, not one order of 4.6.
+     */
+    if (r.Component_Forecast_Qty !== null && r.Component_Forecast_Qty !== undefined) {
+      const rounded = roundToPack(r.Component_Forecast_Qty, held.pack)
+      if (rounded !== null) {
+        out.Component_Forecast_Qty = rounded
+        // Same contract as the warehouse side: the displayed and summed figure
+        // is the rounded one, the MEASUREMENT is unchanged. Sales ACC% reads
+        // this, so that it grades the forecast rather than the packaging.
+        out.Component_Forecast_Unrounded = Number(r.Component_Forecast_Qty)
+        touched = true
+      }
+    }
+
+    if (!touched) return r
+    return { ...out, WH_Rounded: true, Pack_Size: held.pack, Pack_Unit: held.unit }
   })
 }
 

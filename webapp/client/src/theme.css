@@ -3361,9 +3361,49 @@ table.dt thead th:hover .th__sort--idle {
   max-width: 320px;
 }
 
+/*
+ * A skeleton has to look like it is WORKING, not like empty content.
+ *
+ * It was a flat grey rectangle, which is indistinguishable from a panel that
+ * loaded and had nothing in it - reported 27 Sep 2026 against the Stock
+ * Article page, where a first load showed several grey boxes and no sign
+ * anything was happening. One sweeping highlight fixes every skeleton in the
+ * app at once: metric cards, charts and tables all render this same class.
+ *
+ * `overflow: hidden` on the box and a pseudo-element for the sweep, so nothing
+ * has to change at the call sites and the highlight cannot escape the shape.
+ */
 .skel {
   border-radius: var(--r-card);
   background: var(--sunken);
+  position: relative;
+  overflow: hidden;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--surface) 75%, transparent),
+    transparent
+  );
+  animation: skel-sweep 1.5s ease-in-out infinite;
+}
+@keyframes skel-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+/* Motion is the whole signal here, so with it off the box is tinted instead —
+   still distinguishable from an empty panel, just not moving. */
+@media (prefers-reduced-motion: reduce) {
+  .skel::after {
+    animation: none;
+    background: color-mix(in srgb, var(--surface) 35%, transparent);
+  }
 }
 
 .busy {

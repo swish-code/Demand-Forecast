@@ -488,6 +488,7 @@ export function SalesPlan() {
       <Panel
         title={`The ${data.year} forecast`}
         sub="The plan exploded to product and article level. The table and the download are the same call, so a figure on screen is the figure in the sheet."
+        busy={rowsBusy}
       >
         {totals.entered ? (
           <>
@@ -618,7 +619,6 @@ export function SalesPlan() {
               <DataTable
                 columns={forecastColumns}
                 rows={shownRows}
-                busy={rowsBusy}
                 tableId={`salesplan-${level}`}
                 initialSort={{ key: 'forecastQty', dir: 'desc' }}
                 totals

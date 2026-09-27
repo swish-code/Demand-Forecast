@@ -1742,7 +1742,18 @@ export function ComponentLevel({
        * forecast badly.
        */
       if (r.Component_Forecast_Qty !== null && r.Component_Forecast_Qty !== undefined) {
-        held.forecast = (held.forecast ?? 0) + (Number(r.Component_Forecast_Qty) || 0)
+        /*
+         * The UNROUNDED figure, where one exists.
+         *
+         * Product-mix quantities are rounded up to whole packs from 27 Sep
+         * 2026, and this total is what Sales ACC% divides. Scored against a
+         * figure deliberately lifted to a pack boundary it would grade the
+         * packaging rather than the forecast - the same reason WH ACC% reads
+         * `WH_Forecast_Unrounded`.
+         */
+        held.forecast =
+          (held.forecast ?? 0) +
+          (Number(r.Component_Forecast_Unrounded ?? r.Component_Forecast_Qty) || 0)
       }
       if (r.Component_Actual_Qty !== null && r.Component_Actual_Qty !== undefined) {
         held.implied = (held.implied ?? 0) + (Number(r.Component_Actual_Qty) || 0)
@@ -1789,7 +1800,7 @@ export function ComponentLevel({
         ? held.forecast
         : r.Component_Forecast_Qty === null || r.Component_Forecast_Qty === undefined
           ? null
-          : Number(r.Component_Forecast_Qty) || 0
+          : Number(r.Component_Forecast_Unrounded ?? r.Component_Forecast_Qty) || 0
       /*
        * Divided by the larger of the two, not by the forecast.
        *
@@ -2032,6 +2043,12 @@ export function ComponentLevel({
       }
       held.__n += 1
       held.Component_Forecast_Qty = add(held.Component_Forecast_Qty, r.Component_Forecast_Qty)
+      // Summed alongside it so a folded row can still be scored on what was
+      // predicted rather than on what the packs rounded it up to.
+      held.Component_Forecast_Unrounded = add(
+        held.Component_Forecast_Unrounded ?? held.Component_Forecast_Qty,
+        r.Component_Forecast_Unrounded ?? r.Component_Forecast_Qty
+      )
       held.Component_Actual_Qty = add(held.Component_Actual_Qty, r.Component_Actual_Qty)
       held.Consumed_Qty = add(held.Consumed_Qty, r.Consumed_Qty)
       held.Live_Outbound_MTD = add(held.Live_Outbound_MTD, r.Live_Outbound_MTD)
@@ -2163,7 +2180,7 @@ export function ComponentLevel({
         Accuracy:
           r.Component_Forecast_Qty === null || r.Component_Forecast_Qty === undefined
             ? null
-            : rescore(Number(r.Component_Forecast_Qty) || 0),
+            : rescore(Number(r.Component_Forecast_Unrounded ?? r.Component_Forecast_Qty) || 0),
         // Unrounded, for the same reason `held.wh` is: see `priced` above.
         // The stock rule uses the folded row's own summed Store SOH, so a
         // group is judged on the stock of the articles actually in it.
@@ -3028,6 +3045,17 @@ export function ComponentLevel({
           cards that is read after it, not with it. */}
       <Panel
         calc="component-forecast,component-actual,acc-pct,wh-forecast,outbound,wh-acc,sales-acc,supply"
+        /*
+         * On the PANEL, not on the table inside it.
+         *
+         * The table's own `busy` only fires once the table renders - and on a
+         * first load it does not render at all, the skeleton stands in its
+         * place. So the page showed a grey box with nothing saying it was
+         * loading, which is the case this was meant to cover. The panel wraps
+         * both branches, so one indicator serves the first load and every
+         * reload after it.
+         */
+        busy={busy}
         title="Article detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub="What the forecast implies you need, beside what actually left the warehouse"
@@ -3086,7 +3114,6 @@ export function ComponentLevel({
           <DataTable
             columns={columns}
             rows={banded}
-            busy={busy}
             totals
             initialSort={{ key: 'Component_Forecast_Qty', dir: 'desc' }}
             searchPlaceholder="Search article or group…"

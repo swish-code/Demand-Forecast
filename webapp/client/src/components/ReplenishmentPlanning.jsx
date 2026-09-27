@@ -959,6 +959,9 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
         'plan-d1',
         'plan-d2',
       ].join(',')}
+      // Panel-level for the same reason Article detail is: the table does not
+      // render at all on a first load, so its own indicator cannot show.
+      busy={busy}
       title="Replenishment Planning"
       count={busy ? undefined : `${planned.length.toLocaleString()} articles`}
       sub={
@@ -1045,7 +1048,6 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
         <DataTable
           columns={columns}
           rows={planned}
-          busy={busy}
           totals
           initialSort={{ key: 'Req_Qty', dir: 'desc' }}
           searchPlaceholder="Search article or supplier…"
