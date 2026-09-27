@@ -306,18 +306,15 @@ export function SalesPlan() {
             { key: 'item', label: 'Article', autoWidth: { min: 180, max: null, percentile: 0.95 }, wrap: true, strong: true },
             { key: 'unit', label: 'Unit', width: 96 },
             /*
-             * Prod. type, off temporarily - asked for on 27 Sep 2026.
+             * Back on, and now answered for every row.
              *
-             * The column and the route behind it are left intact: the server
-             * still sends `nodeType` on every row and the CSV still carries it,
-             * so putting this line back is the whole of switching it on again.
-             *
-             * Blank where the recipes never name the article - these rows are
-             * the warehouse's, not a recipe's, so a bought good with no recipe
-             * line has no type to take. A dash says "not known here" rather
-             * than implying a fourth type.
+             * It was taken off on 27 Sep 2026 because it was blank for a fifth
+             * of the table. Both causes are fixed - the type is read from the
+             * recipe master rather than from the forecast-filtered component
+             * copy, and anything no recipe names is RAW, which is what the rest
+             * of the app already calls those articles. See the route for why.
              */
-            // { key: 'nodeType', label: 'Prod. type', width: 104, render: (v) => v || '–' },
+            { key: 'nodeType', label: 'Prod. type', width: 104 },
             {
               key: 'forecastQty',
               label: `${data?.year ?? ''} forecast qty`,

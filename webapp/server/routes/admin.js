@@ -1508,10 +1508,21 @@ admin.get(
       ])
     )
 
+    /*
+     * The warehouse method only - the recipe explosion is deliberately absent.
+     *
+     * It was added on 27 Sep 2026 to close the gap against Stock Article, which
+     * holds the union of the warehouse's articles and the recipes', and taken
+     * straight back out on request the same day. The two methods are not
+     * interchangeable: the recipe audit on 23 Sep found them disagreeing by a
+     * factor of two on the same articles, which is why this route stopped
+     * reading the explosion in the first place. One table, one method, one
+     * meaning for the column - an article with no warehouse history simply
+     * does not appear here.
+     */
     const byArticle = new Map()
     for (const [brand, got] of perBrand) {
-      if (!got) continue
-      for (const [article, value] of got) {
+      for (const [article, value] of got ?? []) {
         const code = String(article ?? '').trim()
         if (!code) continue
         const qty = Number(value?.qty ?? value) || 0
@@ -1522,7 +1533,33 @@ admin.get(
           article: code,
           item: meta.item,
           unit: meta.unit,
-          nodeType: nodeTypes.get(code) ?? '',
+          /*
+           * RAW is the answer for everything no recipe names.
+           *
+           * The recipe master can only speak for articles that appear in it,
+           * and this table's population does not come from recipes at all - it
+           * is the warehouse constant applied to planned sales, so it carries
+           * every article the warehouse ships, direct supply included. Leaving
+           * those blank was the bug: a blank read as "unknown" when the answer
+           * is knowable.
+           *
+           * PREP and PA are by definition recipe nodes - a prep step, or an
+           * article a recipe produces. An article appearing nowhere in the
+           * recipe tree can be neither, so it is a purchased good, which is
+           * RAW. Direct supply does not change that; it describes how the
+           * article reaches the shop, not what kind of thing it is.
+           *
+           * The same rule the rest of the app already applies to the same
+           * population - see `nonRecipe.js`, which tags exactly these articles
+           * 'Node Type': 'RAW' on Stock Article. The two agree now; before
+           * this they contradicted each other.
+           *
+           * The one thing it gets wrong is a genuine PA missing from the
+           * recipe master, which would be called RAW. That is a master-data
+           * gap rather than a rule to work around, and the rule is right far
+           * more often than the blank was.
+           */
+          nodeType: nodeTypes.get(code) || 'RAW',
           forecastQty: qty,
         })
       }
