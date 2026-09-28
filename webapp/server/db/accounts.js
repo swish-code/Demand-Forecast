@@ -632,6 +632,23 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS cal_last_actual TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_to TEXT;
 /*
+ * How many distinct days the recipe copy holds for this brand.
+ *
+ * comp_from and comp_to are a MIN and a MAX, which say nothing about what sits
+ * between them - so a copy holding two rows six months apart claimed the same
+ * coverage as a complete one. comp_span is that first-to-last distance, and
+ * canAnswerComponents serves from the copy only where the two agree.
+ *
+ * Both are nullable: null means the question has not been asked of this brand
+ * since these columns existed, and the honest answer to "can you cover this
+ * window" is then no.
+ *
+ * No backticks in this comment, deliberately - the whole schema is one
+ * template literal, and a backtick here ends it mid-statement.
+ */
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_days INTEGER;
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_span INTEGER;
+/*
  * Nullable, because "nothing" is an answer.
  *
  * These were NOT NULL when they held the window an extract had asked for.

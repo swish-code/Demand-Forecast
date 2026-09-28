@@ -595,6 +595,44 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null, cale
   const articles = await spanOf('cube_article_daily')
   const components = await spanOf('cube_component_daily')
 
+  /*
+   * How many DAYS the recipe copy actually holds, not just its first and last.
+   *
+   * MIN and MAX cannot tell a complete copy from a sparse one. A brand whose
+   * component extract wrote two rows - one in March, one in September - records
+   * exactly the same span as one that wrote every day in between, and
+   * `canAnswerComponents` then serves a whole month's question from those two
+   * rows instead of going to Power BI. It does not fail; it answers, quietly
+   * and wrongly, and the page looks like a page with almost nothing on it.
+   *
+   * That is the failure the Production page hit: 1,151 rows live against 8 from
+   * a copy that claimed to cover the same window.
+   *
+   * Counting distinct dates is what makes the claim checkable.
+   */
+  const compDays =
+    (
+      await pg.get(
+        'SELECT COUNT(DISTINCT date)::int AS n FROM cube_component_daily WHERE brand = ?',
+        [brand.code]
+      )
+    )?.n ?? 0
+
+  /*
+   * ...and how many days that first-to-last span is worth.
+   *
+   * Stored beside the count rather than derived on read, because `comp_to` is
+   * widened in memory for a planned year and a span taken from the widened
+   * value would demand days the extract never fetched.
+   */
+  const dayCount = (from, to) => {
+    const lo = Date.parse(`${String(from ?? '').slice(0, 10)}T00:00:00Z`)
+    const hi = Date.parse(`${String(to ?? '').slice(0, 10)}T00:00:00Z`)
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return 0
+    return Math.round((hi - lo) / 86_400_000) + 1
+  }
+  const compSpan = dayCount(components.lo, components.hi)
+
   // The overlap, and null the moment either side has nothing.
   const wideFrom =
     branches.lo && articles.lo ? (branches.lo > articles.lo ? branches.lo : articles.lo) : null
@@ -603,8 +641,9 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null, cale
   await pg.run(
     `INSERT INTO cube_coverage
        (brand, from_date, to_date, rows, refreshed_at, detail_from, detail_to,
-        components, model_from, model_to, comp_from, comp_to, cal_today, cal_last_actual)
-     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        components, model_from, model_to, comp_from, comp_to, cal_today, cal_last_actual,
+        comp_days, comp_span)
+     VALUES (?, ?, ?, ?, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (brand) DO UPDATE SET
        from_date = excluded.from_date,
        to_date = excluded.to_date,
@@ -618,7 +657,9 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null, cale
        model_from = COALESCE(excluded.model_from, cube_coverage.model_from),
        model_to = COALESCE(excluded.model_to, cube_coverage.model_to),
        cal_today = COALESCE(excluded.cal_today, cube_coverage.cal_today),
-       cal_last_actual = COALESCE(excluded.cal_last_actual, cube_coverage.cal_last_actual)`,
+       cal_last_actual = COALESCE(excluded.cal_last_actual, cube_coverage.cal_last_actual),
+       comp_days = excluded.comp_days,
+       comp_span = excluded.comp_span`,
     [
       brand.code,
       wideFrom,
@@ -633,6 +674,8 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null, cale
       components.hi,
       calendar?.today ?? null,
       calendar?.lastActual ?? null,
+      compDays,
+      compSpan,
     ]
   )
   await loadCoverage()

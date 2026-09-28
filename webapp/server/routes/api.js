@@ -445,11 +445,48 @@ api.all('/summary', handle(async (req, res) => {
     // matters on a capacity that answers 429 with a sixty-second Retry-After.
     const spanning = prevFilters ? { ...f, dateFrom: prevFilters.dateFrom } : f
 
-    const [rows, topProducts, byLocation] = await Promise.all([
+    const [rows, topProducts, byLocation, productRows] = await Promise.all([
       data.trend(spanning, ds),
       data.topProducts(f, top, ds),
       data.byLocation(f, ds),
+      /*
+       * The product grain, purely so the Accuracy card can agree with Products.
+       *
+       * The card used to read `Forecast_Accuracy` - the model's measure applied
+       * to the window TOTALS, `1 - |SUM(A) - SUM(F)| / SUM(A)`. That answers
+       * "how well did we forecast the business", where the Products page
+       * answers "how well did we forecast each product, weighted by what it
+       * sold". Both are defensible and they are not the same number: 95.3%
+       * against 93.0% on the same window, which reads as one of the two pages
+       * being wrong.
+       *
+       * Read at the SAME grain the Products page reads - product level, no
+       * date or location split - because a weighted mean depends on the grain
+       * it is taken over. Summing to product names instead, which the
+       * `topProducts` list beside this already has, would have cost nothing and
+       * still disagreed.
+       */
+      data.productLevel(f, ds, {}).catch(() => null),
     ])
+
+    /*
+     * Held as the two halves of the weighted mean, not as the mean.
+     *
+     * Brands are merged below, and an average of averages is not an average -
+     * a brand selling a thousand units would count for exactly as much as one
+     * selling ten. Carrying the numerator and the denominator lets the merge
+     * add them and divide once.
+     */
+    const productAccuracy = { weight: 0, sum: 0 }
+    for (const r of productRows ?? []) {
+      const a = Number(r.Actual_Qty) || 0
+      const fq = Number(r.Forecast_Qty) || 0
+      // Blank on either side is unscoreable, exactly as the column is: a
+      // product that sold nothing has no accuracy, nor has one nobody forecast.
+      if (!(a > 0) || !(fq > 0)) continue
+      productAccuracy.weight += a
+      productAccuracy.sum += a * (1 - Math.abs(a - fq) / Math.max(a, fq))
+    }
 
     const inWindow = (r, from, to) => (!from || r.Date >= from) && (!to || r.Date <= to)
     const trend = rows.filter((r) => inWindow(r, f.dateFrom, f.dateTo))
@@ -466,16 +503,41 @@ api.all('/summary', handle(async (req, res) => {
       ? deriveKpis(total(prevRows, 'Actual_Qty'), total(prevRows, 'Forecast_Qty'))
       : null
 
-    return { brand, kpis, trend, topProducts, byLocation, prev }
+    return { brand, kpis, trend, topProducts, byLocation, prev, productAccuracy }
   })
 
+  /*
+   * One divide, after the brands are added together.
+   *
+   * Null rather than zero when nothing was scoreable - a window with no sales
+   * has no accuracy, and 0% would read as a total miss.
+   */
+  const weighted = (parts) => {
+    let weight = 0
+    let sum = 0
+    for (const p of parts) {
+      weight += p?.weight ?? 0
+      sum += p?.sum ?? 0
+    }
+    return weight > 0 ? sum / weight : null
+  }
+
   if (g.single) {
-    const { kpis, trend, topProducts, byLocation, prev } = results[0]
-    return res.json({ kpis, trend, topProducts, byLocation, prev })
+    const { kpis, trend, topProducts, byLocation, prev, productAccuracy } = results[0]
+    return res.json({
+      kpis: { ...kpis, Product_Accuracy: weighted([productAccuracy]) },
+      trend,
+      topProducts,
+      byLocation,
+      prev,
+    })
   }
 
   res.json({
-    kpis: mergeKpis(results.map((r) => r.kpis)),
+    kpis: {
+      ...mergeKpis(results.map((r) => r.kpis)),
+      Product_Accuracy: weighted(results.map((r) => r.productAccuracy)),
+    },
     trend: mergeTrend(results.map((r) => r.trend)),
     // Product names repeat across brands, so the brand is part of the key and a
     // combined view lists "Chilli Lime" once per brand that sells it.

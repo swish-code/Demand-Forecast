@@ -219,7 +219,24 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
   const actual = kpis.Actual_Qty ?? 0
   const forecast = kpis.Forecast_Qty ?? 0
   const variance = kpis.Variance_Pct ?? 0
-  const accuracy = kpis.Forecast_Accuracy ?? 0
+  /*
+   * The Products page's figure, not the model's totals measure.
+   *
+   * `Forecast_Accuracy` is `1 - |SUM(A) - SUM(F)| / SUM(A)` over the whole
+   * window - one score for the business. The Products page scores each product
+   * on its own and weights by what it sold, which is a different question and
+   * a different number: 95.3% here against 93.0% there on the same window,
+   * with nothing to tell a reader which page to believe.
+   *
+   * `Product_Accuracy` is that second figure, computed on the server from the
+   * same product-level rows the Products page reads, at the same grain and
+   * with the same formula - so the two cards cannot drift apart.
+   *
+   * The fallback is deliberate rather than defensive: the server returns null
+   * when nothing in the window is scoreable, and the totals measure is a
+   * reasonable answer to show in that case.
+   */
+  const accuracy = kpis.Product_Accuracy ?? kpis.Forecast_Accuracy ?? 0
 
   const varState = varianceState(variance)
   const accState = accuracyState(accuracy)
@@ -483,11 +500,13 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
               </div>
 
               <div className="perf__item">
-                <span className="metric__label">Forecast accuracy</span>
+                {/* Named and described as the Products page names and describes
+                    it, because it is now literally the same number. */}
+                <span className="metric__label">Accuracy</span>
                 <span className={`perf__value perf__value--${accState}`}>{fmtPct(accuracy)}</span>
                 <span className="metric__foot">
-                  Target {fmtPct(ACCURACY_TARGET, 0)} ·{' '}
-                  {accState === 'good' ? 'on target' : `${((accuracy - ACCURACY_TARGET) * 100).toFixed(1)}pp under`}
+                  Weighted by units sold · target {fmtPct(ACCURACY_TARGET, 0)}
+                  {accState === 'good' ? '' : ` · ${((accuracy - ACCURACY_TARGET) * 100).toFixed(1)}pp under`}
                 </span>
                 <span className="perf__meter">
                   <Meter value={accuracy} good={ACCURACY_TARGET} warn={ACCURACY_FLOOR} showValue={false} />

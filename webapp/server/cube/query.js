@@ -705,7 +705,38 @@ export function canAnswerComponents(brand, filters = {}) {
   // rest, so borrowing the wide range would claim days it does not hold.
   if (!cover.comp_from || !cover.comp_to) return false
   if (!within(cover, { from: cover.comp_from, to: cover.comp_to }, filters)) return false
-  return Number(cover.components ?? 0) > 0
+  if (!(Number(cover.components ?? 0) > 0)) return false
+
+  /*
+   * Complete, not merely spanning.
+   *
+   * The two dates above are a MIN and a MAX, and `components > 0` only says the
+   * table is not empty - so a brand holding a handful of rows scattered across
+   * six months passed every test here and then answered a month's question with
+   * those rows. Nothing errored. The page simply came back nearly empty, which
+   * reads as "there is almost nothing to make" rather than "the copy could not
+   * answer this".
+   *
+   * Measured 28 Sep 2026 on the Production page: the live query returns 1,151
+   * rows for 1-26 Sep across nine brands, and a thin copy answered 8.
+   *
+   * So the copy must hold a row for EVERY day it claims, or it does not get to
+   * claim it. A gap sends the question to Power BI - slower, and right, which
+   * is the trade this whole module is built on.
+   *
+   * Null means the count predates this check. Refusing is the safe direction:
+   * the next extract fills it, and until then the page is slow rather than
+   * wrong.
+   *
+   * Both figures are measured at extract time, against the dates the table
+   * really holds. `comp_to` above is widened in memory for a planned year -
+   * see `widenForPlans` - so deriving the span from it here would demand days
+   * the extract was never asked for and refuse every planned brand outright.
+   */
+  const days = cover.comp_days
+  const span = cover.comp_span
+  if (days === null || days === undefined || span === null || span === undefined) return false
+  return Number(days) >= Number(span)
 }
 
 export async function componentLevel(brand, f, grain = {}) {
