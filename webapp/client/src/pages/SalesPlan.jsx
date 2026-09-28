@@ -133,6 +133,7 @@ export function SalesPlan() {
           { key: 'item', label: 'Article' },
           { key: 'unit', label: 'Unit' },
           { key: 'nodeType', label: 'Prod. type' },
+          { key: 'method', label: 'Method' },
           { key: 'forecastQty', label: `${data.year} forecast qty` },
         ])
         setNote(`${keep(rows).length.toLocaleString()} article rows downloaded.`)
@@ -315,6 +316,16 @@ export function SalesPlan() {
              * of the app already calls those articles. See the route for why.
              */
             { key: 'nodeType', label: 'Prod. type', width: 104 },
+            /*
+             * Which method produced the quantity beside it.
+             *
+             * The table holds two populations - the articles the warehouse
+             * ships, and the ones only a recipe reaches - and they are forecast
+             * by arithmetic that is not interchangeable. Without this column a
+             * reader summing the quantity is adding two different things
+             * together without being told.
+             */
+            { key: 'method', label: 'Method', width: 148 },
             {
               key: 'forecastQty',
               label: `${data?.year ?? ''} forecast qty`,

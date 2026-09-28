@@ -25,7 +25,7 @@ import {
   isMainPlanBrand,
   splitAcrossBrands,
 } from '../insights/salesPlan.js'
-import { loadCoverage, productLevel } from '../cube/query.js'
+import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
@@ -1505,28 +1505,70 @@ admin.get(
         await forecastFromConstants(brand.code, { ...f, brand: brand.code }, {
           flatConstant: true,
         }).catch(() => null),
+        /*
+         * The recipe explosion, for the articles the warehouse cannot reach.
+         *
+         * The warehouse method needs six months of outbound to build a constant
+         * from, so an article the warehouse has never issued has no constant and
+         * never appeared here - even though the forecast reaches it through its
+         * recipes, and Stock Article shows it. That was the gap: this table held
+         * the warehouse's articles where the forecast implies the union of the
+         * warehouse's and the recipes'.
+         *
+         * Same window and same grain, so `componentLevel` applies the plan
+         * factor to the base year's explosion exactly as the Ingredients page
+         * does for a planned year.
+         */
+        await componentLevel(brand.code, { ...f, brand: brand.code }).catch(() => []),
       ])
     )
 
     /*
-     * The warehouse method only - the recipe explosion is deliberately absent.
+     * Warehouse first, recipes second, and the order is the rule.
      *
-     * It was added on 27 Sep 2026 to close the gap against Stock Article, which
-     * holds the union of the warehouse's articles and the recipes', and taken
-     * straight back out on request the same day. The two methods are not
-     * interchangeable: the recipe audit on 23 Sep found them disagreeing by a
-     * factor of two on the same articles, which is why this route stopped
-     * reading the explosion in the first place. One table, one method, one
-     * meaning for the column - an article with no warehouse history simply
-     * does not appear here.
+     * Both methods can answer for an article a recipe names AND the warehouse
+     * ships, and they do not agree - the recipe audit on 23 Sep 2026 found them
+     * out by a factor of two on the same articles. Letting the explosion
+     * overwrite a warehouse figure would move numbers that are already signed
+     * off, so it may only FILL what the warehouse left empty.
+     *
+     * The effect is additive by construction: every row this table showed
+     * before shows the same quantity, and the new rows are the articles that
+     * had none.
+     *
+     * The two are NOT interchangeable and must not be silently added together,
+     * which is what the Method column on every row is for.
      */
     const byArticle = new Map()
-    for (const [brand, got] of perBrand) {
+    for (const [brand, got, recipeRows] of perBrand) {
+      const seen = new Set()
+      const picked = []
+
       for (const [article, value] of got ?? []) {
         const code = String(article ?? '').trim()
         if (!code) continue
         const qty = Number(value?.qty ?? value) || 0
         if (qty <= 0) continue
+        seen.add(code)
+        picked.push([code, qty, 'Warehouse constant'])
+      }
+
+      /*
+       * One row per recipe LINE arrives, so an article's requirement is the sum
+       * of its lines - the same fold the Ingredients page does before showing
+       * an article once.
+       */
+      const exploded = new Map()
+      for (const r of recipeRows ?? []) {
+        const code = String(r['Item No.'] ?? '').trim()
+        if (!code || seen.has(code)) continue
+        const qty = Number(r.Component_Forecast_Qty) || 0
+        if (!(qty > 0)) continue
+        exploded.set(code, (exploded.get(code) ?? 0) + qty)
+      }
+      for (const [code, qty] of exploded) picked.push([code, qty, 'Recipe explosion'])
+
+      for (const [code, qty, method] of picked) {
         const meta = names.get(code) ?? { item: '', unit: '' }
         byArticle.set(`${brand.code}|${code}`, {
           brand: brand.code,
@@ -1560,6 +1602,8 @@ admin.get(
            * more often than the blank was.
            */
           nodeType: nodeTypes.get(code) || 'RAW',
+          /* Which of the two methods produced the quantity beside it. */
+          method,
           forecastQty: qty,
         })
       }
