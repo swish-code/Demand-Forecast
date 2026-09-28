@@ -267,6 +267,20 @@ export const PAGE_IDS = [
   // PREP and PA. Anything that could open the old page is given both, or it
   // silently loses half the articles it used to see.
   'madeinhouse',
+  /*
+   * Production carved up by where an article is actually made - Central
+   * Kitchen / CPU, Bakery, Yelo Factory, and the ones nothing classifies yet.
+   * Listed here so access can be granted per site: a bakery manager has no
+   * business reading the kitchen's list.
+   *
+   * All four read the same endpoint as `madeinhouse` and differ only in the
+   * production source they pin, so a grant here controls the page, not the
+   * data behind it.
+   */
+  'src-ck',
+  'src-bakery',
+  'src-factory',
+  'src-none',
   'warehouse',
   'production',
   'guide',

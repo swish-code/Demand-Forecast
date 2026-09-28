@@ -26,6 +26,7 @@ import {
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
+import { productionSourceByArticle, UNCLASSIFIED } from '../insights/productionSource.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
@@ -88,7 +89,13 @@ function allowsRaw(filters) {
   return wanted.some((t) => String(t).trim().toUpperCase() === 'RAW')
 }
 
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses']
+/*
+ * `prodSources` is the production-source pages' own filter. Post-hoc like
+ * `categories` and `statuses`: it is stamped on the assembled rows rather than
+ * being a column any query can narrow on, so the copy must not treat it as a
+ * reason to go live - see COMPONENT_FILTERS in cube/query.js.
+ */
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -1560,6 +1567,37 @@ async function withRoundedForecast(rows, admin) {
   })
 }
 
+/**
+ * Where each PA article is produced, and the filter that narrows to one site.
+ *
+ * Stamped on the row rather than queried per page, so the four production-source
+ * pages, the CSV and the cards all read one classification - see
+ * `productionSource.js` for how it is decided and what the audit settled.
+ *
+ * An article with no production evidence is `Unclassified` rather than blank: it
+ * has a page of its own, and a blank would read as a fault instead of a gap.
+ */
+async function withProductionSource(rows, filters) {
+  const map = await productionSourceByArticle().catch((err) => {
+    console.warn(`  [production-source] ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!map) return rows
+
+  const wanted = filters?.prodSources?.length
+    ? new Set(filters.prodSources.map((v) => String(v)))
+    : null
+
+  const out = []
+  for (const r of rows) {
+    const article = String(r['Item No.'] ?? '').trim()
+    const source = (article && map.get(article)) || UNCLASSIFIED
+    if (wanted && !wanted.has(source)) continue
+    out.push({ ...r, Prod_Source: source })
+  }
+  return out
+}
+
 async function withCategory(rows, filters) {
   const map = await categoryByArticle().catch((err) => {
     console.warn(`  [category] ${String(err.message).slice(0, 90)}`)
@@ -2280,7 +2318,32 @@ SUMMARIZECOLUMNS(
    * would report nought once the rows are withheld.
    */
   if (!seesRecipeDetail(req.user)) {
-    return res.json({ rows: [], count: rows.length, partial: failures.length > 0 })
+    /*
+     * Names, without the rates - changed 28 Sep 2026.
+     *
+     * This sent `rows: []` and let the panel draw a bare count. Opening the
+     * panel to every reader then produced an empty table under a header saying
+     * twenty-six menu items use the article, which reads as a fault.
+     *
+     * The names are what a reader actually asked for: WHICH menu items drive
+     * this article - and, from later the same day, HOW MUCH of it each one
+     * takes, which is the other half of that question.
+     *
+     * What still stays behind the grant is the demand side: each menu item's
+     * own forecast and actual, and the requirement derived from them. A rate
+     * describes the recipe; those describe the business.
+     */
+    return res.json({
+      rows: rows.map((r) => ({
+        CHAINID: r.CHAINID,
+        Product: r.Product,
+        Qty_Per_Unit: r.Qty_Per_Unit,
+        BU: r.BU,
+      })),
+      count: rows.length,
+      namesOnly: true,
+      partial: failures.length > 0,
+    })
   }
 
   /*
@@ -2497,7 +2560,7 @@ api.all('/component-level', handle(async (req, res) => {
   if (g.single)
     return res.json({
       sales,
-      rows: await withRoundedForecast(await withCategory(withRecipeKind(
+      rows: await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
         await withSafetyStock(
           await withOpenPo(
             await withStoreStock(
@@ -2522,14 +2585,14 @@ api.all('/component-level', handle(async (req, res) => {
           seesStockDetail(req.user)
         ),
         window
-      ), window), seesStockDetail(req.user)),
+      ), window), seesStockDetail(req.user)), window),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
     sales,
-    rows: await withRoundedForecast(await withCategory(withRecipeKind(
+    rows: await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
       await withSafetyStock(
         await withOpenPo(
           await withStoreStock(
@@ -2560,7 +2623,7 @@ api.all('/component-level', handle(async (req, res) => {
         seesStockDetail(req.user)
       ),
       window
-    ), window), seesStockDetail(req.user)),
+    ), window), seesStockDetail(req.user)), window),
   })
 }))
 

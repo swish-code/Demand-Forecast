@@ -3432,7 +3432,6 @@ export function ComponentLevel({
         <ArticleUsage
           article={usage}
           filters={filters}
-          isAdmin={isAdmin || fullDetail}
           onClose={() => setUsage(null)}
         />
       )}

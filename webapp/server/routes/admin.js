@@ -25,7 +25,7 @@ import {
   isMainPlanBrand,
   splitAcrossBrands,
 } from '../insights/salesPlan.js'
-import { loadCoverage, productLevel, componentLevel } from '../cube/query.js'
+import { loadCoverage, productLevel } from '../cube/query.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
@@ -52,6 +52,7 @@ import { parseSalesCsv, importSales, importedSales } from '../cube/salesImport.j
 import { refreshAllSalesOnly, forgetSalesSchema } from '../cube/salesOnly.js'
 import { forgetConstants } from '../insights/whConstant.js'
 import { articleNodeTypes } from '../insights/nodeTypes.js'
+import { planArticleRows } from '../insights/planArticles.js'
 import { config } from '../config.js'
 
 export const admin = Router()
@@ -1506,20 +1507,22 @@ admin.get(
           flatConstant: true,
         }).catch(() => null),
         /*
-         * The recipe explosion, for the articles the warehouse cannot reach.
+         * The recipe side, exploded from the PLANNED PRODUCTS.
          *
          * The warehouse method needs six months of outbound to build a constant
          * from, so an article the warehouse has never issued has no constant and
-         * never appeared here - even though the forecast reaches it through its
-         * recipes, and Stock Article shows it. That was the gap: this table held
-         * the warehouse's articles where the forecast implies the union of the
-         * warehouse's and the recipes'.
+         * would not appear at all - even though the forecast reaches it through
+         * its recipes.
          *
-         * Same window and same grain, so `componentLevel` applies the plan
-         * factor to the base year's explosion exactly as the Ingredients page
-         * does for a planned year.
+         * This used to explode the BASE YEAR and scale it by one factor, which
+         * re-derived the products instead of using the ones this same page had
+         * already planned - and so inherited none of Method C's last-28-days
+         * blend or month-validity rules. See `planArticles.js`.
          */
-        await componentLevel(brand.code, { ...f, brand: brand.code }).catch(() => []),
+        await planArticleRows(brand, year, { from: f.dateFrom, to: f.dateTo }).catch(() => ({
+          byArticle: new Map(),
+          unsplit: 0,
+        })),
       ])
     )
 
@@ -1540,7 +1543,7 @@ admin.get(
      * which is what the Method column on every row is for.
      */
     const byArticle = new Map()
-    for (const [brand, got, recipeRows] of perBrand) {
+    for (const [brand, got, exploded] of perBrand) {
       const seen = new Set()
       const picked = []
 
@@ -1554,19 +1557,15 @@ admin.get(
       }
 
       /*
-       * One row per recipe LINE arrives, so an article's requirement is the sum
-       * of its lines - the same fold the Ingredients page does before showing
-       * an article once.
+       * Already one figure per article, and already brand-scoped by recipe
+       * group - so nothing to fold here beyond skipping what the warehouse
+       * has already answered for.
        */
-      const exploded = new Map()
-      for (const r of recipeRows ?? []) {
-        const code = String(r['Item No.'] ?? '').trim()
+      for (const [code, qty] of exploded?.byArticle ?? new Map()) {
         if (!code || seen.has(code)) continue
-        const qty = Number(r.Component_Forecast_Qty) || 0
         if (!(qty > 0)) continue
-        exploded.set(code, (exploded.get(code) ?? 0) + qty)
+        picked.push([code, qty, 'Recipe explosion'])
       }
-      for (const [code, qty] of exploded) picked.push([code, qty, 'Recipe explosion'])
 
       for (const [code, qty, method] of picked) {
         const meta = names.get(code) ?? { item: '', unit: '' }

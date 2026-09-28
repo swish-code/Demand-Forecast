@@ -44,6 +44,17 @@ const SalesPlan = lazyPage(() => import('./pages/SalesPlan.jsx'), 'SalesPlan')
 const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
 
 /** One entry per report page: rail label, rail kicker, blurb and slicers. */
+/*
+ * The production-source pages, off for now - 28 Sep 2026.
+ *
+ * Built and working, then switched off on request while the classification is
+ * validated: the CK/CPU split is still unconfirmed by the business and the 107
+ * Unclassified articles have no agreed route yet. Everything behind them stays
+ * in place - `productionSource.js`, the `prodSources` filter, the page grants -
+ * so turning this to `true` is the whole of switching them back on.
+ */
+const PRODUCTION_SOURCE_PAGES_ON = false
+
 const PAGES = [
   {
     id: 'summary',
@@ -149,6 +160,18 @@ const PAGES = [
      */
     noWarehouse: true,
     /*
+     * Admin only for now - asked for on 28 Sep 2026.
+     *
+     * The page is new and the figures behind it are still moving: the article
+     * path was rebuilt to derive from the planned products this week, and the
+     * component copy still has a stale-future-months defect open against it.
+     * Keeping it to the people maintaining those numbers until they settle.
+     *
+     * Same mechanism as Forecast Insights and Sales plan, so a per-account
+     * grant still opens it without changing this - see the page filter in App.
+     */
+    adminOnly: true,
+    /*
      * Three slicers fewer than Stock Article, dropped on 27 Sep 2026.
      *
      * Status is worked out from how long ago the CENTRAL WAREHOUSE last issued
@@ -161,6 +184,102 @@ const PAGES = [
      */
     slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
   },
+  ...(PRODUCTION_SOURCE_PAGES_ON
+    ? [
+    {
+      id: 'src-ck',
+      label: 'Central Kitchen',
+      kicker: 'By production source',
+      blurb: 'Prepared articles the central kitchen produces',
+      Icon: IconComponent,
+      Component: ComponentLevel,
+      /*
+       * The same page as Production, pinned to one production source.
+       *
+       * Classified from the movement facts - where an article has actually been
+       * issued from - rather than from anything on the recipe, which does not
+       * say where a thing is made. See `productionSource.js` for the audit
+       * behind the rules and what is still unconfirmed.
+       */
+      lockProdSource: 'Central Kitchen / CPU',
+      lockNodeTypes: ['PREP', 'PA'],
+      noWarehouse: true,
+      // Admin only while the classification is still being validated, exactly
+      // as the Production page it is carved out of.
+      adminOnly: true,
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    },
+    {
+      id: 'src-bakery',
+      label: 'Bakery',
+      kicker: 'By production source',
+      blurb: 'Prepared articles Swish Bakery produces',
+      Icon: IconComponent,
+      Component: ComponentLevel,
+      /*
+       * The same page as Production, pinned to one production source.
+       *
+       * Classified from the movement facts - where an article has actually been
+       * issued from - rather than from anything on the recipe, which does not
+       * say where a thing is made. See `productionSource.js` for the audit
+       * behind the rules and what is still unconfirmed.
+       */
+      lockProdSource: 'Bakery',
+      lockNodeTypes: ['PREP', 'PA'],
+      noWarehouse: true,
+      // Admin only while the classification is still being validated, exactly
+      // as the Production page it is carved out of.
+      adminOnly: true,
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    },
+    {
+      id: 'src-factory',
+      label: 'YELO Factory',
+      kicker: 'By production source',
+      blurb: 'Prepared articles the Yelo Factory produces',
+      Icon: IconComponent,
+      Component: ComponentLevel,
+      /*
+       * The same page as Production, pinned to one production source.
+       *
+       * Classified from the movement facts - where an article has actually been
+       * issued from - rather than from anything on the recipe, which does not
+       * say where a thing is made. See `productionSource.js` for the audit
+       * behind the rules and what is still unconfirmed.
+       */
+      lockProdSource: 'YELO Factory',
+      lockNodeTypes: ['PREP', 'PA'],
+      noWarehouse: true,
+      // Admin only while the classification is still being validated, exactly
+      // as the Production page it is carved out of.
+      adminOnly: true,
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    },
+    {
+      id: 'src-none',
+      label: 'Unclassified',
+      kicker: 'By production source',
+      blurb: 'Articles with no production-site movement to classify them by',
+      Icon: IconComponent,
+      Component: ComponentLevel,
+      /*
+       * The same page as Production, pinned to one production source.
+       *
+       * Classified from the movement facts - where an article has actually been
+       * issued from - rather than from anything on the recipe, which does not
+       * say where a thing is made. See `productionSource.js` for the audit
+       * behind the rules and what is still unconfirmed.
+       */
+      lockProdSource: 'Unclassified',
+      lockNodeTypes: ['PREP', 'PA'],
+      noWarehouse: true,
+      // Admin only while the classification is still being validated, exactly
+      // as the Production page it is carved out of.
+      adminOnly: true,
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    },
+      ]
+    : []),
   {
     id: 'warehouse',
     label: 'Warehouse Insights',
@@ -519,6 +638,14 @@ export default function App({ session, onSignedOut }) {
       const barred = page?.noWarehouse ? 'Warehouse' : 'Made In-House'
       base.supply = base.supply.filter((s) => String(s) !== barred)
     }
+    /*
+     * The production-source pages pin their own category.
+     *
+     * Same idea as `lockNodeTypes`: the page decides the population and the
+     * slicers narrow within it, so the table, the cards, the CSV and the
+     * option lists all see one set without any of them knowing a lock exists.
+     */
+    if (page?.lockProdSource) base.prodSources = [page.lockProdSource]
     const lock = page?.lockNodeTypes
     if (!lock?.length) return base
     const picked = base.nodeTypes ?? []

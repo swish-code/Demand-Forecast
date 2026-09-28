@@ -676,6 +676,15 @@ const COMPONENT_FILTERS = new Set([
    * looking exactly like a filter that does nothing.
    */
   'categories',
+  /*
+   * And the production source, for the same reason a third time.
+   *
+   * `withProductionSource` in routes/api.js stamps it from the movement facts
+   * and filters the assembled rows, so it narrows nothing here. Left out of
+   * this set, opening a production-source page would send every request to a
+   * live component query that knows nothing about production sources.
+   */
+  'prodSources',
   'brand',
   'brands',
   'dateFrom',

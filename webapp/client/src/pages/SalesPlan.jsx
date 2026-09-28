@@ -33,7 +33,11 @@ const rowsOf = (d) => d?.groups ?? d?.brands ?? []
 const draftOf = (d) =>
   Object.fromEntries(rowsOf(d).map((b) => [b.code, b.value === null || b.value === undefined ? '' : String(b.value)]))
 
-export function SalesPlan() {
+/*
+ * `isAdmin` arrives from App like it does on every page - the Method column is
+ * the only thing here that uses it.
+ */
+export function SalesPlan({ isAdmin = false }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(true)
@@ -133,7 +137,8 @@ export function SalesPlan() {
           { key: 'item', label: 'Article' },
           { key: 'unit', label: 'Unit' },
           { key: 'nodeType', label: 'Prod. type' },
-          { key: 'method', label: 'Method' },
+          // Admin only, same as the column on screen - see the note there.
+          ...(isAdmin ? [{ key: 'method', label: 'Method' }] : []),
           { key: 'forecastQty', label: `${data.year} forecast qty` },
         ])
         setNote(`${keep(rows).length.toLocaleString()} article rows downloaded.`)
@@ -317,15 +322,18 @@ export function SalesPlan() {
              */
             { key: 'nodeType', label: 'Prod. type', width: 104 },
             /*
-             * Which method produced the quantity beside it.
+             * Which method produced the quantity beside it. Admin only.
              *
              * The table holds two populations - the articles the warehouse
-             * ships, and the ones only a recipe reaches - and they are forecast
-             * by arithmetic that is not interchangeable. Without this column a
-             * reader summing the quantity is adding two different things
-             * together without being told.
+             * ships, and the ones only a recipe reaches - forecast by
+             * arithmetic that is not interchangeable. Somebody maintaining the
+             * numbers needs to see which is which; somebody ordering from the
+             * sheet does not, and the distinction only invites questions the
+             * column cannot answer on its own.
              */
-            { key: 'method', label: 'Method', width: 148 },
+            ...(isAdmin
+              ? [{ key: 'method', label: 'Method', width: 148 }]
+              : []),
             {
               key: 'forecastQty',
               label: `${data?.year ?? ''} forecast qty`,
@@ -336,7 +344,7 @@ export function SalesPlan() {
               render: (v) => fmtQty(v),
             },
           ],
-    [level, data?.year]
+    [level, data?.year, isAdmin]
   )
 
   if (error && !data) return <ErrorBanner error={error} onRetry={load} />

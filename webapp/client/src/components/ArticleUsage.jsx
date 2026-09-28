@@ -36,6 +36,14 @@ const perUnit = (v) => {
  * Every column is here, with the same Build view the article table has, so an
  * administrator can drop Brand or Through and export what is left.
  */
+/*
+ * The three columns a reader without the recipe grant gets.
+ *
+ * Borrowed from `COLUMNS` below rather than redefined, so a change to a label,
+ * a hint or the rate formatter reaches both views at once.
+ */
+const NAME_COLUMNS = ['Product', 'CHAINID', 'Qty_Per_Unit']
+
 const COLUMNS = [
   {
     key: 'Product',
@@ -205,7 +213,7 @@ const COLUMNS = [
   },
 ]
 
-export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
+export function ArticleUsage({ article, filters, onClose }) {
   const request = {
     ...filters,
     articleNo: article?.['Item No.'] ?? '',
@@ -234,6 +242,19 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
    * report nought menu items for exactly the readers the count is for.
    */
   const used = Number.isFinite(Number(data?.count)) ? Number(data.count) : rows.length
+  /*
+   * The server sends names without rates to a reader without the recipe grant.
+   * Read from the response rather than from the role, so the two cannot drift:
+   * whatever arrived is what can be drawn.
+   */
+  const namesOnly = Boolean(data?.namesOnly)
+  const nameColumns = COLUMNS.filter((c) => NAME_COLUMNS.includes(c.key)).map((c) => ({
+    ...c,
+    // Nothing to hide or restore in this view, so the column picker's flags
+    // would only describe a control that is not there.
+    hiddenByDefault: false,
+    required: true,
+  }))
   const total = rows.reduce((a, r) => a + (Number(r.Qty_Per_Unit) || 0), 0)
   // One string per row: the table sorts, searches and exports values, and an
   // array of paths is none of those things.
@@ -285,21 +306,59 @@ export function ArticleUsage({ article, filters, isAdmin = false, onClose }) {
               Nothing in the recipe tree names it. Articles like this reach the shops without a
               recipe behind them — the warehouse columns are where they are measured.
             </Empty>
-          ) : !isAdmin ? (
+          ) : namesOnly ? (
             /*
-              * A count, and nothing else.
+              * Which menu items, and nothing more.
               *
-              * The people ordering stock need to know an article is used and
-              * roughly how widely; the recipe tree behind it is somebody else's
-              * job and every column of it is a question they did not ask. The
-              * detail is still one role away rather than hidden — it is on the
-              * same data, through the same endpoint.
+              * A reader without the recipe grant used to get a bare count. The
+              * count answers "is it used"; it does not answer "by what", which
+              * is the question somebody looking at an order actually has. The
+              * names answer it. The rates, the per-item forecasts and the
+              * derived requirement stay behind the grant and are not sent at
+              * all - see the route.
               */
-            <div className="usage__count">
-              <span className="usage__countnum">{fmtInt(used)}</span>
-              <span className="usage__countlabel">
-                menu {used === 1 ? 'item uses' : 'items use'} this article
-              </span>
+            <div className="usage__names">
+              {/*
+                * The total sits in the lead, not under the list.
+                *
+                * The admin table puts it in a totals row at the foot, which on
+                * twenty-six items means scrolling past all of them to reach the
+                * one figure most readers want. Said once at the top instead,
+                * where it is read before the detail rather than after it.
+                */}
+              <p className="usage__lead">
+                {fmtInt(used)} menu {used === 1 ? 'item uses' : 'items use'} this article
+                {total > 0 && (
+                  <>
+                    {' '}
+                    · <strong>{perUnit(total)} {article.BU || ''}</strong> in total, per one unit
+                    of each
+                  </>
+                )}
+                {' '}· quantities are per <strong>one unit</strong> of the menu item
+              </p>
+              {/*
+                * Paged rather than scrolled, ten at a time.
+                *
+                * Twenty-six names in one column meant scrolling the dialog to
+                * see the end of the list; the pager puts the whole set within
+                * reach of one click instead. The same table the admin view
+                * uses, so the paging, sorting and empty states behave
+                * identically - only the columns differ.
+                *
+                * No search box, no grouping and no column picker: three
+                * columns need none of them, and a toolbar of controls that do
+                * nothing is worse than no toolbar.
+                */}
+              <DataTable
+                columns={nameColumns}
+                rows={rows}
+                busy={loading}
+                searchable={false}
+                freezable={false}
+                pageSizes={[10, 25, 50, 'All']}
+                initialSort={{ key: 'Qty_Per_Unit', dir: 'desc' }}
+              />
             </div>
           ) : (
             <>

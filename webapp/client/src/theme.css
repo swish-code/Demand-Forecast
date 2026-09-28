@@ -9097,3 +9097,36 @@ table.dt tfoot td.dt__frz { z-index: 3; }
   .mtip { transition: none; transform: none; }
   .metric__info--down .mtip { transform: none; }
 }
+
+/*
+ * The menu-item names, for a reader without the recipe grant.
+ *
+ * A plain list on purpose: the rates and forecasts that fill the admin table
+ * are not sent to this reader at all, so there is nothing to put in columns.
+ */
+.usage__names { padding: var(--s4); }
+.usage__namelist {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px var(--s4);
+}
+.usage__namelist li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.usage__namelabel { min-width: 0; overflow-wrap: anywhere; }
+/* The rate sits hard right so the list still scans as a column of numbers. */
+.usage__namerate {
+  margin-left: auto;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.usage__namerate em { font-style: normal; margin-left: 4px; color: var(--text-faint); }
