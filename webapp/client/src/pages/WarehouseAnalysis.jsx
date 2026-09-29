@@ -917,6 +917,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <div className="unitrow" style={{ '--cards': 4 }}>
         <MetricCard
           label="Forecast accuracy"
+          calc="wh-diag-accuracy"
           accent={s.averageAccuracy >= GOOD ? 'green' : 'amber'}
           progress={s.averageAccuracy ?? 0}
           value={s.averageAccuracy === null ? '–' : fmtPct(s.averageAccuracy, 1)}
@@ -924,25 +925,28 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         />
         <MetricCard
           label="Articles looked at"
+          calc="wh-diag-articles"
           accent="slate"
           value={fmtInt(s.articles)}
           foot={`${fmtInt(s.unscored)} shipped nothing, so there was nothing to compare`}
         />
         <MetricCard
           label="Forecast vs shipped"
+          calc="wh-diag-bias"
           accent={Math.abs(s.biasPct ?? 0) <= 0.1 ? 'green' : 'amber'}
           value={s.biasPct === null ? '–' : `${s.biasPct > 0 ? '+' : ''}${fmtPct(s.biasPct, 1)}`}
           foot={`${fmtQty(s.totalForecast)} asked for · ${fmtQty(s.totalOutbound)} shipped`}
         />
         <MetricCard
           label="Articles to look at"
+          calc="wh-diag-lowacc"
           accent={s.lowAccuracy ? 'red' : 'slate'}
           value={fmtInt(s.lowAccuracy)}
           foot={`Under 40% accurate · ${fmtInt(s.stoppedCount)} have stopped shipping`}
         />
       </div>
 
-      <Panel title="What we found" sub="The short version — click any figure below to see the articles behind it">
+      <Panel calc="wh-diag-goodshare,wh-diag-cv,wh-diag-reachable,wh-diag-issue" title="What we found" sub="The short version — click any figure below to see the articles behind it">
         <div className="insgrid">
           <Insight tone="green" figure={fmtPct(goodShare, 0)} title="Most articles are forecast well">
             {fmtInt(good)} of {fmtInt(s.scored)} articles are within a reasonable margin. The overall
@@ -984,6 +988,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="Can we reach 85%?"
+          calc="wh-diag-ceiling,wh-diag-reachable,wh-diag-cv"
         sub="What the target is up against, measured on the articles currently being scored"
       >
         {c ? (
@@ -991,6 +996,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             <div className="unitrow" style={{ '--cards': 3 }}>
               <MetricCard
                 label="Ceiling — every scored article"
+          calc="wh-diag-ceiling,wh-diag-reachable"
                 accent={(c.all ?? 0) >= 0.85 ? 'green' : 'red'}
                 progress={c.all ?? 0}
                 value={c.all === null ? '–' : fmtPct(c.all, 0)}
@@ -998,6 +1004,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
               />
               <MetricCard
                 label="Ceiling — active articles only"
+          calc="wh-diag-ceiling,wh-diag-status"
                 accent={(c.active ?? 0) >= 0.85 ? 'green' : 'amber'}
                 progress={c.active ?? 0}
                 value={c.active === null ? '–' : fmtPct(c.active, 0)}
@@ -1005,6 +1012,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
               />
               <MetricCard
                 label="Ceiling — steady articles only"
+          calc="wh-diag-ceiling,wh-diag-cv"
                 accent={(c.steady ?? 0) >= 0.85 ? 'green' : 'amber'}
                 progress={c.steady ?? 0}
                 value={c.steady === null ? '–' : fmtPct(c.steady, 0)}
@@ -1051,7 +1059,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       </Panel>
 
       <div className="whgrid">
-        <Panel title="How accurate is each article" sub="Click a band to see those articles">
+        <Panel calc="wh-diag-bands,wh-diag-accuracy" title="How accurate is each article" sub="Click a band to see those articles">
           <div className="bandchart__rows bandchart__rows--wide">
             {s.bands.map((b) => (
               <Bar
@@ -1073,7 +1081,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
           </p>
         </Panel>
 
-        <Panel title="Are we ordering too much or too little" sub="Click a bar to see those articles">
+        <Panel calc="wh-diag-direction,wh-diag-bias" title="Are we ordering too much or too little" sub="Click a bar to see those articles">
           <div className="bandchart__rows bandchart__rows--wide">
             <Bar
               label="Too much"
@@ -1121,6 +1129,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="What makes the difference"
+          calc="wh-diag-segments,wh-diag-goodshare"
         sub="How many articles are forecast well, grouped four ways. Click any bar to see them."
       >
         <div className="segrid">
@@ -1159,6 +1168,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="Article status"
+          calc="wh-diag-status"
         sub={
           'Every article by how long since the warehouse last issued it' +
           (data.classifiedAt ? ` · as at ${data.classifiedAt}` : '') +
@@ -1190,6 +1200,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         <Panel
           busy={loading}
           title="How often articles actually ship"
+          calc="wh-diag-zero"
           sub={`Measured over the ${pat.weeks} weeks to ${pat.to}, across ${fmtInt(pat.articles)} articles the warehouse issued in that time`}
         >
           <div className="insgrid">
@@ -1270,6 +1281,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         <Panel
           busy={loading}
           title="Which days articles ship on"
+          calc="wh-diag-dow"
           sub="Spreading a forecast evenly across the week guarantees a miss when an article only ships on one day"
         >
           <div className="segrid">
@@ -1322,6 +1334,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="Articles that are naturally hard to forecast"
+          calc="wh-diag-unpredictable,wh-diag-cv,wh-diag-reachable"
         count={hardRows.length}
         sub="Not a forecasting mistake — these articles move too much from month to month for any forecast to follow"
       >
@@ -1406,7 +1419,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         )}
       </Panel>
 
-      <Panel title="Why each article is off" sub="One reason per article, chosen by what to do about it. Click to see them.">
+      <Panel calc="wh-diag-issue" title="Why each article is off" sub="One reason per article, chosen by what to do about it. Click to see them.">
         <div className="bandchart__rows bandchart__rows--wide">
           {(data.issues ?? []).map((i) => (
             <Bar
@@ -1427,6 +1440,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title={pick ? `Articles — ${pick.label}` : 'All articles'}
+        calc="wh-diag-table,wh-diag-accuracy,wh-diag-cv,wh-diag-reachable,wh-diag-issue,wh-diag-status"
         count={shown.length}
         sub={
           pick
@@ -1467,6 +1481,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="What to fix"
+          calc="wh-diag-issue,wh-diag-unpredictable"
         count={open.length}
         sub="Only problems that are still present. Anything fixed drops off this list on its own."
       >
@@ -1512,6 +1527,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="What we tested and ruled out"
+        calc="wh-diag-narrative"
         count={RULED_OUT.length}
         sub="Sensible theories that were measured and did not hold — kept so they are not proposed again"
       >
@@ -1542,6 +1558,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={loading}
         title="The plan to 85%"
+        calc="wh-diag-narrative,wh-diag-ceiling"
         count={ROUTE.filter((r) => r.state !== 'done').length}
         sub="What to do, in the priority agreed on 8 September — with what is already finished marked as such"
       >
@@ -1552,7 +1569,7 @@ export function WarehouseAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         </ol>
       </Panel>
 
-      <Panel title="What has changed" sub="Fixes already made, and problems that have since cleared">
+      <Panel calc="wh-diag-narrative" title="What has changed" sub="Fixes already made, and problems that have since cleared">
         <ol className="tl">
           {settled.map((f) => (
             <Change

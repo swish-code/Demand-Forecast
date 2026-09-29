@@ -360,6 +360,7 @@ export function SalesPlan({ isAdmin = false }) {
     <>
       <Panel
         title={`Brand sales plan — ${data.year}`}
+        calc="plan-target,plan-shape,plan-method-note"
         sub={`Type a sales value for a brand and the ${data.year} product and article forecasts follow from it. The figure sets the SIZE of the year only — when those sales happen comes from the brand's own seasonal shape, which is never rebuilt from ${data.baseYear} sales. Leave a box empty and that brand keeps the existing logic.`}
       >
         {error ? <ErrorBanner error={error} onRetry={load} /> : null}
@@ -517,6 +518,7 @@ export function SalesPlan({ isAdmin = false }) {
 
       <Panel
         title={`The ${data.year} forecast`}
+        calc="plan-ratio,plan-mix,plan-articles,plan-target"
         sub="The plan exploded to product and article level. The table and the download are the same call, so a figure on screen is the figure in the sheet."
         busy={rowsBusy}
       >
@@ -674,6 +676,7 @@ export function SalesPlan({ isAdmin = false }) {
 
       <Panel
         title="What a saved figure does"
+        calc="plan-method-note,plan-target,plan-shape"
         sub={`How one number becomes a ${data.year} plan, and what it deliberately leaves alone`}
       >
         {/*
@@ -757,6 +760,7 @@ export function SalesPlan({ isAdmin = false }) {
       {planned.length ? (
         <Panel
           title={`The ${data.year} months`}
+        calc="plan-shape,plan-target"
           sub="What each target becomes once its seasonal shape has spread it. The percentages are the shape itself — they do not move when the target does."
         >
           <div className="nrp__scroll">

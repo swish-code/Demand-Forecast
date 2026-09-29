@@ -13,6 +13,9 @@
 export const DEPARTMENTS = [
   'Production',
   'Bakery',
+  // Added 29 Sep 2026 with the per-site pages. The spelling matches the page
+  // label and the cost centre, so the three never have to be reconciled.
+  'YELO Factory',
   'Branches',
   // An area manager covers several branches rather than one. Which branches is
   // set per account under the locations they are granted — this only says what
@@ -86,8 +89,30 @@ export const DEPARTMENT_PAGES = {
    * only people who need them. The "How to use this page" button in the filter
    * bar would have navigated to a page they were not granted.
    */
-  Production: ['component', 'madeinhouse', 'guide'],
-  Bakery: ['component', 'madeinhouse', 'guide'],
+  /*
+   * The three making departments, each confined to its own site - 29 Sep 2026.
+   *
+   * They held Stock Article and Production, which between them show every
+   * site's articles: a bakery manager could read the kitchen's list and the
+   * other way round. Each now sees the page for the place it actually works,
+   * and nothing else.
+   *
+   * Two things make that a real restriction rather than a hidden tab. The four
+   * per-site pages stopped being `adminOnly`, or the rail would show these
+   * accounts nothing at all; and the server derives the production sources an
+   * account may see from this same grant, so the shared endpoint behind all six
+   * pages cannot be asked for another site's rows - see `allowedProdSources`.
+   *
+   * No `guide` beside them on purpose: that page is Stock Article's walkthrough,
+   * which these accounts no longer hold. Their own pages carry a "How to use
+   * this page" panel instead, which needs no grant because it is part of the
+   * page.
+   */
+  Production: ['src-ck'],
+  Bakery: ['src-bakery'],
+  'YELO Factory': ['src-factory'],
+  // Unchanged: the warehouse buys and moves stock for every site, so it keeps
+  // the full list rather than one site's slice.
   Warehouse: ['component', 'madeinhouse', 'guide'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.

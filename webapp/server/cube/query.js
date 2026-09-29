@@ -1073,6 +1073,29 @@ export async function outboundByMonth(brand, months) {
   return out
 }
 
+/**
+ * The same shape, from the production sites rather than the warehouse.
+ *
+ * Feeds the PA forecast. Identical signature to `outboundByMonth` above so the
+ * rate model can be pointed at either source without knowing which it has.
+ */
+export async function siteOutboundByMonth(brand, months) {
+  if (!months?.length) return new Map()
+  const rows = await rowsOf(
+    `SELECT article, month, qty
+       FROM cube_site_outbound_monthly
+      WHERE brand = ? AND month IN (${months.map(() => '?').join(', ')})`,
+    [brand, ...months]
+  )
+  const out = new Map()
+  for (const r of rows) {
+    const a = String(r.article)
+    if (!out.has(a)) out.set(a, new Map())
+    out.get(a).set(String(r.month), Number(r.qty) || 0)
+  }
+  return out
+}
+
 /** The brand's forecast sales over an arbitrary window, from the copy. */
 /**
  * Actual sales for the window, the twin of forecastSales.

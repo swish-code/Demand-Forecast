@@ -72,10 +72,151 @@ export const CALCULATIONS = [
   {
     id: 'forecast-accuracy',
     page: 'Overview',
-    visual: 'Performance card — Forecast accuracy',
-    label: 'Forecast Accuracy %',
+    visual: 'Performance card — Accuracy',
+    label: 'Accuracy %',
+    source: LOCAL,
+    expression: 'Product_Accuracy, falling back to [Forecast Accuracy %]',
+    detail:
+      'The card shows the volume-weighted product accuracy — the SAME number the Products page ' +
+      'headline shows, by the same function; see "Overall product accuracy %". Made consistent on ' +
+      '26 Sep 2026 on request, because the two pages were showing different figures for the same ' +
+      'window and the model measure was the odd one out. `[Forecast Accuracy %]` is still the ' +
+      'fallback for a response that carries no product breakdown, so a blank is never shown where ' +
+      'the model can answer; when it is used, it is the model measure applied to the totals, which ' +
+      'is NOT volume weighted and can differ by a point or two.',
+  },
+  {
+    id: 'summary-today',
+    page: 'Overview',
+    visual: "Today's forecast card",
+    label: 'Today_Forecast_Qty',
     source: PBI,
-    expression: '[Forecast Accuracy %]',
+    expression: '[Total_Forecast_Qty] for TODAY only',
+    detail:
+      'A single-day evaluation, fetched separately from the window figures and not affected by the ' +
+      'date slicer — the card answers "what does today expect" whatever range is selected. Blank, ' +
+      'not zero, when the model has no row for today.',
+  },
+  {
+    id: 'summary-tomorrow',
+    page: 'Overview',
+    visual: "Tomorrow's forecast card",
+    label: 'Tomorrow_Forecast_Qty',
+    source: PBI,
+    expression: '[Total_Forecast_Qty] for TOMORROW only',
+    detail:
+      'The prep number: what to make tonight for tomorrow. Like the card beside it, it ignores the ' +
+      'date slicer and is fetched on its own, so it keeps its meaning on a historical range.',
+  },
+  {
+    id: 'summary-varspark',
+    page: 'Overview',
+    visual: 'Performance card — daily variance sparkline',
+    label: 'Daily variance series',
+    source: LOCAL,
+    expression: '(Actual qty - Forecast qty) / Forecast qty, per day',
+    detail:
+      'One point per completed day in the range, so the headline variance can be read as typical or ' +
+      'as one bad day. Days with no actual, or no forecast, are dropped rather than plotted at zero ' +
+      '— a flat run at zero would read as a perfect forecast instead of a missing day. Divided by ' +
+      'FORECAST here, unlike the accuracy figures, because this is a variance against plan.',
+  },
+  {
+    id: 'summary-band',
+    page: 'Overview',
+    visual: 'Demand tracking — the grey band',
+    label: 'Where a normal day lands',
+    source: LOCAL,
+    expression: `daily error  = |Actual - Forecast| / Actual, per day
+band         = 25th to 75th percentile of those errors
+trust        = 1 / (1 + error), inverted to read as "share of the plan that sold"`,
+    detail:
+      'The middle HALF of days, not the middle eight-tenths. Percentiles rather than a standard ' +
+      'deviation because daily variance is not symmetric and one closure or one promotion widens an ' +
+      'SD exactly when the band matters most. The 10th-to-90th band came out seventeen points wide ' +
+      '(87-104 for every 100 prepped), which is too loose to prep against; the quartiles describe ' +
+      'the day a section leader is actually likely to get, and the two best and two worst days in a ' +
+      'month sit outside it on purpose. Needs a minimum number of completed days or the panel says ' +
+      'so instead of drawing a band.',
+    tunable: 'The 25/75 percentiles — BAND_LOW and BAND_HIGH in server/insights/context.js.',
+  },
+  {
+    id: 'summary-gap',
+    page: 'Overview',
+    visual: 'Gap contributors table',
+    label: 'Share of the total miss',
+    source: LOCAL,
+    expression: `gap  = Actual qty - Forecast qty        (per product)
+abs  = |gap|
+pct  = gap / Forecast qty
+cum  = running SUM(abs) / SUM(abs) over all products with a gap`,
+    detail:
+      'A Pareto: products ranked by the SIZE of their miss regardless of direction, so an ' +
+      'over-forecast and an under-forecast of the same size rank equally — both cost money. The ' +
+      'cumulative share is computed over EVERY product with a gap, then only the top 8 are shown, ' +
+      'so the subtitle "the top 5 explain 64% of the miss" is a share of the real total and not of ' +
+      'the eight rows displayed. Products with no forecast are excluded: there is no gap to a plan ' +
+      'that does not exist.',
+  },
+  {
+    id: 'summary-rolling',
+    page: 'Overview',
+    visual: 'Rolling 7-day accuracy chart',
+    label: '7-day rolling accuracy',
+    source: LOCAL,
+    expression: `accuracy(day) = 1 - |SUM(Actual) - SUM(Forecast)| / SUM(Forecast)
+                over that day and the 6 completed days before it
+drift         = last point - first point, in percentage points`,
+    detail:
+      'Totals first, then one ratio — not an average of seven daily ratios, which would let a quiet ' +
+      'day count as much as a busy one. A single day is too noisy to read a trend from, which is ' +
+      'why the window exists. Points need at least 3 completed days in the window, so a range opens ' +
+      'a little way in rather than starting on a one-day figure. Divided by FORECAST, which makes ' +
+      'this chart NOT directly comparable with the Accuracy card above it — that one divides by the ' +
+      'larger of the two and is volume weighted.',
+    tunable: 'The 7-day window and the 3-day minimum, in pages/ForecastSummary.jsx.',
+  },
+  {
+    id: 'summary-dow',
+    page: 'Overview',
+    visual: 'Accuracy by day of week chart',
+    label: 'Weekday bias',
+    source: LOCAL,
+    expression: `bias     = (SUM(Actual) - SUM(Forecast)) / SUM(Forecast)   per weekday
+accuracy = 1 - |bias|`,
+    detail:
+      'The window is bucketed by day of week and each bucket totalled, which is what exposes a ' +
+      'standing pattern — "Fridays are always over-forecast" — that the daily line averages away. ' +
+      'Monday first. Signed: positive means more sold than was forecast. Only completed days count, ' +
+      'and a weekday with no completed day in the range is left out rather than drawn at zero.',
+  },
+  {
+    id: 'summary-products',
+    page: 'Overview',
+    visual: 'Products by quantity chart',
+    label: 'Variance % per product',
+    source: LOCAL,
+    expression: '(Actual qty - Forecast qty) / Forecast qty',
+    detail:
+      'The bars are [Total_Actual_Qty] and [Total_Forecast_Qty] straight from the model; only the ' +
+      'delta label on each bar is worked out here. Blank where a product has no forecast. Every ' +
+      'product is listed, so the panel scrolls rather than truncating.',
+  },
+  {
+    id: 'summary-location-acc',
+    page: 'Overview',
+    visual: 'By location — Accuracy column',
+    label: 'Branch accuracy %',
+    source: LOCAL,
+    expression: '1 - |Actual qty - Forecast qty| / Actual qty',
+    detail:
+      'Per branch, from the model’s own actual and forecast. Note this divides by ACTUAL, which is ' +
+      'NOT the formula the Accuracy card and the Products page use — those divide by the LARGER of ' +
+      'actual and forecast, which bounds the score at 0-100%. This one is unbounded below, so a ' +
+      'branch that sold far less than was forecast can show a large negative. The two are ' +
+      'deliberately left as they are rather than quietly unified; `forecastAccuracy()` on the ' +
+      'server is this same formula, and both numbers appear on this page. Blank when either side is ' +
+      'zero: a branch that sold with no forecast at all is unforecast, not 0% accurate.',
   },
   {
     id: 'product-acc',
@@ -105,6 +246,39 @@ export const CALCULATIONS = [
       'never by the forecast: weighting by the forecast would let the thing being judged decide ' +
       'how much it counts. The card and the column total call the same function, so they cannot ' +
       'disagree. It replaced the measure applied to the totals, 1 - |SUM(A) - SUM(F)| / SUM(A).',
+  },
+
+  {
+    id: 'variance-qty',
+    page: 'Overview',
+    visual: 'Var. qty column, Performance card foot',
+    label: 'Variance_Qty',
+    source: LOCAL,
+    expression: 'Actual qty - Forecast qty',
+    detail:
+      'Units, signed: negative means less sold than was forecast. Totalled by summing the column, ' +
+      'which is the same as the difference of the two totals — so the total row agrees with the ' +
+      'cards above it by construction. Derived beside the KPIs in `deriveKpis()` rather than being ' +
+      'a second definition anywhere.',
+  },
+  {
+    id: 'demand-shift',
+    page: 'Products',
+    visual: 'Demand vs prev column',
+    label: 'Demand_Shift_Pct',
+    source: LOCAL,
+    expression: '(Actual qty this window - Actual qty previous window) / Actual qty previous window',
+    detail:
+      'The SAME articles over the window immediately before the selected one, fetched as a second ' +
+      'query. It is placed beside the variance it explains: a product 28% down on last month with a ' +
+      'matching variance is a demand event, not a bad forecast. Note this is the app’s own ' +
+      'comparison and NOT the model’s `[Demand Change %]`, which uses a two-weekday baseline.\n\n' +
+      'What "the same thing, last month" means follows the grain. Split by branch, it is that ' +
+      'branch’s own history — comparing one branch against the chain total would read as a collapse ' +
+      'everywhere. Split by DAY the comparison is dropped entirely, because the row is a single ' +
+      'Tuesday and the window before it is a month; left in, it read +1,665% on a row that had ' +
+      'barely moved. Blank when nothing sold in the previous window: a product that did not exist ' +
+      'last month has no demand change, and +100% would be a lie about a new listing.',
   },
 
   /* ------------------------------------------- Product mix group --------- */
@@ -559,6 +733,1014 @@ New ACC%        = Total SOH / New WH Forecast`,
       'and it is not comparable with the ACC% or WH ACC% columns, which is why it sits in its own ' +
       'column group. New WH Forecast is a test figure — the live warehouse forecast is unchanged ' +
       'by it and by everything else in this table.',
+  },
+
+  /* ------------------------------------- Shared explanatory panels ------- */
+  {
+    id: 'why-gap',
+    page: 'Shared',
+    visual: 'Why forecast and actual differ',
+    label: 'The named cause',
+    source: LOCAL,
+    expression: `first match wins, in this order:
+  insufficient  fewer completed days than the analysis needs
+  demand-shift  weekly demand moved >= 5% and the forecast lags it by >= 3%
+  weekday       one weekday leans >= 8% and fixing it would save >= 1pp
+  lean          |bias| >= 3% AND |bias| > day-to-day noise
+  noise         noise >= |bias|  — no consistent lean
+  unexplained   none of the above`,
+    detail:
+      'One sentence, chosen on the server so that a branch and head office read the SAME ' +
+      'explanation rather than each forming their own. Ordered by what to do about it: a demand ' +
+      'move the forecast has not followed is the biggest single cause when it happens, and it is ' +
+      'the one most often mistaken for a bug.\n\n' +
+      'The `unexplained` case is the reason the other four are worth believing. When none of the ' +
+      'usual causes account for the gap the panel says exactly that and points at the forecast ' +
+      'itself — a panel that always finds an outside explanation stops being read.',
+    tunable: 'All the thresholds above, in the `explain` section of server/insights/context.js.',
+  },
+  {
+    id: 'why-bias-noise',
+    page: 'Shared',
+    visual: 'Why forecast and actual differ — the supporting figures',
+    label: 'bias, noise, typical, lean',
+    source: LOCAL,
+    expression: `daily error = (Forecast - Actual) / Actual
+bias        = MEAN(daily error)          — signed, the standing offset
+typical     = MEAN(|daily error|)        — the size of a normal day's gap
+noise       = day-to-day scatter around the bias
+lean        = (Forecast - Actual) / Actual, per branch or per weekday`,
+    detail:
+      'The distinction that decides the diagnosis: BIAS is signed and survives averaging, so it is ' +
+      'a fixable offset; NOISE cancels and is not. A brand with a 1% bias and 12% noise has a good ' +
+      'forecast having a rough week; one with a 12% bias and 1% noise has a forecast that is ' +
+      'quietly wrong every day. Both can show the same gap on any single day, which is why the ' +
+      'panel compares them rather than quoting either alone.',
+  },
+  {
+    id: 'nonrecipe',
+    page: 'Admin',
+    visual: 'Items with no recipe',
+    label: 'Non-recipe forecast',
+    source: LOCAL,
+    expression: `constant   = last month's sales / last month's outbound of the item
+next month = next month's sales / constant
+           = last month's outbound x (next sales / last sales)`,
+    detail:
+      'A forecast for the things no recipe covers — gloves, cleaning materials, uniforms, till ' +
+      'rolls and a long tail of packaging. Nothing derives their requirement from the sales ' +
+      'forecast, so the planning sheet reads "Not Exist" against them, yet they still move with ' +
+      'trade.\n\n' +
+      'The relationship is MEASURED rather than derived: one constant per item per brand, being how ' +
+      'many units of sale went with one unit of the item last month. Reported as sales per unit ' +
+      'because that is the readable direction — a constant of 4,000 says one glove box per four ' +
+      'thousand items sold. Nothing is invented; it is last month’s real usage moved in proportion ' +
+      'to expected sales. Kept on the Admin page rather than the report pages because it is a ' +
+      'method under review, not a settled figure to order from.',
+  },
+  {
+    id: 'article-usage',
+    page: 'Shared',
+    visual: 'Article usage popup (click an article name)',
+    label: 'Which menu items use an article',
+    source: PBI,
+    expression: `per product naming the article in 'RECIPE TABLE':
+  rate  = quantity of the article per one unit of that product
+  usage = product forecast units x rate`,
+    detail:
+      'Answers the question the table itself cannot: the table says you need 296,470 shawarma ' +
+      'breads, and this says which products that requirement comes from and at what rate. The ' +
+      'quantities come from the SAME `RECIPE TABLE` rows the component forecast is exploded from, ' +
+      'so this is the arithmetic BEHIND Forecast qty rather than a second opinion about the recipe ' +
+      '— the usage figures sum to the article’s forecast.\n\n' +
+      'Rates are per single unit and are often very small. Non-admins see the product names and the ' +
+      'rate; the full column set is admin-only.',
+  },
+  {
+    id: 'model-review',
+    page: 'Admin',
+    visual: 'Model review findings',
+    label: 'How the forecast is built, brand by brand',
+    source: LOCAL,
+    expression: 'each finding is checked against the LIVE model, not asserted from reading the DAX',
+    detail:
+      'A review of the WAY the forecast predicts, as distinct from what it predicted — problems in ' +
+      'the measures and in the shape of the data that reading the numbers will never reveal. Every ' +
+      'finding carries its evidence and the change that would fix it, because a review that only ' +
+      'lists problems is a complaint.\n\n' +
+      'Findings are verified against the live model rather than asserted from the DAX, so a formula ' +
+      'that looks wrong but never meets the data that would make it wrong is not reported as a ' +
+      'fault.',
+  },
+
+  /* ------------------------- Stock Article / Production — stock ---------- */
+  {
+    id: 'store-soh',
+    page: 'Stock Article',
+    visual: 'Store SOH column',
+    label: 'Store_SOH',
+    source: PBI,
+    expression: `SUM(cc_daily_inventory[Closing Stock Qty])
+  WHERE Movement Date = the LAST day of the selected range
+    AND Location IN the shops of the selected brands`,
+    detail:
+      'The shops’ stock — never the warehouse’s. ONE day’s reading, the last day of the range, not ' +
+      'a sum over it: stock is a level, and adding daily closing balances would count the same ' +
+      'units once per day. A range whose last day has not happened yet therefore has NO reading at ' +
+      'all, and the column is blank rather than zero.\n\n' +
+      'Locations are resolved through the same brand mapping the rest of the app uses (227 mapped), ' +
+      'so a brand filter narrows the shops counted. Blank where the inventory model has never held ' +
+      'the article: that is a different fact from holding none of it, and the cell says nothing ' +
+      'rather than claiming zero.\n\n' +
+      'It is stamped on ONE row per article — the article is spread over one row per recipe group, ' +
+      'and a per-article level repeated on each would be counted once per recipe by any total. That ' +
+      'anchor row is the one carrying the warehouse figures where the article has them, and ' +
+      'otherwise the first row for the article; the fallback was added on 29 Sep 2026 after prepared ' +
+      'articles on the Production page read blank because they have no warehouse figure to hang on.',
+  },
+  {
+    id: 'store-negative',
+    page: 'Stock Article',
+    visual: 'Store SOH column — negative balances',
+    label: 'How a negative balance is treated',
+    source: LOCAL,
+    expression: 'onHand = MAX(0, Store SOH)   wherever stock is USED in a calculation',
+    detail:
+      'The negative is SHOWN as it stands, and treated as empty everywhere it is used. The ERP lets ' +
+      'a shop record consumption against stock it has already run out of — a delivery booked late, ' +
+      'a transfer never posted, a count not yet done — so the book balance goes below zero and stays ' +
+      'there until somebody counts. Measured across the shops: 2.0% of articles on 30 Jun, 0.6% on ' +
+      '31 Jul, 5.9% on 31 Aug, together -133,701 units, the largest being CPUSH Sunflower Oil at ' +
+      '-73,950.\n\n' +
+      'Treated as empty rather than as a debt to be made up: subtracting a negative from a target ' +
+      'ADDS it to the requirement, which told the page to ship 66,941 units of an article needing ' +
+      '15,341 — four times too much, to refill a hole that exists only in the books.',
+  },
+  {
+    id: 'store-cover',
+    page: 'Stock Article',
+    visual: 'Stock cover column, SOH status column',
+    label: 'Stock_Cover, SOH_Status',
+    source: LOCAL,
+    expression: `monthly = WH forecast x 30.44 / days in the selected range
+cover   = Store SOH / monthly          (months of cover)
+status  = 'No store stock'          when SOH <= 0
+          'Low stock'               when cover < the low band
+          'Normal'
+          'Store already stocked'   at or above the stocked band`,
+    detail:
+      'Months of shop cover at the current requirement. Blank when there is no demand to divide by: ' +
+      'dividing by a forecast of zero is infinity, and an article with stock and no forecast is not ' +
+      'infinitely well covered — it is an article nobody has asked for. Also blank on a negative ' +
+      'balance, because "-4.20 months of cover" is not a length of time. The requirement is ' +
+      'annualised to a month from whatever range is selected, so the figure is comparable across ' +
+      'windows of different lengths.',
+    tunable: 'SOH_BANDS and TARGET_COVER_MONTHS, in server/insights/storeStock.js.',
+  },
+  {
+    id: 'store-dtl',
+    page: 'Stock Article',
+    visual: 'Store DTL column',
+    label: 'Store_DTL',
+    source: LOCAL,
+    expression: `Combined Purchase = SUM(Purchase Qty) + SUM(Transfer In Qty)
+                    over the range, this article, these shops
+Average Purchase  = Combined Purchase / calendar days in the range
+Store DTL         = Store SOH / Average Purchase`,
+    detail:
+      'How many days of intake the shelf is currently worth. It DIVIDES the Store SOH figure above ' +
+      'and does not recompute it. Every blank is a different refusal: no purchase feed means the ' +
+      'query failed or the model is off, so unknown rather than zero; an average of zero means ' +
+      'nobody ordered it, which is no answer rather than infinite cover (826 of 2,991 articles over ' +
+      'a 90-day window); and a negative SOH gives a negative number of days, which is not a length ' +
+      'of time. A Store SOH of exactly zero against real intake is NOT blank — nothing on the shelf ' +
+      'is a true and useful answer, and it reads 0.',
+  },
+  {
+    id: 'wh-soh',
+    page: 'Stock Article',
+    visual: 'WH opening SOH, WH closing SOH columns',
+    label: 'WH_Opening_SOH, WH_Closing_SOH',
+    source: PBI,
+    expression: `opening = SUM(cc_daily_inventory[Closing Stock Qty]) the day BEFORE the range
+closing = SUM(cc_daily_inventory[Closing Stock Qty]) the LAST day of the range
+          over WAREHOUSE locations only`,
+    detail:
+      'The warehouse’s own shelf, which is what decides whether it could ship at all — distinct ' +
+      'from Store SOH above in both the locations counted and the question asked. Opening is read ' +
+      'the day BEFORE the range starts, so it is the stock the range began with rather than its ' +
+      'first day’s close. Blank means the inventory model has never held the article, not that it ' +
+      'holds none: a range whose last day is in the future has no closing reading.',
+  },
+
+  /* ------------------- Production pages — site outbound & source -------- */
+  {
+    id: 'site-outbound',
+    page: 'Production',
+    visual: 'Outbound column on Production, Bakery, CK, YELO Factory, Unclassified',
+    label: 'Site_Outbound_Qty',
+    source: PBI,
+    expression: `SUM(fact_outbound_line[Action Base Qty])
+  WHERE Cost Center/Store IN ('Central Production Unit', 'Centeral Kitchen',
+                              'Swish Bakery', 'Yelo Factory')
+    AND Mapped Transfer To = the selected brand
+    AND Request Created DateTime within the selected range
+    AND Status Group IN the configured statuses`,
+    detail:
+      'What a PRODUCTION SITE issued, which is not what the warehouse Outbound column measures. The ' +
+      'warehouse column filters `Mapped Cost Center/Store = "Central Warehouse"`: the right question ' +
+      'for a bought article and the wrong one for a prepared one, because a prepared article is made ' +
+      'at a kitchen and issued from there, so the warehouse has no line for it and never will. Added ' +
+      '29 Sep 2026 after the warehouse column was put on these pages and read blank on almost every ' +
+      'row.\n\n' +
+      'Same fact table, same measure, ONE filter changed — the sites replace the warehouse as the ' +
+      'source. The destination filter is unchanged, so a figure still belongs to the brand whose ' +
+      'shops received it. Both "Central Production Unit" and "Centeral Kitchen" (the source’s own ' +
+      'spelling) count: the audit on 28 Sep found them to be one cost centre renamed in early 2026, ' +
+      'and either way both are genuinely production. Deliberately NOT included: `FM- CPU` belongs to ' +
+      'a separate company, `ERMG CK` to a dormant entity, and `Staff Meal` is a canteen.\n\n' +
+      'Blank, not zero, where nothing is available to measure — a zero against an article nothing ' +
+      'can measure reads as a forecast that missed completely. Note it is stamped on EVERY recipe ' +
+      'line of an article, so a totals row over an article spread across several recipe groups ' +
+      'counts it once per group; a known defect as of 29 Sep 2026.',
+  },
+  {
+    id: 'site-acc',
+    page: 'Production',
+    visual: 'Actual ACC% column',
+    label: 'Site_Acc',
+    source: LOCAL,
+    expression: 'Actual ACC% = Site outbound / Forecast qty',
+    detail:
+      'A COVERAGE RATIO, not an accuracy score: it is unbounded above and 133% means the kitchens ' +
+      'issued a third more than the recipe explosion asked for. Corrected to this direction on ' +
+      '29 Sep 2026 — it was briefly forecast/outbound — and renamed from "Site ACC%" at the same ' +
+      'time. Blank unless the forecast is above zero and an outbound figure exists on the same row; ' +
+      'a ratio needs both sides, and dividing by a forecast of zero is infinity.',
+  },
+  {
+    id: 'prod-source',
+    page: 'Production',
+    visual: 'Prod. source column, the Bakery / CK / Factory / Unclassified pages',
+    label: 'Prod_Source',
+    source: LOCAL,
+    expression: `the site that has issued this article, from outbound history:
+  Central Kitchen / CPU, Bakery, YELO Factory, or Unclassified`,
+    detail:
+      'Classified from what each site has ACTUALLY ISSUED over the last months rather than from a ' +
+      'hand-kept list — the first version of this column was typed in by hand. An article no site ' +
+      'has issued falls to Unclassified, which is why that page exists: those articles have no ' +
+      'agreed route yet and are held separately rather than being assigned a site on a guess. Live ' +
+      'classification on 29 Sep 2026 over 1 Mar-31 Aug: Central Kitchen / CPU 954, Bakery 107, ' +
+      'YELO Factory 9.\n\n' +
+      'Two things about it are still open and worth knowing before acting on it: the CK/CPU split is ' +
+      'unconfirmed by the business, and Swish Bakery is matched through the existing ' +
+      '`Mapped Cost Center/Store` field as agreed on 28 Sep.',
+  },
+  {
+    id: 'prod-type',
+    page: 'Stock Article',
+    visual: 'Prod. type column',
+    label: 'Node type — RAW, PREP, PA',
+    source: PBI,
+    expression: "Read from 'RECIPE TABLE', per article",
+    detail:
+      'RAW is bought from a supplier, PREP is a kitchen step, PA is a prepared article the ERP ' +
+      'stocks. It is what separates the two pages: Stock Article is locked to RAW — what somebody ' +
+      'BUYS — and Production to PREP and PA, what the kitchens MAKE.\n\n' +
+      'Read from the FULL `RECIPE TABLE`, not from the local component copy. The first version read ' +
+      'the copy and left direct-supply articles blank, because the copy holds only articles a ' +
+      'forecast recipe explodes to — so an article nobody has a recipe for had no row to read a type ' +
+      'from, which is precisely the direct-supply case.',
+  },
+  {
+    id: 'article-counts',
+    page: 'Stock Article',
+    visual: 'Articles card, Largest requirement card',
+    label: 'Articles, Largest requirement',
+    source: LOCAL,
+    expression: `Articles            = DISTINCT articles after all filters
+Largest requirement = MAX(Forecast qty) across those articles`,
+    detail:
+      'DISTINCT articles rather than rows, for the same reason as on Warehouse Insights: an article ' +
+      'appears once per recipe group, so a row count overstates it. "Largest requirement" is a ' +
+      'single article’s figure, not a total — it answers "what is the biggest single thing on this ' +
+      'list".',
+  },
+  {
+    id: 'top-by-unit',
+    page: 'Stock Article',
+    visual: 'Top components by unit',
+    label: 'Top articles within each unit of measure',
+    source: LOCAL,
+    expression: 'the largest Forecast qty values, grouped by the article’s base unit',
+    detail:
+      'Split by UNIT because that is the only way these quantities can honestly be ranked: 400 kg ' +
+      'and 400 pieces are not comparable, and a single list sorted by quantity would put whichever ' +
+      'unit happens to be counted in small increments at the top. Each facet is a league table ' +
+      'within one unit.',
+  },
+
+  /* ------------------------------------------------ Admin ---------------- */
+  /*
+   * The only page whose figures come from this app's OWN database rather than
+   * from Power BI - so it is the only place a figure can be changed by somebody
+   * using the app rather than by a data refresh.
+   */
+  {
+    id: 'admin-users',
+    page: 'Admin',
+    visual: 'Total users, Active, Seen in 30 days, Pending or blocked',
+    label: 'User counts',
+    source: LOCAL,
+    expression: `total            = COUNT(users)
+active           = COUNT WHERE status = 'active'
+seen_recently    = COUNT WHERE last_login_at >= now() - 30 days
+pending_or_blocked = COUNT WHERE status IN ('pending','suspended','disabled')`,
+    detail:
+      'From the app’s own `users` table, not from Power BI. "Seen in 30 days" counts people whose ' +
+      'LAST sign-in falls in the window, so it is a headcount and not a visit count. Active and ' +
+      '"pending or blocked" are complementary and sum to the total; "seen in 30 days" overlaps both ' +
+      'and is not part of that sum. Dates are compared as text in `YYYY-MM-DD HH24:MI:SS`, where ' +
+      'lexical and chronological order agree — which is the whole reason that format was chosen.',
+  },
+  {
+    id: 'admin-signins',
+    page: 'Admin',
+    visual: 'Sign-in activity chart, Recent sign-in attempts',
+    label: 'Daily sign-ins',
+    source: LOCAL,
+    expression: `users    = COUNT(DISTINCT user_id) per day WHERE success = 1
+logins   = COUNT(*) per day        WHERE success = 1
+failures = COUNT(*) per day        WHERE success = 0`,
+    detail:
+      'The chart plots DISTINCT PEOPLE per day, not raw events — one person signing in six times is ' +
+      'one user, not six. `logins` and `failures` are raw event counts and are carried alongside, ' +
+      'so a day with few users and many failures is visible as what it is. Grouped on the first ten ' +
+      'characters of the timestamp, so a "day" is UTC as stored.',
+  },
+  {
+    id: 'admin-usage',
+    page: 'Admin',
+    visual: 'Where the app is used',
+    label: 'Usage per brand and per store',
+    source: LOCAL,
+    expression: `users  = COUNT(DISTINCT user_id) over DISTINCT (user, brand) grants
+logins = COUNT(login events in the window) for those users`,
+    detail:
+      'Resolved through each user’s GRANTS rather than through anything they did — it answers "who ' +
+      'has this brand" and "how active are they", not "which brand did they look at". The DISTINCT ' +
+      'subquery matters: a store user granted two locations of one brand has two scope rows, and ' +
+      'joining sign-in events straight onto those would count every sign-in twice. A user granted ' +
+      'several brands counts once under each, so the columns do not sum to the user total.',
+  },
+
+  /* ------------------------------------- Warehouse Insights -------------- */
+  {
+    id: 'wh-article-counts',
+    page: 'Warehouse Insights',
+    visual: 'Articles card, Articles with outbound card',
+    label: 'Article counts',
+    source: LOCAL,
+    expression: `Articles             = DISTINCT articles on the page
+Articles with outbound = DISTINCT articles where outbound is not blank`,
+    detail:
+      'DISTINCT articles, not rows — corrected 16 Sep 2026. An article appears once per recipe ' +
+      'group, so counting rows overstated it and the figure moved when a slicer changed without the ' +
+      'population changing. The gap between the two cards is the useful part: it is how much of the ' +
+      'catalogue there is no outbound evidence for at all, and every accuracy figure on the page is ' +
+      'measured over the second number, not the first.',
+  },
+  {
+    id: 'wh-runrate',
+    page: 'Warehouse Insights',
+    visual: 'Sales run rate — This month so far, On course for',
+    label: 'Run rate',
+    source: COPY,
+    expression: `soFar    = SUM(cube_sales_daily.value) WHERE date <= last actual day
+runRate  = (soFar / days elapsed) x days in month
+projected= what the models themselves expect for the whole month`,
+    detail:
+      '`cube_sales_daily` holds ONE series that is actual for past dates and forecast for future ' +
+      'ones, so the two are told apart by the DATE against the last-actual boundary, never by a ' +
+      'column. The boundary is the earliest last-actual date across brands, so no brand is ever ' +
+      'read as actual past where its data stops.\n\n' +
+      'The run rate is shown only for a month still in progress — quoting it for a finished month ' +
+      'would restate the total while implying it was a projection. `runRate` is this app’s own ' +
+      'straight-line pace and `projected` is the models’ own expectation; they sit side by side ' +
+      'deliberately and are not the same figure.\n\n' +
+      'The month is read to its END even when the date slicer stops mid-month. Cutting it at the ' +
+      'slicer truncated "still expected" to a few days while the run rate projected the whole ' +
+      'month — 828,505 against 2,899,603 on the first run, which read as the month collapsing ' +
+      'rather than as two figures measuring different spans.',
+  },
+  {
+    id: 'wh-pace',
+    page: 'Warehouse Insights',
+    visual: 'Sales run rate — Last full month, Against the same point last month',
+    label: 'pace, versusLastMonth',
+    source: COPY,
+    expression: `samePoint       = SUM(value) for the previous month, days 1..N only
+                  where N = days elapsed this month
+pace            = soFar / samePoint - 1
+versusLastMonth = runRate / previous month total - 1`,
+    detail:
+      '`pace` is the like-for-like comparison: the same number of days into the previous month. ' +
+      'Comparing nine days of this month against ALL of last month reads as a collapse every time, ' +
+      'which is the most common way a run-rate figure misleads somebody. `versusLastMonth` is the ' +
+      'other honest question — the projected month against last month’s finished total. Both are ' +
+      'blank when there is no month in progress or nothing to compare against.',
+  },
+  {
+    id: 'wh-cover',
+    page: 'Warehouse Insights',
+    visual: 'Stock on hand against what left — Typical stock use',
+    label: 'cover',
+    source: COPY,
+    expression: `per article, per week: ratio = outbound that week / stock held
+cover  = MEDIAN(ratio) across articles
+trend  = MEDIAN(second half) / MEDIAN(first half) - 1`,
+    detail:
+      'Of what the warehouse was holding, how much went out. Ten on the shelf and two issued is ' +
+      '20% — comfortable. Ten held and twenty issued is 200%: the shelf turned over twice and was ' +
+      'refilled mid-week to manage it, which is a warehouse running hot. The line to watch is 100%.\n\n' +
+      'A MEDIAN over per-article ratios, never a ratio of totals. Adding every article’s stock ' +
+      'together would sum kilograms to pieces to litres and call the result a quantity, and the ' +
+      'ratio of two meaningless totals is not more meaningful; a median over per-article ratios is ' +
+      'dimensionless and says what the typical article did.\n\n' +
+      'The trend compares two HALVES rather than first week against last: the last week of any ' +
+      'window is the one most likely to be part-counted, and reading a trend off it would report a ' +
+      'fall every time.',
+  },
+  {
+    id: 'wh-short-dry',
+    page: 'Warehouse Insights',
+    visual: 'Shipped more than held, Shipped with an empty shelf',
+    label: 'shortShare, dry',
+    source: COPY,
+    expression: `short      = articles where outbound > stock held
+shortShare = short / articles with both a stock reading and outbound
+dry        = articles that shipped while the stock reading was 0`,
+    detail:
+      'An article with NO stock reading at all is skipped by both counters, not treated as empty: ' +
+      'an article the inventory model has never heard of tells us nothing, and counting it as empty ' +
+      'would invent a shortage. `dry` is a stockout, or stock that arrived and left inside the same ' +
+      'week — the two cannot be told apart from a weekly closing reading.\n\n' +
+      'Why this matters rather than being merely interesting: measured on 9 Sep 2026 over roughly ' +
+      '47,000 article-weeks, weeks where the warehouse held under a quarter of a week of cover were ' +
+      'followed by weeks shipping 0.60x that article’s average, against 1.10x where it held more — ' +
+      'and 35.7% of all zero-shipment weeks followed an empty warehouse. A large part of what reads ' +
+      'as forecast error is the warehouse being unable to ship what it did not have.',
+  },
+  {
+    id: 'wh-extremes',
+    page: 'Warehouse Insights',
+    visual: 'Lowest WH accuracy, Most over-forecast, Most under-forecast',
+    label: 'The three extreme lists',
+    source: LOCAL,
+    expression: `Lowest WH accuracy = articles sorted by WH ACC% ascending
+Most over-forecast = sorted by (WH forecast - Outbound) descending
+Most under-forecast= sorted by (WH forecast - Outbound) ascending`,
+    detail:
+      'Three different questions, deliberately not one list. Accuracy is a RATIO, so a tiny article ' +
+      'off by a handful of units can top the "lowest accuracy" list while costing nothing; the two ' +
+      'variance lists are in UNITS and rank by what the miss actually costs. An article can sit high ' +
+      'on one and nowhere on the others. All three are over scored articles only.',
+  },
+
+  /* ------------------------------------------ Sales plan ----------------- */
+  /*
+   * The plan chain, in order. Each entry below is one link:
+   *
+   *   typed target -> seasonal shape -> monthly sales -> units -> products
+   *                                                           -> articles
+   *
+   * The single most important property: a typed target sets the SIZE of the year
+   * and never its shape, its mix, or its units-per-dinar. Those come from
+   * evidence and do not move when the target does.
+   */
+  {
+    id: 'plan-target',
+    page: 'Sales plan',
+    visual: 'Brand sales plan — the typed boxes, Target figure',
+    label: 'Annual sales target',
+    source: TABLE,
+    expression: 'cube_sales_plan[value], typed per brand per year',
+    detail:
+      'Somebody’s decision, stored as written — this app does not derive it or adjust it. It sets ' +
+      'how BIG the plan year is and nothing else. Leave a box empty and that brand keeps the ' +
+      'existing logic rather than being planned from zero.',
+  },
+  {
+    id: 'plan-shape',
+    page: 'Sales plan',
+    visual: 'The months table — the percentages',
+    label: 'Seasonal shape',
+    source: PBI,
+    expression: `share(month) = 'Seasonal Effect Branch'[Seasonal Effect] for that month
+               / SUM of the brand's twelve factors
+fallback     = the plan year's own FORECAST (2)[Totalsale], month by month`,
+    detail:
+      'WHEN a planned year’s sales happen — twelve weights per brand, normalised to sum to 1. The ' +
+      'percentages are the shape itself and do not move when the target does; that separation is ' +
+      'the whole point of the panel.\n\n' +
+      'The factors are branch-uniform, average almost exactly 1.0, and differ by brand — February ' +
+      'is 0.76 for SS, 0.73 for MM, 0.91 for BUR. Until 19 Sep 2026 a plan year was instead shaped ' +
+      'by rescaling the BASE year’s own daily sales, which inherited whatever that year did, ' +
+      'including things that are not seasonality: BBT January 2026 was -1, so January 2027 came out ' +
+      'negative, and CHP January 2026 was 0 against a 10.6M target because CHP opened in March and ' +
+      'its history is a launch ramp. Its seasonal factors run 0.87 to 1.16 — perfectly healthy. ' +
+      'That contrast is the argument for this table.\n\n' +
+      'Where a brand has no usable factor set the Totalsale fallback keeps it plannable rather than ' +
+      'refused. A FAILED shape query now returns nothing and stores nothing, rather than being ' +
+      'cached as the fallback — fixed after a BBT shape failure stuck as Totalsale.',
+  },
+  {
+    id: 'plan-ratio',
+    page: 'Sales plan',
+    visual: 'The forecast table — how sales become units',
+    label: 'Units-per-sales ratio',
+    source: LOCAL,
+    expression: `ratio(month)  = product units that month / sales that month   (base year)
+brandMedian   = MEDIAN(ratio) over complete base-year months
+units(month)  = planned sales for the month x ratio, or x brandMedian
+                where the month's own ratio is unusable`,
+    detail:
+      'Answers "how many units is a dinar". A month’s own ratio is used only when it is within 25% ' +
+      'of the brand median — otherwise the median stands in, so one broken month cannot distort the ' +
+      'year. Kept deliberately separate from the mix below: that separation is what lets a month ' +
+      'with a broken ratio borrow the brand median while still using its own mix, and a month with ' +
+      'no mix borrow the year’s while still using its own ratio.',
+    tunable: 'THRESHOLD, the 25% validity band, in server/insights/planForecast.js.',
+  },
+  {
+    id: 'plan-mix',
+    page: 'Sales plan',
+    visual: 'The forecast table — Products level',
+    label: 'Product mix',
+    source: LOCAL,
+    expression: `history(p) = p's share of units in the equivalent base-year month
+             (or of the rest of the year, with that month excluded,
+              where the month is unusable)
+latest(p)  = p's share of units in the last 28 days
+w(p)       = 0.25 + 0.50 x (base-year months p appears in / complete months)
+mix(p)     = w(p) x history(p) + (1 - w(p)) x latest(p),  re-normalised
+forecast   = units(month) x mix(p)`,
+    detail:
+      'Which products those units are. The history weight SLIDES per product rather than being a ' +
+      'flat 75/25: a product present in every complete base-year month keeps the full 0.75, one ' +
+      'present in none drops to 0.25, and a product with one month of nine gets about 0.31 — so ' +
+      'roughly seven tenths of its weight rests on what is selling now, which is the only evidence ' +
+      'there is for it.\n\n' +
+      'That sliding weight was added because new products were being badly understated: a flat ' +
+      'history weight judged them on months they did not exist in. Nashville Seasoning Powder went ' +
+      'from 26.55 to 77.1 and Hot Honey from 28,780 to 66,689 when it went in.\n\n' +
+      'The latest-28-days half is what stops a February plan zeroing products that only appeared in ' +
+      'June: on 22 Sep 2026 the last 28 days held 95 BBT products February 2026 had never seen, ' +
+      'carrying 33.9% of current volume. Where a month is declared unusable its history comes from ' +
+      'the rest of the year WITH THAT MONTH REMOVED — a month declared unusable must not come back ' +
+      'in through the fallback it triggered. The mix is re-normalised to sum to 1 rather than ' +
+      'assumed to, because either half can be empty and a mix that does not sum to one would ' +
+      'quietly lose or invent units.',
+    tunable:
+      'HISTORY_WEIGHT (0.75), HISTORY_WEIGHT_MIN (0.25) and LATEST_DAYS (28), in ' +
+      'server/insights/planForecast.js.',
+  },
+  {
+    id: 'plan-articles',
+    page: 'Sales plan',
+    visual: 'The forecast table — Articles level',
+    label: 'Article forecast qty',
+    source: LOCAL,
+    expression: `for each recipe naming the article:
+  qty += product forecast units (by PLU) x recipe rate per unit
+summed over every recipe that names it`,
+    detail:
+      'Derived FROM the product forecast above rather than re-deriving products, so an article and ' +
+      'the products it comes from can never disagree — asked for explicitly. Backtested against ' +
+      'August 2026: 100.0% volume-weighted agreement, totals within 0.006%.\n\n' +
+      'Recipes are scoped to the brand through Recipe Group, because `Product PLU` is not unique ' +
+      'across brands — and is an Integer in the BBT model and Text in the others. Without the ' +
+      'scoping, 70 articles from other brands leaked in. Prep steps with no article number are kept, ' +
+      'keyed by name, so a forecast prep step is not silently dropped.\n\n' +
+      'Node types are read from the full `RECIPE TABLE`, not from the forecast-filtered component ' +
+      'copy — the copy holds only articles a recipe explodes to, so reading types from it left ' +
+      'direct-supply articles blank.',
+  },
+  {
+    id: 'plan-method-note',
+    page: 'Sales plan',
+    visual: 'What a saved figure does',
+    label: 'What a typed figure changes',
+    source: LOCAL,
+    expression: `changes:      the SIZE of the plan year
+does NOT change: the seasonal shape, the product mix, the units-per-sales
+                 ratio, or any actual sales`,
+    detail:
+      'Stated on the page because it is the commonest misreading. A target well above the base ' +
+      'year’s sales does not scale article forecasts by the same multiple: the units-per-sales ratio ' +
+      'and the mix are evidence from history and are unchanged, so an article can be flat or lower ' +
+      'against a much larger target — most often because that article’s products lost mix share, or ' +
+      'because the month’s ratio fell back to the brand median.',
+  },
+
+  /* ------------------------------------------ Tomorrow's Prep ------------ */
+  /*
+   * The whole page ignores the date slicer, by design and to match the report:
+   * every measure below resolves its own dates off TODAY() inside the model.
+   */
+  {
+    id: 'prep-tomorrow-qty',
+    page: "Tomorrow's Prep",
+    visual: 'Tomorrow forecast qty card, Production plan table',
+    label: 'Tomorrow_Forecast_Qty',
+    source: PBI,
+    expression: '[Tomorrow Forecast Qty]',
+    detail:
+      'Resolves its own date off TODAY() as POWER BI sees it — the service’s date, not this ' +
+      'browser’s. Overnight the two can be a day apart, and a figure that looks wrong against the ' +
+      'report is nearly always that; the banner names the day being planned so the comparison is ' +
+      'possible instead of a guess. The date slicer is deliberately NOT applied to this page, which ' +
+      'is how the report behaves too. Rows with a forecast of 0 are filtered out — a prep plan lists ' +
+      'what to make.',
+  },
+  {
+    id: 'prep-plan-date',
+    page: "Tomorrow's Prep",
+    visual: 'Planning for… banner',
+    label: 'Plan_Date',
+    source: PBI,
+    expression: 'FORMAT(CALCULATE(MAX(Forecast_Product_Table[Date]), [IsTomorrow] = 1), "yyyy-MM-dd")',
+    detail:
+      'Read from the model’s own IsTomorrow flag rather than being assumed to be the next day here, ' +
+      'so the page and the model can never disagree about which day is being planned.',
+  },
+  {
+    id: 'prep-recent',
+    page: "Tomorrow's Prep",
+    visual: "Tomorrow's prep vs recent actual chart, Production plan table",
+    label: 'Last_Avg_Actual',
+    source: PBI,
+    expression: '[Last 2 Weekdays Avg Actual]',
+    detail:
+      'The average of the last TWO matching weekdays — so a Tuesday plan is compared with the two ' +
+      'previous Tuesdays, not with yesterday. This is the comparison the prep figure should be read ' +
+      'against. Worth knowing its limitation: an average of two days has no protection against an ' +
+      'outlier, so one promotion or one closure moves it, and the same two-day baseline is what the ' +
+      'model’s AOV and demand flags are built on.',
+  },
+  {
+    id: 'prep-counts',
+    page: "Tomorrow's Prep",
+    visual: 'Products to prepare / Extra prep / Reduced prep cards',
+    label: 'Products_To_Prepare, High_Demand_Products, Low_Demand_Products',
+    source: PBI,
+    expression: `[Products To Prepare]
+[High Demand Products]   -> "Extra prep needed"
+[Low Demand Products]    -> "Reduced prep needed"`,
+    detail:
+      'Counts of PRODUCTS, not units. The high and low counters are built on the model’s ' +
+      '[Demand Change %], which compares against the two-weekday baseline above and returns BLANK ' +
+      'when that baseline is under 1 — so a product launched this week cannot be flagged as high ' +
+      'demand however much it sells. The three do not sum to a total: a product is counted in ' +
+      '"to prepare" and may also be in one of the other two.',
+  },
+  {
+    id: 'prep-byproduct',
+    page: "Tomorrow's Prep",
+    visual: "Tomorrow's prep vs recent actual — top 10 products",
+    label: 'Prep vs recent, per product',
+    source: LOCAL,
+    expression: `Forecast = SUM(Tomorrow_Forecast_Qty)  grouped by product, across branches
+Actual   = SUM(Last_Avg_Actual)         grouped by product, across branches
+shown    = top 10 by Forecast`,
+    detail:
+      'The table is per product per branch; this chart folds the branches away to answer "what are ' +
+      'we making most of tomorrow". Only the top 10 are drawn, so the bars are readable — the table ' +
+      'below carries every row.',
+  },
+  {
+    id: 'prep-lean',
+    page: "Tomorrow's Prep",
+    visual: 'Weekday lean banner',
+    label: 'How this weekday usually runs',
+    source: LOCAL,
+    expression: 'lean = (Forecast - Actual) / Actual, for the weekday being planned',
+    detail:
+      'Taken from the same weekday analysis the Overview chart uses, then matched to the weekday of ' +
+      'the plan date. Shown only when the lean is at least 5%, and as a warning above 15%. It is ' +
+      'read before the plan rather than after the complaint: a branch that knows Wednesdays ' +
+      'habitually land under can prepare for it. Needs enough completed days or it is not shown.',
+    tunable: 'The 5% and 15% thresholds, in pages/ProductionPlan.jsx.',
+  },
+
+  /* ------------------------------------------ Forecast Insights ---------- */
+  /*
+   * One page, one payload: everything below is computed in
+   * server/insights/whDiagnostics.js from the same `rows` array, so no two
+   * figures on the page can be built from different populations. Where a
+   * threshold decides a count it is named here and marked tunable.
+   */
+  {
+    id: 'wh-diag-accuracy',
+    page: 'Forecast Insights',
+    visual: 'Forecast accuracy card',
+    label: 'Average article accuracy',
+    source: LOCAL,
+    expression: `per article  = 1 - |Forecast - Outbound| / MAX(Forecast, Outbound)
+headline     = AVERAGE( MAX(0, per article) ) over SCORED articles`,
+    detail:
+      'The average ARTICLE, not the average unit — every article counts once however much it ' +
+      'moves, which is what makes this a statement about the method rather than about the big ' +
+      'lines. Floored at 0 per article before averaging, exactly as the cards do it, so this page ' +
+      'cannot report a different headline from the pages it explains. "Scored" means outbound ' +
+      'exists and is above zero; an article the warehouse never issued has no accuracy and is ' +
+      'excluded rather than counted as 0%.',
+  },
+  {
+    id: 'wh-diag-articles',
+    page: 'Forecast Insights',
+    visual: 'Articles looked at card',
+    label: 'articles / scored / unscored',
+    source: LOCAL,
+    expression: `articles = every article with a forecast or an outbound record
+scored   = those with outbound > 0
+unscored = articles - scored`,
+    detail:
+      'The split is the point: an article can be forecast and never shipped, or shipped and never ' +
+      'forecast, and only the ones with both can be scored at all. Every share on this page is ' +
+      'over `scored` unless it says otherwise.',
+  },
+  {
+    id: 'wh-diag-bias',
+    page: 'Forecast Insights',
+    visual: 'Forecast vs shipped card, Asked for / Shipped bars',
+    label: 'biasPct',
+    source: LOCAL,
+    expression: `totalForecast = SUM(Forecast) over scored articles
+totalOutbound = SUM(Outbound) over scored articles
+biasPct       = (totalForecast - totalOutbound) / totalOutbound`,
+    detail:
+      'One ratio over the totals, so it answers "are we ordering too much overall" — a different ' +
+      'question from the accuracy card, which asks "is each article right". A page can be badly ' +
+      'inaccurate article by article and near-perfect in total, because over- and under-forecasts ' +
+      'cancel; that gap between the two cards is deliberate and is most of what this page is for. ' +
+      'Signed: positive means more was forecast than shipped. Blank when nothing shipped.',
+  },
+  {
+    id: 'wh-diag-bands',
+    page: 'Forecast Insights',
+    visual: 'How accurate is each article — accuracy bands',
+    label: 'Article counts per accuracy band',
+    source: LOCAL,
+    expression: 'COUNT(scored articles WHERE accuracy >= lo AND accuracy < hi)',
+    detail:
+      'Half-open intervals — an article scoring exactly 40% falls in "40-60%", never in both bands ' +
+      'or neither, so the bands sum to `scored` exactly. Bands are counts of ARTICLES, not units. ' +
+      'Clicking a band filters the article list to it.',
+  },
+  {
+    id: 'wh-diag-direction',
+    page: 'Forecast Insights',
+    visual: 'Are we ordering too much or too little',
+    label: 'Too much / About right / Too little',
+    source: LOCAL,
+    expression: `errorPct    = (Forecast - Outbound) / Outbound
+Too much    = share of scored WHERE errorPct >  +10%
+Too little  = share of scored WHERE errorPct <  -10%
+About right = 1 - too much - too little`,
+    detail:
+      'A DIRECTION split, deliberately different from the accuracy bands: accuracy is unsigned, so ' +
+      'a 30% over-forecast and a 30% under-forecast land in the same band while being opposite ' +
+      'problems with opposite fixes. The ±10% deadband is what "about right" means; it is not an ' +
+      'accuracy score and does not correspond to any band above. Divided by OUTBOUND, so it reads ' +
+      'as "we ordered 40% more than moved".',
+    tunable: 'The ±10% deadband, in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-goodshare',
+    page: 'Forecast Insights',
+    visual: 'What we found — "Most articles are forecast well"',
+    label: 'goodShare',
+    source: LOCAL,
+    expression: 'COUNT(scored WHERE accuracy >= 60%) / COUNT(scored)',
+    detail:
+      'A share of articles clearing a pass mark, which is a different and more actionable figure ' +
+      'than the average: it answers "how much of the catalogue works" rather than "how good is the ' +
+      'typical score". 60% is this app’s own pass mark and is not the 85% target — the target is a ' +
+      'figure for the average, and the two are not comparable.',
+    tunable: 'GOOD, the 60% pass mark, in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-lowacc',
+    page: 'Forecast Insights',
+    visual: 'Articles to look at card',
+    label: 'lowAccuracy',
+    source: LOCAL,
+    expression: 'COUNT(scored articles WHERE accuracy < 40%)',
+    detail:
+      'A worklist rather than a measure: the articles far enough off to be worth someone’s morning. ' +
+      'Counted over scored articles only, so an article nobody shipped never appears here however ' +
+      'much was forecast for it — that case is the status ladder’s job.',
+    tunable: 'The 40% line, in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-cv',
+    page: 'Forecast Insights',
+    visual: 'Volatility bands, "Accuracy falls when demand jumps about"',
+    label: 'cv — how much an article swings',
+    source: LOCAL,
+    expression: `rate(month) = outbound that month / sales that month
+cv          = STDEV(rate) / MEAN(rate)   over the six months`,
+    detail:
+      'The coefficient of variation of the RATE, not of the raw quantity. That distinction is the ' +
+      'whole point: an article whose outbound doubles because the brand sold twice as much is ' +
+      'perfectly predictable, and dividing by sales is what separates it from an article that ' +
+      'genuinely jumps about. Zero when there are fewer than two months to compare, so a new ' +
+      'article reads as steady rather than as wildly unstable — worth knowing when reading the ' +
+      '"steady articles only" ceiling. Bands: steady under 0.3, volatile 0.3-0.6, erratic above 1.0.',
+    tunable: 'CV_STEADY, CV_VOLATILE and CV_ERRATIC, in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-reachable',
+    page: 'Forecast Insights',
+    visual: '"The best any forecast could do", Best possible column',
+    label: 'reachable',
+    source: LOCAL,
+    expression: 'reachable(cv) = MAX(0, 1 - 0.8cv / (1 + 0.4cv))',
+    detail:
+      'The best score any forecast could get on an article that swings this much. A forecast landing ' +
+      'exactly on the article’s own average is still marked down every month the article misses ' +
+      'that average, and `cv` measures how far it misses; working the accuracy formula through for a ' +
+      'swing of cv gives this expression.\n\n' +
+      'Checked against the population on 8 Sep 2026: the typical article swings ±67% and scored ' +
+      '58.9% when given perfect knowledge of its own level, against 57.7% predicted here — close ' +
+      'enough to publish. This is the number that separates "the forecast is wrong" from "the ' +
+      'article cannot be forecast", which is the only distinction this panel exists to make.',
+  },
+  {
+    id: 'wh-diag-ceiling',
+    page: 'Forecast Insights',
+    visual: 'Can we reach 85% — the three ceiling cards',
+    label: 'Ceiling',
+    source: LOCAL,
+    expression: `all    = AVERAGE(reachable) over every scored article
+active = AVERAGE(reachable) over scored articles whose status is 'active'
+steady = AVERAGE(reachable) over scored articles with cv < 0.3
+typicalSwing = MEDIAN(cv) over scored articles`,
+    detail:
+      'Averaged the same way the accuracy card averages, so this is in the card’s own units: the ' +
+      'score a forecast would get if it knew every article’s true average and nothing else. It is ' +
+      'NOT a prediction of what will be achieved — it is the line above which no method of any kind ' +
+      'can go while these articles are the ones being scored.\n\n' +
+      'Cut three ways because the difference between them is the whole argument: the population ' +
+      'decides the ceiling far more than the method does. `swingFor85` (0.2) is the swing an article ' +
+      'must be under for 85% to be possible at all.',
+  },
+  {
+    id: 'wh-diag-segments',
+    page: 'Forecast Insights',
+    visual: 'What makes the difference',
+    label: 'Share forecast well, per segment',
+    source: LOCAL,
+    expression: `count = articles in the segment
+good  = those with accuracy >= 60%
+share = good / count`,
+    detail:
+      'The same pass mark applied to four different cuts of the same scored articles — by ' +
+      'volatility, by volume, by months of history, and recipe against non-recipe. Each cut ' +
+      'partitions the whole population, so its counts sum to `scored`; the cuts are not independent ' +
+      'of each other and are not meant to be added together. Reading it: a cut where the share ' +
+      'changes sharply from band to band is a cut that predicts forecastability.',
+  },
+  {
+    id: 'wh-diag-issue',
+    page: 'Forecast Insights',
+    visual: 'Why each article is off, What to fix',
+    label: 'One named reason per article',
+    source: LOCAL,
+    expression: `first match wins, in this order:
+  dormant       no outbound in the six months the rate is built from
+  stopped       shipped in the window but nothing in the last two months
+  thin-history  fewer than 3 months of deliveries
+  erratic       cv >= 1.0
+  volatile      cv >= 0.6
+  low-volume    under 100 units moved in the window
+  spike         one month >= 3x the median of the others
+  drift         demand has moved in one direction
+  ok            forecast and outbound agree within tolerance`,
+    detail:
+      'Ordered by WHAT TO DO ABOUT IT rather than by size. An article that stopped shipping needs ' +
+      'delisting whatever else is true of it, and saying "volatile demand" about a discontinued line ' +
+      'sends somebody to tune a forecast for a product nobody sells any more. Exactly one reason per ' +
+      'article, so the counts sum to the population and no article is double-counted — which also ' +
+      'means an article can have several of these problems and only its most actionable one is named.',
+    tunable: 'THIN_HISTORY, THIN_VOLUME and the CV bands, in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-unpredictable',
+    page: 'Forecast Insights',
+    visual: 'Articles that are naturally hard to forecast',
+    label: 'unpredictable',
+    source: LOCAL,
+    expression: `hard           = scored articles with cv >= 0.6
+averageAccuracy= AVERAGE(MAX(0, accuracy)) over hard
+reachable      = AVERAGE(reachable) over hard
+unitsAtStake   = SUM(|Forecast - Outbound|) over hard
+averageWithout = AVERAGE(MAX(0, accuracy)) over the REST`,
+    detail:
+      'The panel’s claim is "these score 22% and the best possible is 31%" — a statement about the ' +
+      'articles, not about the method. `averageWithout` is the counterfactual a reader actually ' +
+      'wants: what the headline would be if these were planned by a rule instead of forecast. ' +
+      '`unitsAtStake` sums the ABSOLUTE miss, so over- and under-forecasts both count as cost ' +
+      'rather than cancelling.',
+    tunable: 'The cv >= 0.6 threshold, CV_VOLATILE in server/insights/whDiagnostics.js.',
+  },
+  {
+    id: 'wh-diag-status',
+    page: 'Forecast Insights',
+    visual: 'Article status',
+    label: 'The status ladder',
+    source: LOCAL,
+    expression: 'First matching rung, from days since the article last shipped',
+    detail:
+      'Five statuses in ladder order — active, then progressively quieter, down to never-shipped. ' +
+      'Each rung carries its own definition and intended treatment from ' +
+      'server/insights/whClassify.js, so this page, the guide and anything printed from them ' +
+      'describe the policy in one set of words rather than three. Counted over ALL articles, not ' +
+      'just scored ones: an article that never shipped is precisely what this ladder exists to ' +
+      'surface, and it has no accuracy at all. `classifiedAt` is the as-at date the days are ' +
+      'measured from — the last day the outbound feed holds, not today.',
+    tunable: 'THRESHOLDS and RECENT_WINDOW_DAYS, in server/insights/whClassify.js.',
+  },
+  {
+    id: 'wh-diag-zero',
+    page: 'Forecast Insights',
+    visual: 'How often articles actually ship',
+    label: 'zeroShare, regularity',
+    source: COPY,
+    expression: `articleWeeks = articles x 26 weeks
+zeroShare    = 1 - SUM(weeks each article shipped) / articleWeeks
+regular      = shipped in >= 80% of weeks
+irregular    = 30% to 80%
+intermittent = under 30%`,
+    detail:
+      'Most article-weeks have no shipment at all. That is not a gap in the data, it is what the ' +
+      'demand looks like: an article ordered every third week is silent two weeks in three, and a ' +
+      'forecast that spreads its demand evenly is wrong in both directions — too high on the quiet ' +
+      'weeks and too low on the ordering week.\n\n' +
+      'Measured over articles the warehouse ACTUALLY SHIPPED in the window, so it describes bursty ' +
+      'demand rather than a catalogue full of dead lines; those are counted by the status ladder ' +
+      'instead. Computed live from the local copy on every window rather than quoted, because a ' +
+      'number written into a page is true on the day it is written and slowly becomes a lie.',
+    tunable: 'The 26-week window and the 80%/30% cuts, in server/insights/whPatterns.js.',
+  },
+  {
+    id: 'wh-diag-table',
+    page: 'Forecast Insights',
+    visual: 'All articles / Articles — <band> table',
+    label: 'The article list',
+    source: LOCAL,
+    expression: 'the same `rows` every figure on this page is computed from, filtered to what was clicked',
+    detail:
+      'Not a separate query: clicking a band, a bar or a segment filters THIS list, so the count in ' +
+      'the heading always equals the figure that was clicked. Each column is documented under its ' +
+      'own entry — accuracy, forecast, outbound, the swing (cv), the best possible (reachable), the ' +
+      'named issue and the status. Unscored articles appear only in the unfiltered list, because ' +
+      'every band and share on the page is defined over scored articles.',
+  },
+  {
+    id: 'wh-diag-narrative',
+    page: 'Forecast Insights',
+    visual: 'What we tested and ruled out, The plan to 85%, What has changed',
+    label: 'The written sections',
+    source: LOCAL,
+    expression: 'No calculation — these panels are written findings, not measures',
+    detail:
+      'Recorded here so that "this visual has not declared a formula" never has to stand in for "it ' +
+      'has no formula". These three panels carry the ARGUMENT rather than the arithmetic: what was ' +
+      'tested and ruled out, what the route to the target is, and what has already been fixed or ' +
+      'has since cleared.\n\n' +
+      'Every NUMBER quoted inside them comes from the calculations elsewhere on this page and moves ' +
+      'with the window and the brand — they are not typed-in constants. The prose around those ' +
+      'numbers is written and is updated by hand when a finding changes.',
+  },
+  {
+    id: 'wh-diag-dow',
+    page: 'Forecast Insights',
+    visual: 'Which days articles ship on',
+    label: 'Weekday concentration',
+    source: COPY,
+    expression: `per article: top = MAX(qty by weekday) / SUM(qty)
+one day  = top >= 50%
+leaning  = top 30% to 50%
+spread   = top < 30%`,
+    detail:
+      'A large minority of articles ship on a single weekday. Spreading their forecast evenly across ' +
+      'the week guarantees a miss on every other day, which is why accuracy on a SHORT window reads ' +
+      'so much worse than the same articles over a whole month — the single most useful thing on ' +
+      'this panel for interpreting a bad weekly figure. Weighted by quantity, not by number of ' +
+      'shipments, so one large delivery counts more than three small ones.',
   },
 ]
 

@@ -48,6 +48,7 @@ export function NonRecipePanel() {
 
   return (
     <Panel
+      calc="nonrecipe"
       title="Items with no recipe"
       count={data ? `${fmtInt(covered)} forecast` : undefined}
       sub={

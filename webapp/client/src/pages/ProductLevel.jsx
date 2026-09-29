@@ -75,19 +75,24 @@ const COLUMNS = [
   },
   {
     /*
-     * Forecast accuracy per product, as the report's own measure defines it.
+     * Forecast accuracy per product:
      *
      *   IF actual = 0    -> blank
      *   IF forecast = 0  -> blank
-     *   otherwise        -> 1 - |actual - forecast| / actual
+     *   otherwise        -> 1 - |actual - forecast| / MAX(actual, forecast)
      *
-     * Divided by ACTUAL, not by the larger of the two, because that is what the
-     * DAX does - so this column and the report agree rather than being two
-     * defensible answers to the same question.
+     * Divided by the LARGER of the two, so the gap can never exceed the
+     * denominator and the score is bounded 0-100% by construction. The value is
+     * computed where the rows are built - see the note on `bigger` below, which
+     * is where the 27 Sep 2026 change from dividing by actual is explained.
      *
-     * Two consequences worth knowing. It is UNBOUNDED BELOW: a product that
-     * sold 1 against a forecast of 8 scores -600%, and real rows do this. And
-     * both zero cases are blank rather than 0% or 100% - a product that sold
+     * This comment said the opposite until 29 Sep 2026: it still described the
+     * old divide-by-actual behaviour, and claimed the column was unbounded below
+     * and matched the DAX. Neither had been true for two days. Corrected while
+     * wiring the Calculations inspector, which is where the formula is now also
+     * stated to the reader - `product-acc` in server/calculations.js.
+     *
+     * Both zero cases are blank rather than 0% or 100%: a product that sold
      * nothing has no accuracy to report, and neither has one nobody forecast.
      */
     key: 'Accuracy_Pct',
@@ -305,7 +310,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
         }
       >
         <PerfCard
-          calc="variance-pct,product-acc,product-acc-weighted"
+          calc="variance-pct,variance-qty,product-acc,product-acc-weighted"
           loading={busy}
           items={future ? [
             {
@@ -335,7 +340,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
       </MetricFlow>
 
       <Panel
-        calc="actual-qty,forecast-qty,variance-pct,product-acc,product-acc-weighted"
+        calc="actual-qty,forecast-qty,variance-qty,variance-pct,demand-shift,product-acc,product-acc-weighted"
         busy={busy}
         title="Products detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}

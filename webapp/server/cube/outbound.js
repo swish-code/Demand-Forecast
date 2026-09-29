@@ -7,6 +7,7 @@ import {
   forgetWarehouseSourced,
   OTHER_BUCKET,
 } from '../powerbi/warehouse.js'
+import { siteOutboundByMonth } from '../powerbi/siteOutbound.js'
 import { forgetShipped, forgetElsewhere, forgetMaster, forgetShipHistory } from './query.js'
 import { forgetConstants } from '../insights/whConstant.js'
 
@@ -171,6 +172,83 @@ async function rebuildOutboundMonthly(brand) {
   )
 }
 
+/**
+ * How many whole months of site history to keep.
+ *
+ * The forecast trains on six, and the seventh exists so that a backtest - or a
+ * window opened on last month - still has six whole months before it.
+ */
+const SITE_MONTHS = 7
+
+/** The `count` whole months before the month `at` falls in, oldest first. */
+function wholeMonthsBefore(at, count) {
+  const d = at instanceof Date ? at : new Date(`${String(at).slice(0, 10)}T00:00:00Z`)
+  const out = []
+  for (let i = count; i >= 1; i--) {
+    out.push(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1)).toISOString().slice(0, 7))
+  }
+  return out
+}
+
+/**
+ * What the production sites issued, month by month, for the PA forecast.
+ *
+ * The twin of `rebuildOutboundMonthly` above and deliberately not built from
+ * `cube_outbound_daily`: that table is warehouse-sourced, so a prepared article
+ * has no row in it at all. This reads the sites directly.
+ *
+ * Written monthly rather than daily, unlike the warehouse copy. The only reader
+ * is the rate model, which consumes whole months and nothing finer - a daily
+ * copy would be seven times the rows and the same answer.
+ *
+ * Whole months only, and never the current one: a part month is a partial
+ * numerator over a partial denominator, which is the thing the six-month rule
+ * exists to avoid.
+ */
+export async function refreshSiteOutbound({ now = new Date() } = {}) {
+  const months = wholeMonthsBefore(now, SITE_MONTHS)
+  const rows = await siteOutboundByMonth(months).catch((err) => {
+    console.warn(`  [site-outbound] ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!rows?.length) return { rows: 0 }
+
+  /*
+   * Replaced per month, not wholesale.
+   *
+   * A month that failed its query contributes nothing and must leave the copy's
+   * previous answer for that month standing - the same rule the master-actual
+   * write follows. Deleting everything first would turn one throttled query
+   * into a hole in the training history.
+   */
+  const seen = [...new Set(rows.map((r) => r.month))]
+  for (const month of seen) {
+    await pg.run('DELETE FROM cube_site_outbound_monthly WHERE month = ?', [month])
+  }
+  await insertRows(
+    'cube_site_outbound_monthly',
+    ['brand', 'month', 'article', 'qty'],
+    ['brand', 'month', 'article'],
+    rows,
+    (r) => [r.brand, r.month, r.article, r.qty]
+  )
+  forgetConstants()
+  /*
+   * Says so when it works, not only when it fails.
+   *
+   * This wrote the table silently for its first day, and `siteIfStale` returns
+   * silently when the table already holds rows - so the log could show no trace
+   * of the PA forecast history either arriving or being skipped. Several hours
+   * on 29 Sep 2026 went into three wrong theories about a blank column that had
+   * in fact been filled by an Admin refresh, and a single line here would have
+   * ended it immediately. A job that fills a table should name the table.
+   */
+  console.log(
+    `  [cube] site outbound: ${rows.length} rows over ${seen.length} month(s) — ${seen.sort().join(', ')}`
+  )
+  return { rows: rows.length, months: seen.length }
+}
+
 /** Measured from the rows, like every other coverage figure here. */
 async function noteOutboundCoverage(brand) {
   const span = (await pg.get(
@@ -290,6 +368,19 @@ export async function refreshAllOutbound({ from, to, month, lastFrom, lastTo }) 
     out.push(await refreshOutboundAllBrands({ from, to }))
   } catch (err) {
     out.push({ rows: 0, error: err.message.slice(0, 80) })
+  }
+
+  /*
+   * The production sites, for the PA forecast.
+   *
+   * After the warehouse pass and in its own try: this is a second source for a
+   * second forecast, and a throttled site query must not cost the warehouse its
+   * copy. Seven whole months, one query each, every brand at once.
+   */
+  try {
+    out.push({ site: await refreshSiteOutbound() })
+  } catch (err) {
+    out.push({ site: { rows: 0 }, error: err.message.slice(0, 80) })
   }
 
   for (const brand of config.brands) {

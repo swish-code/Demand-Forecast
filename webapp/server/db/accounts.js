@@ -344,6 +344,33 @@ CREATE TABLE IF NOT EXISTS cube_outbound_monthly (
 );
 
 /*
+ * The same shape again, for what the PRODUCTION SITES issued.
+ *
+ * The table above is warehouse-sourced, and a prepared article never leaves the
+ * warehouse - it is made at the Central Kitchen, the Bakery or the Yelo Factory
+ * and issued from there. So the table that trains the warehouse forecast holds
+ * nothing for a PA article, and the only method those articles had was the
+ * recipe explosion.
+ *
+ * Added 29 Sep 2026 after backtesting the warehouse's own rate method against
+ * this source over four months. On PA articles it beat the recipe explosion
+ * every month on every measure - 85.3% against 64.8% per article, 89.8% against
+ * 70.7% by volume - and removed a standing 24% UNDER-forecast.
+ *
+ * Deliberately a separate table rather than a column on the one above: the two
+ * answer different questions about different sources, every existing reader of
+ * that table means "warehouse", and adding a discriminator column would have
+ * made all of them wrong by default.
+ */
+CREATE TABLE IF NOT EXISTS cube_site_outbound_monthly (
+  brand   TEXT NOT NULL,
+  month   TEXT NOT NULL,
+  article TEXT NOT NULL,
+  qty     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, month, article)
+);
+
+/*
  * The article master, and the constants that go with it.
  *
  * Both are per month and cost a round trip each to work out, which the first

@@ -188,7 +188,17 @@ const PAGES = [
     ? [
     {
       id: 'src-ck',
-      label: 'Central Kitchen',
+      /*
+       * "CK/CPU", renamed 29 Sep 2026.
+       *
+       * The page has always covered both cost centres - the classification
+       * groups them, because the 28 Sep audit found them to be one centre
+       * renamed in early 2026 - and calling it "Central Kitchen" hid the CPU
+       * half. The id stays `src-ck`: page grants, saved column choices and the
+       * department rules are keyed on it, so changing it would silently revoke
+       * access and reset everyone's Build view.
+       */
+      label: 'CK/CPU',
       kicker: 'By production source',
       blurb: 'Prepared articles the central kitchen produces',
       Icon: IconComponent,
@@ -204,14 +214,28 @@ const PAGES = [
       lockProdSource: 'Central Kitchen / CPU',
       lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
-      // Admin only while the classification is still being validated, exactly
-      // as the Production page it is carved out of.
-      adminOnly: true,
+      /*
+       * Opened to its own department on 29 Sep 2026.
+       *
+       * It was admin-only while the classification was being validated. The
+       * department that works at this site now holds this page and nothing
+       * else, and `adminOnly` would have hidden the only tab those accounts
+       * have - the flag is not overridden by a department default, only by the
+       * Sales Plan's explicit scope. The narrowing still holds: the server
+       * derives the production sources an account may see from the same grant.
+       *
+       * Unclassified keeps the flag. Nobody has been given it, and its
+       * population is the articles no rule could place - which is a question
+       * for whoever maintains the classification, not a site's work list.
+       */
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
     {
       id: 'src-bakery',
-      label: 'Bakery',
+      // "Swish Bakery", renamed 29 Sep 2026 - the cost centre's own name, which
+      // is what the classification matches on. The id stays `src-bakery`, for
+      // the reason given on CK/CPU above.
+      label: 'Swish Bakery',
       kicker: 'By production source',
       blurb: 'Prepared articles Swish Bakery produces',
       Icon: IconComponent,
@@ -227,9 +251,20 @@ const PAGES = [
       lockProdSource: 'Bakery',
       lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
-      // Admin only while the classification is still being validated, exactly
-      // as the Production page it is carved out of.
-      adminOnly: true,
+      /*
+       * Opened to its own department on 29 Sep 2026.
+       *
+       * It was admin-only while the classification was being validated. The
+       * department that works at this site now holds this page and nothing
+       * else, and `adminOnly` would have hidden the only tab those accounts
+       * have - the flag is not overridden by a department default, only by the
+       * Sales Plan's explicit scope. The narrowing still holds: the server
+       * derives the production sources an account may see from the same grant.
+       *
+       * Unclassified keeps the flag. Nobody has been given it, and its
+       * population is the articles no rule could place - which is a question
+       * for whoever maintains the classification, not a site's work list.
+       */
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
     {
@@ -250,9 +285,20 @@ const PAGES = [
       lockProdSource: 'YELO Factory',
       lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
-      // Admin only while the classification is still being validated, exactly
-      // as the Production page it is carved out of.
-      adminOnly: true,
+      /*
+       * Opened to its own department on 29 Sep 2026.
+       *
+       * It was admin-only while the classification was being validated. The
+       * department that works at this site now holds this page and nothing
+       * else, and `adminOnly` would have hidden the only tab those accounts
+       * have - the flag is not overridden by a department default, only by the
+       * Sales Plan's explicit scope. The narrowing still holds: the server
+       * derives the production sources an account may see from the same grant.
+       *
+       * Unclassified keeps the flag. Nobody has been given it, and its
+       * population is the articles no rule could place - which is a question
+       * for whoever maintains the classification, not a site's work list.
+       */
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
     {

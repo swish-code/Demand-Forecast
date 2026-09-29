@@ -648,6 +648,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       <div className="unitrow" style={{ '--cards': 3 }}>
         <MetricCard
           label="Articles"
+          calc="wh-article-counts"
           accent="slate"
           loading={busy}
           value={fmtInt(kpi.articles)}
@@ -655,6 +656,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <MetricCard
           label="Articles with outbound"
+          calc="wh-article-counts,outbound"
           accent="slate"
           loading={busy}
           value={fmtInt(kpi.withOutbound)}
@@ -723,6 +725,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={busy}
         title="Sales run rate"
+          calc="wh-runrate,wh-pace"
         sub="Total sales value across every brand, month by month. This is the warehouse forecast's own denominator — every WH figure is the rate times this number. Last 12 months, regardless of the date slicer."
       >
         {runRate.loading ? (
@@ -736,24 +739,28 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
             <div className="unitrow" style={{ '--cards': 4 }}>
               <MetricCard
                 label="This month so far"
+          calc="wh-runrate"
                 accent="slate"
                 value={rr.soFar}
                 foot={rr.soFarFoot}
               />
               <MetricCard
                 label="On course for"
+          calc="wh-runrate"
                 accent={rr.paceTone}
                 value={rr.runRate}
                 foot="At the pace set so far this month"
               />
               <MetricCard
                 label="Last full month"
+          calc="wh-pace"
                 accent="slate"
                 value={rr.previous}
                 foot={rr.previousFoot}
               />
               <MetricCard
                 label="Against the same point last month"
+          calc="wh-pace"
                 accent={rr.paceTone}
                 value={rr.pace}
                 foot="Like for like — same number of days in"
@@ -832,6 +839,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       <Panel
         busy={busy}
         title="Stock on hand against what left"
+          calc="wh-cover,wh-short-dry"
         sub="Weekly. How much of the stock it was holding the typical article shipped — 100% means it shipped exactly what it held. Follows the date slicer."
       >
         {soh.loading ? (
@@ -849,18 +857,21 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
             <div className="unitrow" style={{ '--cards': 3 }}>
               <MetricCard
                 label="Typical stock use"
+          calc="wh-cover"
                 accent={sohRead.tone}
                 value={sohRead.cover}
                 foot="Of what it held, shipped in a week"
               />
               <MetricCard
                 label="Shipped more than held"
+          calc="wh-short-dry"
                 accent={sohRead.shortCount ? 'amber' : 'green'}
                 value={fmtInt(sohRead.shortCount)}
                 foot="Articles last week — replenished mid-week to manage it"
               />
               <MetricCard
                 label="Shipped with an empty shelf"
+          calc="wh-short-dry"
                 accent={sohRead.dryCount ? 'red' : 'green'}
                 value={fmtInt(sohRead.dryCount)}
                 foot="Articles last week with no stock recorded"
@@ -1095,6 +1106,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       <div className="whgrid whgrid--three">
         <Attention
           title="Lowest WH accuracy"
+          calc="wh-extremes,wh-acc"
           sub="Scored articles, worst first"
           rows={ranked.worst}
           valueOf={(r) => r.WH_Accuracy}
@@ -1103,6 +1115,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <Attention
           title="Most over-forecast"
+          calc="wh-extremes,variance"
           sub="Forecast higher than outbound"
           rows={ranked.over}
           valueOf={(r) => r.Variance}
@@ -1111,6 +1124,7 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         />
         <Attention
           title="Most under-forecast"
+          calc="wh-extremes,variance"
           sub="Outbound higher than forecast"
           rows={ranked.under}
           valueOf={(r) => r.Variance}

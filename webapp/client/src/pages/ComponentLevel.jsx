@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, fmtInt, fmtQty, fmtPct, fmtDate, downloadCsv } from '../api.js'
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
@@ -251,6 +251,143 @@ const COLUMNS = [
    * count it once per recipe or need an allocation nobody has agreed.
    */
   {
+    /*
+     * What the kitchens and the bakery issued, for the pages that make things.
+     *
+     * The column beside this one measures the CENTRAL WAREHOUSE, which is the
+     * right question for a bought article and the wrong one for a prepared
+     * one: a prepared article is made at the Central Kitchen, the Bakery or
+     * the Yelo Factory and issued from there, so the warehouse has no line for
+     * it. Put on the Production pages on 29 Sep 2026, the warehouse column
+     * read blank on nearly every row - Marinated BBT Chicken tender, BBT
+     * Sesame Bun Loaf, Egyptain Bread - all of which move in quantity, from
+     * the kitchens.
+     *
+     * Shown only where the warehouse half is hidden. On Stock Article the
+     * warehouse column is the meaningful one and this would be noise.
+     */
+    key: 'Site_Outbound_Qty',
+    label: 'Site outbound',
+    hint: 'How much of this article the production sites issued to this brand’s shops over the selected dates — the Central Kitchen, the Bakery or the Yelo Factory. Measured, not forecast. Blank means no site has a record of it, which is different from zero.',
+    autoWidth: true,
+    num: true,
+    strong: true,
+    total: 'sum',
+    renderTotal: fmtQty,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span className="muted" title="No production site has issued this article to this brand. That is a gap in what can be measured, not a forecast that missed.">
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
+  },
+  {
+    /*
+     * Forecast against site outbound, as a bounded score:
+     *
+     *   1 - |Forecast - Outbound| / MAX(Forecast, Outbound)
+     *
+     * Changed to this on 29 Sep 2026, from the plain ratio outbound / forecast
+     * it carried for a day. The ratio was unbounded above and the page showed
+     * 387.7% beside 107.6%, so a column headed ACC% could not be read as a
+     * score, sorted usefully or averaged. See `siteAcc` for the full reasoning
+     * and for every case that comes out blank.
+     *
+     * Same expression as WH ACC%, so the two are directly comparable. The cost
+     * of that is deliberate: `MAX` treats issuing double and issuing half as the
+     * same size of miss, so this column no longer says WHICH WAY the gap went.
+     * Site outbound beside it, against Forecast qty, still shows the direction.
+     */
+    key: 'Site_Acc',
+    /*
+     * "Actual ACC%" - renamed on request, 29 Sep 2026.
+     *
+     * There is another column with this label, `Actual_Accuracy` in the
+     * variance group. The two never appear together: that one is in
+     * NO_WAREHOUSE_COLUMNS and so is absent from exactly the pages this one is
+     * shown on. Worth knowing before either is moved.
+     */
+    label: 'Actual ACC%',
+    hint: 'How close the forecast was to what the production sites actually issued: 1 − |Forecast qty − Site outbound| ÷ the larger of the two. Bounded 0–100%, so higher is better, and it reads the same way as WH ACC%. Because it divides by the larger side, issuing double and issuing half score alike — read Site outbound against Forecast qty for the direction. Blank where no site has a record of the article, or where the view has split an article across recipe lines.',
+    width: 116,
+    num: true,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Nothing to score: either no site has a record of this article, both sides are zero, or this view has split the article across rows and outbound is only known per article."
+        >
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    /*
+     * Volume-weighted across ARTICLES, built from the quantities rather than
+     * from the scores in the column above.
+     *
+     * It would have been shorter to call `weightedScore(list, 'Site_Acc', ...)`
+     * the way WH ACC% does, and it would have been wrong here: those row scores
+     * are blank by design on any view that splits an article, so the total would
+     * vanish exactly when a reader switched Recipe group on. Scoring the
+     * quantities instead keeps the total right in every view.
+     *
+     * Two rules do the work, and they differ per side:
+     *
+     *   forecast  SUMMED across an article's rows - the requirement really is
+     *             split across recipe lines.
+     *   outbound  taken ONCE per article, because the same per-article figure is
+     *             stamped on every one of those rows. This is what stops the
+     *             double-counting across recipe lines.
+     *
+     * Then a mean of per-article scores weighted by what moved - not a ratio of
+     * the two column totals, which would let one article's over-issue cancel
+     * another's under-issue and report a healthier figure than any single
+     * article achieved. Each score is floored at 0, as `weightedScore` floors
+     * them, so one pathological article cannot drag the mean below zero.
+     *
+     * Articles with no site record are skipped on both sides together: counting
+     * their forecast while they can contribute no outbound would depress the
+     * total with rows the column itself declines to score.
+     */
+    total: (list) => siteAccTotal(list, 'Component_Forecast_Qty'),
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
+  {
+    /*
+     * The same score against the OTHER forecast, so the comparison is on
+     * accuracy and not just on two quantities.
+     *
+     * Actual ACC% to the left scores the recipe explosion; this scores the site
+     * forecast. Identical formula, identical actual, identical population - the
+     * only thing that changes is which forecast is being judged, which is the
+     * whole point of showing both.
+     *
+     * Read them together: where this column is higher, the rate model was
+     * closer for that article.
+     */
+    key: 'Site_Fc_Acc',
+    label: 'Site fc ACC%',
+    hint: 'How close the SITE FORECAST was to what the production sites issued: 1 − |Site forecast − Site outbound| ÷ the larger of the two. The same formula and the same actual as Actual ACC% beside it, which scores the recipe forecast instead — so the two columns compare the two methods directly. Higher is better.',
+    width: 116,
+    num: true,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Nothing to score: no site forecast for this article, no site outbound to compare against, or both sides are zero."
+        >
+          –
+        </span>
+      ) : (
+        fmtPct(v, 1)
+      ),
+    total: (list) => siteAccTotal(list, 'Site_Forecast_Qty'),
+    renderTotal: (v) => (v === null || v === undefined ? '–' : fmtPct(v, 1)),
+  },
+  {
     key: 'Consumed_Qty',
     // Outbound, not "consumed" — asked for on 1 Sep 2026, and it is the more
     // exact word. This is what left the warehouse for this brand's shops. What
@@ -348,6 +485,47 @@ const COLUMNS = [
         <span
           className="muted"
           title="No recipe names this article, so there is no sales forecast to explode through one. WH forecast is the figure for these - it comes from what the warehouse actually shipped."
+        >
+          –
+        </span>
+      ) : (
+        fmtQty(v)
+      ),
+    renderTotal: fmtQty,
+  },
+  {
+    /*
+     * The SECOND PA forecast, beside the recipe explosion rather than replacing
+     * it - asked for on 29 Sep 2026 so the two can be compared row by row.
+     *
+     * Forecast qty to the left multiplies forecast sales by what the recipes
+     * say each sale needs. This asks the warehouse forecast's question of the
+     * kitchens instead: for every dinar this brand sold, how much of this
+     * article did the production sites have to issue? No recipe is consulted.
+     *
+     * Backtested on PA articles over four months, both methods on identical
+     * rows: 85.3% per article against the explosion's 64.8%, 89.8% against
+     * 70.7% by volume, and it removed a standing 24% UNDER-forecast. See
+     * server/insights/siteForecast.js for the full measurements and for what
+     * this method is NOT - it learns behaviour, not requirement.
+     *
+     * Blank on every row of an article but one, like the warehouse quantities
+     * and unlike Site outbound: a per-article figure repeated down recipe lines
+     * is a trap for every total that meets it, which Site outbound proved twice
+     * over the same week. A dash here means "counted on another line".
+     */
+    key: 'Site_Forecast_Qty',
+    label: 'Site forecast',
+    hint: 'A second forecast for comparison, built from what the production sites actually issued rather than from recipes: this article’s issued-per-sales rate over the last six whole months, applied to the forecast sales for the selected dates. Backtested at 85.3% per article against the recipe explosion’s 64.8%. Blank where no site history exists to forecast from, and shown once per article.',
+    autoWidth: true,
+    num: true,
+    group: 'fcst',
+    total: 'sum',
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="No production-site history for this article over the training months, so there is no rate to forecast from — or the figure is carried on another line of the same article."
         >
           –
         </span>
@@ -1342,19 +1520,15 @@ const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
  */
 const NO_WAREHOUSE_COLUMNS = new Set([
   /*
-   * `Consumed_Qty` - Outbound - is deliberately NOT in this set.
+   * The warehouse Outbound column belongs here after all.
    *
-   * It was, when the warehouse half was first taken off these pages, and that
-   * was wrong: what actually left the warehouse is a measured fact about a
-   * prepared article, and somebody planning production needs it beside the
-   * requirement. What does not belong here is the warehouse FORECAST and the
-   * scores derived from it, because a prep step is not something the warehouse
-   * forecasts. Asked for on 29 Sep 2026.
-   *
-   * `Live_Outbound_MTD` stays out: it is a month-to-date figure that ignores
-   * the page's own date window, which reads as a contradiction next to columns
-   * that honour it.
+   * It was taken out of this set on 29 Sep 2026 to put Outbound on the
+   * Production pages, and that was the wrong column: it measures what the
+   * CENTRAL WAREHOUSE issued, and a prepared article never leaves the
+   * warehouse. It read blank on nearly every row. `Site_Outbound_Qty` is the
+   * figure those pages want, and it is shown in its place.
    */
+  'Consumed_Qty',
   'WH_Constant_Forecast_Qty',
   'WH_Accuracy',
   'WH_Ratio_Acc',
@@ -1572,6 +1746,35 @@ const HELP = {
         'Forecast 1,000, actual 1,100 → 1 − (100 ÷ 1,100) = 90.9%. Blank when nothing sold, because there is nothing to divide by.',
     },
   ],
+  /*
+   * The production pages' measured half. Written to be read straight after
+   * `fcst` above, because the whole point of the two bands is the comparison.
+   */
+  siteout: [
+    {
+      term: 'Outbound',
+      text: 'What the production sites actually issued to this brand’s shops over the selected dates. Measured, not forecast.',
+      formula:
+        'Every issue of this article from the Central Kitchen, the Central Production Unit, Swish Bakery or the Yelo Factory, where the destination is this brand.  Add them up.',
+      example:
+        'Blank means no site has a record of it, which is different from zero. Shown once per article, so it is not counted again on the article’s other recipe lines.',
+    },
+    {
+      term: 'Forecast',
+      text: 'A second forecast that never looks at a recipe. It asks what the kitchens have had to issue per dinar of sales, and applies that to the sales forecast.',
+      formula:
+        'For each of the last six whole months:  what the sites issued ÷ what the brand sold.  Weight the recent months more heavily, then × the forecast sales for these dates.',
+      example:
+        'Backtested on prepared articles over four months: 85.3% accurate per article against the recipe method’s 64.8%, and it removed a standing 24% under-forecast. It learns BEHAVIOUR, not requirement — if the kitchens habitually issue more than a recipe implies, this asks for that too.',
+    },
+    {
+      term: 'Acc%',
+      text: 'How close that forecast came to what was issued. The same formula as ACC% under Product mix, so the two bands can be compared directly.',
+      formula: '1 − ( difference between Forecast and Outbound ÷ the larger of the two )',
+      example:
+        'Bounded 0–100%, so higher is better. Dividing by the larger side means issuing double and issuing half score alike — read Outbound against Forecast for the direction.',
+    },
+  ],
   wh: [
     {
       term: 'WH forecast',
@@ -1653,6 +1856,107 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
 }
 
 const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
+
+/**
+ * Actual ACC% — forecast against what the production sites actually issued.
+ *
+ *   1 - |Forecast - Outbound| / MAX(Forecast, Outbound)
+ *
+ * Asked for on 29 Sep 2026, replacing the plain ratio `Outbound / Forecast`
+ * this column carried for one day. The ratio answered "which way did it go" and
+ * was unbounded above - the page was showing 387.7% beside 107.6% - so a column
+ * headed ACC% could not be read as a score, sorted meaningfully, or averaged.
+ * Dividing by the LARGER of the two bounds it 0-100% by construction: the gap
+ * can never exceed the denominator. It is the same expression WH ACC% uses, so
+ * the two are now directly comparable, and it is `MAX` that makes over- and
+ * under-issuing count as the same size of miss.
+ *
+ * Defined in ONE place because it is computed twice - once per row, and again on
+ * a folded row's own totals - and two copies would eventually disagree.
+ *
+ * Every blank is a refusal to state something the data cannot support:
+ *
+ *   outbound null   no site has a record of this article. Unmeasured, NOT 0%
+ *                   accurate - a zero would read as a forecast that missed
+ *                   completely rather than one nothing can be said about.
+ *   forecast null   nothing to score.
+ *   MAX(f, o) == 0  both sides zero. Arithmetically 0/0, and editorially a row
+ *                   nothing was forecast for and nothing was issued from was
+ *                   never tested; scoring it 100% would flatter the page.
+ *
+ * The two asymmetric cases need no special handling and are deliberately NOT
+ * blank: forecast 0 against real outbound scores 0% (issued, never forecast),
+ * and a real forecast against outbound 0 scores 0% (forecast, nothing issued).
+ * Neither can divide by zero, because MAX is positive in both.
+ *
+ * `bounded` is false only on Stock Article, where this column has no business
+ * appearing at all - it is a leak: the page filters out `Site_Outbound_Qty` and
+ * not this, so it shows a ratio whose numerator is hidden. That page is under a
+ * standing instruction not to change, so its behaviour is pinned here rather
+ * than quietly corrected. Removing the column there is the real fix.
+ */
+/**
+ * A volume-weighted mean of per-article site scores, for a column footer.
+ *
+ * Built from the quantities rather than from the scores in the column, because
+ * those are blank by design on a view that splits an article - see
+ * `stampSiteAcc`. Scoring the quantities keeps the total right in every view.
+ *
+ * Two rules, and they differ per side:
+ *
+ *   forecast  SUMMED across the article's rows. The recipe forecast really is
+ *             split across recipe lines; the site forecast sits on one row and
+ *             the others contribute nothing, so the same sum is correct for both.
+ *   outbound  taken ONCE per article, because the same per-article figure is
+ *             stamped on every one of those rows. This is what stops the
+ *             double-counting across recipe lines.
+ *
+ * Then a mean weighted by what moved, each score floored at 0 - not a ratio of
+ * the two column totals, which would let one article's over-issue cancel
+ * another's under-issue and report a figure no article achieved.
+ *
+ * `key` is which forecast to judge, so Actual ACC% and Site fc ACC% share this
+ * and cannot be computed two different ways.
+ */
+const siteAccTotal = (list, key) => {
+  const seen = new Map()
+  for (const r of list) {
+    const article = String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()
+    if (!article) continue
+    const o = r.Site_Outbound_Qty
+    // Articles with no site record are skipped on both sides together:
+    // counting a forecast that can never be measured would depress the total
+    // with rows the column itself declines to score.
+    if (o === null || o === undefined) continue
+    const held = seen.get(article)
+    if (held) {
+      held.f += Number(r[key]) || 0
+      continue
+    }
+    seen.set(article, { f: Number(r[key]) || 0, o: Math.max(0, Number(o) || 0) })
+  }
+  let sum = 0
+  let weight = 0
+  for (const { f, o } of seen.values()) {
+    const score = siteAcc(f, o, true)
+    if (score === null) continue
+    sum += Math.max(0, score) * o
+    weight += o
+  }
+  // No volume at all is not a zero-accuracy answer, it is no answer.
+  return weight > 0 ? sum / weight : null
+}
+
+const siteAcc = (forecast, outbound, bounded = true) => {
+  if (forecast === null || forecast === undefined) return null
+  if (outbound === null || outbound === undefined) return null
+  const f = Number(forecast)
+  const o = Number(outbound)
+  if (!Number.isFinite(f) || !Number.isFinite(o)) return null
+  if (!bounded) return f > 0 ? o / f : null
+  const bigger = Math.max(f, o)
+  return bigger > 0 ? 1 - Math.abs(f - o) / bigger : null
+}
 
 export function ComponentLevel({
   filters,
@@ -1968,6 +2272,7 @@ export function ComponentLevel({
         // something to sort and search on.
         Source: fromRecipe(r) ? 'Recipe' : 'Non-recipe',
         Sales_Day_Accuracy: dayAccuracy(r),
+        Site_Acc: siteAcc(r.Component_Forecast_Qty, r.Site_Outbound_Qty, noWarehouse),
         Article_Forecast_Qty: forecast,
         Sales_Accuracy: salesAccuracy,
         Accuracy: score(forecast),
@@ -2071,9 +2376,107 @@ export function ComponentLevel({
     [hiddenCols]
   )
 
+  /**
+   * Actual ACC%, scored per ARTICLE and shown on every row of that article.
+   *
+   * Site outbound is an article-level fact - the server can only ever read it
+   * per article, never per recipe line - and it is already repeated on each of
+   * the article's rows. The score beside it has to be built the same way, or the
+   * two columns describe different things on the same line.
+   *
+   * WHY IT IS NOT SCORED FROM THE ROW'S OWN FORECAST
+   *
+   * A row is one article within one recipe group, so its forecast is a SHARE of
+   * the requirement while the outbound beside it is the whole article's. An
+   * article with lines of 100, 50 and 30 against 300 issued would score three
+   * different, all-wrong numbers. Summing the article's forecast first is what
+   * makes the comparison legitimate.
+   *
+   * This replaced a first attempt on 29 Sep 2026 that blanked the column
+   * whenever the view split an article apart. That was built on a misreading:
+   * `hiddenByDefault` on the Recipe group column controls only whether the TABLE
+   * SHOWS it, while the fold groups on `hiddenCols`, which starts as just
+   * ['Date', 'LocationID']. So recipe rows are NOT folded by default, the gate
+   * fired on every row, and the whole column read blank.
+   *
+   * THE KEY
+   *
+   * Brand joins the article in the key when the table is split by brand, because
+   * outbound is read per brand in the server's fan-out - two brands' rows for one
+   * article carry two different figures and must not be pooled.
+   *
+   * Date is different: outbound is a single figure for the whole selected range
+   * and cannot be apportioned across days, so a date-split view has nothing
+   * honest to compare and the column blanks. Branch needs no rule - outbound
+   * arrives null there and `siteAcc` blanks it anyway.
+   *
+   * Stock Article is passed through untouched: it shows this column only by
+   * accident and is under a standing instruction not to change.
+   */
+  const stampSiteAcc = useCallback(
+    (rows) => {
+      if (!noWarehouse) return rows
+      if (visibleDims.includes('Date'))
+        return rows.map((r) => ({ ...r, Site_Acc: null, Site_Fc_Acc: null }))
+
+      const byBrand = visibleDims.includes('CHAINID')
+      const keyOf = (r) =>
+        `${String(r['Item No.'] ?? '').trim() || String(r.Item ?? '').trim()}${
+          byBrand ? `|${String(r.CHAINID ?? '')}` : ''
+        }`
+
+      /*
+       * Forecast sums across the article's rows; outbound is taken once, since
+       * the same per-article figure sits on each of them.
+       *
+       * `sf` is the SITE forecast, summed the same way. It is stamped on one row
+       * per article and null on the rest, so the sum is just that one figure -
+       * but summing it costs nothing and means neither column depends on which
+       * row the fold happened to keep.
+       */
+      const held = new Map()
+      for (const r of rows) {
+        const key = keyOf(r)
+        if (!key) continue
+        const o = r.Site_Outbound_Qty
+        const seen = held.get(key)
+        if (seen) {
+          seen.f += Number(r.Component_Forecast_Qty) || 0
+          if (r.Site_Forecast_Qty !== null && r.Site_Forecast_Qty !== undefined)
+            seen.sf = (seen.sf ?? 0) + Number(r.Site_Forecast_Qty)
+          if (seen.o === null && o !== null && o !== undefined) seen.o = Number(o)
+          continue
+        }
+        held.set(key, {
+          f: Number(r.Component_Forecast_Qty) || 0,
+          sf:
+            r.Site_Forecast_Qty === null || r.Site_Forecast_Qty === undefined
+              ? null
+              : Number(r.Site_Forecast_Qty),
+          o: o === null || o === undefined ? null : Number(o),
+        })
+      }
+
+      return rows.map((r) => {
+        const pair = held.get(keyOf(r))
+        return {
+          ...r,
+          Site_Acc: pair ? siteAcc(pair.f, pair.o, true) : null,
+          Site_Fc_Acc: pair ? siteAcc(pair.sf, pair.o, true) : null,
+        }
+      })
+    },
+    [noWarehouse, visibleDims]
+  )
+
   const grouped = useMemo(() => {
+    /*
+     * Actual ACC% is scored per ARTICLE, then shown on each of the article's
+     * rows - see `stampSiteAcc` below, which every return path runs through.
+     */
+
     // Nothing to fold if every dimension is on screen.
-    if (visibleDims.length === DIMENSIONS.length) return priced
+    if (visibleDims.length === DIMENSIONS.length) return stampSiteAcc(priced)
 
     const add = (a, b) => {
       if ((a === null || a === undefined) && (b === null || b === undefined)) return null
@@ -2088,7 +2491,26 @@ export function ComponentLevel({
         // `__n` counts how many rows went into this one. Whether the fold
         // combined anything is what decides if the derived columns below have
         // to be worked out again — see the note there.
-        out.set(key, { ...r, __n: 1, __articles: new Set([String(r['Item No.'] ?? '').trim()]) })
+        out.set(key, {
+          ...r,
+          __n: 1,
+          __articles: new Set([String(r['Item No.'] ?? '').trim()]),
+          /*
+           * Site outbound, kept per article rather than added row by row.
+           *
+           * It is the only quantity on the row that is stamped on EVERY recipe
+           * line of an article instead of on one - see `withSiteOutbound` - so
+           * adding it the way the figures above are added would count one
+           * article's outbound once per recipe. Keeping the first value instead
+           * fixes that and breaks the other case: a fold that spans several
+           * ARTICLES would then report only the first one's outbound.
+           *
+           * A map keyed on the article answers both. One article over three
+           * recipe lines contributes one entry; three articles contribute three,
+           * and the sum below is the figure the folded row actually describes.
+           */
+          __siteOb: new Map([[String(r['Item No.'] ?? '').trim(), r.Site_Outbound_Qty]]),
+        })
         continue
       }
       held.__n += 1
@@ -2159,12 +2581,19 @@ export function ComponentLevel({
       held.Store_DTL = held.Store_DTL ?? r.Store_DTL
       held.New_Required_Qty = add(held.New_Required_Qty, r.New_Required_Qty)
       held.__articles.add(String(r['Item No.'] ?? '').trim())
+      // First non-null wins per article: the value repeats across an article's
+      // recipe lines, so any one of them is that article's figure.
+      {
+        const art = String(r['Item No.'] ?? '').trim()
+        const seen = held.__siteOb.get(art)
+        if (seen === null || seen === undefined) held.__siteOb.set(art, r.Site_Outbound_Qty)
+      }
       // Measured anywhere in the group means measured, so one unmatched article
       // does not blank a row that has a real figure in it.
       if (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) delete held.Consumed_Unknown
     }
 
-    return [...out.values()].map((r) => {
+    return stampSiteAcc([...out.values()].map((r) => {
       /*
        * A policy belongs to one article, so it is withheld once a row stops
        * being one article.
@@ -2178,6 +2607,20 @@ export function ComponentLevel({
       delete r.__articles
       const folded = r.__n > 1
       delete r.__n
+
+      /*
+       * Site outbound: one contribution per article, summed.
+       *
+       * Null only when NO article in the group had a figure - a group where one
+       * article is measured and another is not reports what is known rather
+       * than blanking the lot, which is the same rule `Consumed_Unknown` uses
+       * just above.
+       */
+      {
+        const vals = [...r.__siteOb.values()].filter((v) => v !== null && v !== undefined)
+        delete r.__siteOb
+        r.Site_Outbound_Qty = vals.length ? vals.reduce((s, v) => s + (Number(v) || 0), 0) : null
+      }
       if (!oneArticle) {
         r.Safety_Stock_Days = null
         r.Lead_Time_Days = null
@@ -2194,6 +2637,7 @@ export function ComponentLevel({
          */
         r.Store_DTL = null
       }
+
 
       /*
        * Re-derive whenever rows were actually combined.
@@ -2259,6 +2703,12 @@ export function ComponentLevel({
           return Number.isFinite(f) && Number.isFinite(c) && f > 0 ? c / f : null
         })(),
         /*
+         * Actual ACC% is not re-derived here. `stampSiteAcc` runs over whatever
+         * this fold produces and scores every row from its article's totals,
+         * which is the only grain the figure is meaningful at - so doing it on
+         * one row's numbers here would just be overwritten, or worse, disagree.
+         */
+        /*
          * Re-scored on the row's own totals, like the other two.
          *
          * This one was being carried over from whichever article the fold
@@ -2314,8 +2764,8 @@ export function ComponentLevel({
           return bigger > 0 ? 1 - Math.abs(a - c) / bigger : null
         })(),
       }
-    })
-  }, [priced, visibleDims])
+    }))
+  }, [priced, visibleDims, noWarehouse, stampSiteAcc])
 
   /*
    * Accuracy bands, for working through the bad ones.
@@ -2880,15 +3330,156 @@ export function ComponentLevel({
     if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
     if (noWarehouse) {
       list = list.filter((c) => !NO_WAREHOUSE_COLUMNS.has(c.key))
+
       /*
-       * Outbound survives the cull, but its heading does not.
+       * The Production page's own column order - asked for on 29 Sep 2026.
        *
-       * It carries `group: 'wh'`, and the Warehouse band is omitted on these
-       * pages - a column pointing at a heading that is not rendered would sit
-       * under a blank shaded strip. Ungrouped, it lines up with Recipe,
-       * Article, Type and Unit, which is where a lone measured column belongs.
+       * Done here rather than by moving entries in COLUMNS, because that array
+       * is shared with Stock Article and reordering it would move that page's
+       * columns too. The bands follow the order of the list, so placing the
+       * outbound pair directly after the Product mix run puts them beside it,
+       * and putting the Stock run last leaves it at the far right.
+       *
+       * Sales ACC% goes entirely: it scores the SALES forecast read through
+       * the recipes, which is a question about the menu rather than about
+       * production, and it repeated for every row of an article.
        */
-      list = list.map((c) => (c.key === 'Consumed_Qty' ? { ...c, group: undefined } : c))
+      list = list.filter((c) => c.key !== 'Sales_Day_Accuracy')
+
+      /*
+       * The two sections, and their names on THIS page only - 29 Sep 2026.
+       *
+       * Asked for so the page reads as two comparable halves: what the recipes
+       * imply, and what the kitchens actually did. Inside a band a column does
+       * not need to repeat its source in its own name, so "Site outbound"
+       * becomes "Outbound" and "Site forecast" becomes "Forecast" - the heading
+       * above them already says which.
+       *
+       * Done as a map INSIDE this branch rather than by editing COLUMNS, for the
+       * same reason the reorder above is: that array is shared with Stock
+       * Article. Two of these three columns are filtered off that page anyway,
+       * but `Site_Acc` is not - it reaches it through a leak documented in the
+       * else branch below - so renaming or regrouping it in COLUMNS would have
+       * moved a column on a page under a standing instruction not to change.
+       * Here it cannot.
+       *
+       * `Site_Acc` is deliberately NOT in the Outbound forecast band. It scores
+       * the PRODUCT MIX forecast against what was issued, so it belongs with the
+       * thing it judges; putting it under "Outbound forecast" would read as that
+       * forecast's own accuracy, which it is not. It was not named in the
+       * request either way - it is kept rather than dropped because removing a
+       * column nobody asked to remove is the worse mistake.
+       */
+      const SECTIONS = {
+        /*
+         * Product mix, renamed 29 Sep 2026.
+         *
+         * "PM" for product mix, so the two bands can be told apart at a glance
+         * when both carry a forecast and an actual. `Component_Forecast_Qty`
+         * and `Component_Actual_Qty` are SHARED with Stock Article, which is why
+         * these belong in this map and not in COLUMNS - that page keeps
+         * "Forecast qty" and "Actual qty".
+         */
+        Component_Forecast_Qty: { label: 'PM Forecast' },
+        Component_Actual_Qty: { label: 'PM Actual' },
+        /*
+         * `Site_Acc` names what it compares rather than calling itself an
+         * accuracy: outbound against the product-mix forecast. Worth knowing the
+         * label reads as a division and the figure is not one - it is the
+         * bounded score 1 - |PM Forecast - Outbound| / MAX(the two), unchanged
+         * by this rename. Read the slash as "versus".
+         */
+        /*
+         * `autoWidth` because the label is now far wider than the fixed 116px
+         * this column carries for Stock Article, where it is still "Actual
+         * ACC%". Headers are rendered uppercase, so "OUTBOUND/PM FORECAST"
+         * measured well past the fixed width and was truncated to
+         * "OUTBOUND/PM FOR...". `autoWidth` sizes from the header, and it wins
+         * over `width` in `floorOf`, so the fixed value can stay for the page
+         * that still uses the short name.
+         */
+        Site_Acc: { label: 'Outbound/PM Forecast', group: 'fcst', autoWidth: true },
+        Site_Outbound_Qty: { label: 'Outbound', group: 'siteout' },
+        Site_Forecast_Qty: { label: 'Forecast', group: 'siteout' },
+        Site_Fc_Acc: { label: 'Acc%', group: 'siteout' },
+      }
+      list = list.map((c) => (SECTIONS[c.key] ? { ...c, ...SECTIONS[c.key] } : c))
+
+      const take = (keys) => keys.map((k) => list.find((c) => c.key === k)).filter(Boolean)
+
+      /*
+       * Both bands are ordered EXPLICITLY, not left to COLUMN_ORDER.
+       *
+       * None of the four Site_* keys appears in COLUMN_ORDER, so they all rank
+       * last and sort to the end of the table. That is harmless while they are
+       * ungrouped, and wrong the moment they carry a group: `Site_Acc` would
+       * have landed at the far right while the rest of Product mix sat on the
+       * left, leaving the band in two pieces - and a group's shading and its
+       * collapse control both need its columns to be contiguous.
+       *
+       * Adding the keys to COLUMN_ORDER would have fixed the order and moved
+       * `Site_Acc` on Stock Article, which is not allowed to change. Listing
+       * both runs here keeps the fix on this page.
+       */
+      const mixRun = take([
+        'Component_Forecast_Qty',
+        'Component_Actual_Qty',
+        'Sales_Accuracy',
+        'Site_Acc',
+      ])
+      // In the order asked for: Outbound, Forecast, Acc%.
+      const outbound = take(['Site_Outbound_Qty', 'Site_Forecast_Qty', 'Site_Fc_Acc'])
+      const stockRun = list.filter((c) => c.group === 'whstock')
+      const moved = new Set([...mixRun, ...outbound, ...stockRun].map((c) => c.key))
+
+      /*
+       * The two bands go where Product mix already started, so the dimension
+       * columns keep their place on the left and the Stock run stays far right.
+       */
+      const startsAt = list.findIndex((c) => c.group === 'fcst' && moved.has(c.key))
+      const head = (startsAt === -1 ? list : list.slice(0, startsAt)).filter(
+        (c) => !moved.has(c.key)
+      )
+      const tail = (startsAt === -1 ? [] : list.slice(startsAt)).filter((c) => !moved.has(c.key))
+
+      list = [...head, ...mixRun, ...outbound, ...tail, ...stockRun]
+    } else {
+      /*
+       * Site outbound only where the warehouse half is hidden.
+       *
+       * On Stock Article the warehouse column is the meaningful measure and
+       * this one would sit beside it answering a question nobody asked there.
+       */
+      /*
+       * Site outbound goes, and so do both of the PA forecast's own columns.
+       *
+       * `Site_Forecast_Qty` and `Site_Fc_Acc` are new on 29 Sep 2026 and belong
+       * to the production pages: this page is the BOUGHT half, where the
+       * warehouse forecast is the second opinion and the kitchens have nothing
+       * to say. They are filtered rather than never stamped so that the server
+       * keeps one code path for both pages.
+       */
+      list = list.filter(
+        (c) =>
+          c.key !== 'Site_Outbound_Qty' &&
+          c.key !== 'Site_Forecast_Qty' &&
+          c.key !== 'Site_Fc_Acc'
+      )
+
+      /*
+       * Actual ACC% is left exactly as Stock Article already had it.
+       *
+       * That column reaches this page only because the filter above drops the
+       * outbound quantity and not the ratio built on it - so the page shows a
+       * figure whose numerator is hidden. It is a leak, and removing the column
+       * is the right fix, but this page is under a standing instruction not to
+       * change, so the 29 Sep 2026 work is held off it instead: `siteAcc` keeps
+       * the old ratio here, the fold does not re-derive it, and the totals cell
+       * stays empty rather than gaining the new weighted score.
+       */
+      list = list.map((c) =>
+        c.key === 'Site_Acc' ? { ...c, total: undefined, renderTotal: undefined } : c
+      )
     }
     return list
   }, [future, stockDetail, noWarehouse])
@@ -2902,6 +3493,25 @@ export function ComponentLevel({
    * view they built. Falls back to everything until the table has reported —
    * which is before the button can be clicked.
    */
+
+  /*
+   * Fulfilment accuracy - how close the SITE forecast came to what was issued.
+   *
+   * Asked for on 29 Sep 2026. It was briefly two figures, the product mix
+   * beside the site forecast, and that was not what was wanted: the product
+   * mix already has its own accuracy under its own band, and repeating it here
+   * made the card a comparison rather than a headline. One number, and it is
+   * the site forecast's.
+   *
+   * `siteAccTotal` is the function the Acc% column footer already calls, so the
+   * card and the column cannot disagree - and neither can double-count outbound
+   * across an article's recipe lines, which is the whole reason that function
+   * scores per article rather than per row.
+   *
+   * Built from `focused`, the rows actually on screen, so the date range and
+   * every filter are respected without this knowing what any of them are.
+   */
+  const fulfilment = useMemo(() => siteAccTotal(focused, 'Site_Forecast_Qty'), [focused])
 
   const groups = useMemo(() => new Set(focused.map((r) => r['Recipe Group'])).size, [focused])
 
@@ -3109,6 +3719,7 @@ export function ComponentLevel({
           */}
         <MetricCard
           label="Articles"
+          calc="article-counts"
           hint="Distinct articles in this view, and the recipe groups they come from."
           accent="slate"
           progress={0.72}
@@ -3118,6 +3729,7 @@ export function ComponentLevel({
         />
         <MetricCard
           label="Largest requirement"
+          calc="article-counts,component-forecast"
           hint="The article the forecast asks for most of, in its own base unit."
           accent="green"
           progress={1}
@@ -3126,13 +3738,40 @@ export function ComponentLevel({
           value={top?.Item ?? '–'}
           foot={top ? `${fmtInt(top.Component_Forecast_Qty)} ${top.BU}` : undefined}
         />
+
+        {/*
+          * The production pages only, and only once there is something to score.
+          *
+          * A future window has issued nothing against its requirement, so both
+          * halves would read 0.0% - which looks like two catastrophic forecasts
+          * rather than an absence of evidence. That is the same trap the
+          * warehouse cards fell into on 27 Sep 2026, and the same fix.
+          */}
+        {noWarehouse && !future && (
+          <MetricCard
+            label="Fulfilment accuracy"
+            calc="site-acc,site-outbound"
+            hint="How close the Site forecast came to what the production sites actually issued, averaged across articles and weighted by volume: 1 − |Forecast − Outbound| ÷ the larger of the two. The same figure the Acc% column totals, so the card and the column cannot disagree."
+            accent={
+              fulfilment === null ? 'slate' : fulfilment >= 0.85 ? 'green' : 'amber'
+            }
+            progress={fulfilment ?? 0}
+            loading={busy}
+            value={fulfilment === null ? '–' : fmtPct(fulfilment, 1)}
+            foot={
+              fulfilment === null
+                ? 'No site history to forecast from yet'
+                : 'Site forecast vs what was issued'
+            }
+          />
+        )}
       </div>
 
       {/* The table first, at full width, and the per-unit rankings beneath it.
           Side by side, the table lost a third of its columns to a column of
           cards that is read after it, not with it. */}
       <Panel
-        calc="component-forecast,component-actual,acc-pct,wh-forecast,outbound,wh-acc,sales-acc,supply"
+        calc="component-forecast,component-actual,acc-pct,wh-forecast,outbound,wh-acc,sales-acc,supply,site-outbound,site-acc,prod-source,prod-type,store-soh,store-negative,store-cover,store-dtl,wh-soh,variance,article-usage"
         /*
          * On the PANEL, not on the table inside it.
          *
@@ -3283,6 +3922,21 @@ export function ComponentLevel({
             maxHeight={620}
             groups={{
               fcst: { label: 'Product mix', help: HELP.fcst },
+              /*
+                * The measured half, on the production pages only - 29 Sep 2026.
+                *
+                * Product mix above is what the RECIPES imply; this is what the
+                * kitchens actually issued and the forecast built from that
+                * history. Two bands rather than one long run, so the two methods
+                * can be read against each other and either can be collapsed.
+                *
+                * Only where the warehouse half is hidden. Stock Article has its
+                * own Warehouse band for the same purpose and none of these
+                * columns.
+                */
+              ...(noWarehouse
+                ? { siteout: { label: 'Outbound forecast', help: HELP.siteout } }
+                : {}),
               ...(noWarehouse ? {} : { wh: { label: 'Warehouse', help: HELP.wh } }),
               /*
                 * The two comparisons and their score, given a heading of their
@@ -3403,7 +4057,7 @@ export function ComponentLevel({
             <ChartSkeleton height={150} />
           </>
         ) : facets.length === 0 ? (
-          <Panel title="Top components by unit">
+          <Panel calc="top-by-unit,component-forecast" title="Top components by unit">
             <Empty />
           </Panel>
         ) : (
@@ -3412,6 +4066,7 @@ export function ComponentLevel({
               <Panel
                 key={facet.unit}
                 title={`Top by ${facet.unit.toLowerCase()}`}
+                calc="top-by-unit,component-forecast"
                 sub={`${fmtInt(facet.total)} across ${fmtInt(facet.count)} component${
                   facet.count === 1 ? '' : 's'
                 } · bars compare within this unit`}

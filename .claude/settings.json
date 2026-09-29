@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(SCRATCH=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/aud5.mjs)",
-      "Bash(SCRATCH=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad PROBE_DIR=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/probedb node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/aud6.mjs)"
+      "Bash(SCRATCH=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad PROBE_DIR=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/probedb node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/aud6.mjs)",
+      "Bash(node -e ' *)"
     ]
   }
 }

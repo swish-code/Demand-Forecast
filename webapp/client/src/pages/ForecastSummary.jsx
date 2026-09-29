@@ -432,6 +432,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           <>
           <MetricCard
             label="Actual qty"
+            calc="actual-qty"
             accent="green"
             progress={future ? 0 : forecast ? actual / forecast : 0}
             loading={busy}
@@ -440,6 +441,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           />
           <MetricCard
             label="Forecast qty"
+            calc="forecast-qty"
             accent="blue"
             progress={1}
             loading={busy}
@@ -448,6 +450,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           />
           <MetricCard
             label="Today's forecast"
+            calc="summary-today"
             // The same colour as Forecast qty on purpose: both are the model's
             // expectation, and only the day differs.
             accent="blue"
@@ -458,6 +461,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           />
           <MetricCard
             label="Tomorrow's forecast"
+            calc="summary-tomorrow"
             accent="blue"
             progress={1}
             loading={busy || (Boolean(data) && tomorrow === undefined)}
@@ -481,7 +485,10 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           <div className="perf">
             <span className="perf__title">Performance</span>
             <div className="perf__grid">
-              <div className="perf__item">
+              {/* Each half declares its own formulas rather than the card
+                  declaring both, so clicking Variance does not open the
+                  accuracy derivation and the other way round. */}
+              <div className="perf__item" data-calc="variance-pct,summary-varspark">
                 <span className="metric__label">Variance</span>
                 <span className={`perf__value perf__value--${varState}`}>{fmtSignedPct(variance)}</span>
                 <span className="metric__foot">
@@ -499,7 +506,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
                 </span>
               </div>
 
-              <div className="perf__item">
+              <div className="perf__item" data-calc="forecast-accuracy,product-acc-weighted">
                 {/* Named and described as the Products page names and describes
                     it, because it is now literally the same number. */}
                 <span className="metric__label">Accuracy</span>
@@ -522,6 +529,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="Demand tracking"
+            calc="actual-qty,forecast-qty,summary-band"
             sub={
               busy
                 ? 'Loading…'
@@ -561,6 +569,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="Gap contributors"
+            calc="summary-gap"
             count={busy ? undefined : `${gapPareto.length} products`}
             sub={
               busy
@@ -595,6 +604,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="Rolling 7-day accuracy"
+            calc="summary-rolling"
             sub={
               busy
                 ? undefined
@@ -615,6 +625,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="Accuracy by day of week"
+            calc="summary-dow"
             sub={
               busy
                 ? undefined
@@ -637,6 +648,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="Products by quantity"
+            calc="summary-products,actual-qty,forecast-qty"
             count={busy ? undefined : `${productRows.length.toLocaleString()} products`}
             sub="Scroll for the full list · click a bar to open it in Product Level"
             tools={<ExportButton rows={productRows} name="bbt-products.csv" />}
@@ -663,6 +675,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
         <Panel
           busy={busy}
             title="By location"
+            calc="summary-location-acc,actual-qty,forecast-qty"
             count={busy ? undefined : `${locationRows.length} branches`}
             sub={
               busy

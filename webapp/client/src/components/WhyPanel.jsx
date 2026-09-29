@@ -30,6 +30,7 @@ export function WhyPanel({ context, loading, title = 'Why forecast and actual di
 
   return (
     <Panel
+      calc="why-gap,why-bias-noise"
       title={title}
       count={context?.window ? `${context.days} days to ${context.window.to}` : undefined}
       sub={

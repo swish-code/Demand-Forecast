@@ -232,6 +232,7 @@ export function ModelReview() {
 
   return (
     <Panel
+      calc="model-review"
       title="How the forecast is built"
       count={busy ? undefined : `${total} findings`}
       sub={

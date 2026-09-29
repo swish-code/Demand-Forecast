@@ -4,7 +4,7 @@ import { config } from '../config.js'
 import { DATA_DIR } from '../db/driver.js'
 import { pg } from '../db/accounts.js'
 import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, refreshSalesValues, coverage, rebuildRollup, vacuum, pruneSalesVintages } from './extract.js'
-import { refreshAllOutbound } from './outbound.js'
+import { refreshAllOutbound, refreshSiteOutbound } from './outbound.js'
 import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
 import { loadCoverage } from './query.js'
@@ -197,6 +197,21 @@ async function outboundIsFresh() {
   )
   if (!(Number(held?.n) > 0)) return false
 
+  /*
+   * The SITE copy is deliberately NOT tested here - see `siteIfStale`.
+   *
+   * It was, for about five minutes on 29 Sep 2026, and the result was the outage
+   * this function's own comment predicts: an empty site table made outbound
+   * permanently stale, so every startup re-fetched a year of warehouse movement,
+   * and the copy is locked for the whole rewrite. The app answered "the server
+   * did not answer in time" instead of showing the new column.
+   *
+   * The two pulls are not the same size and must not share a gate. The warehouse
+   * pull is twelve heavy queries and a full table rewrite; the site pull is seven
+   * light ones. Tying the cheap job's freshness to the expensive job's trigger
+   * bought a year of warehouse traffic to fetch seven months of kitchen history.
+   */
+
   const rows = await coverage()
   if (!rows.length) return false
   const stamps = rows.map((r) => r.refreshed_at).filter(Boolean)
@@ -213,6 +228,45 @@ async function outboundIfStale() {
     return null
   }
   return runOutbound()
+}
+
+/**
+ * The site history, on its own gate and its own trigger.
+ *
+ * Separate from `outboundIfStale` above because the two jobs are nothing like
+ * the same size. This is seven light queries writing one small table; that one
+ * is twelve heavy queries rewriting the warehouse copy while the database is
+ * locked. Sharing a gate made the cheap work unreachable without paying for the
+ * expensive work, which is what took the app down on 29 Sep 2026.
+ *
+ * The test is the honest one for this table: does the month the rate model
+ * trains up to actually hold rows? A coverage timestamp would repeat the
+ * mistake documented in `outboundIsFresh` - a stamp another job wrote says
+ * nothing about whether THIS table was ever filled.
+ *
+ * `refreshSiteOutbound` still runs inside the hourly outbound job as well, which
+ * is what keeps the months rolling forward. This only exists so a missing or
+ * empty table repairs itself at startup instead of waiting for 02:00.
+ */
+async function siteIfStale() {
+  const now = new Date()
+  const lastWholeMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    .toISOString()
+    .slice(0, 7)
+  const held = await pg
+    .get(
+      'SELECT COUNT(*)::int AS n FROM cube_site_outbound_monthly WHERE month = ? AND qty > 0',
+      [lastWholeMonth]
+    )
+    .catch(() => null)
+  if (Number(held?.n) > 0) {
+    // Said out loud, because the silent version of this is indistinguishable
+    // from the task never running - which is exactly how it was misread.
+    console.log(`  [cube] site outbound present for ${lastWholeMonth} — not re-pulling it`)
+    return null
+  }
+  console.log('  [cube] site outbound missing — pulling the PA forecast history')
+  return guarded('site-outbound', refreshSiteOutbound)
 }
 
 /** Tomorrow's plan, alongside the hourly refresh that keeps the rest current. */
@@ -560,6 +614,27 @@ async function refreshShapesForPlannedYears() {
         // Outbound last: the constants are derived from what the others hold.
         .then(() => outboundIfStale())
     )
+
+    /*
+     * The site history, on its own task - third attempt, 29 Sep 2026.
+     *
+     * It was the last link of the chain above, with a comment claiming it was
+     * independent of the steps before it. It was not: a `.then` chain
+     * short-circuits, so any rejection in the thin backfill, the recent refresh
+     * or the outbound pull skipped it silently. Power BI DNS was failing
+     * intermittently that afternoon, so it never ran once and the PA forecast
+     * column stayed blank with nothing in the log to say why.
+     *
+     * It genuinely is independent: it reads the site table and Power BI, writes
+     * only `cube_site_outbound_monthly`, and nothing above produces anything it
+     * consumes. So it gets its own task, like the sales-value pull, and a
+     * network failure in one no longer decides whether the other happens.
+     *
+     * Third attempt because the first two both coupled this cheap job to
+     * expensive ones - once through a shared freshness gate, once through a
+     * shared promise chain. Same mistake, two shapes.
+     */
+    detached('site outbound', () => siteIfStale())
     setInterval(
       () => detached('recent refresh', refreshRecentAll),
       REFRESH_MINUTES * 60_000

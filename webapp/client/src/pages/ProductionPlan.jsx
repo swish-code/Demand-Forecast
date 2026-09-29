@@ -206,6 +206,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         <div className="metrics--quad">
           <MetricCard
             label="Tomorrow forecast qty"
+          calc="prep-tomorrow-qty,prep-plan-date"
             accent="green"
             progress={0.68}
             loading={busy}
@@ -214,6 +215,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           />
           <MetricCard
             label="Products to prepare"
+          calc="prep-counts"
             accent="blue"
             progress={0.62}
             loading={busy}
@@ -222,6 +224,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           />
           <MetricCard
             label="Extra prep needed"
+          calc="prep-counts"
             accent={high > 0 ? 'red' : 'slate'}
             progress={toPrepare ? high / toPrepare : 0}
             loading={busy}
@@ -230,6 +233,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
           />
           <MetricCard
             label="Reduced prep needed"
+          calc="prep-counts"
             accent="amber"
             progress={toPrepare ? low / toPrepare : 0}
             loading={busy}
@@ -241,6 +245,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         <Panel
           busy={busy}
           title="Tomorrow's prep vs recent actual"
+          calc="prep-byproduct,prep-tomorrow-qty,prep-recent"
           sub={byProduct.length ? `Top ${byProduct.length} products by tomorrow's volume` : undefined}
           tools={
             <Legend
@@ -273,6 +278,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
       <Panel
         busy={busy}
         title="Production plan"
+          calc="prep-tomorrow-qty,prep-recent,prep-counts"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub={
           planDay
@@ -330,6 +336,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         <Panel
           busy={busy}
           title={`How ${tomorrowLean ? 'each weekday' : 'weekdays'} usually run`}
+          calc="prep-lean,summary-dow"
           sub={
             contextLoading
               ? 'Reading the last 30 days…'
@@ -350,6 +357,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
         <Panel
           busy={busy}
           title="How each branch has been running"
+          calc="summary-location-acc,summary-band"
           sub={
             contextLoading
               ? 'Reading the last 30 days…'
@@ -373,6 +381,7 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
       <Panel
         busy={busy}
         title="Prep pressure by branch"
+          calc="prep-counts,prep-tomorrow-qty"
         sub="Products on tomorrow's plan, split by which way demand has moved · busiest change first"
         tools={
           <Legend

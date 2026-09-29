@@ -19,7 +19,6 @@ import { EmailPanel } from '../components/EmailPanel.jsx'
 import { WhyPanel } from '../components/WhyPanel.jsx'
 import { ModelReview } from '../components/ModelReview.jsx'
 import { CubeStatus } from '../components/CubeStatus.jsx'
-import { NonRecipePanel } from '../components/NonRecipePanel.jsx'
 import { SalesImportPanel } from '../components/SalesImportPanel.jsx'
 import { useData } from '../useData.js'
 
@@ -276,6 +275,7 @@ export function Admin({ session }) {
       <div className="metrics">
         <MetricCard
           label="Total users"
+          calc="admin-users"
           accent="blue"
           progress={1}
           loading={busy}
@@ -284,6 +284,7 @@ export function Admin({ session }) {
         />
         <MetricCard
           label="Active"
+          calc="admin-users"
           accent="green"
           progress={totals.total ? (totals.active ?? 0) / totals.total : 0}
           loading={busy}
@@ -292,6 +293,7 @@ export function Admin({ session }) {
         />
         <MetricCard
           label="Seen in 30 days"
+          calc="admin-users,admin-signins"
           accent="green"
           progress={totals.active ? (totals.seen_recently ?? 0) / totals.active : 0}
           loading={busy}
@@ -300,6 +302,7 @@ export function Admin({ session }) {
         />
         <MetricCard
           label="Pending or blocked"
+          calc="admin-users"
           accent={pending.length ? 'amber' : 'slate'}
           progress={totals.total ? ((totals.pending ?? 0) + (totals.inactive ?? 0)) / totals.total : 0}
           loading={busy}
@@ -353,6 +356,7 @@ export function Admin({ session }) {
           charts. */}
       <Panel
         title="Users"
+          calc="admin-users"
         count={busy ? undefined : `${users.length} accounts`}
         sub="Click a row to change role, scope or status"
         flush
@@ -421,14 +425,13 @@ export function Admin({ session }) {
 
       <CubeStatus />
 
-      <NonRecipePanel />
 
       <SalesImportPanel />
 
       <ModelReview />
 
       <div className="grid2">
-        <Panel title="Sign-in activity" sub={`Distinct users per day · last ${analytics?.days ?? 30} days`}>
+        <Panel calc="admin-signins" title="Sign-in activity" sub={`Distinct users per day · last ${analytics?.days ?? 30} days`}>
           {busy ? (
             <ChartSkeleton height={220} />
           ) : !analytics?.daily?.length ? (
@@ -440,6 +443,7 @@ export function Admin({ session }) {
 
         <Panel
           title="Where the app is used"
+          calc="admin-usage"
           sub="Sign-ins in the window, against the number of accounts"
           tools={
             <div className="choices">
@@ -469,7 +473,7 @@ export function Admin({ session }) {
       <EmailPanel />
 
 
-      <Panel title="Recent sign-in attempts" sub="Successes and failures, newest first" flush>
+      <Panel calc="admin-signins" title="Recent sign-in attempts" sub="Successes and failures, newest first" flush>
         {busy ? (
           <div style={{ padding: 16 }}>
             <ChartSkeleton height={220} />

@@ -197,7 +197,25 @@ const cache = new Map()
  * month". An article that received nothing in all six is left out entirely:
  * there is no evidence to average.
  */
-export async function constantsFor(brand, { anchor, months = 6 } = {}) {
+/**
+ * Where the quantities come from. The method is identical either way.
+ *
+ *   warehouse  `cube_outbound_monthly` - what the Central Warehouse shipped.
+ *              Right for a bought article, and empty for a prepared one.
+ *   site       `cube_site_outbound_monthly` - what the Central Kitchen, the
+ *              Bakery and the Yelo Factory issued. The only measured actual a
+ *              PA article has.
+ *
+ * A parameter rather than a second copy of this file, so ALPHA, the behaviour
+ * classes, the trailing-zero trim and the leakage tripwire are defined once and
+ * cannot drift apart. Added 29 Sep 2026 with the PA forecast.
+ */
+export const SOURCES = {
+  warehouse: cube.outboundByMonth,
+  site: cube.siteOutboundByMonth,
+}
+
+export async function constantsFor(brand, { anchor, months = 6, source = 'warehouse' } = {}) {
   /*
    * No default, deliberately.
    *
@@ -233,7 +251,12 @@ export async function constantsFor(brand, { anchor, months = 6 } = {}) {
     )
   }
 
-  const key = `${brand}|${list[0]}|${months}`
+  const read = SOURCES[source]
+  if (!read) throw new Error(`constantsFor: unknown source "${source}"`)
+
+  // The source is part of the key. Without it the warehouse and site models
+  // would share one cache entry and whichever asked first would answer both.
+  const key = `${source}|${brand}|${list[0]}|${months}`
   const held = cache.get(key)
   if (held) return held
 
@@ -244,7 +267,7 @@ export async function constantsFor(brand, { anchor, months = 6 } = {}) {
   const work = (async () => {
     const [sales, outbound] = await Promise.all([
       cube.monthlySales(brand, list, { allBrands }),
-      cube.outboundByMonth(brand, list),
+      read(brand, list),
     ])
 
     // Only months the brand actually traded in. A month with no sales has no

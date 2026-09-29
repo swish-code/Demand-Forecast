@@ -27,6 +27,8 @@ import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
 import { productionSourceByArticle, UNCLASSIFIED } from '../insights/productionSource.js'
+import { siteOutboundByArticle } from '../powerbi/siteOutbound.js'
+import { siteForecastFor } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
@@ -241,9 +243,33 @@ api.use(requireAuth, (req, res, next) => {
  * what has to be refused, because a bookmark, a drill-through link or a typed
  * URL all reach the same route without going near the rail.
  */
+/*
+ * The pages that share the component endpoint.
+ *
+ * Stock Article, Production and the four production-source pages are one route
+ * and one query; they differ only in the node types and production source they
+ * pin. So the guard has to accept ANY of them, not just `component` - an
+ * account granted only `src-bakery` was refused with 403 by a check that names
+ * one page, which made a department grant look like it had done nothing.
+ *
+ * Found on 29 Sep 2026 while wiring the per-site departments, before it could
+ * be reported: the rail would have shown the tab and the page behind it would
+ * have failed to load.
+ */
+export const COMPONENT_PAGES = [
+  'component',
+  'madeinhouse',
+  'src-ck',
+  'src-bakery',
+  'src-factory',
+  'src-none',
+]
+
 function pageDenied(req, res, page) {
   const allowed = allowedPages(req.user)
-  if (!allowed || allowed.includes(page)) return false
+  // A list means "any of these opens it", for a route several pages share.
+  const wanted = Array.isArray(page) ? page : [page]
+  if (!allowed || wanted.some((p) => allowed.includes(p))) return false
   /*
    * Named for the page rather than the department.
    *
@@ -1577,16 +1603,143 @@ async function withRoundedForecast(rows, admin) {
  * An article with no production evidence is `Unclassified` rather than blank: it
  * has a page of its own, and a blank would read as a fault instead of a gap.
  */
-async function withProductionSource(rows, filters) {
+/**
+ * What the production sites issued of each article, for the pages that make things.
+ *
+ * Separate from `Consumed_Qty`, which measures the Central Warehouse. A
+ * prepared article never leaves the warehouse - it is made at the kitchen or
+ * the bakery and issued from there - so the two answer different questions and
+ * both are worth having. See `siteOutbound.js`.
+ *
+ * Blank rather than zero where nothing can be measured, exactly as the
+ * warehouse column does: a zero against an article no site has ever issued
+ * reads as a forecast that missed completely, when the truth is that this is
+ * not where that article comes from.
+ */
+async function withSiteOutbound(rows, brand, filters, grain = {}) {
+  // Split by branch there is nothing truthful to show - outbound names a brand,
+  // not a shop - and the warehouse column makes the same call for the same
+  // reason.
+  if (grain.location) return rows.map((r) => ({ ...r, Site_Outbound_Qty: null }))
+
+  const byArticle = await siteOutboundByArticle(brand.chain ?? brand.code, filters).catch(() => null)
+  if (!byArticle) return rows.map((r) => ({ ...r, Site_Outbound_Qty: null }))
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article) return { ...r, Site_Outbound_Qty: null }
+    const held = byArticle.get(article)
+    return { ...r, Site_Outbound_Qty: held === undefined ? null : held }
+  })
+}
+
+/**
+ * The PA forecast built from site history, beside the recipe explosion.
+ *
+ * A SECOND forecast, not a replacement: `Component_Forecast_Qty` is untouched
+ * and keeps its column, so the two can be compared row by row. Asked for on
+ * 29 Sep 2026 after the backtest in `siteForecast.js` measured this at 85.3%
+ * per article against the explosion's 64.8%.
+ *
+ * Stamped on ONE row per article, unlike `Site_Outbound_Qty` above.
+ *
+ * That difference is deliberate and hard won. Site outbound repeats the same
+ * per-article figure on every recipe line, which made its totals row count one
+ * article once per recipe and forced the Actual ACC% column to be scored per
+ * article instead of per row. A per-article quantity repeated down recipe lines
+ * is a trap for every total that meets it, so this figure is put where the
+ * warehouse quantities already sit: on the article's anchor row, blank on the
+ * rest, where blank means "counted on another line" rather than zero.
+ *
+ * The anchor is the article's first row in the set. There is no warehouse
+ * figure to hang it on - that is the whole reason this forecast exists - and the
+ * first row is deterministic within one response, which is all that is needed
+ * for a total to be right.
+ */
+async function withSiteForecast(rows, brand, filters, grain = {}) {
+  // Per brand, never per branch - the same rule the quantity above follows, and
+  // for the same reason: both halves of the rate are brand-level facts.
+  if (grain.location) return rows.map((r) => ({ ...r, Site_Forecast_Qty: null }))
+
+  const byArticle = await siteForecastFor(brand.chain ?? brand.code, filters).catch((err) => {
+    console.warn(`  [site-forecast] ${brand.code}: ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!byArticle?.size) return rows.map((r) => ({ ...r, Site_Forecast_Qty: null }))
+
+  const claimed = new Set()
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article || claimed.has(article)) return { ...r, Site_Forecast_Qty: null }
+    const held = byArticle.get(article)
+    // Absent from the model means no site history to forecast from, which is
+    // not the same as a forecast of zero - the column says so with a dash.
+    if (held === undefined) return { ...r, Site_Forecast_Qty: null }
+    claimed.add(article)
+    return { ...r, Site_Forecast_Qty: held }
+  })
+}
+
+/**
+ * Which production source each of the per-site pages stands for.
+ *
+ * The client pins these through `lockProdSource`; this is the server's own copy
+ * so a grant can be turned into a data restriction without trusting the
+ * request to say which page it came from.
+ */
+const SOURCE_BY_PAGE = {
+  'src-ck': 'Central Kitchen / CPU',
+  'src-bakery': 'Bakery',
+  'src-factory': 'YELO Factory',
+  'src-none': UNCLASSIFIED,
+}
+
+/**
+ * The production sources this account may see at all, or null for every one.
+ *
+ * A page grant has to be a DATA restriction and not just a hidden tab. All six
+ * pages on this route share one endpoint, and the source they show is pinned by
+ * the CLIENT - so an account granted only `src-bakery` could ask for the
+ * kitchen's rows by changing one field in the request, and be answered. The
+ * rail would have looked restricted and the API would not have been.
+ *
+ * Null - no restriction - for an unrestricted account, and for anyone holding
+ * Stock Article or Production, because those pages legitimately span every
+ * source. Only an account whose access is limited to the per-site pages is
+ * narrowed, and then to exactly the sites it was granted.
+ */
+function allowedProdSources(user) {
+  const allowed = allowedPages(user)
+  if (!allowed) return null
+  if (allowed.includes('component') || allowed.includes('madeinhouse')) return null
+  const list = allowed.map((p) => SOURCE_BY_PAGE[p]).filter(Boolean)
+  return list.length ? list : null
+}
+
+async function withProductionSource(rows, filters, user) {
   const map = await productionSourceByArticle().catch((err) => {
     console.warn(`  [production-source] ${String(err.message).slice(0, 90)}`)
     return null
   })
   if (!map) return rows
 
-  const wanted = filters?.prodSources?.length
-    ? new Set(filters.prodSources.map((v) => String(v)))
-    : null
+  const asked = filters?.prodSources?.length ? filters.prodSources.map((v) => String(v)) : null
+  const permitted = allowedProdSources(user)
+
+  /*
+   * The grant wins over the request, and narrows it rather than replacing it.
+   *
+   * With a restriction in force, a request for something outside it is reduced
+   * to the overlap - which for a single-site account is either its own site or
+   * nothing. Asking for nothing in particular gets exactly its own sites.
+   */
+  const effective = permitted
+    ? asked
+      ? asked.filter((v) => permitted.includes(v))
+      : permitted
+    : asked
+
+  const wanted = effective?.length ? new Set(effective) : permitted ? new Set() : null
 
   const out = []
   for (const r of rows) {
@@ -1723,20 +1876,56 @@ async function withStoreStock(rows, filters, buckets, grain, admin) {
   // filling the page with dashes that look like a fault.
   if (!held) return rows
 
+  /*
+   * One row per article carries the stock — but which row?
+   *
+   * An article is spread over one row per recipe group, so a per-article figure
+   * repeated on each of them would be counted once per recipe by any total.
+   * Until 29 Sep 2026 the anchor was "the row that already carries the article's
+   * warehouse figures", on the reasoning that outbound and WH forecast sit on
+   * one row per article and stock belongs to the article the same way.
+   *
+   * That used "has a warehouse figure" as a proxy for "is this article's
+   * primary row". True on Stock Article; false on Production, where a prepared
+   * article is made at a kitchen and the warehouse has no line for it and never
+   * will. `Marinated BBT Chicken tender` holds 11,337 units across 13 BBT shops
+   * on 31 Aug 2026 and read blank, because there was no warehouse figure to
+   * hang it on - reported that day.
+   *
+   * So the anchor is now the article's primary row, found in two steps, each one
+   * still yielding exactly one row per article:
+   *
+   *   1. the row with a warehouse figure, as before, where the article has one
+   *      anywhere in the set - so Stock Article behaves exactly as it did;
+   *   2. failing that, the first row seen for the article, which is what makes
+   *      a prepared article show its stock at last.
+   *
+   * `anchored` is built first, in a pass over the same rows, because a fallback
+   * decided row-by-row would stamp an early recipe line AND the warehouse row
+   * further down - the duplication this rule exists to prevent.
+   *
+   * Site outbound is deliberately NOT an anchor, though it is on the row by now
+   * and a prepared article does have it. `withSiteOutbound` stamps the same
+   * per-article figure on EVERY recipe line, so its presence identifies no
+   * single row; anchoring on it would duplicate the stock once per recipe.
+   */
+  const anchorOf = (r) =>
+    (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
+    (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
+
+  const anchored = new Set()
+  for (const r of rows) {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (article && anchorOf(r)) anchored.add(article)
+  }
+  const claimed = new Set()
+
   return rows.map((r) => {
     const article = String(r['Item No.'] ?? '').trim()
-    /*
-     * Only the row that already carries this article's warehouse figures.
-     *
-     * Outbound and WH forecast sit on one row per article and are blank on the
-     * rest; stock belongs to the article in exactly the same way, so it goes on
-     * the same line. Spread across every recipe line it would be counted once
-     * per recipe by any total.
-     */
-    const carries =
-      (r.Consumed_Qty !== null && r.Consumed_Qty !== undefined) ||
-      (r.WH_Constant_Forecast_Qty !== null && r.WH_Constant_Forecast_Qty !== undefined)
-    if (!article || !carries) return r
+    if (!article) return r
+    const carries = anchored.has(article) ? anchorOf(r) : !claimed.has(article)
+    if (!carries) return r
+    claimed.add(article)
     const cols = stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held)
     // Whichever half is switched off is never put in the response at all,
     // rather than hidden in the browser one network tab away.
@@ -1980,7 +2169,7 @@ async function salesByDay(parts) {
  * the rows somebody is most likely to be asking this question about.
  */
 api.all('/article-usage', handle(async (req, res) => {
-  if (pageDenied(req, res, 'component')) return
+  if (pageDenied(req, res, COMPONENT_PAGES)) return
   const g = guardMany(req, res)
   if (!g) return
 
@@ -2501,7 +2690,7 @@ api.get('/article-lookup', requireAuth, handle(async (req, res) => {
 
 
 api.all('/component-level', handle(async (req, res) => {
-  if (pageDenied(req, res, 'component')) return
+  if (pageDenied(req, res, COMPONENT_PAGES)) return
   const g = guardMany(req, res)
   if (!g) return
   const grain = grainOf(req)
@@ -2544,7 +2733,22 @@ api.all('/component-level', handle(async (req, res) => {
           })
 
     const mine = mtdAll?.get(brand.code) ?? null
-    const withOutbound = await withConsumption([...rows, ...extra], brand, f, grain, mine)
+    /*
+     * Stamped here, inside the per-brand fan, because both figures are read
+     * per brand - the destination filter is what makes a quantity this brand's
+     * rather than another's. After the merge there is no brand to ask with.
+     */
+    const withOutbound = await withSiteForecast(
+      await withSiteOutbound(
+        await withConsumption([...rows, ...extra], brand, f, grain, mine),
+        brand,
+        f,
+        grain
+      ),
+      brand,
+      f,
+      grain
+    )
     // Only stamped when the table is actually split by brand: carrying it
     // otherwise would make every row look brand-specific after the merge.
     return grain.brand ? withOutbound.map((r) => ({ ...r, CHAINID: brand.code })) : withOutbound
@@ -2585,7 +2789,7 @@ api.all('/component-level', handle(async (req, res) => {
           seesStockDetail(req.user)
         ),
         window
-      ), window), seesStockDetail(req.user)), window),
+      ), window), seesStockDetail(req.user)), window, req.user),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
@@ -2623,7 +2827,7 @@ api.all('/component-level', handle(async (req, res) => {
         seesStockDetail(req.user)
       ),
       window
-    ), window), seesStockDetail(req.user)), window),
+    ), window), seesStockDetail(req.user)), window, req.user),
   })
 }))
 

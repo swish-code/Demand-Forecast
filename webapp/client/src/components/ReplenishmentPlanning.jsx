@@ -958,6 +958,7 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
         'plan-reqdate',
         'plan-d1',
         'plan-d2',
+        'plan-buffered',
       ].join(',')}
       // Panel-level for the same reason Article detail is: the table does not
       // render at all on a first load, so its own indicator cannot show.
