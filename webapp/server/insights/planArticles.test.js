@@ -12,24 +12,27 @@ import { belongsToBrand, recipeGroupNamesFor } from './recipeBrands.js'
  * later change cannot quietly reintroduce one of them.
  */
 
-const rate = (plu, article, r) => ({ plu, article, rate: r })
+const rate = (plu, article, r, extra = {}) => ({ plu, article, rate: r, item: article, ...extra })
+/* `explodeArticles` returns a record per requirement; the tests care about the
+   quantity, so unwrap it here rather than in every assertion. */
+const qty = (out, key) => out.get(key)?.qty
 
 test('one product, one article - the plain case', () => {
   const units = new Map([['100', 10]])
   const out = explodeArticles(units, [rate(100, 'A', 0.5)])
-  assert.equal(out.get('A'), 5)
+  assert.equal(qty(out, 'A'), 5)
 })
 
 test('several menu items using one article add together', () => {
   const units = new Map([['100', 10], ['200', 4]])
   const out = explodeArticles(units, [rate(100, 'A', 0.5), rate(200, 'A', 2)])
-  assert.equal(out.get('A'), 10 * 0.5 + 4 * 2)
+  assert.equal(qty(out, 'A'), 10 * 0.5 + 4 * 2)
 })
 
 test('different recipe quantities are honoured per menu item', () => {
   const units = new Map([['100', 100], ['200', 100]])
   const out = explodeArticles(units, [rate(100, 'A', 0.001), rate(200, 'A', 0.008)])
-  assert.equal(Number(out.get('A').toFixed(6)), 0.9)
+  assert.equal(Number(qty(out, 'A').toFixed(6)), 0.9)
 })
 
 /*
@@ -42,12 +45,12 @@ test('multiple recipe paths add their rates, not the product units', () => {
   const units = new Map([['100', 10]])
   // The query returns one pre-summed row per (PLU, article): 0.2 + 0.3.
   const out = explodeArticles(units, [rate(100, 'A', 0.5)])
-  assert.equal(out.get('A'), 5, 'one row per pair, units counted once')
+  assert.equal(qty(out, 'A'), 5, 'one row per pair, units counted once')
 
   // If the query ever returned a row per path instead, the rates still add and
   // the units are still counted once each - which is the property that matters.
   const perPath = explodeArticles(units, [rate(100, 'A', 0.2), rate(100, 'A', 0.3)])
-  assert.equal(perPath.get('A'), 5, 'rates add; units are not multiplied by path count')
+  assert.equal(qty(perPath, 'A'), 5, 'rates add; units are not multiplied by path count')
 })
 
 /*
@@ -59,20 +62,20 @@ test('one PLU carrying several product names is multiplied once', () => {
   // 7up 30 units + Sprite 70 units, summed to the PLU by the caller.
   const units = new Map([['958', 100]])
   const out = explodeArticles(units, [rate(958, 'A', 0.01)])
-  assert.equal(Number(out.get('A').toFixed(6)), 1)
+  assert.equal(Number(qty(out, 'A').toFixed(6)), 1)
 })
 
 test('PLU matching is exact - a different PLU contributes nothing', () => {
   const units = new Map([['40005094', 3526]])
   const out = explodeArticles(units, [rate(40005094, 'A', 0.006), rate(40005095, 'B', 0.005)])
-  assert.equal(Number(out.get('A').toFixed(3)), 21.156)
+  assert.equal(Number(qty(out, 'A').toFixed(3)), 21.156)
   assert.equal(out.has('B'), false, 'a PLU with no planned units adds nothing')
 })
 
 test('numeric and string PLUs both resolve', () => {
   const units = new Map([['100', 10]])
-  assert.equal(explodeArticles(units, [rate(100, 'A', 1)]).get('A'), 10, 'numeric PLU')
-  assert.equal(explodeArticles(units, [rate('100', 'A', 1)]).get('A'), 10, 'string PLU')
+  assert.equal(qty(explodeArticles(units, [rate(100, 'A', 1)]), 'A'), 10, 'numeric PLU')
+  assert.equal(qty(explodeArticles(units, [rate('100', 'A', 1)]), 'A'), 10, 'string PLU')
 })
 
 /*
@@ -90,7 +93,7 @@ test('worked example: Yelo Nashville Seasoning Powder', () => {
     rate(4000501161, 'NASH', 0.008), rate(40005091, 'NASH', 0.001),
     rate(40005093, 'NASH', 0.001),
   ]
-  assert.equal(Number(explodeArticles(units, rates).get('NASH').toFixed(3)), 80.180)
+  assert.equal(Number(qty(explodeArticles(units, rates), 'NASH').toFixed(3)), 80.180)
 })
 
 // --- brand scoping -------------------------------------------------------
@@ -118,4 +121,45 @@ test('unmapped groups belong to nobody', () => {
 test('an unknown brand is permissive rather than empty', () => {
   assert.equal(belongsToBrand('NEW', 'Anything At All'), true)
   assert.equal(recipeGroupNamesFor('NEW'), null)
+})
+
+/*
+ * A prep step has no ERP article number - about a quarter of all component
+ * rows. It is still forecast, and the Production page shows it by name, so it
+ * has to survive the fold rather than being dropped for want of a code.
+ */
+test('a prep step with no article number is kept, keyed by its name', () => {
+  const units = new Map([['100', 1000]])
+  const out = explodeArticles(units, [
+    { plu: 100, article: '', item: 'Cut Parsley CMM', nodeType: 'PREP', unit: 'Kilogram', rate: 0.00005 },
+  ])
+  const held = out.get('item:Cut Parsley CMM')
+  assert.ok(held, 'kept despite having no article number')
+  assert.equal(Number(held.qty.toFixed(3)), 0.05)
+  assert.equal(held.article, '', 'no article number to report')
+  assert.equal(held.item, 'Cut Parsley CMM')
+  assert.equal(held.nodeType, 'PREP', 'its own type, not the RAW fallback')
+  assert.equal(held.unit, 'Kilogram')
+})
+
+test('a prep name cannot collide with an article number that looks like it', () => {
+  const units = new Map([['100', 10]])
+  const out = explodeArticles(units, [
+    { plu: 100, article: '1234', item: 'Some Article', nodeType: 'PA', unit: 'Each', rate: 1 },
+    { plu: 100, article: '', item: '1234', nodeType: 'PREP', unit: 'Kilogram', rate: 2 },
+  ])
+  assert.equal(qty(out, '1234'), 10, 'the real article keeps its own figure')
+  assert.equal(qty(out, 'item:1234'), 20, 'the prep step is keyed apart from it')
+})
+
+/*
+ * The guard against an unidentifiable row lives in `recipeRates`, where the
+ * query rows are read - not here. Pinned so nobody moves it and assumes the
+ * other end still checks.
+ */
+test('the fold itself does not judge identity - recipeRates does', () => {
+  const units = new Map([['100', 10]])
+  const out = explodeArticles(units, [{ plu: 100, article: '', item: '', rate: 5 }])
+  assert.equal(out.size, 1, 'folded under an empty name rather than silently lost')
+  assert.equal(qty(out, 'item:'), 50)
 })

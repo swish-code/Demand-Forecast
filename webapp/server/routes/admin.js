@@ -1557,19 +1557,28 @@ admin.get(
       }
 
       /*
-       * Already one figure per article, and already brand-scoped by recipe
-       * group - so nothing to fold here beyond skipping what the warehouse
-       * has already answered for.
+       * Already one figure per requirement, and already brand-scoped by recipe
+       * group - so nothing to fold here beyond skipping what the warehouse has
+       * already answered for.
+       *
+       * A prep step has no ERP article number, so it arrives keyed by its item
+       * name and carries its own name, type and unit - there is no article
+       * master to look those up in. It cannot collide with a warehouse article
+       * because it has no article number to collide on.
        */
-      for (const [code, qty] of exploded?.byArticle ?? new Map()) {
-        if (!code || seen.has(code)) continue
-        if (!(qty > 0)) continue
-        picked.push([code, qty, 'Recipe explosion'])
+      for (const [, held] of exploded?.byArticle ?? new Map()) {
+        const code = held.article
+        if (code && seen.has(code)) continue
+        if (!(held.qty > 0)) continue
+        picked.push([code, held.qty, 'Recipe explosion', held])
       }
 
-      for (const [code, qty, method] of picked) {
-        const meta = names.get(code) ?? { item: '', unit: '' }
-        byArticle.set(`${brand.code}|${code}`, {
+      for (const [code, qty, method, held] of picked) {
+        const meta = names.get(code) ?? {
+          item: held?.item ?? '',
+          unit: held?.unit ?? '',
+        }
+        byArticle.set(`${brand.code}|${code || `item:${held?.item ?? ''}`}`, {
           brand: brand.code,
           article: code,
           item: meta.item,
@@ -1600,7 +1609,12 @@ admin.get(
            * gap rather than a rule to work around, and the rule is right far
            * more often than the blank was.
            */
-          nodeType: nodeTypes.get(code) || 'RAW',
+          /*
+           * The recipe row's own type where the article master cannot answer -
+           * a prep step is PREP, and calling it RAW because it has no article
+           * number would be wrong in the one case the fallback exists for.
+           */
+          nodeType: (code && nodeTypes.get(code)) || held?.nodeType || 'RAW',
           /* Which of the two methods produced the quantity beside it. */
           method,
           forecastQty: qty,

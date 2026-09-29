@@ -74,10 +74,26 @@ async function recipeRates(brand, plus) {
   )`
       : ''
 
+  /*
+   * Grouped by the ITEM as well as the article number.
+   *
+   * A prep step is a kitchen instruction rather than a stocked thing, so the
+   * recipe master leaves its `Item No.` blank - about a quarter of all
+   * component rows. Keying on the article number alone silently dropped every
+   * one of them, even though the forecast for them exists and the Production
+   * page shows it, identified by recipe and item instead.
+   *
+   * So the item name comes back too, and a row with no article number is kept
+   * and keyed by its name. `Node Type` and `BU` come with it because there is
+   * no article master to look either up in for those rows.
+   */
   const dax = `EVALUATE
 SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Product PLU],
   'RECIPE TABLE'[Item No.],
+  'RECIPE TABLE'[Item],
+  'RECIPE TABLE'[Node Type],
+  'RECIPE TABLE'[BU],
   TREATAS({${groups.map((g) => `"${g.replace(/"/g, '""')}"`).join(', ')}}, 'RECIPE TABLE'[Recipe Group])${pluFilter},
   "rate", SUM('RECIPE TABLE'[QTY BU])
 )`
@@ -93,9 +109,19 @@ SUMMARIZECOLUMNS(
     for (const r of rows) {
       const plu = Number(r['Product PLU'] ?? r['[Product PLU]'])
       const article = String(r['Item No.'] ?? r['[Item No.]'] ?? '').trim()
+      const item = String(r.Item ?? r['[Item]'] ?? '').trim()
       const rate = Number(r.rate ?? r['[rate]']) || 0
-      if (!Number.isFinite(plu) || !article || !(rate > 0)) continue
-      out.push({ plu, article, rate })
+      // An article number OR a name is enough to identify a requirement; with
+      // neither there is nothing to report it against.
+      if (!Number.isFinite(plu) || !(rate > 0) || (!article && !item)) continue
+      out.push({
+        plu,
+        article,
+        item,
+        nodeType: String(r['Node Type'] ?? r['[Node Type]'] ?? '').trim(),
+        unit: String(r.BU ?? r['[BU]'] ?? '').trim(),
+        rate,
+      })
     }
     return out
   })
@@ -143,10 +169,25 @@ export async function planArticleRows(brand, year, window) {
  */
 export function explodeArticles(unitsByPlu, rates) {
   const byArticle = new Map()
-  for (const { plu, article, rate } of rates) {
-    const units = unitsByPlu.get(String(plu))
+  for (const r of rates) {
+    const units = unitsByPlu.get(String(r.plu))
     if (!units) continue
-    byArticle.set(article, (byArticle.get(article) ?? 0) + units * rate)
+    /*
+     * The article number where there is one, the item name where there is not.
+     * Prefixed so a prep step called "1234" can never collide with article
+     * 1234, which is the kind of thing that goes unnoticed for a year.
+     */
+    const key = r.article || `item:${r.item}`
+    const held = byArticle.get(key)
+    const qty = units * r.rate
+    if (held) { held.qty += qty; continue }
+    byArticle.set(key, {
+      qty,
+      article: r.article || '',
+      item: r.item || '',
+      nodeType: r.nodeType || '',
+      unit: r.unit || '',
+    })
   }
   return byArticle
 }

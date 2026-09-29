@@ -45,15 +45,15 @@ const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
 
 /** One entry per report page: rail label, rail kicker, blurb and slicers. */
 /*
- * The production-source pages, off for now - 28 Sep 2026.
+ * The production-source pages.
  *
- * Built and working, then switched off on request while the classification is
- * validated: the CK/CPU split is still unconfirmed by the business and the 107
- * Unclassified articles have no agreed route yet. Everything behind them stays
- * in place - `productionSource.js`, the `prodSources` filter, the page grants -
- * so turning this to `true` is the whole of switching them back on.
+ * Kept behind a flag rather than added and removed: they were switched off once
+ * already while the classification was being validated, and two questions
+ * behind them are still open - the CK/CPU split is unconfirmed by the business,
+ * and the Unclassified articles have no agreed route yet. One line turns them
+ * off again without touching anything they depend on.
  */
-const PRODUCTION_SOURCE_PAGES_ON = false
+const PRODUCTION_SOURCE_PAGES_ON = true
 
 const PAGES = [
   {

@@ -31,7 +31,31 @@ import { planMonthlyValues, salesPlanBaseYear } from './salesPlan.js'
  */
 
 const THRESHOLD = 0.25
+/*
+ * How much of a product's mix comes from history rather than the last 28 days.
+ *
+ * It was a flat 0.75, and that under-forecast anything launched inside the base
+ * year. A product that did not exist in January has a zero history share for
+ * every January, so three quarters of its weight came from a year it was not
+ * in: `Yelo Nashville Seasoning Powder`, which launched in September 2026 and
+ * consumed 27.5 kg in one month, was planned at 26.55 kg for the whole of 2027
+ * - about one month's worth, diluted across twelve.
+ *
+ * So the weight now SLIDES with how much history the product actually has. A
+ * product present in every complete base-year month keeps 0.75 and is
+ * unchanged. One present in none gets 0.25, leaving three quarters of its
+ * weight on what is selling now. In between it moves smoothly - two months and
+ * three months are treated slightly differently, with no threshold to sit
+ * either side of.
+ *
+ * Chosen over an annualised run rate for launches, which is more faithful for
+ * a genuine launch and worse in every other respect: it is a second forecasting
+ * method living beside the first, it needs a cutoff nobody can justify, and a
+ * product crossing that cutoff jumps. This keeps one formula, and a product's
+ * forecast moves gradually as its history accumulates.
+ */
 const HISTORY_WEIGHT = 0.75
+const HISTORY_WEIGHT_MIN = 0.25
 const LATEST_DAYS = 28
 
 const monthKey = (y, m) => `${y}-${String(m).padStart(2, '0')}`
@@ -150,6 +174,20 @@ export async function planBasis(brand, baseYear = salesPlanBaseYear()) {
     }
 
     const complete = completedMonths(baseYear, through, sales, units)
+
+    /*
+     * In how many of those complete months each product actually appears.
+     *
+     * This is what `historyWeightFor` slides on. Measured once here rather than
+     * per plan month: the basis is cached and every month asks the same
+     * question of it.
+     */
+    const monthsWith = new Map()
+    for (const m of complete) {
+      for (const product of byMonth[m].keys()) {
+        monthsWith.set(product, (monthsWith.get(product) || 0) + 1)
+      }
+    }
     const ratio = new Array(13).fill(null)
     for (const m of complete) ratio[m] = units[m] / sales[m]
     const brandMedian = median(complete.map((m) => ratio[m]))
@@ -175,6 +213,7 @@ export async function planBasis(brand, baseYear = salesPlanBaseYear()) {
       byMonth,
       split,
       complete,
+      monthsWith,
       ratio,
       brandMedian,
       latest: shares(latestUnits),
@@ -210,6 +249,26 @@ export function monthIsValid(basis, month) {
  * appeared in June: on 22 Sep 2026 the last 28 days held 95 BBT products that
  * February 2026 had never seen, carrying 33.9% of current volume.
  */
+/**
+ * How much of one product's mix should come from history.
+ *
+ * Linear in the share of complete base-year months the product appears in:
+ * present in all of them and it keeps the full 0.75, present in none and it
+ * drops to 0.25. A product with one month of nine gets about 0.31, so roughly
+ * seven tenths of its weight rests on what is selling now - which is the only
+ * evidence there is for it.
+ *
+ * Deliberately NOT applied to the month-validity fallback: that decides WHICH
+ * history to read, and this decides how much to trust it. Two questions.
+ */
+export function historyWeightFor(basis, product) {
+  const total = basis?.complete?.length ?? 0
+  if (!total) return HISTORY_WEIGHT
+  const seen = basis.monthsWith?.get(product) ?? 0
+  const share = Math.max(0, Math.min(1, seen / total))
+  return HISTORY_WEIGHT_MIN + (HISTORY_WEIGHT - HISTORY_WEIGHT_MIN) * share
+}
+
 export function planMixFor(basis, month) {
   if (!basis) return null
   const valid = monthIsValid(basis, month)
@@ -227,8 +286,8 @@ export function planMixFor(basis, month) {
 
   const out = new Map()
   for (const p of new Set([...history.keys(), ...basis.latest.keys()])) {
-    const v =
-      HISTORY_WEIGHT * (history.get(p) || 0) + (1 - HISTORY_WEIGHT) * (basis.latest.get(p) || 0)
+    const w = historyWeightFor(basis, p)
+    const v = w * (history.get(p) || 0) + (1 - w) * (basis.latest.get(p) || 0)
     if (v > 0) out.set(p, v)
   }
   // Re-normalised rather than assumed: either half can be empty, and a mix that

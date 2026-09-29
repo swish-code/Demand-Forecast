@@ -1341,7 +1341,20 @@ const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
  * bought half.
  */
 const NO_WAREHOUSE_COLUMNS = new Set([
-  'Consumed_Qty',
+  /*
+   * `Consumed_Qty` - Outbound - is deliberately NOT in this set.
+   *
+   * It was, when the warehouse half was first taken off these pages, and that
+   * was wrong: what actually left the warehouse is a measured fact about a
+   * prepared article, and somebody planning production needs it beside the
+   * requirement. What does not belong here is the warehouse FORECAST and the
+   * scores derived from it, because a prep step is not something the warehouse
+   * forecasts. Asked for on 29 Sep 2026.
+   *
+   * `Live_Outbound_MTD` stays out: it is a month-to-date figure that ignores
+   * the page's own date window, which reads as a contradiction next to columns
+   * that honour it.
+   */
   'WH_Constant_Forecast_Qty',
   'WH_Accuracy',
   'WH_Ratio_Acc',
@@ -2865,7 +2878,18 @@ export function ComponentLevel({
     if (!STORE_SOH_ON || !stockDetail) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
     if (!stockDetail) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
     if (!REPL_COLUMNS_ON) list = list.filter((c) => !REPL_COLUMNS.has(c.key))
-    if (noWarehouse) list = list.filter((c) => !NO_WAREHOUSE_COLUMNS.has(c.key))
+    if (noWarehouse) {
+      list = list.filter((c) => !NO_WAREHOUSE_COLUMNS.has(c.key))
+      /*
+       * Outbound survives the cull, but its heading does not.
+       *
+       * It carries `group: 'wh'`, and the Warehouse band is omitted on these
+       * pages - a column pointing at a heading that is not rendered would sit
+       * under a blank shaded strip. Ungrouped, it lines up with Recipe,
+       * Article, Type and Unit, which is where a lone measured column belongs.
+       */
+      list = list.map((c) => (c.key === 'Consumed_Qty' ? { ...c, group: undefined } : c))
+    }
     return list
   }, [future, stockDetail, noWarehouse])
 
@@ -3307,7 +3331,7 @@ export function ComponentLevel({
         * builds on, and withheld on a future window because a plan made from a
         * forecast the engine had to extrapolate would read as firmer than it is.
         */}
-      {stockDetail && !future && !noWarehouse && (
+      {stockDetail && !noWarehouse && (
         <ReplenishmentPlanning rows={priced} filters={filters} busy={busy} />
       )}
       {/*

@@ -152,7 +152,34 @@ export async function planShapeFor(brand, year) {
    * a forecast of size whose shape we were borrowing and whose size we then
    * discarded. An index is the right kind of thing to ask.
    */
-  const seasonal = await fetchSeasonalFactors(brand, year).catch(() => null)
+  /*
+   * A FAILED query is not the same as unusable factors.
+   *
+   * This swallowed every error into null, which then fell through to the
+   * Totalsale rescue below - and the rescue is WRITTEN to `cube_plan_shape`
+   * and kept. So one throttled request while the shapes were being built
+   * pinned that brand to the weaker shape permanently: `ensurePlanShape` sees
+   * twelve rows and never asks again.
+   *
+   * That is what happened to BBT for 2027. Its factor set is complete - 12 of
+   * 12 months, checked 29 Sep 2026 - and the page still showed "2027
+   * forecast", because the stored shape was chosen during an outage rather
+   * than from the data.
+   *
+   * So a failure now returns null and NOTHING is stored. The brand keeps the
+   * shape it already had, or stays unplannable until the query works, and the
+   * next refresh picks up the factors. The rescue below is reached only when
+   * the factors were read successfully and found wanting.
+   */
+  let seasonal = null
+  try {
+    seasonal = await fetchSeasonalFactors(brand, year)
+  } catch (err) {
+    console.warn(
+      `  [plan-shape] ${brand.code}: seasonal factors could not be read (${String(err.message).slice(0, 80)}) — leaving the shape alone`
+    )
+    return null
+  }
   if (seasonal) {
     const weights = normalise(seasonal.factors)
     if (weights) return { weights, source: 'seasonal', from: seasonal.from }

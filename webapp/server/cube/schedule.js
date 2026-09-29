@@ -167,6 +167,36 @@ export const runOutbound = () => guarded('outbound', refreshOutboundAll)
 const OUTBOUND_FRESH_HOURS = Number(process.env.CUBE_OUTBOUND_FRESH_HOURS) || 6
 
 async function outboundIsFresh() {
+  /*
+   * Ask the outbound copy itself, not a timestamp another job writes.
+   *
+   * This read `cube_coverage.refreshed_at`, which `noteCoverage` stamps during
+   * the BRAND backfill. Outbound runs last on the startup chain - deliberately,
+   * because the constants derive from what the others hold - so by the time
+   * this was asked, nine freshly written coverage rows made outbound look
+   * pulled minutes ago when on a new database it had never been pulled at all.
+   *
+   * Seen twice on 29 Sep 2026 on a rebuilt copy: all nine brands filled, zero
+   * outbound rows, "outbound is recent" logged on both startups, and the
+   * Warehouse Accuracy cards blank with no way to fix themselves before 02:00.
+   * The same trap is documented below for the wide tables - having a coverage
+   * row is not the same as being backfilled.
+   *
+   * So the test gains one precondition: does the month the constants are
+   * measured over actually hold rows? If it does, a pull inside the freshness
+   * window is still skipped, which is the saving this was written for. If it
+   * does not, no timestamp may claim otherwise.
+   */
+  const now = new Date()
+  const lastWholeMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    .toISOString()
+    .slice(0, 7)
+  const held = await pg.get(
+    'SELECT COUNT(*)::int AS n FROM cube_outbound_monthly WHERE month = ? AND qty > 0',
+    [lastWholeMonth]
+  )
+  if (!(Number(held?.n) > 0)) return false
+
   const rows = await coverage()
   if (!rows.length) return false
   const stamps = rows.map((r) => r.refreshed_at).filter(Boolean)
