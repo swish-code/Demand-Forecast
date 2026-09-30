@@ -512,6 +512,7 @@ export function Admin({ session }) {
           departments={data?.departments ?? []}
           departmentPages={data?.departmentPages ?? {}}
           pageIds={data?.pageIds ?? []}
+          pageOnlyDepartments={data?.pageOnlyDepartments ?? []}
           brands={session?.brands ?? []}
           currentUserId={session?.user?.id}
           onClose={() => setEditing(null)}

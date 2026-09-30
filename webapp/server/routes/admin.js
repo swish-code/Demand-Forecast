@@ -5,6 +5,7 @@ import { revokeAllForUser } from '../auth/sessions.js'
 import { requireRole } from '../auth/middleware.js'
 import {
   DEPARTMENTS,
+  PAGE_ONLY_DEPARTMENTS,
   DEPARTMENT_PAGES,
   PAGE_IDS,
   maySeeSalesPlan,
@@ -222,6 +223,12 @@ admin.get(
       // Which pages a department is confined to, where that is not implied by
       // its production types — the form has to be able to say so either way.
       departmentPages: DEPARTMENT_PAGES,
+      /*
+       * Departments the form must NOT offer page, brand or branch pickers for.
+       * Sent rather than hard-coded in the form, so the rule is stated once on
+       * the server that enforces it.
+       */
+      pageOnlyDepartments: PAGE_ONLY_DEPARTMENTS,
       // Every page a grant may name, so the form offers exactly what the
       // server will accept rather than a list that has to be kept in step.
       pageIds: PAGE_IDS,

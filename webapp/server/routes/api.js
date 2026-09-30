@@ -229,7 +229,7 @@ api.get('/health', handle(async (req, res) => {
 
 /** Everything past this point needs a session and carries a scope. */
 api.use(requireAuth, (req, res, next) => {
-  loadScope(req.user.id, req.user.role, req.user.department)
+  loadScope(req.user.id, req.user.role, req.user.department, req.user.pages)
     .then((scope) => {
       req.scope = scope
       next()
@@ -350,7 +350,7 @@ function guardMany(req, res) {
 
 
 api.get('/brands', requireAuth, handle(async (req, res) => {
-  const scope = await loadScope(req.user.id, req.user.role, req.user.department)
+  const scope = await loadScope(req.user.id, req.user.role, req.user.department, req.user.pages)
   res.json({ brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })) })
 }))
 
@@ -3086,6 +3086,7 @@ api.all('/component-level', handle(async (req, res) => {
       // Same rule as the Outbound column above, so the pair is comparable.
       sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
     )
+
     /*
      * Only stamped when the table is actually split by brand: carrying it
      * otherwise would make every row look brand-specific after the merge.

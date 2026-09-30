@@ -45,7 +45,7 @@ function record(userId, email, success, reason, req) {
 
 /** Everything the client needs to render the shell for this user. */
 async function sessionPayload(user) {
-  const scope = await loadScope(user.id, user.role, user.department)
+  const scope = await loadScope(user.id, user.role, user.department, user.pages)
   return {
     user: {
       id: user.id,

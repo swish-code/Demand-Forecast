@@ -12,7 +12,15 @@ import { BrandPicker } from './BrandPicker.jsx'
  * Each pill reads "Label: value"; unset pills read "All".
  */
 
-const SLICERS = [
+/*
+ * Exported so the request can be narrowed to the slicers a page actually shows.
+ *
+ * Filter state is shared across pages and saved in the browser, so a value set
+ * where its slicer exists kept filtering pages that do not offer it - with no
+ * control to clear it and nothing on screen to say why the page was short. See
+ * `filtersForPage` in App.jsx.
+ */
+export const SLICERS = [
   { id: 'location', key: 'locations', label: 'Location', options: 'locations', placeholder: 'All' },
   { id: 'product', key: 'products', label: 'Product', options: 'products', placeholder: 'All' },
   { id: 'article', key: 'articles', label: 'Product PLU', options: 'articles', placeholder: 'All' },

@@ -20,7 +20,13 @@
       "Bash(awk -F: '$1>215 && $1<320')",
       "Bash(grep -nE \"brand,$|forecastFromConstants|planArticleRows|siteForecast\")",
       "Bash(sed -n '/for \\(const \\\\[brand, got, exploded\\\\] of perBrand\\)/,/picked.push\\(\\\\[code, held.qty/p' server/routes/admin.js)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e \"import\\('./server/departments.js'\\).then\\(d=>console.log\\('  '+d.PAGE_IDS.join\\('  '\\)\\)\\)\")",
+      "Bash(awk -F: '$1>2650 && $1<2900')",
+      "Bash(node --check server/auth/middleware.js)",
+      "Bash(grep -n \"LOCATIONS\\\\|field__label\\\\\">\\\\s*$\\\\|Locations\" client/src/components/UserEditor.jsx)",
+      "Bash(awk 'NR>=478 && NR<=620' client/src/components/UserEditor.jsx)",
+      "Bash(node --check server/routes/auth.js)"
     ]
   }
 }

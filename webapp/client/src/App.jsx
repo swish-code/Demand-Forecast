@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from './api.js'
 import { useData } from './useData.js'
 import { SideNav } from './components/SideNav.jsx'
-import { FilterBar } from './components/FilterBar.jsx'
+import { FilterBar, SLICERS } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
 import { CalcInspector } from './components/CalcInspector.jsx'
 import { GuideProduction } from './components/GuideProduction.jsx'
@@ -774,7 +774,35 @@ export default function App({ session, onSignedOut }) {
    */
 
   const scoped = useMemo(() => {
-    const base = { ...filters, brands: brandCodes }
+    /*
+     * Only the filters this page actually offers a control for.
+     *
+     * Filter state is shared across every page and saved in the browser, so a
+     * Category or Status chosen on Stock Article kept narrowing Production -
+     * which shows neither slicer, so there was no way to see it or clear it.
+     * The page simply looked short, and it differed between browsers because
+     * the saved state did. Chased for several rounds as an access problem on
+     * 30 Sep 2026: two accounts, same filters on screen, 691 articles against
+     * 187, and the request logging only covered the five fields that matched.
+     *
+     * A page that does not show a control must not be filtered by it. The
+     * `supply` special case below predates this and is the same bug, fixed one
+     * page at a time; this is the general rule.
+     *
+     * Dates, brands and anything the PAGE pins are untouched - those are not
+     * slicers the reader chose.
+     */
+    const offered = new Set(
+      SLICERS.filter((sl) => page?.slicers?.includes(sl.id)).map((sl) => sl.key)
+    )
+    const droppable = new Set(SLICERS.map((sl) => sl.key))
+    const chosen = {}
+    for (const [k, v] of Object.entries(filters)) {
+      if (droppable.has(k) && !offered.has(k)) continue
+      chosen[k] = v
+    }
+
+    const base = { ...chosen, brands: brandCodes }
     /*
      * A Warehouse supply selection does not follow the reader onto Production.
      *

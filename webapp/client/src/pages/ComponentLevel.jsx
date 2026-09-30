@@ -3533,24 +3533,6 @@ export function ComponentLevel({
    * which is before the button can be clicked.
    */
 
-  /*
-   * Fulfilment accuracy - how close the SITE forecast came to what was issued.
-   *
-   * Asked for on 29 Sep 2026. It was briefly two figures, the product mix
-   * beside the site forecast, and that was not what was wanted: the product
-   * mix already has its own accuracy under its own band, and repeating it here
-   * made the card a comparison rather than a headline. One number, and it is
-   * the site forecast's.
-   *
-   * `siteAccTotal` is the function the Acc% column footer already calls, so the
-   * card and the column cannot disagree - and neither can double-count outbound
-   * across an article's recipe lines, which is the whole reason that function
-   * scores per article rather than per row.
-   *
-   * Built from `focused`, the rows actually on screen, so the date range and
-   * every filter are respected without this knowing what any of them are.
-   */
-  const fulfilment = useMemo(() => siteAccTotal(focused, 'Site_Forecast_Qty'), [focused])
 
   const groups = useMemo(() => new Set(focused.map((r) => r['Recipe Group'])).size, [focused])
 
@@ -3650,39 +3632,14 @@ export function ComponentLevel({
           />
         )}
         {/*
-          * Beside Product mix accuracy, not at the end of the row - asked for
-          * on 30 Sep 2026.
+          * The Fulfilment accuracy card was removed on 30 Sep 2026, on request.
           *
-          * The two cards answer the same question about the same articles by
-          * different methods, so they are read together: one scores the recipe
-          * side, this one scores the forecast built from what the sites issued.
-          * With the row's other cards between them the comparison needed a
-          * deliberate look rather than a glance.
-          *
-          * The production pages only, and only once there is something to
-          * score. A future window has issued nothing against its requirement,
-          * so this would read 0.0% - which looks like a catastrophic forecast
-          * rather than an absence of evidence. That is the same trap the
-          * warehouse cards fell into on 27 Sep 2026, and the same fix.
+          * Its figure has not gone anywhere: it is the total of the Acc% column
+          * under Outbound forecast, computed by the same `siteAccTotal`, so the
+          * table still answers the question the card answered. What went is the
+          * headline, which sat beside Product mix accuracy and invited the two
+          * to be read as one score when they judge different forecasts.
           */}
-        {noWarehouse && !future && (
-          <MetricCard
-            label="Fulfilment accuracy"
-            calc="site-acc,site-outbound"
-            hint="How close the Site forecast came to what the production sites actually issued, averaged across articles and weighted by volume: 1 − |Forecast − Outbound| ÷ the larger of the two. The same figure the Acc% column totals, so the card and the column cannot disagree."
-            accent={
-              fulfilment === null ? 'slate' : fulfilment >= 0.85 ? 'green' : 'amber'
-            }
-            progress={fulfilment ?? 0}
-            loading={busy}
-            value={fulfilment === null ? '–' : fmtPct(fulfilment, 1)}
-            foot={
-              fulfilment === null
-                ? 'No site history to forecast from yet'
-                : 'Site forecast vs what was issued'
-            }
-          />
-        )}
         {/*
           * The other forecast, scored the same way.
           *

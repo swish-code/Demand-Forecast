@@ -1,7 +1,7 @@
 import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 import { COOKIE_NAME, readCookie, resolveSession } from './sessions.js'
-import { worksAtBrandLevel } from '../departments.js'
+import { restrictedByPageOnly, worksAtBrandLevel } from '../departments.js'
 
 /**
  * Authentication, roles, and — most importantly — data scoping.
@@ -69,8 +69,31 @@ export function requireRole(...roles) {
  *   byBrand   Map of brand code to a Set of branches, or null for all of them
  *   anyBrand  branches granted without a brand, or null for all of them
  */
-export async function loadScope(userId, role, department = null) {
+export async function loadScope(userId, role, department = null, pages = null) {
   if (role === 'admin') return { brands: null, locations: null, byBrand: null, anyBrand: null }
+
+  /*
+   * A page-only department sees everything on the page it holds.
+   *
+   * Its restriction is the page, and that page already confines it to one
+   * site's articles on the server - see `allowedProdSources`. Read before the
+   * grants are loaded, because the answer does not depend on them: a Production
+   * account granted two brands was seeing 13 articles where an administrator
+   * saw 484 on the same filters, which reads as a broken page rather than a
+   * narrowed one.
+   *
+   * Deliberately the same shape an administrator gets, so there is one code
+   * path for "unrestricted data" rather than two that can drift.
+   */
+  /*
+   * Asked with the whole user where one exists, so an account confined to a
+   * single site's page by an EXPLICIT grant is treated like the department that
+   * normally holds it. `loadScope` only has ids, so it passes what it has and
+   * the page-grant half is answered by the caller below.
+   */
+  if (restrictedByPageOnly({ role, department, pages })) {
+    return { brands: null, locations: null, byBrand: null, anyBrand: null }
+  }
 
   const rows = await pg.all('SELECT brand_code, location_id FROM user_scopes WHERE user_id = ?', [userId])
   // No grants means nothing, never everything.

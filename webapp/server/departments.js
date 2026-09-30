@@ -111,9 +111,16 @@ export const DEPARTMENT_PAGES = {
   Production: ['src-ck'],
   Bakery: ['src-bakery'],
   'YELO Factory': ['src-factory'],
-  // Unchanged: the warehouse buys and moves stock for every site, so it keeps
-  // the full list rather than one site's slice.
-  Warehouse: ['component', 'madeinhouse', 'guide'],
+  /*
+   * The complete Stock Article page, and nothing else - 30 Sep 2026.
+   *
+   * It held `madeinhouse` as well, from when Stock Article was split in two.
+   * That page is the made-in-house half and belongs to the kitchens; the
+   * warehouse buys and moves the BOUGHT half, which is what Stock Article is.
+   * `guide` is added automatically by `withGuide`, because it is that page's
+   * own walkthrough and the button in its filter bar navigates to it.
+   */
+  Warehouse: ['component'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.
   Procurement: ['component', 'madeinhouse', 'warehouse', 'guide'],
@@ -176,12 +183,84 @@ export const DEPARTMENT_PAGES = {
  * when somebody has confirmed that its work spans every shop - the failure it
  * causes is silent, so guessing is worse than leaving a department out.
  */
+/**
+ * Departments whose access is limited by PAGE, and not by data.
+ *
+ * Asked for on 30 Sep 2026, after a Production account opened its own page and
+ * saw 13 articles where an administrator saw 484 on the same filters. Page
+ * access was working; the brand grant underneath it was not, and the two
+ * restrictions compounded into a page that looked broken rather than narrowed.
+ *
+ * These three hold exactly one page each - Production `src-ck`, Bakery
+ * `src-bakery`, YELO Factory `src-factory` - and that page is already confined
+ * to the site they work at, on the server, by `allowedProdSources`. A brand
+ * grant on top of it answers a different question ("which brands may they
+ * see?") that nobody asked of a kitchen: the kitchen produces for every brand
+ * it supplies, so narrowing by brand hides its own work from it.
+ *
+ * So the page IS the restriction, and within it they see what an administrator
+ * sees. Warehouse joined them on 30 Sep 2026 for the same reason: it holds the
+ * complete Stock Article page, and a brand or branch grant on top of it hid
+ * part of the one list it orders from.
+ *
+ * This is a deliberate widening of DATA access, and it is safe only because
+ * each of these departments is confined to ONE page. Do not add a department
+ * here that holds several - the page is doing all the restricting, so a
+ * department with a broad page list would end up with broad access.
+ */
+export const PAGE_ONLY_DEPARTMENTS = ['Warehouse', 'Production', 'Bakery', 'YELO Factory']
+
+const PAGE_ONLY = new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
+
+/**
+ * The pages that carry their own restriction, so nothing else has to.
+ *
+ * Each is confined to one site or to the bought half, and an account that holds
+ * one of these and nothing else has already been narrowed by the page itself.
+ * `guide` is ignored because it is Stock Article's walkthrough, added
+ * automatically beside it and never a restriction of its own.
+ */
+const PAGE_ONLY_PAGES = new Set(['component', 'src-ck', 'src-bakery', 'src-factory'])
+
+/**
+ * Is this account restricted by page alone, seeing all data within it?
+ *
+ * Answered from the DEPARTMENT and from the account's own page grant, because
+ * both routes lead to the same place and only one of them was covered at first.
+ * An account confined to `src-ck` by an explicit grant is in exactly the
+ * position a Production account is in - one site's page and nothing else - and
+ * it was still being narrowed by its brand grant on top, so it saw 150 articles
+ * where an administrator saw 691 on identical filters. Reported 30 Sep 2026.
+ *
+ * Takes the whole user rather than the department name for that reason. A
+ * string is still accepted, because `loadScope` knows the department before it
+ * has a user object to pass.
+ */
+export function restrictedByPageOnly(userOrDepartment) {
+  if (typeof userOrDepartment === 'string' || userOrDepartment == null) {
+    return PAGE_ONLY.has(norm(userOrDepartment))
+  }
+  const user = userOrDepartment
+  if (user.role === 'admin') return false
+  if (PAGE_ONLY.has(norm(user.department))) return true
+
+  const granted = allowedPages(user)
+  // Null means unrestricted, which is the opposite of what this asks.
+  if (!Array.isArray(granted) || !granted.length) return false
+  const real = granted.filter((p) => p !== 'guide')
+  return real.length > 0 && real.every((p) => PAGE_ONLY_PAGES.has(p))
+}
+
 export const BRAND_LEVEL_DEPARTMENTS = [
   'Warehouse',
   'Supply Chain',
   'Procurement',
   'Production',
   'Bakery',
+  // Added 30 Sep 2026 with its own page. It was the one making department
+  // missing from this list, so a branch grant still narrowed it - and both site
+  // figures refuse a branch filter, so its page would have gone blank.
+  'YELO Factory',
 ]
 
 const BRAND_LEVEL = new Set(BRAND_LEVEL_DEPARTMENTS.map(norm))

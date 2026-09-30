@@ -38,13 +38,35 @@ const PAGE_LABELS = {
   summary: 'Overview',
   product: 'Products',
   component: 'Stock Article',
+  /*
+   * The combined production page, and the four carved out of it.
+   *
+   * `madeinhouse` held every production source in one table; `src-ck`,
+   * `src-bakery`, `src-factory` and `src-none` split it by where an article is
+   * actually made. All five were missing from this map, so the picker fell back
+   * to the raw id and offered "Madeinhouse" and "Src-Ck" - which an
+   * administrator has no way to recognise as a page, let alone tell apart.
+   *
+   * `madeinhouse` and `src-ck` are BOTH labelled Production in the rail, so the
+   * combined one is qualified here. Without that the picker would show two
+   * identical options governing different access. It is also switched off at
+   * the moment - see PRODUCTION_PAGE_ON in App.jsx - and a grant for it is
+   * still honoured, so it stays offered rather than hidden.
+   */
+  madeinhouse: 'Production (all sites)',
+  'src-ck': 'Production',
+  'src-bakery': 'Swish Bakery',
+  'src-factory': 'YELO Factory',
+  'src-none': 'Unclassified',
   warehouse: 'Warehouse Insights',
+  'wh-analysis': 'Forecast Insights',
   production: "Tomorrow's Prep",
   guide: 'Guide',
+  'sales-plan': 'Sales plan',
   admin: 'Admin',
 }
 
-export function UserEditor({ mode, user, roles, statuses, departments = [], departmentPages = {}, pageIds = [], brands, currentUserId, onClose, onSaved }) {
+export function UserEditor({ mode, user, roles, statuses, departments = [], departmentPages = {}, pageIds = [], pageOnlyDepartments = [], brands, currentUserId, onClose, onSaved }) {
   const creating = mode === 'create'
 
   const [email, setEmail] = useState(user?.email ?? '')
@@ -127,6 +149,21 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
    * so the form said nothing at all when either was picked.
    */
   const departmentPagesFor = departmentPages?.[department] ?? null
+
+  /*
+   * Departments whose access is decided entirely by the department.
+   *
+   * Warehouse, Production, Bakery and YELO Factory each hold ONE page and see
+   * all of it - see PAGE_ONLY_DEPARTMENTS on the server, which is where this
+   * list comes from rather than being repeated here. For those four the page,
+   * brand and branch pickers are not just unnecessary, they are misleading: a
+   * brand tick would look like it narrowed the data and the server would
+   * ignore it, because `loadScope` returns unrestricted for them.
+   *
+   * So the pickers are hidden and nothing is sent for them, which lets the
+   * department default apply cleanly.
+   */
+  const pageOnly = Boolean(department) && pageOnlyDepartments.includes(department)
 
   /*
    * Choosing a department that works across the business grants every brand.
@@ -222,11 +259,20 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
     setError(null)
     try {
       if (creating) {
-        const res = await api.admin.createUser({ email, name, role, status, department: department || null, pages: pages.size ? [...pages] : null, scopes })
+        /*
+         * Nothing is sent for a page-only department.
+         *
+         * Its pickers are hidden, so whatever `pages` and `scopes` happen to
+         * hold is stale state from before the department was chosen. Sending it
+         * would write a grant the server then ignores - and an explicit grant
+         * WINS over the department default, so a leftover tick could quietly
+         * confine the account to the wrong page.
+         */
+        const res = await api.admin.createUser({ email, name, role, status, department: department || null, pages: pageOnly ? null : pages.size ? [...pages] : null, scopes: pageOnly ? [] : scopes })
         // Shown once and never recoverable — the admin has to pass it on now.
         setIssued({ email: res.user.email, verb: 'created' })
       } else {
-        await api.admin.updateUser(user.id, { name, role, status, department: department || null, pages: pages.size ? [...pages] : null, scopes })
+        await api.admin.updateUser(user.id, { name, role, status, department: department || null, pages: pageOnly ? null : pages.size ? [...pages] : null, scopes: pageOnly ? [] : scopes })
         onSaved(`Saved changes to ${user.email}.`)
       }
     } catch (err) {
@@ -404,7 +450,7 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                 </div>
               )}
 
-              {pageIds.length > 0 && role !== 'admin' && (
+              {pageIds.length > 0 && role !== 'admin' && !pageOnly && (
                 <div className="field">
                   <span className="field__label">Pages</span>
                   <div className="choices choices--wrap">
@@ -439,6 +485,15 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                 </div>
               )}
 
+              {/*
+                * Brands and Locations together, behind one guard.
+                *
+                * A fragment because the two are siblings: a JSX expression
+                * holds one child, and `{cond && (<div/>{other})}` does not
+                * parse - which is exactly how the first attempt failed.
+                */}
+              {!pageOnly && (
+                <>
               <div className="field">
                 <span className="field__label">
                   Brands
@@ -539,6 +594,8 @@ export function UserEditor({ mode, user, roles, statuses, departments = [], depa
                       : `Limited to ${locations.size} location${locations.size === 1 ? '' : 's'}.`}
                   </span>
                 </div>
+              )}
+                </>
               )}
             </>
           )}
