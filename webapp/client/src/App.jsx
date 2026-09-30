@@ -82,6 +82,10 @@ const PRODUCTION_SOURCE_PAGES_ON = true
  *
  * The Prod. type slicer is untouched either way, so a reader can always narrow
  * to the made-in-house half themselves.
+ *
+ * Scope, from 30 Sep 2026: the Yelo Factory and Unclassified only. Production
+ * and Swish Bakery were asked to show PA and PREP alone, so they carry their
+ * own `lockNodeTypes` and this flag no longer reaches them.
  */
 const RAW_ON_SITE_PAGES = true
 
@@ -297,7 +301,7 @@ const PAGES = [
        */
       label: 'Production',
       kicker: 'By production source',
-      blurb: 'Articles the central kitchen produces and issues',
+      blurb: 'Prepared articles and prep steps the central kitchen produces',
       Icon: IconComponent,
       Component: ComponentLevel,
       /*
@@ -309,7 +313,18 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Central Kitchen / CPU',
-      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
+      /*
+       * PA and PREP only, asked for on 30 Sep 2026.
+       *
+       * Not RAW_ON_SITE_PAGES any more: the rule is per page now. Production
+       * and Swish Bakery show what they make; the Yelo Factory and Unclassified
+       * still show RAW, so the flag below them is unchanged.
+       *
+       * The lock narrows the filters sent to the server, so this is a data
+       * restriction and not a display one - and `shownOptions` drops RAW from
+       * the nodeType slicer, so it cannot be asked for either.
+       */
+      lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -334,7 +349,7 @@ const PAGES = [
       // the reason given on CK/CPU above.
       label: 'Swish Bakery',
       kicker: 'By production source',
-      blurb: 'Articles Swish Bakery produces and issues',
+      blurb: 'Prepared articles and prep steps Swish Bakery produces',
       Icon: IconComponent,
       Component: ComponentLevel,
       /*
@@ -346,7 +361,8 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Bakery',
-      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
+      // PA and PREP only - see the note on Production above.
+      lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.

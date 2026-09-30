@@ -178,7 +178,7 @@ export const S = {
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="5">
-<numFmt numFmtId="164" formatCode="dd&quot; &quot;mmm&quot; &quot;yy"/>
+<numFmt numFmtId="164" formatCode="dd/mm/yyyy"/>
 <numFmt numFmtId="165" formatCode="#,##0"/>
 <numFmt numFmtId="166" formatCode="0.0000"/>
 <numFmt numFmtId="167" formatCode="0.0%"/>

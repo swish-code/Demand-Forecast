@@ -25,25 +25,46 @@
   color-scheme: light;
 
   /* ---- surfaces ---------------------------------------------------------- */
-  --bg: #f2f5f3;
+  /* Cooler and lighter than the old green-tinted ground, so a white card reads
+     as raised without needing a shadow — which is how the reference separates
+     a card from the page. */
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --sunken: #f1f4f2;
+  --sunken: #f3f4f6;
 
-  /* ---- navigation rail: deeper than the logo green ----------------------- */
+  /*
+   * The rail stays GREEN.
+   *
+   * The 30 Sep 2026 restyle inverted it to white, following the reference, and
+   * that was reverted the same day on request: the green rail is the app's own
+   * identity, and the point of the restyle was to take the reference's
+   * treatment without taking its colours. Everything else from that pass - the
+   * cooler ground, the softer cards, the round controls, the typographic
+   * hierarchy - is unchanged.
+   *
+   * `--rail-active`/`--rail-on` survive the revert as the active nav item's
+   * own pair. They carry the values `--rail-2`/`--rail-fg` had, so the active
+   * item looks exactly as it did before, but the two jobs stay separable.
+   */
   --rail: #0f3a22;
   --rail-2: #1b5233;
   --rail-fg: #eaf5ee;
   --rail-muted: #93b7a2;
   --rail-line: #23603c;
+  --rail-active: #1b5233;
+  --rail-on: #eaf5ee;
 
   /* ---- lines ------------------------------------------------------------- */
-  --line: #e2e8e4;
-  --line-soft: #edf1ee;
+  --line: #e5e7eb;
+  --line-soft: #f0f1f4;
 
   /* ---- text -------------------------------------------------------------- */
   --text: #111827;
   --text-muted: #6b7280;
-  --text-faint: #9aa1ad;
+  /* #9aa1ad read at 2.60:1 on white, under the 3:1 a non-body text needs. This
+     is the same grey one step darker; it still recedes. Pre-existing, fixed
+     during the 30 Sep 2026 restyle. */
+  --text-faint: #8c93a0;
 
   /* ---- palette ----------------------------------------------------------- */
   --brand: #297836; /* chrome only */
@@ -82,8 +103,12 @@
   --grid: #e6ebe7;
 
   /* ---- geometry ---------------------------------------------------------- */
-  --r-card: 10px;
-  --r-pill: 6px;
+  /* Softer cards and fully-round controls, as the reference has them. `--r-pill`
+     keeps a small radius for the things that are badges rather than controls;
+     `--r-round` is for what the reader can click. */
+  --r-card: 14px;
+  --r-pill: 8px;
+  --r-round: 999px;
 
   --s1: 4px;
   --s2: 8px;
@@ -120,11 +145,15 @@
     --surface: #151b26;
     --sunken: #1a212e;
 
+    /* Dark mode inverts the inversion: a dark rail, and the active chip is
+       the light one. Same relationship, opposite ground. */
     --rail: #061a0f;
     --rail-2: #0f2e1c;
     --rail-fg: #e8f1ea;
     --rail-muted: #77937f;
     --rail-line: #123822;
+    --rail-active: #0f2e1c;
+    --rail-on: #e8f1ea;
 
     --line: #232c3b;
     --line-soft: #1c2431;
@@ -164,11 +193,15 @@
   --surface: #151b26;
   --sunken: #1a212e;
 
+  /* Dark mode inverts the inversion: a dark rail, and the active chip is
+     the light one. Same relationship, opposite ground. */
   --rail: #061a0f;
   --rail-2: #0f2e1c;
   --rail-fg: #e8f1ea;
   --rail-muted: #77937f;
   --rail-line: #123822;
+  --rail-active: #0f2e1c;
+  --rail-on: #e8f1ea;
 
   --line: #232c3b;
   --line-soft: #1c2431;

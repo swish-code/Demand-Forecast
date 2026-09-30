@@ -3017,6 +3017,12 @@ api.all('/component-level', handle(async (req, res) => {
         : await siteOnlyRows(new Set(rows.map((r) => String(r['Item No.'] ?? '').trim())), {
             sources: sourcesAsked,
             /*
+             * The Prod. type filter, which Power BI applied to `rows` and which
+             * nothing applied to these until 30 Sep 2026 - so a page locked to
+             * PA and PREP still got the classification's RAW articles here.
+             */
+            nodeTypes: f.nodeTypes,
+            /*
              * Scoped to what THIS brand received, so an article gets a row on
              * the brand that has it and not on all nine. Cached and read again
              * by `withSiteOutbound` a few lines below, so this costs nothing.

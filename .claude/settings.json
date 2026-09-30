@@ -26,7 +26,11 @@
       "Bash(node --check server/auth/middleware.js)",
       "Bash(grep -n \"LOCATIONS\\\\|field__label\\\\\">\\\\s*$\\\\|Locations\" client/src/components/UserEditor.jsx)",
       "Bash(awk 'NR>=478 && NR<=620' client/src/components/UserEditor.jsx)",
-      "Bash(node --check server/routes/auth.js)"
+      "Bash(node --check server/routes/auth.js)",
+      "Bash(awk 'NR>=3290 && NR<=3330' server/routes/api.js)",
+      "Bash(awk -F: '{print $2}')",
+      "Bash(sed -i 's|if \\(!/_Date\\\\$/.test\\(c.key\\)\\) return|if \\(!/_Qty$/.test\\(c.key\\)\\) return|; s|const okVal = typeof v === .number. \\\\&\\\\& v > 0 \\\\&\\\\& v < SERIAL_MAX|const okVal = typeof v === \"number\"|; s|const okFmt = cell?.s === S_DATE|const okFmt = cell?.s === S_QTY|; s|every delivery date is an Excel serial with the date format|every delivery qty is a number with the qty format|; s|date column\\(s\\) still wrong|qty column\\(s\\) still wrong|' /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/xlsxcheck.mjs)",
+      "Bash(node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/xlsxcheck.mjs)"
     ]
   }
 }

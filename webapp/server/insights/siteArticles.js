@@ -86,13 +86,31 @@ export const SITE_UNFORECAST_GROUP = 'Recipe — nothing forecast in this window
  * bakery's articles. Null means every site, which is what the Production page
  * wants.
  *
+ * `nodeTypes` is the request's Prod. type filter, and it has to be applied HERE
+ * as well as in the DAX. The query is filtered by Power BI; these rows are
+ * appended afterwards in JS and were never tested against it, so a page locked
+ * to PA and PREP still received every RAW article the classification placed -
+ * by the path that was added to make sure nothing was missing. Found when
+ * Production and Swish Bakery were narrowed to PA and PREP on 30 Sep 2026.
+ *
+ * An article the recipe table does not know carries a blank type, and a blank
+ * is not PA and not PREP, so a filtered request drops it. That is the honest
+ * reading of the filter - "PA and PREP" cannot include "no idea" - and it is
+ * why the two pages lose their no-recipe rows as well as their RAW ones.
+ *
  * Returns [] rather than throwing when a lookup fails: these rows are an
  * addition to a page that already works, and a page that loses its whole table
  * because one supporting query failed is worse than a page missing them.
  */
 export async function siteOnlyRows(
   covered,
-  { sources = null, hasOutbound = null, alsoInclude = null, markUnattributed = null } = {}
+  {
+    sources = null,
+    hasOutbound = null,
+    alsoInclude = null,
+    markUnattributed = null,
+    nodeTypes = null,
+  } = {}
 ) {
   const [classes, names, types] = await Promise.all([
     productionSourceByArticle().catch(() => null),
@@ -102,6 +120,9 @@ export async function siteOnlyRows(
   if (!classes?.size) return []
 
   const wanted = sources?.length ? new Set(sources.map((v) => String(v))) : null
+  const wantedTypes = nodeTypes?.length
+    ? new Set(nodeTypes.map((v) => String(v).trim().toUpperCase()))
+    : null
 
   const rows = []
   for (const [article, source] of classes) {
@@ -146,6 +167,9 @@ export async function siteOnlyRows(
      */
     const nodeType = types?.get?.(article) ?? ''
     const inRecipe = Boolean(nodeType)
+    // Same test the DAX applies to the rows beside these, so one filter governs
+    // the whole table rather than half of it.
+    if (wantedTypes && !wantedTypes.has(String(nodeType).trim().toUpperCase())) continue
     rows.push({
       'Recipe Group': inRecipe ? SITE_UNFORECAST_GROUP : SITE_ONLY_GROUP,
       Item: known?.name || article,

@@ -74,7 +74,7 @@ select {
   align-items: stretch;
   gap: var(--s5);
   padding: 0 var(--s5);
-  min-height: 52px;
+  min-height: 56px;
   background: var(--rail);
   color: var(--rail-fg);
   flex: none;
@@ -192,8 +192,11 @@ select {
   background: var(--rail-2);
 }
 
+/* Was #fff, which was white text on a dark bar. The bar is white now, so the
+   active tab takes the rail's own foreground and keeps the green underline as
+   the thing that marks it. */
 .topnav__tab--active {
-  color: #fff;
+  color: var(--rail-fg);
   border-bottom-color: var(--green);
 }
 
@@ -212,6 +215,11 @@ select {
   white-space: nowrap;
 }
 
+/*
+ * Kept its name, not its assumption: the bar it sits on is light now, so this
+ * is the reference's bordered white pill rather than a lighter patch of a dark
+ * bar. Renaming it would touch every caller for no visual gain.
+ */
 .btn--onDark {
   background: var(--rail-2);
   border-color: transparent;
@@ -429,10 +437,19 @@ select {
   text-overflow: ellipsis;
 }
 
+/*
+ * The one solid dark thing in the chrome.
+ *
+ * On a light rail an active item tinted one step off the background is barely
+ * a signal at all, so it takes the reference's treatment instead: a filled
+ * near-black chip. `--rail-active`/`--rail-on` rather than `--rail-2`/
+ * `--rail-fg`, which are now a light surface and dark text and would cancel.
+ */
 .nav__item--active,
 .nav__item--active:hover {
-  background: var(--rail-2);
-  color: var(--rail-fg);
+  background: var(--rail-active);
+  color: var(--rail-on);
+  border-radius: var(--r-pill);
 }
 
 .nav__item--active::before {
@@ -657,8 +674,9 @@ select {
   gap: var(--s1);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  padding: 4px var(--s2);
+  /* Fully round — every control in the reference chrome is a pill. */
+  border-radius: var(--r-round);
+  padding: 5px 10px;
   font-size: 11.5px;
   font-weight: var(--w-medium);
   color: var(--text-muted);
@@ -1094,7 +1112,9 @@ select {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  padding: var(--s3) var(--s4) var(--s4);
+  /* Roomier, matching the reference, where the figure is given space rather
+     than boxed tightly. */
+  padding: var(--s4) var(--s4) var(--s5);
   display: flex;
   flex-direction: column;
   gap: var(--s1);
@@ -1174,8 +1194,10 @@ select {
   color: var(--neutral);
 }
 
+/* The figure is the point of the card, and the reference lets it dominate.
+   30px against a 10.5px label is the same ratio it uses. */
 .kpi__value {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: var(--w-bold);
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -1524,7 +1546,8 @@ table.dt tbody tr.clickable {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: var(--s3) var(--s4);
+  /* More air above the title, matching the roomier cards. */
+  padding: var(--s4) var(--s4) var(--s3);
   border-bottom: 1px solid var(--line);
   flex: none;
 }
@@ -1536,10 +1559,13 @@ table.dt tbody tr.clickable {
   line-height: 1.35;
 }
 
+/* Title, then a muted line explaining what the panel shows - the reference
+   text pattern this app already had the markup for. */
 .panel__titles h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: var(--w-bold);
+  letter-spacing: -0.01em;
   color: var(--text);
   display: flex;
   align-items: center;
@@ -1547,8 +1573,8 @@ table.dt tbody tr.clickable {
 }
 
 .panel__titles p {
-  margin: 0;
-  font-size: 11px;
+  margin: 2px 0 0;
+  font-size: 11.5px;
   color: var(--text-muted);
 }
 
@@ -3228,8 +3254,10 @@ table.dt thead th:hover .th__sort--idle {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border-radius: var(--r-pill);
-  padding: 1px 6px;
+  /* The delta chips beside a figure are round in the reference, which reads as
+     a badge rather than as another small box on a page full of boxes. */
+  border-radius: var(--r-round);
+  padding: 2px 7px;
   font-size: 10.5px;
   font-weight: var(--w-medium);
   line-height: 1.6;

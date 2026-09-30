@@ -219,7 +219,33 @@ const STYLE = {
   New_ACC: S.PCT,
 }
 
-const DATES = new Set(['OOS_Date', 'Req_Date', 'D1_Date', 'D2_Date'])
+/*
+ * Which columns hold a date, and how each delivery column is formatted.
+ *
+ * Both were written out by hand when the sheet had exactly two delivery pairs.
+ * The table has generated them from the largest delivery frequency on screen
+ * since 23 Sep 2026 and runs to ten, so every pair from the third on was
+ * missing from both maps: `DATES` did not claim it, so the millisecond
+ * timestamp this app carries dates as was written to the cell unconverted, and
+ * `STYLE` had no entry, so it got the general format. That is the
+ * 1.79327E+12 in the "3rd delivery by" column - a real date, displayed as the
+ * raw number of milliseconds.
+ *
+ * Matched on the shape of the key rather than listed, so an eleventh delivery
+ * would not reintroduce this.
+ */
+const DELIVERY_DATE = /^D\d+_Date$/
+const DELIVERY_QTY = /^D\d+_Qty$/
+
+const isDateCol = (key) => key === 'OOS_Date' || key === 'Req_Date' || DELIVERY_DATE.test(key)
+
+const styleFor = (key) => {
+  const listed = STYLE[key]
+  if (listed !== undefined) return listed
+  if (DELIVERY_DATE.test(key)) return S.DATE
+  if (DELIVERY_QTY.test(key)) return S.QTY
+  return 0
+}
 
 /*
  * Columns whose value is a number in the row but must stay a number in the
@@ -249,7 +275,7 @@ export function planningSheets(rows, cols, { dateFrom, dateTo, days, today, asOf
     const r = i + 2 // row 1 is the header
     return cols.map((c) => {
       const make = FORMULAS[c.key]
-      const style = STYLE[c.key] ?? 0
+      const style = styleFor(c.key)
 
       if (make) {
         /*
@@ -269,12 +295,12 @@ export function planningSheets(rows, cols, { dateFrom, dateTo, days, today, asOf
         const raw = row[c.key]
         // Exact, so the cached value and the formula's own result are the same
         // number rather than differing by the time of day.
-        const v = DATES.has(c.key) ? excelDate(raw, { exact: true }) : numeric(raw)
+        const v = isDateCol(c.key) ? excelDate(raw, { exact: true }) : numeric(raw)
         return missing ? { v, s: style } : { f, v, s: style }
       }
 
       const raw = row[c.key]
-      if (DATES.has(c.key)) return { v: excelDate(raw), s: style }
+      if (isDateCol(c.key)) return { v: excelDate(raw), s: style }
       if (NUMERIC_TEXT.has(c.key)) {
         const n = Number(String(raw ?? '').trim())
         // A policy word stays a word; "30" becomes 30 so it can be divided by.
