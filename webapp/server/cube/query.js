@@ -1096,6 +1096,36 @@ export async function siteOutboundByMonth(brand, months) {
   return out
 }
 
+/**
+ * The same site history with the destination folded away.
+ *
+ * `siteOutboundByMonth` above is keyed on the brand that received the goods,
+ * which is right wherever the forecast is compared with that brand's sales. It
+ * cannot answer for an article that reaches no brand at all - every Yelo
+ * Factory article is in that position, so the rate model found no history for
+ * them under any brand key and the Forecast column read blank while Outbound
+ * beside it showed real quantities.
+ *
+ * Returns article -> month -> qty, summed over every destination.
+ */
+export async function siteOutboundAllByMonth(months) {
+  if (!months?.length) return new Map()
+  const rows = await rowsOf(
+    `SELECT article, month, SUM(qty) AS qty
+       FROM cube_site_outbound_monthly
+      WHERE month IN (${months.map(() => '?').join(', ')})
+      GROUP BY article, month`,
+    months
+  )
+  const out = new Map()
+  for (const r of rows) {
+    const a = String(r.article)
+    if (!out.has(a)) out.set(a, new Map())
+    out.get(a).set(String(r.month), Number(r.qty) || 0)
+  }
+  return out
+}
+
 /** The brand's forecast sales over an arbitrary window, from the copy. */
 /**
  * Actual sales for the window, the twin of forecastSales.

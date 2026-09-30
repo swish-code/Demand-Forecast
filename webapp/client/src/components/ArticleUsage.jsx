@@ -14,7 +14,7 @@ import { api, fmtInt, fmtQty, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { DataTable } from './DataTable.jsx'
 import { IconClose } from './Icons.jsx'
-import { ChartSkeleton, Empty, ErrorBanner, Pill } from './ui.jsx'
+import { ChartSkeleton, Empty, ErrorBanner, InfoBanner, Pill } from './ui.jsx'
 
 /**
  * A per-unit quantity, which is often very small indeed.
@@ -242,6 +242,8 @@ export function ArticleUsage({ article, filters, onClose }) {
    * report nought menu items for exactly the readers the count is for.
    */
   const used = Number.isFinite(Number(data?.count)) ? Number(data.count) : rows.length
+  // Named by a recipe whose product is not forecast - see the branch below.
+  const unforecast = Boolean(data?.unforecast)
   /*
    * The server sends names without rates to a reader without the recipe grant.
    * Read from the response rather than from the role, so the two cannot drift:
@@ -306,6 +308,43 @@ export function ArticleUsage({ article, filters, onClose }) {
               Nothing in the recipe tree names it. Articles like this reach the shops without a
               recipe behind them — the warehouse columns are where they are measured.
             </Empty>
+          ) : unforecast ? (
+            /*
+              * Named by a recipe, but nothing that uses it is forecast.
+              *
+              * This case used to fall into the message above and state the
+              * stronger fact as certain: "Nothing in the recipe tree names it."
+              * GARLIC SAUCE (PA) is the article that showed it - one recipe
+              * names it, Garlic bread FMCG, which that brand does not forecast.
+              * So the recipe existed, the panel denied it, and the blank
+              * Product mix columns beside it had no explanation.
+              *
+              * The rows are shown, because they are the answer to "what uses
+              * this". What they cannot carry is a forecast, and the note says so
+              * rather than leaving a column of dashes to be puzzled over.
+              */
+            <>
+              <InfoBanner tone="warn">
+                <strong>Nothing that uses this article is forecast.</strong> The{' '}
+                {rows.length === 1 ? 'recipe below names' : `${rows.length} recipes below name`} it,
+                but {rows.length === 1 ? 'its product is' : 'their products are'} not in the sales
+                forecast for this brand — so the Product mix columns have nothing to explode and
+                read blank. The Outbound forecast columns are where this article is measured.
+              </InfoBanner>
+              <div className="usage__names">
+                {rows.map((r) => (
+                  <span className="units__item" key={`${r.PLU}|${r.Product}`}>
+                    {r.Product || r.PLU}
+                    {r.Qty_Per_Unit ? (
+                      <span className="dim">
+                        {' · '}
+                        {fmtQty(r.Qty_Per_Unit)} {r.BU} each
+                      </span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+            </>
           ) : namesOnly ? (
             /*
               * Which menu items, and nothing more.

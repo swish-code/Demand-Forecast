@@ -1747,6 +1747,45 @@ const HELP = {
     },
   ],
   /*
+   * The same band on the production pages, where the columns are named for the
+   * method rather than for the quantity - and where a fourth one joins them.
+   *
+   * Deliberately a separate list from `fcst` above rather than a rewrite of it:
+   * Stock Article still shows "Forecast qty" and "Actual qty" and is under a
+   * standing instruction not to change, so one text cannot serve both.
+   */
+  fcstProduction: [
+    {
+      term: 'PM Forecast',
+      text: 'What the recipes say this site needs to make, if we sell what we expect to sell. "PM" is the product mix.',
+      formula:
+        'For every dish that uses this article:  forecast sales of the dish × the amount the recipe uses.  Add those up.',
+      example:
+        '1,000 burgers forecast × 1 bun each = 1,000 buns. Blank means no recipe reaches this article — either nothing on the menu uses it, or the products that do are not in the sales forecast. Click the article name to see which.',
+    },
+    {
+      term: 'PM Actual',
+      text: 'The same sum, using the dishes that actually sold.',
+      formula:
+        'For every dish that uses this article:  actual sales of the dish × the same recipe amount.  Add those up.',
+      example: '1,100 burgers sold × 1 bun each = 1,100 buns.',
+    },
+    {
+      term: 'ACC%',
+      text: 'How close those two are. Because both use the same recipe, this really scores the SALES forecast rather than the recipe itself.',
+      formula: '1 − ( difference between PM Actual and PM Forecast ÷ PM Actual )',
+      example:
+        'Forecast 1,000, actual 1,100 → 1 − (100 ÷ 1,100) = 90.9%. Blank when nothing sold, because there is nothing to divide by.',
+    },
+    {
+      term: 'Outbound/PM Forecast',
+      text: 'How close the recipe forecast came to what the sites actually issued. It judges the PRODUCT MIX method against real movement, which is why it sits in this band rather than the next one.',
+      formula: '1 − ( difference between PM Forecast and Outbound ÷ the larger of the two )',
+      example:
+        'Read the slash as "versus". Bounded 0–100%, so higher is better, and it is directly comparable with Acc% under Outbound forecast — where that one is higher, the site method was closer for that article. 0.0% against a real Outbound means the recipes forecast nothing at all.',
+    },
+  ],
+  /*
    * The production pages' measured half. Written to be read straight after
    * `fcst` above, because the whole point of the two bands is the comparison.
    */
@@ -3611,6 +3650,40 @@ export function ComponentLevel({
           />
         )}
         {/*
+          * Beside Product mix accuracy, not at the end of the row - asked for
+          * on 30 Sep 2026.
+          *
+          * The two cards answer the same question about the same articles by
+          * different methods, so they are read together: one scores the recipe
+          * side, this one scores the forecast built from what the sites issued.
+          * With the row's other cards between them the comparison needed a
+          * deliberate look rather than a glance.
+          *
+          * The production pages only, and only once there is something to
+          * score. A future window has issued nothing against its requirement,
+          * so this would read 0.0% - which looks like a catastrophic forecast
+          * rather than an absence of evidence. That is the same trap the
+          * warehouse cards fell into on 27 Sep 2026, and the same fix.
+          */}
+        {noWarehouse && !future && (
+          <MetricCard
+            label="Fulfilment accuracy"
+            calc="site-acc,site-outbound"
+            hint="How close the Site forecast came to what the production sites actually issued, averaged across articles and weighted by volume: 1 − |Forecast − Outbound| ÷ the larger of the two. The same figure the Acc% column totals, so the card and the column cannot disagree."
+            accent={
+              fulfilment === null ? 'slate' : fulfilment >= 0.85 ? 'green' : 'amber'
+            }
+            progress={fulfilment ?? 0}
+            loading={busy}
+            value={fulfilment === null ? '–' : fmtPct(fulfilment, 1)}
+            foot={
+              fulfilment === null
+                ? 'No site history to forecast from yet'
+                : 'Site forecast vs what was issued'
+            }
+          />
+        )}
+        {/*
           * The other forecast, scored the same way.
           *
           * Beside the recipe accuracy rather than instead of it: the two are
@@ -3739,32 +3812,6 @@ export function ComponentLevel({
           foot={top ? `${fmtInt(top.Component_Forecast_Qty)} ${top.BU}` : undefined}
         />
 
-        {/*
-          * The production pages only, and only once there is something to score.
-          *
-          * A future window has issued nothing against its requirement, so both
-          * halves would read 0.0% - which looks like two catastrophic forecasts
-          * rather than an absence of evidence. That is the same trap the
-          * warehouse cards fell into on 27 Sep 2026, and the same fix.
-          */}
-        {noWarehouse && !future && (
-          <MetricCard
-            label="Fulfilment accuracy"
-            calc="site-acc,site-outbound"
-            hint="How close the Site forecast came to what the production sites actually issued, averaged across articles and weighted by volume: 1 − |Forecast − Outbound| ÷ the larger of the two. The same figure the Acc% column totals, so the card and the column cannot disagree."
-            accent={
-              fulfilment === null ? 'slate' : fulfilment >= 0.85 ? 'green' : 'amber'
-            }
-            progress={fulfilment ?? 0}
-            loading={busy}
-            value={fulfilment === null ? '–' : fmtPct(fulfilment, 1)}
-            foot={
-              fulfilment === null
-                ? 'No site history to forecast from yet'
-                : 'Site forecast vs what was issued'
-            }
-          />
-        )}
       </div>
 
       {/* The table first, at full width, and the per-unit rankings beneath it.
@@ -3921,7 +3968,20 @@ export function ComponentLevel({
               */
             maxHeight={620}
             groups={{
-              fcst: { label: 'Product mix', help: HELP.fcst },
+              /*
+                * The production pages get their own text - 30 Sep 2026.
+                *
+                * `HELP.fcst` describes Stock Article's columns: "Forecast qty",
+                * "Actual qty", and an ACC% with nothing else beside it. On these
+                * pages the same columns are renamed PM Forecast and PM Actual
+                * and a fourth one sits with them, so the panel was explaining
+                * three columns that are not on screen under headings that are.
+                * Reported with a screenshot of exactly that.
+                */
+              fcst: {
+                label: 'Product mix',
+                help: noWarehouse ? HELP.fcstProduction : HELP.fcst,
+              },
               /*
                 * The measured half, on the production pages only - 29 Sep 2026.
                 *

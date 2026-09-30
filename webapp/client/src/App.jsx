@@ -5,6 +5,7 @@ import { SideNav } from './components/SideNav.jsx'
 import { FilterBar } from './components/FilterBar.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
 import { CalcInspector } from './components/CalcInspector.jsx'
+import { GuideProduction } from './components/GuideProduction.jsx'
 import {
   IconSummary,
   IconProduct,
@@ -55,6 +56,88 @@ const Guide = lazyPage(() => import('./pages/Guide.jsx'), 'Guide')
  */
 const PRODUCTION_SOURCE_PAGES_ON = true
 
+/*
+ * May the per-site pages show RAW articles? - 30 Sep 2026.
+ *
+ * A FLAG because this was switched on, off and on again within a few minutes,
+ * and each round trip meant editing four page configs and three blurbs by hand.
+ * One word changes it now.
+ *
+ * WHAT IT ACTUALLY CONTROLS
+ *
+ * Only whether the recipe explosion may return RAW rows for these pages. It is
+ * not what defines them: `lockProdSource` is, and `withProductionSource`
+ * filters every row to the site on the server, so the population stays correct
+ * either way.
+ *
+ * ON  - a raw article the site handles carries its Product mix forecast.
+ *       `TOMATO FRESH` 103000122 is the case that prompted it: measured over
+ *       1-30 Sep 2026, nothing with the lock in place and 11,326.9 units
+ *       without it, because the explosion never returned a RAW row and the
+ *       article arrived only through the site-outbound path with nothing to put
+ *       in PM Forecast.
+ * OFF - PREP and PA only. The made-in-house half, and raw articles the site
+ *       issues do not appear at all. Set this to false and also reword the
+ *       three blurbs below, which say "Articles ... produces and issues".
+ *
+ * The Prod. type slicer is untouched either way, so a reader can always narrow
+ * to the made-in-house half themselves.
+ */
+const RAW_ON_SITE_PAGES = true
+
+/*
+ * The Yelo Factory page - kept ON.
+ *
+ * Switched off and straight back on on 30 Sep 2026. The flag is left in place
+ * because it is now the cheap way to do it: the id `src-factory` is what page
+ * grants, saved column choices and the department rules are keyed on, so the
+ * entry has to survive either way, and flipping one word beats editing the
+ * entry twice.
+ *
+ * WORTH KNOWING BEFORE IT IS EVER TURNED OFF
+ *
+ * The `YELO Factory` DEPARTMENT is granted exactly this page and nothing else
+ * (see DEPARTMENT_PAGES). With the page off, an account in that department
+ * signs in to an EMPTY RAIL - the same failure `adminOnly` caused before these
+ * pages were opened up. Grant those accounts another page first, or leave this
+ * on.
+ *
+ * The page's all-destination Outbound rule lives in the API - see
+ * `withSiteOutbound` - and is what makes this page's figures correct: every
+ * Yelo Factory article sends 100% of its output to non-brand destinations, so a
+ * brand-scoped total shows nothing at all.
+ */
+const YELO_FACTORY_PAGE_ON = true
+
+
+
+/*
+ * The Production page, off temporarily - 30 Sep 2026, on request.
+ *
+ * It is the combined view: every production source in one table. The four
+ * per-site pages carved out of it stay on, and they cover the same articles
+ * between them, so nothing is unreachable while this is off.
+ *
+ * Off by FLAG rather than by deleting the entry, exactly as the source pages
+ * were when they were switched off during validation. The id `madeinhouse` is
+ * what page grants, saved column choices and the department rules are keyed on,
+ * so the entry has to survive: set this back to true and the page returns with
+ * every grant and every saved Build view intact.
+ *
+ * Nothing on the server was touched. `madeinhouse` stays in COMPONENT_PAGES and
+ * in PAGE_IDS, so an account that still carries an explicit grant for it is not
+ * quietly broken - it simply has no tab until this comes back.
+ */
+const PRODUCTION_PAGE_ON = false
+
+/*
+ * The pages that carry the production guide panel.
+ *
+ * Listed by id rather than tested on `noWarehouse`, because that flag is a
+ * property of the page component and this is a property of the rail.
+ */
+const PRODUCTION_PAGES = new Set(['madeinhouse', 'src-ck', 'src-bakery', 'src-factory', 'src-none'])
+
 const PAGES = [
   {
     id: 'summary',
@@ -103,6 +186,8 @@ const PAGES = [
     lockNodeTypes: ['RAW'],
     slicers: ['location', 'product', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
   },
+  ...(PRODUCTION_PAGE_ON
+    ? [
   {
     /*
      * The other half of what Stock Article used to hold.
@@ -184,23 +269,35 @@ const PAGES = [
      */
     slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
   },
+      ]
+    : []),
   ...(PRODUCTION_SOURCE_PAGES_ON
     ? [
     {
       id: 'src-ck',
       /*
-       * "CK/CPU", renamed 29 Sep 2026.
+       * "Production", renamed 30 Sep 2026. Previously "CK/CPU", and "Central
+       * Kitchen" before that.
        *
-       * The page has always covered both cost centres - the classification
-       * groups them, because the 28 Sep audit found them to be one centre
-       * renamed in early 2026 - and calling it "Central Kitchen" hid the CPU
-       * half. The id stays `src-ck`: page grants, saved column choices and the
-       * department rules are keyed on it, so changing it would silently revoke
-       * access and reset everyone's Build view.
+       * The page covers both cost centres - the classification groups them,
+       * because the 28 Sep audit found them to be one centre renamed in early
+       * 2026 - so neither "Central Kitchen" nor "CPU" alone described it. It is
+       * now simply the production plan for the articles this site makes.
+       *
+       * The id stays `src-ck` through all three names: page grants, saved column
+       * choices and the department rules are keyed on it, so changing it would
+       * silently revoke access and reset everyone's Build view. The Production
+       * DEPARTMENT is granted `src-ck`, so its name and this page's now agree,
+       * which is what the rename was for.
+       *
+       * Worth knowing: the combined page with id `madeinhouse` also carries the
+       * label "Production". It is switched off - see PRODUCTION_PAGE_ON - so
+       * there is no clash today, but turning it back on would put two tabs
+       * called Production in the rail. Rename one of them at that point.
        */
-      label: 'CK/CPU',
+      label: 'Production',
       kicker: 'By production source',
-      blurb: 'Prepared articles the central kitchen produces',
+      blurb: 'Articles the central kitchen produces and issues',
       Icon: IconComponent,
       Component: ComponentLevel,
       /*
@@ -212,7 +309,7 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Central Kitchen / CPU',
-      lockNodeTypes: ['PREP', 'PA'],
+      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -237,7 +334,7 @@ const PAGES = [
       // the reason given on CK/CPU above.
       label: 'Swish Bakery',
       kicker: 'By production source',
-      blurb: 'Prepared articles Swish Bakery produces',
+      blurb: 'Articles Swish Bakery produces and issues',
       Icon: IconComponent,
       Component: ComponentLevel,
       /*
@@ -249,7 +346,7 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Bakery',
-      lockNodeTypes: ['PREP', 'PA'],
+      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -267,11 +364,13 @@ const PAGES = [
        */
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
+    ...(YELO_FACTORY_PAGE_ON
+      ? [
     {
       id: 'src-factory',
       label: 'YELO Factory',
       kicker: 'By production source',
-      blurb: 'Prepared articles the Yelo Factory produces',
+      blurb: 'Articles the Yelo Factory produces and issues',
       Icon: IconComponent,
       Component: ComponentLevel,
       /*
@@ -283,7 +382,7 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'YELO Factory',
-      lockNodeTypes: ['PREP', 'PA'],
+      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -301,6 +400,8 @@ const PAGES = [
        */
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
+        ]
+      : []),
     {
       id: 'src-none',
       label: 'Unclassified',
@@ -317,7 +418,7 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Unclassified',
-      lockNodeTypes: ['PREP', 'PA'],
+      ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
       noWarehouse: true,
       // Admin only while the classification is still being validated, exactly
       // as the Production page it is carved out of.
@@ -633,6 +734,9 @@ export default function App({ session, onSignedOut }) {
     )
   }, [session])
   const page = useMemo(() => pages.find((p) => p.id === tab) ?? pages[0], [tab, pages])
+  // Which page's guide panel is open, or null. Holds the LABEL, so the panel
+  // can name the page it is describing.
+  const [guideFor, setGuideFor] = useState(null)
 
   /*
    * A tab the account may not open does not stay selected.
@@ -1029,6 +1133,27 @@ export default function App({ session, onSignedOut }) {
                     <IconInfo size={13} />
                     How to use this page
                   </button>
+                ) : PRODUCTION_PAGES.has(page.id) ? (
+                  /*
+                    * The production pages open a PANEL rather than navigating.
+                    *
+                    * Stock Article's walkthrough is its own page, `guide`, and
+                    * these pages cannot use it: from 29 Sep 2026 the three
+                    * making departments hold one page each and nothing else, so
+                    * `drill('guide')` would send them to a page they may not
+                    * open - the app falls back to the first page it can and the
+                    * button looks broken rather than forbidden. A panel is part
+                    * of the page and needs no grant.
+                    */
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => setGuideFor(page.label)}
+                    title="What every number on this page means"
+                  >
+                    <IconInfo size={13} />
+                    How to use this page
+                  </button>
                 ) : null
               }
             />
@@ -1118,6 +1243,7 @@ export default function App({ session, onSignedOut }) {
           )}
           </Suspense>
         </div>
+        {guideFor && <GuideProduction label={guideFor} onClose={() => setGuideFor(null)} />}
         <CalcInspector open={inspecting} onClose={() => setInspecting(false)} />
       </div>
     </div>

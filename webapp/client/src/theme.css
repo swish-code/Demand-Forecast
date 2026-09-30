@@ -1235,8 +1235,29 @@ select {
   flex: none;
 }
 
+/*
+ * Three cards of equal width, when the right-hand one holds a single figure.
+ *
+ * The arithmetic is the part worth writing down, because both earlier attempts
+ * got it wrong in opposite directions. The LEFT track holds TWO cards in a grid
+ * of its own, the right track holds ONE. So for all three to come out the same
+ * width the left track needs twice the right:
+ *
+ *   inputs 2fr  ->  two cards of 1fr each
+ *   perf   1fr  ->  one card of 1fr
+ *
+ * At 1fr / 1.1fr - the default, sized for a card with two figures in it - each
+ * input card got half of 1fr while the Performance card got 1.1fr, so it came
+ * out more than twice their width with one figure in it. Overcorrecting to
+ * 1.6fr / 0.55fr swung it the other way and made the inputs enormous.
+ */
+.flow--compact {
+  grid-template-columns: minmax(300px, 2fr) auto minmax(200px, 1fr);
+}
+
 @media (max-width: 1080px) {
-  .flow {
+  .flow,
+  .flow--compact {
     grid-template-columns: 1fr;
   }
   .flow__arrow {
@@ -1372,6 +1393,30 @@ select {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s4);
   align-items: start;
+}
+
+/*
+ * One figure rather than two.
+ *
+ * The grid reserves two equal tracks, so a single remaining item sat in the
+ * left half with the right half empty - which reads as a figure that failed to
+ * load. Since the Variance half was removed on 30 Sep 2026 the Accuracy is
+ * alone, and it takes the whole card.
+ */
+.perf__grid--one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * A card down to one figure, centred rather than stacked from the top.
+ *
+ * `.perf` starts its content at the top, which reads correctly when two items
+ * and their meters fill the card. With one item left it sat against the top
+ * edge of a card stretched to the height of the metric cards beside it, and the
+ * space the second figure used to occupy stayed visibly empty.
+ */
+.perf--single {
+  justify-content: center;
 }
 
 .perf__item {

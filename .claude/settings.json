@@ -3,7 +3,24 @@
     "allow": [
       "Bash(SCRATCH=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/aud5.mjs)",
       "Bash(SCRATCH=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad PROBE_DIR=/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/probedb node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/aud6.mjs)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(awk 'NR>=2660 && NR<=2700' server/routes/api.js)",
+      "Bash(awk 'NR>=2643 && NR<=2680' server/routes/api.js)",
+      "Bash(awk 'NR>=2665 && NR<=2695' server/routes/api.js)",
+      "Bash(node --check server/insights/siteArticles.js)",
+      "Bash(curl -s -o /dev/null -w \"health HTTP %{http_code}\\\\n\" --max-time 25 http://localhost:7005/api/health)",
+      "Bash(node \"/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/final.mjs\")",
+      "Bash(node --check server/powerbi/siteOutbound.js)",
+      "Bash(grep -nE \"brand,$|forecastFromConstants|planArticleRows|siteForecastFor\")",
+      "Bash(node --check server/insights/siteForecast.js)",
+      "Bash(curl -s -o /dev/null -w \"health HTTP %{http_code}\\\\n\" --max-time 30 http://localhost:7005/api/health)",
+      "Bash(node -e \"1\")",
+      "Bash(node \"/c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/lookup.mjs\")",
+      "Bash(awk 'NR>=3612 && NR<=3700' client/src/pages/ComponentLevel.jsx)",
+      "Bash(awk -F: '$1>215 && $1<320')",
+      "Bash(grep -nE \"brand,$|forecastFromConstants|planArticleRows|siteForecast\")",
+      "Bash(sed -n '/for \\(const \\\\[brand, got, exploded\\\\] of perBrand\\)/,/picked.push\\(\\\\[code, held.qty/p' server/routes/admin.js)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

@@ -1,6 +1,8 @@
 import * as cube from '../cube/query.js'
 import {
+  ALPHA,
   constantsFor,
+  pastMonths,
   quantityFor,
   resolveBasis,
   DAYS_PER_MONTH,
@@ -131,6 +133,91 @@ export async function siteForecastFor(brand, filters, { now = new Date() } = {})
      * rare article in a quiet month, and it has to be held to it - when the
      * article does move, that zero scores 0% and counts.
      */
+    if (!Number.isFinite(qty) || qty < 0) continue
+    out.set(article, qty)
+  }
+  return out
+}
+
+/**
+ * The same forecast for an article that reaches no brand at all.
+ *
+ * WHY IT CANNOT USE THE FUNCTION ABOVE
+ *
+ * `siteForecastFor` is a RATE: outbound per dinar of a brand's sales, applied to
+ * that brand's forecast sales. Both halves are brand-scoped, and for a good
+ * reason - it is what lets the figure sit beside that brand's forecast and be
+ * compared with it.
+ *
+ * Every Yelo Factory article falls outside that. Audited 30 Sep 2026: all nine
+ * of them send 100% of their output - 136,431 units over Mar-Aug - to FM, to
+ * CKU/CPU, to SWISH BAKERY and back to the Central Warehouse, and none to a
+ * brand's shops. So the history is in the copy but under no brand key the rate
+ * model asks for, and the Forecast column read blank beside an Outbound column
+ * showing real quantities.
+ *
+ * WHAT IT DOES INSTEAD
+ *
+ * The same decayed level, pro-rated by the length of the window rather than
+ * scaled by sales:
+ *
+ *     level  = ALPHA-decayed monthly outbound, oldest to newest
+ *     qty    = level x (days in the window / 30.44)
+ *
+ * Dropping the sales term is a decision, not a simplification. Sales are not
+ * what drives these quantities: a batch sent to FM or transferred to the bakery
+ * happens because somebody ordered it, and dividing by a brand's sales would
+ * scale it by a number with no causal link to it. `quantityFor` already makes
+ * exactly this call for its `rare` and `new` classes, where it was measured as
+ * the better answer - scaling those by sales cost about three points of
+ * accuracy.
+ *
+ * The trade-off, stated plainly: this cannot respond to a brand selling more.
+ * It says "this article has been going out at about this rate lately", which is
+ * the strongest claim the evidence supports when the destination is not a brand.
+ */
+export async function siteForecastAllDestinations(filters, { now = new Date() } = {}) {
+  if (filters?.locations?.length || filters?.products?.length || filters?.articles?.length) {
+    return new Map()
+  }
+
+  const { anchor } = resolveBasis(filters, { now })
+  const months = pastMonths(anchor, 6)
+  const history = await cube.siteOutboundAllByMonth(months).catch((err) => {
+    console.warn(`  [site-forecast-all] ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+  if (!history?.size) return new Map()
+
+  const windowDays =
+    filters?.dateFrom && filters?.dateTo
+      ? Math.max(
+          1,
+          Math.round(
+            (Date.parse(`${filters.dateTo}T00:00:00Z`) -
+              Date.parse(`${filters.dateFrom}T00:00:00Z`)) /
+              86_400_000
+          ) + 1
+        )
+      : DAYS_PER_MONTH
+
+  const ordered = [...months].sort()
+  const out = new Map()
+  for (const [article, byMonth] of history) {
+    const all = ordered.map((m) => byMonth.get(m) ?? 0)
+    /*
+     * The average starts at the article's first issue, not six months ago - the
+     * same rule the warehouse constant follows, and for the same reason: a zero
+     * before anything was ever issued is not evidence of a quiet month, it is
+     * evidence the article had not started.
+     */
+    const first = all.findIndex((q) => q > 0)
+    if (first === -1) continue
+    const detail = all.slice(first)
+    const decay = detail.map((_, i) => (1 - ALPHA) ** (detail.length - 1 - i))
+    const total = decay.reduce((n, w) => n + w, 0)
+    const level = detail.reduce((n, q, i) => n + q * decay[i], 0) / total
+    const qty = level * (windowDays / DAYS_PER_MONTH)
     if (!Number.isFinite(qty) || qty < 0) continue
     out.set(article, qty)
   }

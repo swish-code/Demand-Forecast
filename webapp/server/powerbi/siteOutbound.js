@@ -99,6 +99,67 @@ SUMMARIZECOLUMNS(
   })
 }
 
+/**
+ * What the sites issued of each article, to EVERY destination.
+ *
+ * `siteOutboundByArticle` above requires the destination to be a brand, because
+ * a quantity has to belong to the brand whose shops received it before it can
+ * sit beside that brand's forecast. That rule is kept, and it drops everything
+ * the sites send somewhere that is not a brand - audited 29 Sep 2026 over
+ * 1 Mar-31 Aug: 1,126,175 units, 7.6% of all site outbound.
+ *
+ *   FM                737,066   a separate company, no forecast model here
+ *   Central Warehouse 314,529   a site returning stock to the warehouse
+ *   CKU/CPU            56,957   site to site
+ *   SWISH BAKERY       14,536   site to site
+ *   R&D / SM / HO       3,087
+ *
+ * Asked for on 30 Sep 2026 for the YELO FACTORY page only, where the question
+ * is "what did this factory send out", full stop - the factory supplies other
+ * parts of the business, not only branded shops, and a brand-scoped figure made
+ * most of its work invisible.
+ *
+ * Deliberately NOT the default. Used on one page, where the accuracy columns
+ * beside it are read as "did the factory make what we expected" rather than as
+ * a brand's fulfilment - and every other page keeps the brand rule, so nothing
+ * built on it moves.
+ */
+export async function siteOutboundTotalByArticle({ dateFrom, dateTo } = {}) {
+  if (!isConfigured() || !dateFrom || !dateTo) return null
+
+  return cached(`site-outbound-all-dest:${dateFrom}:${dateTo}`, async () => {
+    const dax = `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Article No.],
+  TREATAS({${lit(SITE_NAMES)}}, fact_outbound_line[Cost Center/Store]),
+  DATESBETWEEN(dim_date[Date], ${asDate(dateFrom)}, ${asDate(dateTo)}),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${lit(config.warehouse.statuses)}}
+  ),
+  "Site_Outbound_Qty", SUM(fact_outbound_line[Action Base Qty])
+)`
+
+    const rows = await executeQuery(dax, config.warehouse.datasetId, {
+      bulk: true,
+      workspace: config.warehouse.workspaceId,
+    }).catch((err) => {
+      console.warn(`  [site-outbound-all] ${String(err.message).slice(0, 90)}`)
+      return null
+    })
+    if (!rows) return null
+
+    const out = new Map()
+    for (const r of rows) {
+      const article = String(r['Article No.'] ?? r['[Article No.]'] ?? '').trim()
+      const qty = Number(r.Site_Outbound_Qty ?? r['[Site_Outbound_Qty]']) || 0
+      if (!article) continue
+      out.set(article, (out.get(article) ?? 0) + qty)
+    }
+    return out
+  })
+}
+
 const lastDayOf = (month) => {
   const [y, m] = String(month).split('-').map(Number)
   return new Date(Date.UTC(y, m, 0)).getUTCDate()

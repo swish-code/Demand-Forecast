@@ -218,7 +218,20 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
 
   const actual = kpis.Actual_Qty ?? 0
   const forecast = kpis.Forecast_Qty ?? 0
-  const variance = kpis.Variance_Pct ?? 0
+  /*
+   * Over the same products the Accuracy card scores - 30 Sep 2026.
+   *
+   * `Variance_Pct` is the model's measure over the daily trend, which includes
+   * products the accuracy cannot score: one that sold nothing, or that nobody
+   * forecast. The two cards sat side by side describing different populations
+   * and could not be reconciled.
+   *
+   * `Product_Variance_Pct` is the same net variance restricted to the scorable
+   * products, computed on the server beside the accuracy itself so the pair
+   * cannot drift. It falls back to the model's measure where no product is
+   * scorable, which is the only case that produced a blank.
+   */
+  const variance = kpis.Product_Variance_Pct ?? kpis.Variance_Pct ?? 0
   /*
    * The Products page's figure, not the model's totals measure.
    *
@@ -238,17 +251,9 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
    */
   const accuracy = kpis.Product_Accuracy ?? kpis.Forecast_Accuracy ?? 0
 
-  const varState = varianceState(variance)
   const accState = accuracyState(accuracy)
 
   /** Daily variance, for the sparkline beside the headline figure. */
-  const varianceSeries = useMemo(
-    () =>
-      trend
-        .filter((d) => d.Actual_Qty !== null && d.Actual_Qty !== undefined && d.Forecast_Qty)
-        .map((d) => (d.Actual_Qty - d.Forecast_Qty) / d.Forecast_Qty),
-    [trend]
-  )
 
   /**
    * Bias per weekday, Monday first. Aggregating the window by day-of-week is
@@ -428,6 +433,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
       {/* Actual and forecast are inputs; variance and accuracy are derived from
           them, so they sit in one performance card downstream of the arrow. */}
       <MetricFlow
+        compact
         inputs={
           <>
           <MetricCard
@@ -482,30 +488,25 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
             </p>
           </div>
         ) : (
-          <div className="perf">
+          <div className="perf perf--single">
             <span className="perf__title">Performance</span>
-            <div className="perf__grid">
-              {/* Each half declares its own formulas rather than the card
-                  declaring both, so clicking Variance does not open the
-                  accuracy derivation and the other way round. */}
-              <div className="perf__item" data-calc="variance-pct,summary-varspark">
-                <span className="metric__label">Variance</span>
-                <span className={`perf__value perf__value--${varState}`}>{fmtSignedPct(variance)}</span>
-                <span className="metric__foot">
-                  {fmtInt(kpis.Variance_Qty)} units vs forecast
-                  {prev?.Variance_Pct !== undefined && prev?.Variance_Pct !== null && (
-                    <> · prev period {fmtSignedPct(prev.Variance_Pct)}</>
-                  )}
-                </span>
-                <span className="perf__spark">
-                  <Sparkline
-                    points={varianceSeries}
-                    color={varState === 'bad' ? colors.red : varState === 'warn' ? colors.amber : colors.actual}
-                  />
-                  <span className="perf__sparklabel">daily variance</span>
-                </span>
-              </div>
-
+            <div className="perf__grid perf__grid--one">
+              {/*
+                * The Variance half was removed on 30 Sep 2026, on request.
+                *
+                * It never reconciled with the Accuracy beside it. A net
+                * variance CANCELS - one product 200 over and another 200 under
+                * read as nought while the accuracy showed both misses - so the
+                * pair told two stories about one window. Averaging per product
+                * removed the cancellation and was tried; removing the card was
+                * chosen instead.
+                *
+                * `Product_Variance_Pct` is still computed on the server beside
+                * the accuracy, and the Var. qty and Var. % columns in the table
+                * are untouched: the variance is still there for anyone who
+                * wants it, just not as a headline beside a figure it cannot be
+                * reconciled with.
+                */}
               <div className="perf__item" data-calc="forecast-accuracy,product-acc-weighted">
                 {/* Named and described as the Products page names and describes
                     it, because it is now literally the same number. */}

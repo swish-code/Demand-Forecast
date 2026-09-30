@@ -25,10 +25,11 @@ import {
 } from '../powerbi/warehouse.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
+import { siteOnlyRows } from '../insights/siteArticles.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
 import { productionSourceByArticle, UNCLASSIFIED } from '../insights/productionSource.js'
-import { siteOutboundByArticle } from '../powerbi/siteOutbound.js'
-import { siteForecastFor } from '../insights/siteForecast.js'
+import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
+import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
 import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
@@ -511,6 +512,30 @@ api.all('/summary', handle(async (req, res) => {
      * add them and divide once.
      */
     const productAccuracy = { weight: 0, sum: 0 }
+    /*
+     * The variance over the SAME products the accuracy scores - 30 Sep 2026.
+     *
+     * The Variance card read `[Variance%]` over the daily trend, and the
+     * Accuracy card a volume-weighted mean over products with sales on both
+     * sides. Two populations and two grains, so the pair could not be
+     * reconciled: a window could show a healthy variance and a poor accuracy
+     * and both were right about different things.
+     *
+     * Two causes, and this fixes the one that is a defect:
+     *
+     *   POPULATION  the trend includes products the accuracy excludes - one
+     *               that sold nothing, or that nobody forecast. Those cannot be
+     *               scored but were still moving the variance. Same gate now.
+     *   CANCELLING  a net variance lets one product's over-forecast cancel
+     *               another's under-forecast, where accuracy cannot. That is
+     *               inherent to what a variance IS, not a fault, so it stays -
+     *               the two cards answer different questions about one set of
+     *               products, which is the most they can honestly share.
+     *
+     * Carried as the two totals rather than the ratio, for the same reason the
+     * accuracy is: brands are merged below and a ratio of ratios is not a ratio.
+     */
+    const productVariance = { weight: 0, sum: 0, qty: 0 }
     for (const r of productRows ?? []) {
       const a = Number(r.Actual_Qty) || 0
       const fq = Number(r.Forecast_Qty) || 0
@@ -519,6 +544,23 @@ api.all('/summary', handle(async (req, res) => {
       if (!(a > 0) || !(fq > 0)) continue
       productAccuracy.weight += a
       productAccuracy.sum += a * (1 - Math.abs(a - fq) / Math.max(a, fq))
+      /*
+       * The AVERAGE of each product's variance, not the variance of the totals
+       * - asked for on 30 Sep 2026.
+       *
+       * A net variance cancels: one product 200 over and another 200 under read
+       * as nought, while the accuracy beside it showed both misses. Averaging
+       * per product removes the cancellation, so the two cards move together.
+       *
+       * Weighted by units sold, exactly as the accuracy is. An UNWEIGHTED mean
+       * of ratios is dominated by the smallest forecasts - a product forecast
+       * at 1 that sells 100 scores +9,900% and would swamp a thousand good
+       * ones. That is the same failure the accuracy hit when it divided by
+       * actual, and the fix is the same weighting, so the pair stays comparable.
+       */
+      productVariance.weight += a
+      productVariance.sum += a * ((a - fq) / fq)
+      productVariance.qty += a - fq
     }
 
     const inWindow = (r, from, to) => (!from || r.Date >= from) && (!to || r.Date <= to)
@@ -536,7 +578,7 @@ api.all('/summary', handle(async (req, res) => {
       ? deriveKpis(total(prevRows, 'Actual_Qty'), total(prevRows, 'Forecast_Qty'))
       : null
 
-    return { brand, kpis, trend, topProducts, byLocation, prev, productAccuracy }
+    return { brand, kpis, trend, topProducts, byLocation, prev, productAccuracy, productVariance }
   })
 
   /*
@@ -555,10 +597,38 @@ api.all('/summary', handle(async (req, res) => {
     return weight > 0 ? sum / weight : null
   }
 
+  /*
+   * The average product variance, merged across brands.
+   *
+   * Numerator and denominator added then divided once, never an average of
+   * per-brand averages - the same rule `weighted` above follows and for the
+   * same reason. `qty` stays a plain sum of units, which does add up. Null when
+   * no product is scorable, so the card says nothing rather than 0%.
+   */
+  const netVariance = (parts) => {
+    let weight = 0
+    let sum = 0
+    let qty = 0
+    for (const p of parts) {
+      weight += p?.weight ?? 0
+      sum += p?.sum ?? 0
+      qty += p?.qty ?? 0
+    }
+    return weight > 0 ? { pct: sum / weight, qty } : null
+  }
+
   if (g.single) {
-    const { kpis, trend, topProducts, byLocation, prev, productAccuracy } = results[0]
+    const { kpis, trend, topProducts, byLocation, prev, productAccuracy, productVariance } =
+      results[0]
     return res.json({
-      kpis: { ...kpis, Product_Accuracy: weighted([productAccuracy]) },
+      kpis: {
+        ...kpis,
+        Product_Accuracy: weighted([productAccuracy]),
+        ...(() => {
+          const v = netVariance([productVariance])
+          return v ? { Product_Variance_Pct: v.pct, Product_Variance_Qty: v.qty } : {}
+        })(),
+      },
       trend,
       topProducts,
       byLocation,
@@ -570,6 +640,10 @@ api.all('/summary', handle(async (req, res) => {
     kpis: {
       ...mergeKpis(results.map((r) => r.kpis)),
       Product_Accuracy: weighted(results.map((r) => r.productAccuracy)),
+    ...(() => {
+      const v = netVariance(results.map((r) => r.productVariance))
+      return v ? { Product_Variance_Pct: v.pct, Product_Variance_Qty: v.qty } : {}
+    })(),
     },
     trend: mergeTrend(results.map((r) => r.trend)),
     // Product names repeat across brands, so the brand is part of the key and a
@@ -1616,19 +1690,59 @@ async function withRoundedForecast(rows, admin) {
  * reads as a forecast that missed completely, when the truth is that this is
  * not where that article comes from.
  */
-async function withSiteOutbound(rows, brand, filters, grain = {}) {
+async function withSiteOutbound(rows, brand, filters, grain = {}, allDestinations = false) {
   // Split by branch there is nothing truthful to show - outbound names a brand,
   // not a shop - and the warehouse column makes the same call for the same
   // reason.
   if (grain.location) return rows.map((r) => ({ ...r, Site_Outbound_Qty: null }))
 
-  const byArticle = await siteOutboundByArticle(brand.chain ?? brand.code, filters).catch(() => null)
+  /*
+   * One page asks a different question - the YELO Factory, from 30 Sep 2026.
+   *
+   * Everywhere else the figure is "what this brand received", because it sits
+   * beside that brand's forecast. The factory supplies other parts of the
+   * business as well as branded shops, so a brand-scoped total made most of its
+   * work invisible; there the question is "what did the factory send out".
+   *
+   * Read once per brand either way, and the all-destination total is not
+   * brand-scoped - so on that page every brand's pass sees the same figure, and
+   * the one-row-per-article anchor is what keeps it from being counted twice.
+   */
+  const byArticle = allDestinations
+    ? await siteOutboundTotalByArticle(filters).catch(() => null)
+    : await siteOutboundByArticle(brand.chain ?? brand.code, filters).catch(() => null)
   if (!byArticle) return rows.map((r) => ({ ...r, Site_Outbound_Qty: null }))
+
+  /*
+   * One row per article when the figure is not brand-scoped.
+   *
+   * The all-destination total is a company-wide number, so stamping it on every
+   * row of an article received by two brands would count it twice in the totals
+   * - the same trap the brand-scoped figure avoids by being different per row.
+   */
+  const claimedAll = new Set()
 
   return rows.map((r) => {
     const article = String(r['Item No.'] ?? '').trim()
     if (!article) return { ...r, Site_Outbound_Qty: null }
+    if (allDestinations) {
+      if (claimedAll.has(article)) return { ...r, Site_Outbound_Qty: null }
+      claimedAll.add(article)
+    }
     const held = byArticle.get(article)
+    /*
+     * Brand destinations only, confirmed 30 Sep 2026.
+     *
+     * The sites also send to FM, back to the Central Warehouse, and to each
+     * other - 7.6% of their outbound over Mar-Aug, including the 2,189.8 of
+     * `BBT BEEF FILLING DYNAMITE (PA)` that went from the Centeral Kitchen to
+     * SWISH BAKERY. A destination-agnostic fallback for those was written and
+     * then removed on request: a quantity has to belong to the brand whose
+     * shops received it before it can sit beside that brand's forecast, and
+     * blending the two meanings in one column would break the accuracy figures
+     * built on it. Blank is the correct answer for a transfer that reached no
+     * brand.
+     */
     return { ...r, Site_Outbound_Qty: held === undefined ? null : held }
   })
 }
@@ -1656,15 +1770,28 @@ async function withSiteOutbound(rows, brand, filters, grain = {}) {
  * first row is deterministic within one response, which is all that is needed
  * for a total to be right.
  */
-async function withSiteForecast(rows, brand, filters, grain = {}) {
+async function withSiteForecast(rows, brand, filters, grain = {}, allDestinations = false) {
   // Per brand, never per branch - the same rule the quantity above follows, and
   // for the same reason: both halves of the rate are brand-level facts.
   if (grain.location) return rows.map((r) => ({ ...r, Site_Forecast_Qty: null }))
 
-  const byArticle = await siteForecastFor(brand.chain ?? brand.code, filters).catch((err) => {
+  /*
+   * The factory page asks the destination-agnostic question here too.
+   *
+   * Its Outbound column already does - and leaving the forecast brand-scoped
+   * left the two columns measuring different populations, so Outbound showed
+   * 26,202 units and Forecast showed nothing. The pair has to come from the
+   * same evidence or the Acc% between them means nothing.
+   */
+  const byArticle = allDestinations
+    ? await siteForecastAllDestinations(filters).catch((err) => {
+        console.warn(`  [site-forecast-all] ${brand.code}: ${String(err.message).slice(0, 90)}`)
+        return null
+      })
+    : await siteForecastFor(brand.chain ?? brand.code, filters).catch((err) => {
     console.warn(`  [site-forecast] ${brand.code}: ${String(err.message).slice(0, 90)}`)
-    return null
-  })
+        return null
+      })
   if (!byArticle?.size) return rows.map((r) => ({ ...r, Site_Forecast_Qty: null }))
 
   const claimed = new Set()
@@ -1746,7 +1873,13 @@ async function withProductionSource(rows, filters, user) {
     const article = String(r['Item No.'] ?? '').trim()
     const source = (article && map.get(article)) || UNCLASSIFIED
     if (wanted && !wanted.has(source)) continue
-    out.push({ ...r, Prod_Source: source })
+    /*
+     * `__unattributed` has done its work by now - the brand stamp happens
+     * inside the fan-out, this runs after the merge - so it is dropped rather
+     * than shipped to the browser and into the CSV.
+     */
+    const { __unattributed, ...rest } = r
+    out.push({ ...rest, Prod_Source: source })
   }
   return out
 }
@@ -2376,10 +2509,28 @@ SUMMARIZECOLUMNS(
   "Qty_Per_Unit", SUM('RECIPE TABLE'[QTY BU])
 )`
 
-      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}`, () =>
+      /*
+       * The same question with the forecast restriction lifted.
+       *
+       * `PLUs` above is `VALUES(Forecast_Product_Table[Clean_ItemID])`, so a
+       * recipe whose product is not in the forecast table is filtered out and
+       * the article looks as though no recipe names it. It is not the same fact,
+       * and the panel was stating the stronger one: GARLIC SAUCE (PA) 106400491
+       * is named by exactly one recipe - Garlic bread FMCG, PLU 1002010 - which
+       * YP does not forecast, and the panel said "Nothing in the recipe tree
+       * names it". Reported 29 Sep 2026.
+       *
+       * Asked ONLY when the restricted query found nothing, so the normal case
+       * costs nothing and the rows a reader usually wants are unchanged.
+       */
+      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}`, async () => {
         // Raw rows in the cache, so nothing stored carries one caller's label.
-        executeQuery(dax, ds, { bulk: true })
-      )
+        const rows = await executeQuery(dax, ds, { bulk: true })
+        if (rows.length) return rows
+        const wider = await executeQuery(usageDax(false), ds, { bulk: true }).catch(() => [])
+        // Marked, so the panel can say which of the two facts it is looking at.
+        return wider.map((r) => ({ ...r, __unforecast: 1 }))
+      })
         // `__ds` rides along so the merge below can look the menu item
         // forecast up; it is stripped before the response is built.
         .then((rows) => rows.map((r) => ({ ...r, CHAINID: codes.join(' / '), __ds: `${ds}|${[...chains][0]}` })))
@@ -2432,6 +2583,12 @@ SUMMARIZECOLUMNS(
         PLU: r['Product PLU'] ?? '',
         Qty_Per_Unit: qty,
         BU: r.BU ?? '',
+        /*
+         * True when this row came from the widened query - the recipe names the
+         * article, but its product is not in the forecast. Carried onto the row
+         * because the panel has to say which of the two facts it is showing.
+         */
+        Unforecast: Boolean(r.__unforecast),
         /*
          * Set once, never accumulated.
          *
@@ -2530,6 +2687,7 @@ SUMMARIZECOLUMNS(
         BU: r.BU,
       })),
       count: rows.length,
+      unforecast: rows.length > 0 && rows.every((r) => r.Unforecast),
       namesOnly: true,
       partial: failures.length > 0,
     })
@@ -2539,7 +2697,13 @@ SUMMARIZECOLUMNS(
    * `partial` says the answer is incomplete, so the panel can decline to claim
    * the article is unused when the truth is that nothing could be read.
    */
-  res.json({ rows, count: rows.length, partial: failures.length > 0, failures })
+  /*
+   * Every row came from the widened query, so nothing that uses this article is
+   * forecast. Distinct from an empty result, which means no recipe names it at
+   * all - and the panel said the second when it meant the first.
+   */
+  const unforecast = rows.length > 0 && rows.every((r) => r.Unforecast)
+  res.json({ rows, count: rows.length, unforecast, partial: failures.length > 0, failures })
 }))
 
 
@@ -2695,6 +2859,106 @@ api.all('/component-level', handle(async (req, res) => {
   if (!g) return
   const grain = grainOf(req)
 
+  /*
+   * Which production sources this request is really asking for.
+   *
+   * The intersection of what it asked for and what the account may see, so a
+   * page grant narrows the extra rows exactly as it narrows the real ones - one
+   * rule, applied in both places. Null when no source is pinned at all, which is
+   * Stock Article, and which is how those rows are kept off that page.
+   */
+  const asked = g.parts[0]?.f?.prodSources
+  const permittedSources = allowedProdSources(req.user)
+  const sourcesAsked = asked?.length
+    ? permittedSources
+      ? asked.map(String).filter((v) => permittedSources.includes(v))
+      : asked.map(String)
+    : permittedSources
+
+  /*
+   * Which site-classified articles moved for ANY brand in this window.
+   *
+   * The per-site pages are a list of what each site is responsible for, so an
+   * article must appear whether or not it happened to move in the month on
+   * screen - asked for on 29 Sep 2026, after `Asian Chicken Sauce (PA)` and
+   * others went missing from a narrow window exactly as `BACON ERMG` had.
+   *
+   * The two cases need different handling and that is the whole difficulty:
+   *
+   *   moved for this brand   a row on each brand that received it, carrying
+   *                          real outbound - several brands is correct, because
+   *                          each really did receive some.
+   *   moved for nobody       ONE row, or all nine brands get a blank copy,
+   *                          which is the 8,605-row inflation that was reported
+   *                          within minutes of the first attempt.
+   *
+   * So the union is computed here, once, and the leftovers are handed to a
+   * single brand's pass below. Every call is cached and the fan-out reads the
+   * same entries again, so this costs one set of queries, not two.
+   */
+  const movedAnywhere = new Set()
+  /*
+   * And which brand can actually SAY something about each of them.
+   *
+   * An article that did not move in the window still has six months of site
+   * history behind it, so the rate model has a figure for it - but that figure
+   * is per brand, and so is the outbound beside it. Attaching the row to an
+   * arbitrary brand (the first one) put it where neither lookup could answer,
+   * and every column came out blank. Reported immediately, and fairly: a row
+   * that exists only to show dashes is barely better than no row.
+   *
+   * So the row goes to the brand whose site FORECAST covers the article. That
+   * is the same map `withSiteForecast` reads a few lines below, so a row placed
+   * here is guaranteed to be populated there rather than hoping.
+   */
+  const forecastBy = new Map()
+  if (sourcesAsked && !grain.date && !grain.location) {
+    for (const p of g.parts) {
+      const code = p.brand.chain ?? p.brand.code
+      const [held, fc] = await Promise.all([
+        siteOutboundByArticle(code, p.f).catch(() => null),
+        siteForecastFor(code, p.f).catch(() => null),
+      ])
+      for (const a of held?.keys() ?? []) movedAnywhere.add(a)
+      for (const a of fc?.keys() ?? []) {
+        if (!forecastBy.has(a)) forecastBy.set(a, new Set())
+        forecastBy.get(a).add(p.brand.code)
+      }
+    }
+  }
+  /*
+   * The brand that carries an article nothing can say anything about.
+   *
+   * Only reached when no brand moved it AND no brand forecasts it - a genuinely
+   * dormant line. It still gets one row, because these pages are the list of
+   * what a site is responsible for, and a dormant article is a fact worth
+   * seeing rather than an omission.
+   */
+  const unmovedCarrier = g.parts[0]?.brand?.code ?? null
+
+  /*
+   * Brand destinations only, on Production and Swish Bakery - 30 Sep 2026.
+   *
+   * Those two pages list what a site makes FOR THE BRANDS. An article a site
+   * only ever sends somewhere else - to FM, back to the Central Warehouse, or
+   * to another site - has no brand quantity, so every figure on its row is
+   * blank and it reads as missing data rather than as work done for someone
+   * else.
+   *
+   * The test is evidence, not a name: an article stays if a brand received it
+   * in the window, or if a brand's rate model forecasts it. Only the rows where
+   * neither is true - the `unmovedCarrier` case below - are dropped.
+   *
+   * YELO Factory is deliberately NOT in this set. Every one of its articles
+   * sends 100% of its output to non-brand destinations, so this rule would
+   * empty the page completely; that page has its own all-destination Outbound
+   * for exactly that reason. Unclassified is out of it too - its whole purpose
+   * is to show what no rule has placed yet, and hiding half of that defeats it.
+   */
+  const BRAND_ONLY_SOURCES = new Set(['Central Kitchen / CPU', 'Bakery'])
+  const brandDestinationsOnly =
+    Boolean(sourcesAsked?.length) && sourcesAsked.every((v) => BRAND_ONLY_SOURCES.has(v))
+
   // Once, for every brand, before the fan-out — not once per brand inside it.
   const mtdAll = grain.date ? null : await liveOutboundToDate(g.parts)
 
@@ -2732,6 +2996,69 @@ api.all('/component-level', handle(async (req, res) => {
             return []
           })
 
+    /*
+     * The site-classified articles the recipe explosion never returned.
+     *
+     * Only for a request that pins a production source - the four per-site
+     * pages and the Production page, which is the only caller that sends
+     * `prodSources`. Stock Article never asks, and its population is unchanged.
+     *
+     * Added 29 Sep 2026 after an audit found the per-site pages showing a third
+     * of what the classification places: 324 of 954 for the kitchen, 33 of 107
+     * for the bakery, and 0 of 9 for the Yelo Factory, whose page was therefore
+     * empty. See `siteArticles.js` for the two filters that caused it.
+     *
+     * Skipped at a finer grain for the same reason `extra` is: these rows carry
+     * no date and no branch, so splitting by either would place them arbitrarily.
+     */
+    const siteOnly =
+      grain.date || grain.location || f.items?.length || f.recipeGroups?.length
+        ? []
+        : await siteOnlyRows(new Set(rows.map((r) => String(r['Item No.'] ?? '').trim())), {
+            sources: sourcesAsked,
+            /*
+             * Scoped to what THIS brand received, so an article gets a row on
+             * the brand that has it and not on all nine. Cached and read again
+             * by `withSiteOutbound` a few lines below, so this costs nothing.
+             */
+            hasOutbound: new Set(
+              (await siteOutboundByArticle(brand.chain ?? brand.code, f).catch(() => null))?.keys() ??
+                []
+            ),
+            /*
+             * The articles nothing moved, given to ONE brand's pass so they are
+             * listed once rather than nine times. `movedAnywhere` is the union
+             * computed before the fan; `siteOnlyRows` narrows it to the sites
+             * this request asked for, so a page only ever gains its own.
+             */
+            /*
+             * Marks the rows that reached no brand, so the brand column can be
+             * left alone for them a few lines below.
+             */
+            markUnattributed: (a) => !movedAnywhere.has(a) && !forecastBy.get(a)?.size,
+            alsoInclude: {
+              has: (a) => {
+                // It moved somewhere: that brand's own pass takes it, with real
+                // outbound on the row.
+                if (movedAnywhere.has(a)) return false
+                const who = forecastBy.get(a)
+                // A brand that forecasts it gets the row, so Forecast and Acc%
+                // have something to show.
+                if (who?.size) return who.has(brand.code)
+                /*
+                 * Nobody can say anything: one row, on the carrier - unless
+                 * this page is restricted to brand destinations, where an
+                 * article with no brand evidence at all does not belong.
+                 */
+                if (brandDestinationsOnly) return false
+                return brand.code === unmovedCarrier
+              },
+            },
+          }).catch((err) => {
+            console.warn(`  [site-articles] ${brand.code}: ${String(err.message).slice(0, 90)}`)
+            return []
+          })
+
     const mine = mtdAll?.get(brand.code) ?? null
     /*
      * Stamped here, inside the per-brand fan, because both figures are read
@@ -2740,18 +3067,43 @@ api.all('/component-level', handle(async (req, res) => {
      */
     const withOutbound = await withSiteForecast(
       await withSiteOutbound(
-        await withConsumption([...rows, ...extra], brand, f, grain, mine),
+        await withConsumption([...rows, ...extra, ...siteOnly], brand, f, grain, mine),
         brand,
         f,
-        grain
+        grain,
+        /*
+         * All destinations on the YELO Factory page only - asked for 30 Sep
+         * 2026. Tested on the sources the request actually resolved to, so a
+         * page grant cannot widen it: an account restricted to the factory gets
+         * the factory's rule, and the Production page, which asks for every
+         * site, keeps the brand rule.
+         */
+        sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
       ),
       brand,
       f,
-      grain
+      grain,
+      // Same rule as the Outbound column above, so the pair is comparable.
+      sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
     )
-    // Only stamped when the table is actually split by brand: carrying it
-    // otherwise would make every row look brand-specific after the merge.
-    return grain.brand ? withOutbound.map((r) => ({ ...r, CHAINID: brand.code })) : withOutbound
+    /*
+     * Only stamped when the table is actually split by brand: carrying it
+     * otherwise would make every row look brand-specific after the merge.
+     *
+     * And never on a row that reached no brand. Those are the articles a site
+     * issued somewhere that is not a brand - to FM, back to the warehouse, or
+     * to another site - and they are put on one brand's pass purely so they
+     * appear once. Stamping that brand claimed it had received them:
+     * `BBT BEEF FILLING DYNAMITE (PA)` went from the Centeral Kitchen to SWISH
+     * BAKERY and the page said BBT, with every figure blank beside it. Reported
+     * 29 Sep 2026. The article belongs to the SITE, which is the page it is on;
+     * the brand column has nothing true to say and now says nothing.
+     */
+    return grain.brand
+      ? withOutbound.map((r) =>
+          r.__unattributed ? r : { ...r, CHAINID: brand.code }
+        )
+      : withOutbound
   })
   const window = g.parts[0].f
   // One local query per brand, and the answer is a few dozen numbers.

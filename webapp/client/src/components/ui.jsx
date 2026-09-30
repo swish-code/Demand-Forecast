@@ -346,9 +346,23 @@ export function MetricCard({
 export function PerfCard({ title = 'Performance', items, loading, height = 208, calc }) {
   if (loading) return <div className="perf skel" style={{ minHeight: height, border: 'none' }} aria-hidden="true" />
   return (
-    <div className="perf" data-calc={calc || undefined}>
+    /*
+     * A card holding ONE figure is laid out differently from one holding two.
+     *
+     * `.perf` stacks from the top, which is right when two items and their
+     * meters fill it. Since the Variance half was removed on 30 Sep 2026 a
+     * single figure was left hugging the top of a card stretched to the height
+     * of the metric cards beside it, with the empty half still showing.
+     *
+     * `--single` centres it and `--one` stops the grid reserving a second
+     * track, so the figure sits in the middle of the card and uses its width.
+     */
+    <div
+      className={`perf${items.length === 1 ? ' perf--single' : ''}`}
+      data-calc={calc || undefined}
+    >
       <span className="perf__title">{title}</span>
-      <div className="perf__grid">
+      <div className={`perf__grid${items.length === 1 ? ' perf__grid--one' : ''}`}>
         {items.map((it) => (
           <div className="perf__item" key={it.label}>
             <span className="metric__label">{it.label}</span>
@@ -363,9 +377,19 @@ export function PerfCard({ title = 'Performance', items, loading, height = 208, 
 }
 
 /** Two input cards, an arrow, then the card derived from them. */
-export function MetricFlow({ inputs, children }) {
+/**
+ * Inputs on the left, an arrow, and what they produce on the right.
+ *
+ * `compact` narrows the right-hand track. It was sized for a card holding TWO
+ * figures side by side; since the Variance half was removed on 30 Sep 2026 the
+ * Accuracy sits alone and the card stretched to nearly half the row, a lone
+ * percentage in a box wider than the two metric cards feeding it. The reader's
+ * eye reads width as importance, and the widest thing on the row was the
+ * emptiest.
+ */
+export function MetricFlow({ inputs, children, compact = false }) {
   return (
-    <div className="flow">
+    <div className={`flow${compact ? ' flow--compact' : ''}`}>
       <div className="flow__inputs">{inputs}</div>
       <span className="flow__arrow" aria-hidden="true">
         →

@@ -17,7 +17,7 @@ import {
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { IconDownload } from '../components/Icons.jsx'
-import { ACCURACY_TARGET, varianceState, accuracyState } from './ForecastSummary.jsx'
+import { ACCURACY_TARGET, accuracyState } from './ForecastSummary.jsx'
 import { isFutureWindow } from '../window.js'
 
 const COLUMNS = [
@@ -248,7 +248,6 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
 
   const actual = kpis.Actual_Qty ?? 0
   const forecast = kpis.Forecast_Qty ?? 0
-  const variance = kpis.Variance_Pct ?? 0
   /*
    * The Accuracy card, volume weighted across products.
    *
@@ -284,6 +283,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
       <FmNotice />
 
       <MetricFlow
+        compact
         inputs={
           <>
             {!future && (
@@ -320,12 +320,13 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
               foot: 'Nothing has sold yet, so there is nothing to compare',
             },
           ] : [
-            {
-              label: 'Variance',
-              state: varianceState(variance),
-              value: fmtSignedPct(variance),
-              foot: `${fmtInt(kpis.Variance_Qty)} units vs forecast`,
-            },
+            /*
+              * Variance removed on 30 Sep 2026, on request - see the note on
+              * the Overview's Performance card. It could not be reconciled
+              * with the Accuracy beside it, because a net variance cancels
+              * where an accuracy does not. The Var. qty and Var. % columns in
+              * the table below are untouched.
+              */
             {
               label: 'Accuracy',
               state: accuracy === null ? 'flat' : accuracyState(accuracy),
