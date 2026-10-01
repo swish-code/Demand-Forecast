@@ -3568,7 +3568,24 @@ export function ComponentLevel({
         (c) =>
           c.key !== 'Site_Outbound_Qty' &&
           c.key !== 'Site_Forecast_Qty' &&
-          c.key !== 'Site_Fc_Acc'
+          c.key !== 'Site_Fc_Acc' &&
+          /*
+           * `Site_Acc` goes too, from 1 Oct 2026 on request.
+           *
+           * The note below records why it was left: it reached this page only
+           * because the filter dropped the outbound QUANTITY and not the ratio
+           * built on it, so the page showed a figure whose numerator was
+           * hidden - and every row of it read as a dash, because this is the
+           * bought half and no site issues these articles. Removing it was
+           * already the right fix; the standing instruction not to change this
+           * page is what held it back, and that instruction has now been
+           * lifted for this column.
+           *
+           * The production pages are unaffected: this whole branch runs only
+           * when `noWarehouse` is false, and those pages place `Site_Acc` in
+           * their own Product mix run above.
+           */
+          c.key !== 'Site_Acc'
       )
 
       /*
@@ -3582,9 +3599,6 @@ export function ComponentLevel({
        * the old ratio here, the fold does not re-derive it, and the totals cell
        * stays empty rather than gaining the new weighted score.
        */
-      list = list.map((c) =>
-        c.key === 'Site_Acc' ? { ...c, total: undefined, renderTotal: undefined } : c
-      )
     }
     return list
   }, [future, stockDetail, noWarehouse])

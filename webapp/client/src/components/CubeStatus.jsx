@@ -65,7 +65,14 @@ export function CubeStatus() {
       setNote('Rebuilding. It reads every brand from Power BI and takes a while — this panel follows it.')
       setData((d) => (d ? { ...d, running: true } : d))
     } catch (err) {
-      setNote(err.message)
+      // Same reading as the outbound button below: 409 is "already busy", not
+      // a failure.
+      if (err?.status === 409) {
+        setNote('A refresh is already running — this panel will follow it to the end.')
+        setData((d) => (d ? { ...d, running: true } : d))
+      } else {
+        setNote(err?.message ?? 'Could not start the rebuild.')
+      }
     } finally {
       setStarting(false)
     }
@@ -93,9 +100,21 @@ export function CubeStatus() {
       )
       setData((d) => (d ? { ...d, running: true } : d))
     } catch (err) {
-      // A 409 means another extract holds the copy; anything else is the real
-      // failure, and both are worth showing rather than swallowing.
-      setNote(err.message)
+      /*
+       * A 409 is not a fault.
+       *
+       * It means another extract already holds the copy - the nightly chain, a
+       * rebuild, or a second click that beat the poll. Reported as a plain
+       * statement, and the panel is told it is running so the buttons disable
+       * and the poll picks the job up. Anything else is a real failure and is
+       * shown as one.
+       */
+      if (err?.status === 409) {
+        setNote('A refresh is already running — this panel will follow it to the end.')
+        setData((d) => (d ? { ...d, running: true } : d))
+      } else {
+        setNote(err?.message ?? 'Could not start the refresh.')
+      }
     } finally {
       setStartingOut(false)
     }

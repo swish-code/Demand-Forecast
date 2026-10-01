@@ -147,6 +147,16 @@ async function request(method, path, body, { signal } = {}) {
       : UNREACHABLE.has(res.status)
         ? unreachable(`${UNREACHABLE_TEXT} (${res.status})`)
         : new Error(`Request failed (${res.status})`)
+    /*
+     * The status travels with the error, from 1 Oct 2026.
+     *
+     * Without it every caller sees only a message, so a refusal that is part of
+     * normal operation - a 409 meaning "that job is already running" - is
+     * indistinguishable from a server fault and gets shown as one. A caller
+     * that wants to treat a particular status as information now can; nothing
+     * that ignores it behaves any differently.
+     */
+    err.status = res.status
     logFailure({ method, path, status: res.status, error: err, body, ms: Date.now() - started })
     throw err
   }
