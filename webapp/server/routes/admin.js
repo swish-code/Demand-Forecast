@@ -37,7 +37,7 @@ import { openAlerts, recentlyResolved, resolve, resolveAll, SOURCES } from '../i
 import { reviewModels } from '../insights/modelReview.js'
 import { sendDailyReports, sendLog, sendSummary } from '../mail/runner.js'
 import { buildForRecipient } from '../mail/reports.js'
-import { cubeState, runBackfill } from '../cube/schedule.js'
+import { cubeState, runBackfill, runOutbound } from '../cube/schedule.js'
 import { refreshSalesValues } from '../cube/extract.js'
 import {
   REPORTS,
@@ -1058,6 +1058,39 @@ admin.post(
     // Deliberately not awaited: it walks every brand one branch at a time and
     // takes minutes. The page polls /cube to watch it fill.
     runBackfill()
+    res.json({ started: true })
+  })
+)
+
+/**
+ * Fill the warehouse outbound history, on demand.
+ *
+ * `cube_outbound_monthly` is what the warehouse constant measures its rate
+ * over, and until 1 Oct 2026 the only thing that filled it was the nightly
+ * chain at `CUBE_BACKFILL_HOUR`. On a newly set-up deployment that left WH
+ * forecast and WH ACC% blank on every row until two in the morning, with
+ * nothing on screen saying why: outbound in the window comes from
+ * `cube_outbound_daily` and keeps working, so it reads as one broken column
+ * rather than one unfilled table.
+ *
+ * Admin only, by the guard at the top of this router - not opened to the stock
+ * departments like the Sales Plan is, because this one WRITES to the copy every
+ * page reads.
+ *
+ * Started, not awaited, exactly as the backfill above: it reads a year of
+ * outbound for every brand and takes minutes, which no request should hold
+ * open. The panel polls /cube and reports what happened.
+ *
+ * Nothing calls this on its own. It is not on the hourly task, not on startup,
+ * and not reached by any page - the nightly chain still runs it as before.
+ */
+admin.post(
+  '/cube/outbound',
+  handle(async (req, res) => {
+    const state = await cubeState()
+    if (state.running) return res.status(409).json({ error: 'A refresh is already running' })
+    audit(req.user.id, 'cube.outbound', null, null)
+    runOutbound()
     res.json({ started: true })
   })
 )

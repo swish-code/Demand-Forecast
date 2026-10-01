@@ -325,6 +325,9 @@ export const api = {
     cube: () => get('/cube'),
     // Deliberately the admin route, not the read-only one: this starts work.
     rebuildCube: () => post('/admin/cube/backfill'),
+    // Fills cube_outbound_monthly, which the warehouse forecast is measured over.
+    // Started by an admin only; nothing calls it automatically.
+    refreshOutbound: () => post('/admin/cube/outbound'),
     emailTransport: () => get('/admin/email/transport'),
     connectMailbox: () => get('/admin/email/mailbox/connect'),
     disconnectMailbox: () => post('/admin/email/mailbox/disconnect'),

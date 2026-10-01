@@ -25,6 +25,9 @@ export function CubeStatus() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [starting, setStarting] = useState(false)
+  // Separate from `starting`, so one button saying "Starting…" cannot make the
+  // other look busy when it is not.
+  const [startingOut, setStartingOut] = useState(false)
   const [note, setNote] = useState(null)
 
   useEffect(() => {
@@ -68,6 +71,36 @@ export function CubeStatus() {
     }
   }
 
+  /*
+   * Filling the warehouse outbound history, on demand.
+   *
+   * `cube_outbound_monthly` is what the warehouse constant measures its rate
+   * over, and only the nightly chain fills it. On a newly set-up deployment
+   * that leaves WH forecast and WH ACC% blank on every row until two in the
+   * morning - outbound in the window comes from a different table and keeps
+   * working, so it reads as a broken column rather than an unfilled one.
+   *
+   * Started rather than awaited, like the rebuild above: it reads a year of
+   * outbound for every brand. The panel polls and says what happened.
+   */
+  const fillOutbound = async () => {
+    setStartingOut(true)
+    setNote(null)
+    try {
+      await api.admin.refreshOutbound()
+      setNote(
+        'Reading warehouse outbound for every brand. This is what WH forecast and WH ACC% are measured over — they fill in once it finishes. This panel follows it.'
+      )
+      setData((d) => (d ? { ...d, running: true } : d))
+    } catch (err) {
+      // A 409 means another extract holds the copy; anything else is the real
+      // failure, and both are worth showing rather than swallowing.
+      setNote(err.message)
+    } finally {
+      setStartingOut(false)
+    }
+  }
+
   const brands = data?.brands ?? []
 
   return (
@@ -75,15 +108,30 @@ export function CubeStatus() {
       title="Local copy of the forecast"
       count={data ? `${fmtInt(data.rows)} rows` : undefined}
       tools={
-        <button
-          type="button"
-          className="btn"
-          disabled={starting || data?.running}
-          onClick={rebuild}
-          title="Read every brand from Power BI again. Use this after changing the semantic model."
-        >
-          {data?.running ? 'Rebuilding…' : starting ? 'Starting…' : 'Rebuild from Power BI'}
-        </button>
+        <>
+          <button
+            type="button"
+            className="btn"
+            disabled={startingOut || starting || data?.running}
+            onClick={fillOutbound}
+            title="Read the warehouse's outbound history for every brand. This is what WH forecast and WH ACC% are measured over; on a new deployment they stay blank until it has run."
+          >
+            {data?.running
+              ? 'Working…'
+              : startingOut
+                ? 'Starting…'
+                : 'Fill warehouse outbound'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={starting || startingOut || data?.running}
+            onClick={rebuild}
+            title="Read every brand from Power BI again. Use this after changing the semantic model."
+          >
+            {data?.running ? 'Rebuilding…' : starting ? 'Starting…' : 'Rebuild from Power BI'}
+          </button>
+        </>
       }
       sub={
         error
