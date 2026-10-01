@@ -15,6 +15,12 @@ import {
   IconWarehouse,
   IconInsight,
   IconInfo,
+  IconKitchen,
+  IconBakery,
+  IconFactory,
+  IconUnknown,
+  IconGuide,
+  IconShield,
 } from './components/Icons.jsx'
 /*
  * The pages are fetched when they are opened, not when the app starts.
@@ -142,6 +148,16 @@ const PRODUCTION_PAGE_ON = false
  */
 const PRODUCTION_PAGES = new Set(['madeinhouse', 'src-ck', 'src-bakery', 'src-factory', 'src-none'])
 
+/*
+ * Pages whose slicers sit on the page name's own line.
+ *
+ * Asked for on 1 Oct 2026, and scoped to these two by request. It is also the
+ * only place it works: both offer four slicers, where Stock Article offers
+ * eight and the production pages six. A page added here that carries more will
+ * push its own name off the edge.
+ */
+const INLINE_SLICER_PAGES = new Set(['summary', 'product'])
+
 const PAGES = [
   {
     id: 'summary',
@@ -188,7 +204,15 @@ const PAGES = [
      * value already forced is a control that does nothing.
      */
     lockNodeTypes: ['RAW'],
-    slicers: ['location', 'product', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
+    /*
+     * `product` was removed on 1 Oct 2026, on request.
+     *
+     * The filter itself still works everywhere it is offered - this page just
+     * stops offering it. Anything already set on it is dropped for this page by
+     * the same narrowing that keeps every other page's filters to its own
+     * slicers, so a product chosen on Products cannot silently filter this one.
+     */
+    slicers: ['location', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
   },
   ...(PRODUCTION_PAGE_ON
     ? [
@@ -302,7 +326,7 @@ const PAGES = [
       label: 'Production',
       kicker: 'By production source',
       blurb: 'Prepared articles and prep steps the central kitchen produces',
-      Icon: IconComponent,
+      Icon: IconKitchen,
       Component: ComponentLevel,
       /*
        * The same page as Production, pinned to one production source.
@@ -350,7 +374,7 @@ const PAGES = [
       label: 'Swish Bakery',
       kicker: 'By production source',
       blurb: 'Prepared articles and prep steps Swish Bakery produces',
-      Icon: IconComponent,
+      Icon: IconBakery,
       Component: ComponentLevel,
       /*
        * The same page as Production, pinned to one production source.
@@ -387,7 +411,7 @@ const PAGES = [
       label: 'YELO Factory',
       kicker: 'By production source',
       blurb: 'Articles the Yelo Factory produces and issues',
-      Icon: IconComponent,
+      Icon: IconFactory,
       Component: ComponentLevel,
       /*
        * The same page as Production, pinned to one production source.
@@ -423,7 +447,7 @@ const PAGES = [
       label: 'Unclassified',
       kicker: 'By production source',
       blurb: 'Articles with no production-site movement to classify them by',
-      Icon: IconComponent,
+      Icon: IconUnknown,
       Component: ComponentLevel,
       /*
        * The same page as Production, pinned to one production source.
@@ -486,7 +510,7 @@ const PAGES = [
     label: 'Guide',
     kicker: 'How to use this page',
     blurb: 'A step-by-step walkthrough of Stock Article',
-    Icon: IconSummary,
+    Icon: IconGuide,
     Component: Guide,
     // Off the rail on purpose: it is one click from the Overview button, and a
     // permanent entry would sit above the reports competing with them.
@@ -510,7 +534,7 @@ const PAGES = [
     label: 'Admin',
     kicker: 'Users and access',
     blurb: 'Accounts, alerts, the morning digest and the daily reports',
-    Icon: IconUsers,
+    Icon: IconShield,
     Component: Admin,
     // Not a report page: no brand, no slicers, and only admins ever see the tab.
     slicers: [],
@@ -1123,16 +1147,96 @@ export default function App({ session, onSignedOut }) {
       />
 
       <div className="main">
-        {/* Two fixed rows: what this page is, then what it is filtered to.
-            Both stay put while the content scrolls, so the slicers are always
-            reachable and the page never loses its name. */}
-        <header className="pagehead">
+        {/*
+          * One header row, from 30 Sep 2026: the page name, then its slicers,
+          * then the date and the tools - as the reference arranges it.
+          *
+          * They were two stacked rows until now. The slicers moved up beside
+          * the name rather than under it, and the row wraps when a page carries
+          * more of them than fit: Stock Article has six where the reference has
+          * four, so wrapping is the behaviour that keeps every page working
+          * rather than only the narrow ones.
+          */}
+        {/*
+          * `--inline` puts the slicers on the page name's own line.
+          *
+          * Only where they fit. Overview and Products offer four slicers and
+          * sit comfortably beside the title; Stock Article offers eight, and
+          * on that page the same layout would squeeze the page name off the
+          * edge - which is why this is a per-page modifier rather than the
+          * default. Every other page keeps the tray on its own line.
+          */}
+        <header
+          className={`pagehead pagehead--merged${
+            INLINE_SLICER_PAGES.has(page.id) ? ' pagehead--inline' : ''
+          }`}
+        >
+          {/*
+            * The page name alone, from 1 Oct 2026.
+            *
+            * `page.blurb` is still what the rail's buttons say on hover, and it
+            * is still read by the Admin page's own page list - it has stopped
+            * being printed under the heading, not stopped existing.
+            */}
           <div className="topbar__titles">
             <h1>{page.label}</h1>
-            <p>{page.blurb}</p>
           </div>
 
+          {page.slicers.length > 0 && (
+            <div className="topbar">
+              <FilterBar
+                show={page.slicers}
+                options={shownOptions}
+                filters={scoped}
+                setFilters={setFilters}
+                loading={slicers.loading}
+                brands={brands}
+                selectedBrands={brandCodes}
+                onBrandChange={setBrandCodes}
+                onNeedOptions={noteListOpened}
+              />
+            </div>
+          )}
           <div className="topbar__actions">
+            {/*
+              * The page's walkthrough, beside the other controls that act on
+              * the page rather than filter it. It rendered inside the grey
+              * slicer tray until 1 Oct 2026 and wrapped onto a second line of
+              * it, which cost a whole tray row for one button. Same button,
+              * same conditions - only its position changed.
+              */}
+            {page.id === 'component' ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => drill('guide', {})}
+                title="A step-by-step walkthrough of this page"
+              >
+                <IconInfo size={13} />
+                How to use this page
+              </button>
+            ) : PRODUCTION_PAGES.has(page.id) ? (
+              /*
+                * The production pages open a PANEL rather than navigating.
+                *
+                * Stock Article's walkthrough is its own page, `guide`, and
+                * these pages cannot use it: from 29 Sep 2026 the three
+                * making departments hold one page each and nothing else, so
+                * `drill('guide')` would send them to a page they may not
+                * open - the app falls back to the first page it can and the
+                * button looks broken rather than forbidden. A panel is part
+                * of the page and needs no grant.
+                */
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setGuideFor(page.label)}
+                title="What every number on this page means"
+              >
+                <IconInfo size={13} />
+                How to use this page
+              </button>
+            ) : null}
             {today && <span className="topbar__date">{longDate(today)}</span>}
             {/*
               * Administrators only, because it is a troubleshooting tool rather
@@ -1153,56 +1257,6 @@ export default function App({ session, onSignedOut }) {
             )}
           </div>
         </header>
-
-        {page.slicers.length > 0 && (
-          <div className="topbar">
-            <FilterBar
-              show={page.slicers}
-              options={shownOptions}
-              filters={scoped}
-              setFilters={setFilters}
-              loading={slicers.loading}
-              brands={brands}
-              selectedBrands={brandCodes}
-              onBrandChange={setBrandCodes}
-              onNeedOptions={noteListOpened}
-              tools={
-                page.id === 'component' ? (
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => drill('guide', {})}
-                    title="A step-by-step walkthrough of this page"
-                  >
-                    <IconInfo size={13} />
-                    How to use this page
-                  </button>
-                ) : PRODUCTION_PAGES.has(page.id) ? (
-                  /*
-                    * The production pages open a PANEL rather than navigating.
-                    *
-                    * Stock Article's walkthrough is its own page, `guide`, and
-                    * these pages cannot use it: from 29 Sep 2026 the three
-                    * making departments hold one page each and nothing else, so
-                    * `drill('guide')` would send them to a page they may not
-                    * open - the app falls back to the first page it can and the
-                    * button looks broken rather than forbidden. A panel is part
-                    * of the page and needs no grant.
-                    */
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => setGuideFor(page.label)}
-                    title="What every number on this page means"
-                  >
-                    <IconInfo size={13} />
-                    How to use this page
-                  </button>
-                ) : null
-              }
-            />
-          </div>
-        )}
 
         <div className="scroll" ref={pageRef}>
           {mailboxResult && (

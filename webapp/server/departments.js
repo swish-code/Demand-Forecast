@@ -123,8 +123,27 @@ export const DEPARTMENT_PAGES = {
   Warehouse: ['component'],
   // Warehouse Insights is the same data as Stock Article, read from the
   // warehouse's side, so anybody trusted with one is trusted with the other.
-  Procurement: ['component', 'madeinhouse', 'warehouse', 'guide'],
-  'Supply Chain': ['component', 'madeinhouse', 'warehouse', 'guide'],
+  /*
+   * Stock Article and Warehouse Insights, and nothing else - 1 Oct 2026.
+   *
+   * `madeinhouse` was dropped: it is the made-in-house half, which belongs to
+   * the kitchens that make it, where procurement buys the bought half. `guide`
+   * is no longer listed because `withGuide` adds it wherever `component` is
+   * granted - listing it here as well only invited the two to drift apart.
+   */
+  /*
+   * The three stock departments hold the same page - 1 Oct 2026.
+   *
+   * Warehouse, Procurement and Supply Chain buy, move and account for the same
+   * bought half, and were reading it through three different grants: Warehouse
+   * the complete page, Procurement that plus Warehouse Insights, Supply Chain
+   * those plus the made-in-house half. Three people with the same job saw three
+   * different lists, and only one of them saw what an administrator saw.
+   *
+   * `guide` is added by `withGuide`, so it is not listed.
+   */
+  Procurement: ['component'],
+  'Supply Chain': ['component'],
   /*
    * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
    *
@@ -208,7 +227,26 @@ export const DEPARTMENT_PAGES = {
  * here that holds several - the page is doing all the restricting, so a
  * department with a broad page list would end up with broad access.
  */
-export const PAGE_ONLY_DEPARTMENTS = ['Warehouse', 'Production', 'Bakery', 'YELO Factory']
+/*
+ * Procurement and Supply Chain joined on 1 Oct 2026, when both were narrowed to
+ * the single page Warehouse already held. The warning above is the reason they
+ * could not be added before and the reason they can now: the rule is safe only
+ * while a department here holds ONE page, and all three now hold Stock Article
+ * and nothing else.
+ *
+ * The Admin page reads this same list to decide which departments hide the
+ * per-user Pages, Brands and Locations pickers, so those three are consistent
+ * there too - and those grants were being ignored for a page-only account
+ * anyway, so offering them was offering a control that did nothing.
+ */
+export const PAGE_ONLY_DEPARTMENTS = [
+  'Warehouse',
+  'Procurement',
+  'Supply Chain',
+  'Production',
+  'Bakery',
+  'YELO Factory',
+]
 
 const PAGE_ONLY = new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
 
@@ -219,6 +257,13 @@ const PAGE_ONLY = new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
  * one of these and nothing else has already been narrowed by the page itself.
  * `guide` is ignored because it is Stock Article's walkthrough, added
  * automatically beside it and never a restriction of its own.
+ */
+/*
+ * `warehouse` was briefly here on 1 Oct 2026, to let Procurement see the whole
+ * page while it held Stock Article AND Warehouse Insights. It was taken out
+ * again the same day when the three stock departments were narrowed to Stock
+ * Article alone: no department holds Warehouse Insights now, so listing it here
+ * would only widen an explicit grant nobody has.
  */
 const PAGE_ONLY_PAGES = new Set(['component', 'src-ck', 'src-bakery', 'src-factory'])
 
@@ -334,7 +379,21 @@ export const seesRecipeDetail = (user) =>
  * the whole Replenishment Planning table, all of which hang on this list. The
  * tab was there and most of the page was not, which reads as the page missing.
  */
-export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Supply Chain', 'Management']
+/*
+ * Procurement added 1 Oct 2026, with the three stock departments aligned.
+ *
+ * This list is what the page actually SHOWS, as distinct from who may open it:
+ * the Stock column group, Store SOH, Pending PO and the whole Replenishment
+ * Planning table hang on it. Procurement held the page without it, so it got
+ * the same tab as Warehouse and a visibly smaller page - which is the symptom
+ * recorded for Management above, and the reason the two lists are easy to
+ * confuse.
+ *
+ * It is a widening, and it follows from the three being given the same access.
+ * If Procurement should not see supplier names, pending orders and order
+ * deadlines, this is the line to take it off again - not the page grant.
+ */
+export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Procurement', 'Supply Chain', 'Management']
 
 const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
 

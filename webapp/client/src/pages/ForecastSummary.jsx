@@ -410,7 +410,16 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
   const belowTarget = locationRows.filter((r) => r.Accuracy !== null && r.Accuracy < ACCURACY_FLOOR).length
 
   return (
-    <>
+    /*
+     * Everything the Overview renders lives under this one class.
+     *
+     * The 30 Sep 2026 restyle is scoped to it - every rule that follows is
+     * written as `.ovr ...`, so no other page can inherit it through the
+     * shared components this page happens to use. `.scroll` is a flex column
+     * with a gap and this div is now its only child, so it has to reproduce
+     * that column itself or every section on the page would close up.
+     */
+    <div className="ovr">
       <FmNotice />
 
       {/*
@@ -715,6 +724,6 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           </Panel>
       </div>
 
-    </>
+    </div>
   )
 }

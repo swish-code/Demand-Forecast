@@ -1023,6 +1023,46 @@ const COLUMNS = [
    * warehouse disagree about reality, which is a data question rather than a
    * forecasting one.
    */
+  /*
+   * (Actual qty + Store SOH) − Outbound. Asked for on 1 Oct 2026.
+   *
+   * Actual variance beside it asks whether the warehouse issued what the sales
+   * imply. This asks the same question with what the shops were already
+   * holding counted on the demand side: stock already in the shops is demand
+   * that has been met without the warehouse shipping again for it, so an
+   * article can look under-shipped on Actual variance and be perfectly
+   * supplied once its shelf stock is counted.
+   *
+   * Scored per article, like Store SOH and Outbound either side of it, so it
+   * appears once per article rather than on each of its recipe lines.
+   */
+  {
+    key: 'New_Variance',
+    label: 'New variance',
+    group: 'variance',
+    autoWidth: true,
+    num: true,
+    hint:
+      'Actual qty plus Store SOH, minus Outbound. Counts the stock already ' +
+      'sitting in the shops as demand that has been met, so it says whether ' +
+      'the warehouse shipped enough once existing shelf stock is taken into ' +
+      'account. Positive means more was needed than the warehouse issued.',
+    total: 'sum',
+    renderTotal: fmtVariance,
+    render: (v) =>
+      v === null || v === undefined ? (
+        <span
+          className="muted"
+          title="Needs an outbound record for this article in this window. Shown once per article, on the row that carries its warehouse figures."
+        >
+          –
+        </span>
+      ) : (
+        <span title="(Actual qty + Store SOH) − Outbound. Positive means the sales that happened, plus what the shops already held, come to more than the warehouse issued.">
+          {fmtVariance(v)}
+        </span>
+      ),
+  },
   {
     key: 'Actual_Accuracy',
     label: 'Actual ACC%',
@@ -1426,6 +1466,7 @@ const COLUMN_ORDER = [
   // both the predicted and the measured side.
   'Forecast_Variance',
   'Actual_Variance',
+  'New_Variance',
   'Actual_Accuracy',
   // What the warehouse had at each end of the window, and how long it lasts.
   'WH_Opening_SOH',
@@ -1541,6 +1582,7 @@ const NO_WAREHOUSE_COLUMNS = new Set([
   'Open_PO_Value',
   'Forecast_Variance',
   'Actual_Variance',
+  'New_Variance',
   'Actual_Accuracy',
   'Status',
   'Category',
@@ -2333,6 +2375,30 @@ export function ComponentLevel({
          * and the forecast is not marked down for it. See `whAccuracy.js` for
          * what this does to the figure and the argument against it.
          */
+        /*
+         * New Variance = (Actual qty + Store SOH) − Outbound. Asked for on
+         * 1 Oct 2026.
+         *
+         * Worked out PER ARTICLE and stamped on the one row that carries the
+         * warehouse figures, because its three inputs do not share a row.
+         * Actual qty is per recipe line - an article used by eleven products
+         * has eleven of them - while Store SOH and Outbound are anchored once
+         * per article. Computed row by row it would have read one recipe line's
+         * actual against the whole article's outbound, which is the mistake
+         * that made Actual ACC% print 387.7% in September.
+         *
+         * `held.implied` is that per-article sum of Actual qty and
+         * `held.consumed` the per-article outbound, which are the same figures
+         * the Actual qty and Outbound columns total to.
+         *
+         * Blank rather than zero where the article has no outbound record at
+         * all: "nothing shipped here" and "this came out at nought" are
+         * different answers, and only the second is a variance.
+         */
+        New_Variance:
+          carriesWarehouse && held?.measured
+            ? (held.implied ?? 0) + (Number(r.Store_SOH) || 0) - held.consumed
+            : null,
         WH_Accuracy: carriesWarehouse
           ? whAccuracy(score(held?.wh ?? null), held?.wh ?? null, r.Store_SOH)
           : null,
@@ -3541,7 +3607,12 @@ export function ComponentLevel({
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
   return (
-    <>
+    /*
+     * The Stock Article restyle is scoped to this class, exactly as the
+     * Overview's is to `.ovr`. `.scroll` is a spaced flex column and this
+     * div becomes its only child, so the class reproduces that column.
+     */
+    <div className="cmp">
       {/*
         * Said on the page rather than in a handover note, because this is the
         * page people order from and the gap is not visible in the figures.
@@ -3556,24 +3627,13 @@ export function ComponentLevel({
 
 
       <div className="metrics">
-        {noWarehouse ? null : (
-          <MetricCard
-            label="Outbound"
-            calc="outbound"
-            hint="What actually left the Central Warehouse over these dates. Measured, not forecast."
-            accent="green"
-            progress={summary.forecast ? Math.min(1, summary.consumedCovered / summary.forecast) : 0}
-            loading={busy}
-            value={summary.outboundArticles ? fmtInt(summary.consumed) : '–'}
-            foot={
-              summary.outboundArticles
-                ? `Left the warehouse, ${fmtInt(summary.outboundArticles)} article${
-                    summary.outboundArticles === 1 ? '' : 's'
-                  } measured`
-                : 'No transfers matched this view'
-            }
-          />
-        )}
+        {/*
+          * The Outbound card was removed on 30 Sep 2026, on request.
+          *
+          * The figure itself is untouched - `summary.consumed` still feeds the
+          * Outbound column, the Outbound vs forecast card beside it and the
+          * accuracy scoring. Only this summary tile is gone.
+          */}
         {/*
           * No accuracy on a window that has not happened.
           *
@@ -4131,6 +4191,6 @@ export function ComponentLevel({
           onClose={() => setUsage(null)}
         />
       )}
-    </>
+    </div>
   )
 }

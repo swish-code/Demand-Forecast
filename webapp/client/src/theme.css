@@ -9204,3 +9204,1388 @@ table.dt tfoot td.dt__frz { z-index: 3; }
   color: var(--text-muted);
 }
 .usage__namerate em { font-style: normal; margin-left: 4px; color: var(--text-faint); }
+
+/* ======================================================================== */
+/* Overview page restyle, 30 Sep 2026.                                       */
+/*                                                                           */
+/* Scoped to `.ovr` throughout. The previous attempt worked through the       */
+/* design tokens, which is why every page changed; this one cannot reach      */
+/* past the Overview even though the components it restyles are shared.       */
+/*                                                                           */
+/* What is taken from the reference is its TREATMENT - how a card is          */
+/* bordered and padded, how a label relates to the figure under it, how a     */
+/* panel announces itself, how a table header recedes. The cards, metrics,    */
+/* charts and tables are this app's own and are untouched.                    */
+/* ======================================================================== */
+
+/* `.scroll` lays its children out as a spaced column and this is now its only
+   child, so the column is reproduced here. */
+.ovr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+/* ---- cards ------------------------------------------------------------- */
+
+/*
+ * One card treatment for every card on the page: white, a hairline, a soft
+ * radius, no shadow, and noticeably more room inside than out. The reference
+ * separates a card from the page by value alone, which is why nothing here
+ * casts a shadow.
+ */
+.ovr .metric,
+.ovr .perf,
+.ovr .panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.ovr .metric {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s4) var(--s4) var(--s3);
+  gap: 0;
+  min-width: 0;
+}
+
+/*
+ * The label/figure/caption ladder, which is the reference's most repeated
+ * idea: a small uppercase label that recedes, a figure that dominates, and a
+ * quiet line underneath saying what the figure is of.
+ */
+.ovr .metric__label {
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ovr .metric__head {
+  margin-bottom: var(--s2);
+}
+
+.ovr .metric__value {
+  font-size: 29px;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ovr .metric__value--text {
+  font-size: 15px;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+/*
+ * Order, not markup: the DOM is label, value, caption, bar, and the reference
+ * puts the bar directly under the figure it qualifies. Flex `order` moves it
+ * without touching the component every other page shares.
+ */
+.ovr .metric__bar {
+  order: 1;
+  margin-top: var(--s3);
+  height: 4px;
+  border-radius: var(--r-round);
+  overflow: hidden;
+}
+
+/*
+ * A hairline above the caption, as the reference rules off a card's footer
+ * from the figure above it. It is what stops the caption reading as part of
+ * the number.
+ */
+.ovr .metric__foot {
+  order: 2;
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- the performance card ---------------------------------------------- */
+
+.ovr .perf {
+  padding: var(--s4);
+}
+
+.ovr .perf__title {
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---- panels ------------------------------------------------------------ */
+
+/*
+ * A heading that carries weight and a subtitle that does not compete with it.
+ * The reference states what a panel shows in a muted line under its title
+ * rather than in the title itself, which keeps titles short and scannable.
+ */
+.ovr .panel__head {
+  padding: var(--s4) var(--s4) var(--s3);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ovr .panel__titles h2 {
+  font-size: 15px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.01em;
+}
+
+.ovr .panel__titles p {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* A count beside a title is a quiet chip in the reference, not a loud badge. */
+.ovr .panel__count {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: var(--w-bold);
+  color: var(--text-muted);
+}
+
+/* ---- tables ------------------------------------------------------------ */
+
+/*
+ * Headers recede, values carry. Uppercase and letter-spaced at a small size
+ * so a column header reads as a label rather than as another row of data -
+ * the treatment the reference gives every table on it.
+ */
+.ovr table.dt thead th {
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding-top: var(--s3);
+  padding-bottom: var(--s3);
+}
+
+.ovr table.dt tbody td {
+  border-bottom: 1px solid var(--line-soft);
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.ovr table.dt tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ---- the metric row ---------------------------------------------------- */
+
+/* A little more air between the inputs and the card they feed, so the row
+   reads as two groups rather than five equal boxes. */
+.ovr .flow {
+  gap: var(--s4);
+}
+
+.ovr .flow__inputs {
+  gap: var(--s3);
+}
+
+/* ======================================================================== */
+/* Typography and hover, 30 Sep 2026.                                        */
+/*                                                                           */
+/* Applied app-wide rather than per page, because the point of both is that   */
+/* they are consistent: a heading should look like a heading everywhere, and  */
+/* anything that responds to the pointer should respond the same way.         */
+/* ======================================================================== */
+
+/*
+ * Headings and figures in the display face; everything else stays in Inter.
+ *
+ * Deliberately NOT applied to `.dt` cells, `.metric__foot`, or any running
+ * text - Poppins has no tabular figures, so a column of numbers set in it
+ * stops lining up, which matters more on this app's pages than on most.
+ */
+h1,
+h2,
+h3,
+.pagehead__title,
+.panel__titles h2,
+.metric__value,
+.kpi__value,
+.perf__value,
+.signin__title {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* Small uppercase labels read better with the display face's even width. */
+.metric__label,
+.kpi__label,
+.perf__title {
+  font-family: var(--font-display);
+}
+
+/* ---- hover, one behaviour everywhere ----------------------------------- */
+
+/*
+ * Everything that can be pointed at says so the same way, and says it fast:
+ * 120ms, because a hover that eases in slowly feels like lag rather than
+ * feedback. Only colour and background move - nothing shifts position, so a
+ * pointer travelling across a dense table never nudges what it is aiming at.
+ */
+.btn:hover:not(:disabled),
+.pick:hover,
+.opt:hover,
+.tag:hover,
+.legend__item:hover {
+  background: var(--sunken);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+/* Charts: a legend key is a control, so it behaves like one. */
+.legend__item {
+  border-radius: var(--r-round);
+  padding: 2px 8px;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  cursor: default;
+}
+
+/* Anything focused by keyboard gets the same treatment a pointer would get,
+   plus a ring - a hover style that only answers the mouse is half a style. */
+.btn:focus-visible,
+.pick:focus-visible,
+.opt:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* ======================================================================== */
+/* The slicer bar, 30 Sep 2026.                                              */
+/*                                                                           */
+/* The structure the reference uses - a small uppercase label sitting above   */
+/* its control - is what `.pick` already is, so nothing here changes markup.  */
+/* What it needed was the reference's proportions: a quieter label, a taller  */
+/* control with room in it, and a bar that reads as one band rather than as   */
+/* a row of loose buttons.                                                    */
+/* ======================================================================== */
+
+.topbar {
+  padding: var(--s3) var(--s5) var(--s4);
+  gap: var(--s5);
+  align-items: flex-end;
+}
+
+/* The controls space themselves further apart than the old 8px, which is what
+   lets each label read as belonging to the control beneath it rather than to
+   the one beside it. */
+.filters {
+  gap: var(--s4);
+  align-items: flex-end;
+}
+
+.pick {
+  gap: 5px;
+}
+
+.pick__lbl {
+  font-size: 9.5px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+  font-family: var(--font-display);
+}
+
+/*
+ * Taller, rounder, and with the value carrying the weight rather than the
+ * border. A selected filter still colours its border, which is the one signal
+ * this bar cannot afford to lose.
+ */
+.pick__btn {
+  min-width: 158px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: var(--w-medium);
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.pick__btn:hover {
+  background: var(--sunken);
+  border-color: var(--neutral);
+}
+
+.pick__caret {
+  opacity: 0.45;
+}
+
+/* ======================================================================== */
+/* Stock Article restyle, 30 Sep 2026.                                       */
+/*                                                                           */
+/* The same treatment the Overview got, scoped to `.cmp` so it cannot reach   */
+/* any other page through the components it shares. The page's own cards,     */
+/* columns, tables, filters and figures are untouched - this is how they are  */
+/* drawn, not what they say.                                                  */
+/* ======================================================================== */
+
+.cmp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.cmp .metric,
+.cmp .perf,
+.cmp .panel,
+.cmp .kpi {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.cmp .metric,
+.cmp .kpi {
+  padding: var(--s4) var(--s4) var(--s3);
+}
+
+.cmp .metric__label,
+.cmp .kpi__label {
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.cmp .metric__value,
+.cmp .kpi__value {
+  font-size: 27px;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+}
+
+/* The hairline that separates a card's caption from its figure, as on the
+   Overview - it is what stops the caption reading as part of the number. */
+.cmp .metric__foot,
+.cmp .kpi__foot {
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cmp .panel__head {
+  padding: var(--s4) var(--s4) var(--s3);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cmp .panel__titles h2 {
+  font-size: 15px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.01em;
+}
+
+.cmp .panel__titles p {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.cmp .panel__count {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+  padding: 2px 9px;
+  font-size: 10.5px;
+  font-weight: var(--w-bold);
+  color: var(--text-muted);
+}
+
+/*
+ * This page's tables are its substance, so they get the reference's table
+ * treatment in full: a header that recedes to a label, quiet separators, and
+ * a row that answers the pointer across its whole width.
+ */
+.cmp table.dt thead th {
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+  padding-top: var(--s3);
+  padding-bottom: var(--s3);
+}
+
+.cmp table.dt tbody td {
+  border-bottom: 1px solid var(--line-soft);
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+
+/* ======================================================================== */
+/* Hover as motion, the slicer row, and the long-text card — 30 Sep 2026.    */
+/* ======================================================================== */
+
+/*
+ * Cards and panels answer the pointer by MOVING, not by changing their border.
+ *
+ * A border that lights up redraws the card's edge, which on a page of aligned
+ * cards reads as one of them jumping out of line. A 2px lift says the same
+ * thing without disturbing the grid, and it is the animation these cards
+ * already used before the restyle.
+ *
+ * Tables are excluded deliberately: a row highlight follows the pointer down a
+ * dense table and turns reading into a moving target.
+ */
+.panel,
+.metric,
+.kpi,
+.perf {
+  transition: transform var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease);
+}
+
+.panel:hover,
+.metric:hover,
+.kpi:hover,
+.perf:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 20, 0.07);
+}
+
+/* Someone who has asked for less motion gets the shadow alone. */
+@media (prefers-reduced-motion: reduce) {
+  .panel:hover,
+  .metric:hover,
+  .kpi:hover,
+  .perf:hover {
+    transform: none;
+  }
+}
+
+/* ---- the slicer row ---------------------------------------------------- */
+
+/*
+ * Name above, value inside — the reference's arrangement, and the reason the
+ * markup moved. The label is the quiet half: it never changes, so it is set
+ * small and muted, and the value carries the weight because it is the part
+ * that is actually read.
+ */
+.fld {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.fld__lbl {
+  font-size: 9.5px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-family: var(--font-display);
+  padding-left: 2px;
+  white-space: nowrap;
+}
+
+/* The controls themselves: one height, one radius, one weight, so a row of
+   them reads as a set of fields rather than as a row of buttons. */
+.fld .pop__trigger,
+.fld .brandpick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-width: 150px;
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: var(--w-medium);
+  color: var(--text);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.fld .pop__trigger:hover,
+.fld .brandpick:hover {
+  background: var(--sunken);
+  border-color: var(--neutral);
+}
+
+/* A filter that is actually filtering still says so on its border — the one
+   signal this row cannot afford to lose. */
+.fld .pop__trigger--set {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: var(--w-bold);
+}
+
+.fld .pop__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The row sits its fields on a common baseline and spaces them enough that
+   each label reads as belonging to the control beneath it. */
+.filters {
+  align-items: flex-end;
+  gap: var(--s4);
+}
+
+/* ---- a card whose value is a name, not a number ------------------------ */
+
+/*
+ * "Largest requirement" holds an article name, which ran to three lines and
+ * pushed the card out of line with the ones beside it. One line, elided, with
+ * the full name on the element's `title` — which the component already sets
+ * for exactly this case.
+ */
+.metric__value--text,
+.kpi__value--text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+/* ======================================================================== */
+/* The option list and the header band — 30 Sep 2026.                        */
+/* ======================================================================== */
+
+/* ---- the dropdown ------------------------------------------------------ */
+
+/*
+ * A panel that floats rather than one drawn on the page: a soft radius, a
+ * shadow with real distance in it, and no internal rules. The reference
+ * separates the search, the list and the footer by SPACE, which is why the
+ * head loses its border here rather than gaining a heavier one.
+ */
+.pop__panel--fixed {
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(15, 23, 20, 0.16);
+  min-width: 268px;
+}
+
+.pop__head {
+  border-bottom: none;
+  padding: var(--s3) var(--s3) var(--s1);
+}
+
+/* A filled field, not an outlined one — it reads as a slot to type into
+   rather than as another control competing with the rows beneath it. */
+.pop__search {
+  margin: var(--s2) var(--s3) var(--s2);
+  padding: 7px 10px;
+  gap: var(--s2);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--sunken);
+  color: var(--text-muted);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.pop__search:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.pop__search input {
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--text);
+  width: 100%;
+  outline: none;
+}
+
+.pop__list {
+  padding: 0 var(--s2) var(--s2);
+  /* Raised with the row height, so the list still shows about eight values. */
+  max-height: 322px;
+}
+
+/*
+ * Three columns: the box, the name, and the count hard against the right
+ * edge. A count that follows the name sits at a different place on every row
+ * and cannot be compared down the list; aligned right, the column reads as a
+ * column.
+ */
+.opt {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 36px;
+  padding: 0 var(--s2);
+  border-radius: 9px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.opt:hover {
+  background: var(--sunken);
+}
+
+.opt__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The count: right-aligned, tabular, and quiet enough to stay behind the
+   name it belongs to. */
+.opt__hint {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+
+/* A rounded square that fills when chosen, which is the clearest state a
+   checkbox has - present/absent rather than a tick appearing inside an
+   outline that was already there. */
+.opt__box {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: #fff;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.opt__box--radio {
+  border-radius: 50%;
+}
+
+.opt__box--on {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+/* A chosen row says so twice - the box and the weight - so the list can be
+   skimmed for what is on without reading every box. */
+.opt:has(.opt__box--on) .opt__text {
+  font-weight: var(--w-bold);
+  color: var(--text);
+}
+
+/* ---- the header band --------------------------------------------------- */
+
+/*
+ * The page name and the filters are ONE band, as they are in the reference.
+ *
+ * They stay two rows rather than one line: this app's pages carry up to six
+ * slicers where the reference carries four, and a single line would either
+ * wrap raggedly or push the page name off the edge. Removing the rule between
+ * them, and giving the pair one border at the bottom, is what makes them read
+ * as one header - which is the part that was actually missing.
+ */
+.pagehead {
+  padding: var(--s4) var(--s5) var(--s2);
+  border-bottom: none;
+}
+
+.topbar {
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar__titles h1 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.topbar__titles p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/*
+ * The data date as a pill with a live dot, as the reference states it. It is
+ * the one piece of chrome that says how current the page is, so it is given
+ * a shape of its own rather than being set as another line of grey text.
+ */
+.topbar__date {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 5px 12px 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: var(--w-medium);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The earlier rule set this in the mono face. A date in a pill is read, not
+   compared down a column, so it takes the page's own face like the title
+   beside it - which is how the reference sets it. */
+.topbar__date {
+  font-family: var(--font);
+}
+
+.topbar__date::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  flex: none;
+}
+
+/* ======================================================================== */
+/* One header row, and the card that holds a name — 30 Sep 2026.            */
+/* ======================================================================== */
+
+/*
+ * Page name, slicers, then the date and tools, all on one line.
+ *
+ * `align-items: flex-end` puts the title's baseline on the same line as the
+ * filter controls rather than centring a two-line title against one-line
+ * fields, which is what makes the row read as one band instead of as a title
+ * with things floating beside it.
+ *
+ * It wraps. Stock Article carries six slicers where the reference carries
+ * four, so on a narrow window the filters drop to a second line and the header
+ * keeps working - the alternative is a page name squeezed off the edge.
+ */
+.pagehead--merged {
+  display: flex;
+  flex-wrap: wrap;
+  /* Top, not baseline. The filter tray is much taller than the page name and
+     the tools beside it, so aligning on its bottom edge pushed both of them
+     down the row and left a band of empty space above them. */
+  align-items: flex-start;
+  gap: var(--s4) var(--s5);
+  padding: var(--s4) var(--s5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The name block does not stretch; the filters take the room instead. */
+.pagehead--merged .topbar__titles {
+  flex: none;
+  min-width: 0;
+}
+
+/*
+ * The slicer row inside the header is no longer a bar of its own: it keeps its
+ * class, because FilterBar and every page's slicer list are wired to it, but
+ * it gives up the padding, background and border it had as a separate band.
+ */
+.pagehead--merged .topbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  min-height: 0;
+}
+
+/* Pushed to the far right of the row, as the reference puts its status and
+   tools. */
+.pagehead--merged .topbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+}
+
+/* The title, at the reference's weight, with its line beneath. */
+.pagehead--merged .topbar__titles h1 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.pagehead--merged .topbar__titles p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* ---- the card whose value is a name ------------------------------------ */
+
+/*
+ * "Largest requirement" holds an article name, not a figure.
+ *
+ * Elided text in a summary card is a card that has stopped answering its own
+ * question - "Wrapping Sh…" names nothing. It now wraps to two lines at a size
+ * suited to words rather than digits, and the card is given two columns of the
+ * grid so a full article name has somewhere to go.
+ */
+.metrics .metric:has(.metric__value--text) {
+  grid-column: span 2;
+}
+
+.metric__value--text,
+.kpi__value--text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: var(--w-bold);
+}
+
+/* Narrow windows: one card per row already, so the span would overflow. */
+@media (max-width: 720px) {
+  .metrics .metric:has(.metric__value--text) {
+    grid-column: auto;
+  }
+}
+
+/* ======================================================================== */
+/* Card redesign and header spacing — 1 Oct 2026.                           */
+/* ======================================================================== */
+
+/* ---- the cards --------------------------------------------------------- */
+
+/*
+ * The reference's card, applied to this app's cards.
+ *
+ * Its shape is: a small uppercase label, a large figure, a quiet line under it,
+ * a hairline, then the footer. No accent bar across the bottom edge - that was
+ * the loudest thing on our cards and the reference has nothing like it, so the
+ * progress line moves under the figure it describes and becomes a short rule
+ * rather than a band welded to the card's edge.
+ */
+.metrics .metric,
+.flow__inputs .metric,
+.kpi {
+  padding: var(--s4) var(--s4) var(--s3);
+}
+
+/* The figure carries the card, at the reference's proportion against its
+   label. */
+.metrics .metric__value,
+.flow__inputs .metric__value,
+.kpi__value,
+.perf__value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: var(--w-bold);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The accent, off the card's edge and under its figure.
+ *
+ * Short, thin and rounded: it qualifies the number above it instead of
+ * underlining the whole card, which is what made a row of cards read as a row
+ * of coloured bars.
+ */
+.metric__bar,
+.kpi__bar {
+  order: 1;
+  position: static;
+  margin: var(--s3) 0 0;
+  width: 44px;
+  height: 3px;
+  border-radius: var(--r-round);
+  overflow: hidden;
+}
+
+/* The footer, ruled off from the figure as the reference rules it. */
+.metric__foot,
+.kpi__foot {
+  order: 2;
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ---- the performance card ---------------------------------------------- */
+
+/*
+ * It holds one figure in a card sized for several, so the figure takes the
+ * room rather than sitting in the top-left of an empty box.
+ */
+
+/* ---- the card whose value is a name ------------------------------------ */
+
+/*
+ * Beaten by `.cmp .metric__value` until now - two classes against one - which
+ * is why the article name was still being set at the figure size. Scoped the
+ * same way so it wins, and sized for words.
+ */
+.cmp .metric__value--text,
+.ovr .metric__value--text,
+.metrics .metric__value--text,
+.kpi__value--text {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: var(--w-bold);
+  line-height: 1.35;
+  letter-spacing: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+}
+
+/* ---- the filter band --------------------------------------------------- */
+
+/*
+ * A grey tray holding white fields, as the reference draws it. The container
+ * carries the tint so the controls can stay white and still read as raised -
+ * the opposite of giving each control a border heavy enough to separate it
+ * from a white page.
+ */
+.pagehead--merged .topbar {
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: var(--s3) var(--s4);
+}
+
+.pagehead--merged .filters {
+  gap: var(--s3) var(--s4);
+}
+
+.fld .pop__trigger,
+.fld .brandpick {
+  background: var(--surface);
+}
+
+/* ---- header spacing ---------------------------------------------------- */
+
+/*
+ * Stock Article carries nine slicers, so its header wraps to several rows and
+ * every gap in it was being paid three times over. Tightened, and the trailing
+ * controls are pulled onto the filter row's own line instead of each claiming
+ * a row of its own.
+ */
+.pagehead--merged {
+  gap: var(--s3) var(--s4);
+  padding: var(--s3) var(--s5);
+}
+
+.pagehead--merged .topbar__actions {
+  gap: var(--s2);
+  align-self: flex-start;
+}
+
+/* The tools inside the filter bar sit with the filters rather than below them. */
+.pagehead--merged .filters__spacer {
+  flex: 1 1 auto;
+}
+
+/*
+ * Narrower fields, so more of them fit per row.
+ *
+ * Stock Article offers eight slicers after Product was dropped; at 150px each
+ * they forced a third row on a 1600px window, and each extra row costs the
+ * header its whole gap as well as the control's height. 132px still holds
+ * "Last 30 days" and "9 brands" without eliding, which are the longest values
+ * any of these fields actually shows.
+ */
+.fld .pop__trigger,
+.fld .brandpick {
+  min-width: 132px;
+}
+
+/* The date field earns a little more, because its value is the longest. */
+.fld:last-of-type .pop__trigger {
+  min-width: 142px;
+}
+
+/*
+ * The Performance card, centred in its own height — 1 Oct 2026.
+ *
+ * It sits beside a 2x2 block of metric cards and is stretched to that block's
+ * full height, but its content is a single figure, so everything bunched at the
+ * top with an empty half beneath. The grid now takes the leftover height and
+ * centres what is in it, which puts the title and the figure in the middle of
+ * the card rather than at the top of a tall box.
+ *
+ * `align-items: start` on the base grid is what pinned the row to the top; it
+ * is correct when two figures sit side by side and have to align with each
+ * other, so it is overridden only for the single-figure case.
+ */
+.perf--single .perf__title {
+  margin-bottom: var(--s2);
+}
+
+/* ======================================================================== */
+/* Compacting, and the navigation rail — 1 Oct 2026.                        */
+/* ======================================================================== */
+
+/* ---- shorter cards ----------------------------------------------------- */
+
+/*
+ * The same card, with the air taken out of it.
+ *
+ * Every gap in these cards was set for a card that stood alone; stacked two
+ * deep beside a tall neighbour they added up to a block far taller than its
+ * content. The figure keeps its weight - it is still the largest thing on the
+ * card - and what shrinks is the space around it.
+ */
+.metrics .metric,
+.flow__inputs .metric,
+.kpi {
+  padding: var(--s3) var(--s4);
+}
+
+.metrics .metric__value,
+.flow__inputs .metric__value,
+.kpi__value {
+  font-size: 27px;
+  line-height: 1.08;
+}
+
+.metric__bar,
+.kpi__bar {
+  margin-top: var(--s2);
+}
+
+.metric__foot,
+.kpi__foot {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* The row of cards no longer needs the gap of a looser layout. */
+.flow__inputs,
+.metrics {
+  gap: var(--s3);
+}
+
+/* ---- the accuracy card ------------------------------------------------- */
+
+/*
+ * Centred both ways, as asked.
+ *
+ * The footer keeps its rule, which now runs the full width under centred text
+ * rather than acting as an underline to a left-aligned block - it reads as a
+ * divider either way, and without it the caption would merge into the figure.
+ */
+
+/* ---- the Overview block ------------------------------------------------ */
+
+/* With the cards shorter, the block they sit in has no reason to keep the
+   height it was given for the taller ones. */
+.flow--compact {
+  gap: var(--s3);
+}
+
+.ovr .flow,
+.ovr .flow__inputs {
+  gap: var(--s3);
+}
+
+/* ---- the navigation rail ----------------------------------------------- */
+
+/*
+ * The rail in the app's own faces.
+ *
+ * The item names and the section heading were set in the mono face, which is
+ * for figures that have to line up in a column - a navigation label is a word,
+ * and it was the one part of the chrome still reading like a terminal. Names
+ * take the display face the headings use; the descriptions stay in the text
+ * face, a step smaller and quieter, so a name is found by scanning and the
+ * description is there when read.
+ */
+.nav__section {
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.14em;
+  padding: var(--s4) var(--s3) var(--s2);
+}
+
+.nav__wordmark b {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.01em;
+}
+
+.nav__item {
+  gap: var(--s3);
+  padding: 7px var(--s2);
+  border-radius: 9px;
+}
+
+/* The glyphs line up in their own column, so the names start on one edge
+   whatever width each glyph happens to draw to. */
+.nav__item > svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  opacity: 0.85;
+}
+
+.nav__item--active > svg {
+  opacity: 1;
+}
+
+.nav__item-text {
+  line-height: 1.25;
+  gap: 1px;
+}
+
+.nav__item-text b {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: var(--w-medium);
+  letter-spacing: -0.005em;
+}
+
+.nav__item--active .nav__item-text b {
+  font-weight: var(--w-bold);
+}
+
+.nav__item-text span {
+  font-family: var(--font);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ======================================================================== */
+/* Card content alignment — 1 Oct 2026.                                     */
+/*                                                                           */
+/* Contents sit top-left and stack tight, at the card sizes already set.     */
+/* This replaces the centring applied earlier the same day: asked for, then  */
+/* seen on the page and reversed. The styling around it - the hairline, the  */
+/* short accent rule, the type sizes - is unchanged; only where the content  */
+/* sits inside the card moves.                                               */
+/* ======================================================================== */
+
+/*
+ * Top, not centred.
+ *
+ * `.metric` and `.perf` both carried `justify-content: center`, which holds
+ * content in the middle of whatever height the card is stretched to. In a row
+ * where one card is tall and its neighbours are short, that puts each card's
+ * label at a different height and there is no line for the eye to follow
+ * across them. Anchored to the top, every label in a row starts level.
+ */
+.metric,
+.perf,
+.kpi {
+  justify-content: flex-start;
+}
+
+/* The accuracy card goes back to the same left edge as every other card. */
+.perf--single {
+  justify-content: flex-start;
+}
+
+.perf--single .perf__grid {
+  flex: 0 0 auto;
+  align-items: start;
+  align-content: start;
+}
+
+.perf--single .perf__item {
+  align-items: flex-start;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.perf--single .metric__foot {
+  width: auto;
+  text-align: left;
+}
+
+.perf--single .perf__meter {
+  justify-content: flex-start;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/*
+ * The accuracy card, built to the same rhythm as the cards beside it.
+ *
+ * It carries one element they do not - the "Performance" heading above its
+ * label - which pushed its figure a line lower than theirs and made the row
+ * read as two cards and a different thing. The heading now takes the same
+ * small, quiet register as a card's label, so it works as the card's eyebrow
+ * instead of as a title, and the figure drops to the same size and the same
+ * height as the figures either side of it.
+ *
+ * Nothing is removed: the heading, the label, the figure, the caption and the
+ * meter are all still there.
+ */
+.perf--single .perf__title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: var(--w-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--s1);
+}
+
+.perf--single .perf__value {
+  font-size: 27px;
+  line-height: 1.08;
+}
+
+.perf--single {
+  padding: var(--s3) var(--s4);
+}
+
+/* The meter takes the place, and the width, of the accent rule on the other
+   cards, so all three carry one short marker under their figure. */
+.perf--single .perf__meter {
+  order: 1;
+  margin-top: var(--s2);
+  max-width: 44px;
+}
+
+.perf--single .metric__foot {
+  order: 2;
+}
+
+/* ======================================================================== */
+/* Header order, and the card that was taller than its content — 1 Oct 2026. */
+/* ======================================================================== */
+
+/*
+ * The date and the tools move up onto the title's line.
+ *
+ * They were last in the row, so on a page with eight slicers the filter tray
+ * filled the first line and pushed them onto a line of their own underneath -
+ * a whole row of header spent on two small controls. Ordering them before the
+ * tray puts them where they belong, top-right beside the page name, and the
+ * tray takes the full width of the line below.
+ *
+ * Done with `order` rather than by moving the markup, because the tray has to
+ * stay inside the header to keep reading as one band.
+ */
+.pagehead--merged .topbar__titles {
+  order: 1;
+}
+
+.pagehead--merged .topbar__actions {
+  order: 2;
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+/* Full width, so it always starts a line of its own. */
+.pagehead--merged .topbar {
+  order: 3;
+  flex: 1 1 100%;
+}
+
+/* ---- the card no taller than it needs ---------------------------------- */
+
+/*
+ * The accuracy card stops stretching to its neighbours' height.
+ *
+ * It sits beside a 2x2 block of metric cards and was being stretched to match
+ * it. With its content anchored to the top - which is what makes its label sit
+ * level with theirs - the rest of that height was simply empty. It now ends
+ * where its content ends.
+ */
+.flow > .perf,
+.flow > .perf--single {
+  align-self: start;
+}
+
+/*
+ * Slicers on the title's line — Overview and Products only, 1 Oct 2026.
+ *
+ * The merged header puts the tray on a line of its own, because a page with
+ * eight slicers has no other option. These two carry four, so the tray sits
+ * beside the page name instead and the header costs one row rather than two.
+ *
+ * It still wraps: if the window is narrow enough that four fields will not fit
+ * beside the name, the tray drops to its own line exactly as it does
+ * everywhere else, rather than eliding the page name.
+ */
+.pagehead--inline .topbar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The date and tools stay at the far right of the same line. */
+.pagehead--inline .topbar__actions {
+  order: 4;
+}
+
+.pagehead--inline .topbar__titles {
+  flex: 0 0 auto;
+}
+
+/*
+ * The slicer tray, down to the height of one row of fields — 1 Oct 2026.
+ *
+ * With the walkthrough button out of it the tray holds nothing but the fields
+ * and Reset, so the padding that was carrying a second line can go. The fields
+ * centre in it rather than sitting on its bottom edge, which is what left a
+ * band of grey under them.
+ */
+.pagehead--merged .topbar {
+  padding: var(--s2) var(--s4);
+}
+
+.pagehead--merged .filters {
+  align-items: center;
+  gap: var(--s2) var(--s4);
+}
+
+/* Reset sits with the fields it clears, on their line. */
+.pagehead--merged .filters > .btn {
+  align-self: flex-end;
+  margin-bottom: 2px;
+}

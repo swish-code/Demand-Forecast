@@ -73,7 +73,11 @@ export function BrandPicker({ brands = [], selected = [], onChange }) {
   return (
     <Popover
       trigger={({ open, toggle: t }) => (
-        <button type="button" className="brandpick" aria-expanded={open} onClick={t}>
+        /* Named above the control like every other filter beside it, so the
+           row reads as one set rather than as a brand widget plus filters. */
+        <span className="fld">
+        <span className="fld__lbl">Brand</span>
+        <button type="button" className="brandpick" aria-expanded={open} aria-label={`Brand: ${label}`} onClick={t}>
           {picked.length === 1 ? (
             <BrandMark code={lead.code} />
           ) : (
@@ -96,6 +100,7 @@ export function BrandPicker({ brands = [], selected = [], onChange }) {
             <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
+        </span>
       )}
       render={() => (
         <>

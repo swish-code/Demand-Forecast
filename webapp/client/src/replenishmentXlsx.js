@@ -98,10 +98,18 @@ export const FORMULAS = {
    * the range start until 23 Sep 2026; see `replenishment.js` for why that was
    * reverted, and note that this formula must match it cell for cell.
    */
+  /*
+   * The `d1<=0` test matches the guard added to the app on 30 Sep 2026: no
+   * first delivery date where there is no first delivery. The second delivery's
+   * formula below has carried the equivalent test since 16 Sep, and this
+   * formula has to agree with the screen cell for cell or the sheet becomes a
+   * second opinion rather than a copy.
+   */
   D1_Date: (c, r) => {
     const dtl = `${c.DTL}${r}`
     const ss = ssDays(c, r)
-    return `IF(OR(NOT(ISNUMBER(${dtl})),NOT(ISNUMBER(${ss}))),"",${B.today}+${dtl}-${ss})`
+    const d1 = `${c.D1_Qty}${r}`
+    return `IF(OR(NOT(ISNUMBER(${dtl})),NOT(ISNUMBER(${ss})),NOT(ISNUMBER(${d1})),${d1}<=0),"",${B.today}+${dtl}-${ss})`
   },
   D1_Qty: (c, r) => {
     const req = `${c.Req_Qty}${r}`

@@ -273,3 +273,57 @@ export const IconColumns = (p) => (
     <path d="M20 4v16" />
   </Svg>
 )
+
+/*
+ * Per-page glyphs, added 30 Sep 2026.
+ *
+ * Five pages shared `IconComponent` and read as one repeated row in the rail:
+ * Stock Article, Production, Swish Bakery, the Yelo Factory and Unclassified.
+ * A rail is scanned rather than read, so a glyph that does not distinguish its
+ * page is doing nothing. Each of these says what the page is about at a
+ * glance, on the same 24px grid and stroke as everything above.
+ */
+
+/* A cooking pot: the kitchen that prepares rather than bakes. */
+export const IconKitchen = (p) => (
+  <Svg {...p}>
+    <path d="M4 9h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9z" />
+    <path d="M4 11H2.5M20 11h1.5" />
+    <path d="M9 6c0-1 1.2-1 1.2-2M14 6c0-1 1.2-1 1.2-2" />
+  </Svg>
+)
+
+/* A loaf with its scored top. */
+export const IconBakery = (p) => (
+  <Svg {...p}>
+    <path d="M4 11a4 4 0 0 1 4-4h8a4 4 0 0 1 0 8v2a2 2 0 0 1-2 2H8a4 4 0 0 1-4-4v-4z" />
+    <path d="M9 10.5 7.5 13M12.5 10.5 11 13" />
+  </Svg>
+)
+
+/* A plant with its roofline and stack. */
+export const IconFactory = (p) => (
+  <Svg {...p}>
+    <path d="M3 21V10l5 3V10l5 3V7l5 3v11z" />
+    <path d="M18 7V3h3v7" />
+    <path d="M7 17h2M13 17h2" />
+  </Svg>
+)
+
+/* Unplaced: the same box outline, with the question the page exists to ask. */
+export const IconUnknown = (p) => (
+  <Svg {...p}>
+    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z" />
+    <path d="M9.6 9.4a2.4 2.4 0 0 1 4.7.6c0 1.6-2.3 2-2.3 3.4" />
+    <path d="M12 17h.01" />
+  </Svg>
+)
+
+/* A signpost: the walkthrough that points the way through a page. */
+export const IconGuide = (p) => (
+  <Svg {...p}>
+    <path d="M12 3v18" />
+    <path d="M12 5h6.5l1.8 2.4L18.5 10H12z" />
+    <path d="M12 13H5.5L3.7 15.4 5.5 18H12z" />
+  </Svg>
+)

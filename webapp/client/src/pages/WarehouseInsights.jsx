@@ -372,6 +372,15 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
           WH_Constant_Forecast_Qty: null,
           Consumed_Qty: null,
           Consumed_Unknown: Boolean(r.Consumed_Unknown),
+          /*
+           * Carried through so the stock rule below has something to read.
+           *
+           * It is anchored on ONE row per article by the endpoint, like the
+           * warehouse figures, so it is taken from whichever row has it rather
+           * than summed - adding a stock reading across an article's rows would
+           * multiply the shops' holding by the number of recipe lines.
+           */
+          Store_SOH: null,
         }
         byArticle.set(key, held)
       }
@@ -386,6 +395,9 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
       }
       if (!held.Supply && r.Supply) held.Supply = r.Supply
       if (!held.CHAINID && r.CHAINID) held.CHAINID = r.CHAINID
+      if (held.Store_SOH === null && r.Store_SOH !== null && r.Store_SOH !== undefined) {
+        held.Store_SOH = r.Store_SOH
+      }
     }
 
     return [...byArticle.values()].map((a) => {
@@ -423,7 +435,11 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
         WH_Accuracy: whAccuracy(
           measured && Math.max(o, f) > 0 ? 1 - Math.abs(f - o) / Math.max(o, f) : null,
           f,
-          r.Store_SOH
+          // `a`, not `r`. The loop above uses `r` for the raw row and this
+          // callback takes `a` for the folded article; `r` is out of scope
+          // here, so opening this page threw "r is not defined" and the whole
+          // page fell to the error boundary.
+          a.Store_SOH
         ),
       }
     })

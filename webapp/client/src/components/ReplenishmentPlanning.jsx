@@ -533,8 +533,14 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
           deliveryDate(
             v,
             row[`D${n}_Offset`],
+            /*
+             * The first delivery can now be blank too, from 30 Sep 2026, so it
+             * needs its own reason. It is blank for a different cause than the
+             * later ones: not "the frequency does not reach this delivery" but
+             * "there is nothing to order at all".
+             */
             n === 1
-              ? undefined
+              ? 'Nothing to deliver: the requested quantity is nought, so current stock already covers the selected window.'
               : `This article's delivery frequency does not reach a ${ord} delivery.`,
             'today'
           ),

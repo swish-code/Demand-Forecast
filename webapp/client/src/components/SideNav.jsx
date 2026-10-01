@@ -76,9 +76,13 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
             title={collapsed ? `${p.label} — ${p.kicker}` : p.blurb}
           >
             <p.Icon size={15} />
+            {/*
+              * Name only, from 1 Oct 2026. The kicker underneath was removed on
+              * request; it still reaches the reader through the button's own
+              * `title`, which names the page and describes it on hover.
+              */}
             <span className="nav__item-text">
               <b>{p.label}</b>
-              <span>{p.kicker}</span>
             </span>
           </button>
         ))}

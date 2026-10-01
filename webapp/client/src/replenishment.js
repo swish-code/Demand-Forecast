@@ -193,6 +193,26 @@ export function planFor(row, { dateFrom, dateTo, today }) {
       ? null
       : d1Qty / perDay + d1Off
 
+  /*
+   * The same rule for the FIRST delivery. Fixed 30 Sep 2026.
+   *
+   * The guard above was applied to the second delivery on 16 Sep and never to
+   * the first, which is computed from the lead time and the buffer alone and
+   * so has never asked whether there is anything to deliver. Wherever the
+   * requirement is nought - stock already outlasts the window, which is the
+   * whole of the planning table on a well-stocked day - the row showed a zero
+   * first-delivery quantity beside a confident first-delivery date.
+   *
+   * Reported by a reader about to order from the table. A date in a column
+   * headed "1st delivery by" reads as a commitment exactly as the second one
+   * did; the reasoning there applies here word for word.
+   *
+   * The QUANTITY is left alone, again as it is for the second delivery: nought
+   * is the true answer to how much to order. It is the date that asserted an
+   * event that is not going to happen.
+   */
+  const d1OffLive = !(d1Qty > 0) ? null : d1Off
+
   const offsetDate = (off) => (off === null || nowMs === null ? null : nowMs + off * DAY)
 
   /*
@@ -252,8 +272,9 @@ export function planFor(row, { dateFrom, dateTo, today }) {
     Req_Date: reqDateMs,
     OOS_Date: oosMs,
     // Counted from today, like every other date here - see the note above.
-    D1_Date: offsetDate(d1Off),
-    D1_Offset: d1Off,
+    // Blank when there is nothing to deliver, as the second delivery already is.
+    D1_Date: offsetDate(d1OffLive),
+    D1_Offset: d1OffLive,
     D1_Qty: d1Qty,
     // Still counted from today, like every other date here.
     D2_Date: offsetDate(d2Off),

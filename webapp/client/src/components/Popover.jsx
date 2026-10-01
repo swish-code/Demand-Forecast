@@ -158,19 +158,36 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
  * The filter pill: label + value, hairline outline when unset, subtle accent
  * tint when a filter is applied. Deliberately not styled like a form input.
  */
+/**
+ * A filter control: its name above it, its current value inside it.
+ *
+ * The name used to sit inside the button, reading "Location: All". Moved above
+ * on 30 Sep 2026 to match the reference, and it is a better division of labour
+ * than it looks: the button now holds only what the reader CHANGES, so a row
+ * of filters can be read across at a glance - every value on the same line,
+ * every name in the same quiet register above it - instead of each pill having
+ * to be read as a sentence.
+ *
+ * The button keeps its class, its aria wiring and its behaviour; the label is
+ * tied to it by `aria-label` so the control still announces what it is when
+ * the visible name is not read out with it.
+ */
 export function FilterTrigger({ label, value, open, toggle, active }) {
   return (
-    <button
-      type="button"
-      className={`pop__trigger${active ? ' pop__trigger--set' : ''}`}
-      aria-expanded={open}
-      aria-haspopup="dialog"
-      onClick={toggle}
-    >
-      <span className="pop__label">{label}:</span>
-      <span className="pop__value">{value}</span>
-      <Caret />
-    </button>
+    <span className="fld">
+      <span className="fld__lbl">{label}</span>
+      <button
+        type="button"
+        className={`pop__trigger${active ? ' pop__trigger--set' : ''}`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${label}: ${value}`}
+        onClick={toggle}
+      >
+        <span className="pop__value">{value}</span>
+        <Caret />
+      </button>
+    </span>
   )
 }
 

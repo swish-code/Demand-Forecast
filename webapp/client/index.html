@@ -11,9 +11,192 @@
       rel="stylesheet"
     />
     <title>Demand Forecast</title>
+    <style>
+      /*
+        Inline, and not in theme.css, for the same reason the markup is inline:
+        the stylesheet arrives with the JS bundle, so a boot screen styled from
+        it would sit unstyled for precisely the wait it covers.
+
+        Self-contained - it borrows no design token, because tokens.css has not
+        loaded yet either. The values are the app's own, written out.
+      */
+      .boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        background: #f6f7f9;
+        font-family: 'Poppins', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        text-align: center;
+        padding: 24px;
+      }
+      /* The wash behind the mark. Sized in vmin so it stays a circle on a
+         phone as well as on a wide screen. */
+      .boot__glow {
+        position: absolute;
+        width: 46vmin;
+        height: 46vmin;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(41, 120, 54, 0.13) 0%, rgba(59, 125, 216, 0.10) 45%, rgba(246, 247, 249, 0) 70%);
+      }
+      .boot__mark,
+      .boot__kicker,
+      .boot__name,
+      .boot__sub,
+      .boot__bar {
+        position: relative;
+      }
+      /*
+        Sized to the logo, not to a square.
+
+        swish-logo.png is a 1500x525 WORDMARK - 2.86:1. It was being forced
+        into a 34px square, which squashed it. The tile now takes the mark's
+        own proportions and the image keeps its aspect ratio, so it is drawn
+        as designed at any pixel density.
+      */
+      .boot__mark {
+        padding: 13px 18px;
+        border-radius: 16px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+      .boot__mark img {
+        display: block;
+        height: 26px;
+        width: auto;
+        object-fit: contain;
+      }
+      /* Faded out by main.jsx once React has committed, then removed. */
+      .boot--done {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+      }
+      .boot__kicker {
+        margin: 0 0 6px;
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #8c93a0;
+      }
+      .boot__name {
+        margin: 0;
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        background: linear-gradient(95deg, #297836 0%, #3b7dd8 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .boot__sub {
+        margin: 6px 0 0;
+        font-size: 11.5px;
+        color: #8c93a0;
+      }
+      /* A line that fills and resets, rather than a spinner: it says the app is
+         still coming without claiming to know how far along it is. */
+      .boot__bar {
+        margin-top: 22px;
+        width: 148px;
+        height: 2px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+      }
+      .boot__bar span {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #297836, #3b7dd8);
+        animation: bootslide 1.15s var(--ease, cubic-bezier(0.22, 0.61, 0.36, 1)) infinite;
+      }
+      @keyframes bootslide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(360%); }
+      }
+      /* Someone who has asked for less motion gets a line that simply sits
+         there; the screen still says what it is. */
+      @media (prefers-reduced-motion: reduce) {
+        .boot__bar span { animation: none; width: 100%; }
+      }
+      .boot__sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      @media (prefers-color-scheme: dark) {
+        .boot { background: #0e1219; }
+        .boot__glow { background: radial-gradient(circle, rgba(52, 211, 153, 0.12) 0%, rgba(129, 140, 248, 0.10) 45%, rgba(14, 18, 25, 0) 70%); }
+        .boot__mark { background: #151b26; border-color: #232c3b; }
+        .boot__bar { background: #232c3b; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      The boot screen.
+
+      A SIBLING of #root, not a child of it. It was a child until 30 Sep 2026
+      and the app never appeared: React's createRoot does not clear whatever it
+      finds in its container, so this stayed in the document, and being
+      `position: fixed` it covered the mounted app completely. Nothing was
+      broken underneath - it was hidden behind a screen with no way of knowing
+      it was no longer needed.
+
+      Outside the container React cannot touch it, so removal is explicit:
+      main.jsx drops it once the app has mounted. The markup stays in the HTML
+      document rather than in a component so the browser paints it as soon as
+      the page arrives, before the bundle has downloaded - which is the wait it
+      exists to cover.
+    -->
+    <div id="boot" class="boot" role="status" aria-live="polite">
+      <div class="boot__glow" aria-hidden="true"></div>
+      <div class="boot__mark">
+        <img src="/swish-logo.png" alt="" />
+      </div>
+      <p class="boot__kicker">Welcome to</p>
+      <h1 class="boot__name">Demand Forecast</h1>
+      <p class="boot__sub">Business Performance and Analytics</p>
+      <div class="boot__bar" aria-hidden="true"><span></span></div>
+      <span class="boot__sr">Loading</span>
+    </div>
+    <script>
+      /*
+        A hard ceiling on the boot screen: two seconds, whatever happens.
+
+        It normally goes as soon as React commits - main.jsx removes it - and
+        that is much sooner than this. This is the failsafe for when the app
+        never commits at all, which is not hypothetical: a missing import in
+        App.jsx threw at module load on 30 Sep 2026, React never rendered, and
+        the screen sat there indefinitely with no way to tell anyone why. A
+        splash that cannot time out turns any startup error into a silent hang.
+
+        Taking it down reveals whatever is really underneath - the app, a blank
+        page, or the error boundary - which is always more use than a welcome
+        message that has stopped being true.
+      */
+      setTimeout(function () {
+        var boot = document.getElementById('boot')
+        if (!boot) return
+        boot.classList.add('boot--done')
+        setTimeout(function () { boot.remove() }, 260)
+      }, 2000)
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
