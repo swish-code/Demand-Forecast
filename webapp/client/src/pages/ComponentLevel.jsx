@@ -1588,6 +1588,14 @@ const NO_WAREHOUSE_COLUMNS = new Set([
   'Category',
 ])
 
+/**
+ * Columns that judge the forecast method rather than report a quantity.
+ *
+ * Admin only from 1 Oct 2026. Kept as a set beside the other column groups so
+ * there is one place to add to, rather than a condition per column.
+ */
+const ADMIN_ONLY_COLUMNS = new Set(['WH_Ratio_Acc', 'WH_New_Pct', 'WH_Rounded'])
+
 /** The derived store figures, still off. */
 const STOCK_COLUMNS = new Set([
   'Stock_Cover',
@@ -3429,6 +3437,25 @@ export function ComponentLevel({
      * the control itself — without it a reader would get five permanently empty
      * columns and two group headings over nothing.
      */
+    /*
+     * The model-comparison columns, admin only - asked for on 1 Oct 2026.
+     *
+     * New WH ACC%, New and Rounded are there to judge the forecast METHOD
+     * against itself: the directional score beside the symmetric one, the
+     * coverage ratio, and which rows were lifted to a pack boundary. They
+     * answer "is the model behaving", not "what should I order", and the
+     * departments that order from this page were reading them as if they were
+     * the latter.
+     *
+     * `isAdmin`, not `stockDetail`: the note on these props reserves the
+     * former for what is genuinely administrative, and this is.
+     *
+     * Hiding the column does NOT stop the rounding - the WH forecast is still
+     * rounded up to whole packs by the server for anybody who sees this page.
+     * This removes the explanation of it, which is worth knowing: a non-admin
+     * now sees a rounded figure with nothing on screen saying it was rounded.
+     */
+    if (!isAdmin) list = list.filter((c) => !ADMIN_ONLY_COLUMNS.has(c.key))
     if (!STORE_COLUMNS_ON || !stockDetail) list = list.filter((c) => !STOCK_COLUMNS.has(c.key))
     if (!STORE_SOH_ON || !stockDetail) list = list.filter((c) => !STORE_SOH_COLUMNS.has(c.key))
     if (!stockDetail) list = list.filter((c) => !WH_STOCK_COLUMNS.has(c.key))
@@ -3601,7 +3628,7 @@ export function ComponentLevel({
        */
     }
     return list
-  }, [future, stockDetail, noWarehouse])
+  }, [future, stockDetail, noWarehouse, isAdmin])
 
   /*
    * What the CSV holds.

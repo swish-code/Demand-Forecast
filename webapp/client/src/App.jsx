@@ -436,6 +436,18 @@ const PAGES = [
       ...(RAW_ON_SITE_PAGES ? {} : { lockNodeTypes: ['PREP', 'PA'] }),
       noWarehouse: true,
       /*
+       * Admin only again, from 1 Oct 2026, on request.
+       *
+       * It carried this flag until 29 Sep, when it was opened to the YELO
+       * Factory department. The note below still describes that opening and the
+       * reason it mattered: `adminOnly` is NOT overridden by a department
+       * default, so an account whose only page is this one now has an empty
+       * rail. The department grant is left in place rather than silently
+       * removed - if somebody holds it, the fix is to give them another page or
+       * drop the department, and that is a decision rather than a tidy-up.
+       */
+      adminOnly: true,
+      /*
        * Opened to its own department on 29 Sep 2026.
        *
        * It was admin-only while the classification was being validated. The

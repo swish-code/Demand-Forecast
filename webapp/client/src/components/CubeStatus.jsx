@@ -163,6 +163,37 @@ export function CubeStatus() {
       }
     >
       {note && <p className="cube__note">{note}</p>}
+
+      {/*
+        * The sales value the warehouse constant divides by - shown from
+        * 1 Oct 2026.
+        *
+        * `cubeState` has reported this since it was written, with a note saying
+        * why: when it is empty every warehouse forecast is blank and nothing
+        * else on the page says so. It was being sent and never displayed, so
+        * the one screen that could have explained a page of dashes did not.
+        *
+        * The model needs a positive sales value in each training month. With
+        * none it returns no constants at all and WH forecast and WH ACC% come
+        * back blank on every row, beside a perfectly healthy Outbound column.
+        */}
+      {data?.sales && (
+        <p className={`cube__note${data.sales.total > 0 ? '' : ' cube__note--warn'}`}>
+          {data.sales.total > 0 ? (
+            <>
+              Sales value: {fmtInt(data.sales.rows)} days across {data.sales.brands} brand
+              {data.sales.brands === 1 ? '' : 's'}
+              {data.sales.lo ? ` · ${data.sales.lo} to ${data.sales.hi}` : ''}. This is what the
+              warehouse forecast divides by.
+            </>
+          ) : (
+            <>
+              <b>No sales value recorded.</b> The warehouse constant divides by it, so WH forecast
+              and WH ACC% will be blank on every row until it is refilled — see Sales import below.
+            </>
+          )}
+        </p>
+      )}
       {error ? (
         <p className="digest__error">{error}</p>
       ) : brands.length === 0 ? (

@@ -214,10 +214,36 @@ api.get('/health', handle(async (req, res) => {
   } catch (err) {
     database = err.message
   }
+  /*
+   * Can the copy actually answer? Added 1 Oct 2026.
+   *
+   * "database: ok" only says the connection works. A copy whose derived tables
+   * are empty answers every query successfully and returns nothing, which is
+   * how a blank WH forecast column reaches a page with no error anywhere. These
+   * are row counts and date bounds - no business figures - so they stay on the
+   * unauthenticated health route where somebody diagnosing a deployment can
+   * actually reach them.
+   */
+  let copy = null
+  try {
+    copy = {
+      outboundMonthly: (await pg.get('SELECT COUNT(*)::int AS n FROM cube_outbound_monthly'))?.n ?? 0,
+      outboundDaily: (await pg.get('SELECT COUNT(*)::int AS n FROM cube_outbound_daily'))?.n ?? 0,
+      salesDays: (await pg.get('SELECT COUNT(*)::int AS n FROM cube_sales_daily'))?.n ?? 0,
+      salesActuals: (await pg.get('SELECT COUNT(actual)::int AS n FROM cube_sales_daily'))?.n ?? 0,
+      outboundMonths: (
+        await pg.get('SELECT MIN(month) AS lo, MAX(month) AS hi FROM cube_outbound_monthly')
+      ) ?? null,
+    }
+  } catch (err) {
+    copy = { error: String(err.message).slice(0, 120) }
+  }
+
   const ok = database === 'ok'
   res.status(ok ? 200 : 503).json({
     ok,
     database,
+    copy,
     storage: DATA_DIR,
     mode: data.mode,
     workspaceId: config.pbi.workspaceId,

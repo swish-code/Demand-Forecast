@@ -9663,14 +9663,26 @@ h3,
  * Tables are excluded deliberately: a row highlight follows the pointer down a
  * dense table and turns reading into a moving target.
  */
-.panel,
+/*
+ * `.panel` is NOT in this list, and must not be - 1 Oct 2026.
+ *
+ * A transformed element becomes the containing block for its `position: fixed`
+ * descendants. `.panel` holds the tables, and their popovers - Build view,
+ * Freeze, the column explainers - are fixed and positioned against the
+ * VIEWPORT. Lift the panel and every one of them is suddenly positioned against
+ * the panel instead, then clipped by its own `overflow: hidden`: Build view
+ * opened half underneath the sidebar with its text cut off mid-word.
+ *
+ * The lift was added for the cards and over-applied to panels; a whole table
+ * panel rising on hover was noise anyway. Cards hold no popovers, so they keep
+ * it.
+ */
 .metric,
 .kpi,
 .perf {
   transition: transform var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease);
 }
 
-.panel:hover,
 .metric:hover,
 .kpi:hover,
 .perf:hover {
@@ -9678,9 +9690,18 @@ h3,
   box-shadow: 0 6px 18px rgba(15, 23, 20, 0.07);
 }
 
+/* Panels answer the pointer without moving, so nothing inside them is
+   re-anchored. */
+.panel {
+  transition: box-shadow var(--t-med) var(--ease);
+}
+
+.panel:hover {
+  box-shadow: 0 6px 18px rgba(15, 23, 20, 0.07);
+}
+
 /* Someone who has asked for less motion gets the shadow alone. */
 @media (prefers-reduced-motion: reduce) {
-  .panel:hover,
   .metric:hover,
   .kpi:hover,
   .perf:hover {
@@ -10860,4 +10881,13 @@ h3,
  */
 .nav--collapsed .nav__items {
   padding-top: 22px;
+}
+
+/* The warning form of the cube panel's note — a missing denominator is the one
+   thing on that panel that explains a whole page of blanks. */
+.cube__note--warn {
+  color: var(--red);
+  background: var(--red-tint);
+  border-radius: var(--r-pill);
+  padding: var(--s2) var(--s3);
 }

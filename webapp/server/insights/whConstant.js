@@ -274,7 +274,28 @@ export async function constantsFor(brand, { anchor, months = 6, source = 'wareho
     // denominator, and dividing by it would produce an infinity that then
     // poisons the average of the other five.
     const usable = list.filter((m) => (sales.get(m)?.actual ?? 0) > 0)
-    if (!usable.length) return new Map()
+    if (!usable.length) {
+      /*
+       * Say so. Added 1 Oct 2026.
+       *
+       * This is the single most common way every warehouse forecast on a page
+       * comes back blank, and until now it was completely silent: the model
+       * returns an empty map, every article gets no quantity, and the page
+       * shows a column of dashes beside a perfectly healthy Outbound column.
+       * It reads as broken arithmetic and is actually a missing denominator -
+       * `cube_sales_daily.value` empty for every training month, which the
+       * Admin page's sales-value refill is there to fix.
+       *
+       * Warned rather than thrown: a brand that genuinely did not trade in
+       * those months has no constant and that is the right answer. One line per
+       * brand per model build, not per article.
+       */
+      console.warn(
+        `  [wh-constant] ${brand}: no sales value in ${list.join(', ')} - every warehouse ` +
+          `forecast for this brand will be blank. Refill sales values from the Admin page.`
+      )
+      return new Map()
+    }
 
     // Oldest first, so "before this article existed" is a prefix.
     const ordered = [...usable].sort()

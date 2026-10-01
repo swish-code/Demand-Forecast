@@ -161,15 +161,79 @@ export async function refreshOutboundAllBrands({ from, to }) {
 }
 
 
+/**
+ * Rebuild one brand's monthly rollup from its daily rows.
+ *
+ * IN ONE TRANSACTION, from 1 Oct 2026.
+ *
+ * It used to be a DELETE followed by an INSERT as two separate statements, and
+ * the gap between them was a hole: anything that stopped the process in between
+ * left the table EMPTY for that brand. That is not a cosmetic loss -
+ * `cube_outbound_monthly` is what the warehouse constant trains on, so an
+ * interrupted refresh silently blanked WH forecast and WH ACC% on every row of
+ * Stock Article, beside a perfectly healthy Outbound column read from the daily
+ * table that was never touched.
+ *
+ * It happened exactly that way: a refresh started from the Admin page while
+ * `node --watch` was restarting the server on file changes. The window is small
+ * but it is open on every run, and a deploy, a crash or an OOM would do the
+ * same.
+ *
+ * Wrapped, the two statements are one unit: either the rollup is replaced or
+ * the previous one stays. The worst case becomes stale rather than absent,
+ * which is the right direction for a derived table to fail in.
+ */
+/**
+ * Rebuild the monthly rollup wherever it has been lost, from the daily rows.
+ *
+ * Added 1 Oct 2026, with the transaction below.
+ *
+ * The rollup is DERIVED: every row of it is a sum of `cube_outbound_daily`,
+ * which no refresh deletes. So when the rollup is missing and the daily rows are
+ * not, the answer is arithmetic rather than another year of Power BI traffic -
+ * seconds against minutes, and no capacity spent.
+ *
+ * This matters because nothing else notices. The startup freshness gate reads
+ * coverage TIMESTAMPS, so an emptied rollup still looks recently pulled and is
+ * skipped on every boot - the copy stays broken until somebody refreshes it by
+ * hand. Checking the rows rather than the clock is what makes it self-healing.
+ *
+ * Returns the number of brands repaired, so the caller can say so.
+ */
+export async function repairOutboundRollup() {
+  const brands = [...config.brands.map((b) => b.code), OTHER_BUCKET]
+  const repaired = []
+  for (const brand of brands) {
+    const monthly = (await pg.get('SELECT COUNT(*)::int AS n FROM cube_outbound_monthly WHERE brand = ?', [brand]))?.n ?? 0
+    if (monthly > 0) continue
+    const daily = (await pg.get('SELECT COUNT(*)::int AS n FROM cube_outbound_daily WHERE brand = ?', [brand]))?.n ?? 0
+    // Nothing daily either means this brand was genuinely never pulled. That is
+    // a job for the refresh, not for a rollup that has nothing to roll up.
+    if (!daily) continue
+    await rebuildOutboundMonthly(brand)
+    repaired.push(brand)
+  }
+  if (repaired.length) {
+    forgetConstants()
+    console.warn(
+      `  [cube] outbound rollup was empty for ${repaired.join(', ')} - rebuilt from the daily ` +
+        `rows. Warehouse forecast would have been blank for ${repaired.length === 1 ? 'that brand' : 'those brands'}.`
+    )
+  }
+  return repaired.length
+}
+
 async function rebuildOutboundMonthly(brand) {
-  await pg.run('DELETE FROM cube_outbound_monthly WHERE brand = ?', [brand])
-  await pg.run(
-    `INSERT INTO cube_outbound_monthly (brand, month, article, qty)
-     SELECT brand, substr(date, 1, 7), article, SUM(qty)
-       FROM cube_outbound_daily WHERE brand = ?
-      GROUP BY brand, substr(date, 1, 7), article`,
-    [brand]
-  )
+  await pg.tx(async () => {
+    await pg.run('DELETE FROM cube_outbound_monthly WHERE brand = ?', [brand])
+    await pg.run(
+      `INSERT INTO cube_outbound_monthly (brand, month, article, qty)
+       SELECT brand, substr(date, 1, 7), article, SUM(qty)
+         FROM cube_outbound_daily WHERE brand = ?
+        GROUP BY brand, substr(date, 1, 7), article`,
+      [brand]
+    )
+  })
 }
 
 /**

@@ -4,7 +4,7 @@ import { config } from '../config.js'
 import { DATA_DIR } from '../db/driver.js'
 import { pg } from '../db/accounts.js'
 import { backfillAll, backfillBrand, backfillWide, refreshAllPlans, refreshAllRecent, refreshSalesValues, coverage, rebuildRollup, vacuum, pruneSalesVintages } from './extract.js'
-import { refreshAllOutbound, refreshSiteOutbound } from './outbound.js'
+import { refreshAllOutbound, refreshSiteOutbound, repairOutboundRollup } from './outbound.js'
 import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
 import { loadCoverage } from './query.js'
@@ -223,6 +223,24 @@ async function outboundIsFresh() {
 
 /** The startup pull, skipped when the copy is already current. */
 async function outboundIfStale() {
+  /*
+   * Repair before deciding, from 1 Oct 2026.
+   *
+   * `outboundIsFresh` reads coverage TIMESTAMPS. A rollup lost to an
+   * interrupted refresh still carries a recent stamp, so it looked current on
+   * every boot and was never rebuilt - the copy stayed broken, and the only
+   * symptom was a blank WH forecast column with no error anywhere.
+   *
+   * Rebuilding it from the daily rows costs a sum over a table that is already
+   * local, so it is cheap enough to check on every start, and it asks the data
+   * rather than the clock.
+   */
+  await repairOutboundRollup().catch((err) => {
+    // A repair that fails must not stop the server coming up; the refresh below
+    // is still there and the startup chain carries on.
+    console.warn(`  [cube] rollup repair failed: ${String(err.message).slice(0, 90)}`)
+  })
+
   if (await outboundIsFresh().catch(() => false)) {
     console.log('  [cube] outbound is recent — not re-pulling it on startup')
     return null
