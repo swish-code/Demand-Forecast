@@ -28,32 +28,11 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
   return (
     <nav className={`nav${collapsed ? ' nav--collapsed' : ''}`} aria-label="Pages">
       {/*
-        * On the rail's edge, halfway down.
-        *
-        * It sat in the brand row, where it took the space the wordmark needed
-        * and clipped "Demand Forecast" to fit. Halfway down the outside edge it
-        * is nowhere near anything it can cover, it is the same distance from
-        * the pointer wherever it is in the list, and it reads as belonging to
-        * the rail itself rather than to the logo.
+        * The brand moved to the app bar on 1 Oct 2026, where the reference puts
+        * it. Keeping it here as well would have shown the wordmark twice, a
+        * couple of hundred pixels apart, so the rail now starts with its
+        * section heading.
         */}
-      {onToggle && (
-        <button
-          type="button"
-          className="nav__toggle"
-          onClick={onToggle}
-          aria-expanded={!collapsed}
-          title={collapsed ? 'Expand the menu' : 'Collapse the menu'}
-          aria-label={collapsed ? 'Expand the menu' : 'Collapse the menu'}
-        >
-          <IconChevron size={14} />
-        </button>
-      )}
-      <div className="nav__brand">
-        <img className="nav__logo" src="/swish-logo.png" alt="Swishhh" />
-        <span className="nav__wordmark">
-          <b>Demand Forecast</b>
-        </span>
-      </div>
 
       {/*
         * The heading only earns its place when there is a list under it.
@@ -87,6 +66,32 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
           </button>
         ))}
       </div>
+
+      {/*
+        * Below the last item, in the normal flow - moved there 1 Oct 2026.
+        *
+        * It was absolutely positioned against the rail and pinned to its
+        * vertical middle, so it floated over whichever item happened to be
+        * halfway down: Admin when collapsed, Sales plan when expanded.
+        *
+        * A sibling of the list rather than its last child, because the list
+        * scrolls - inside it, the control would scroll out of reach on a short
+        * window, which is exactly when somebody wants to collapse the rail. It
+        * still renders directly under the last item, and the footer below is
+        * untouched, so the avatar stays pinned to the bottom.
+        */}
+      {onToggle && (
+        <button
+          type="button"
+          className="nav__toggle"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand the menu' : 'Collapse the menu'}
+          aria-label={collapsed ? 'Expand the menu' : 'Collapse the menu'}
+        >
+          <IconChevron size={14} />
+        </button>
+      )}
 
       <div className="nav__foot">
         <span className="nav__meta" title={lastUpdated ? `Updated ${lastUpdated}` : undefined}>

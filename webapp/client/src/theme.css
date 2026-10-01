@@ -247,12 +247,22 @@ select {
    same place whether the rail is open or collapsed and covers nothing in
    either state. Inside the edge rather than straddling it, because the rail
    clips its overflow to stop the wordmark spilling as it collapses. */
+/*
+ * In the flow, under the last nav item - 1 Oct 2026.
+ *
+ * It was `position: absolute` against the rail and pinned to its vertical
+ * middle, which put it on top of whichever item sat halfway down the list:
+ * Admin when the rail was collapsed, Sales plan when it was expanded. Nothing
+ * positions it now, so it cannot overlap anything.
+ *
+ * Centred in both states: collapsed it lines up under the icon column, and
+ * expanded it reads as belonging to the rail rather than to the item beside it.
+ */
 .nav__toggle {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  z-index: 3;
+  align-self: center;
+  margin-top: var(--s3);
+  margin-bottom: var(--s2);
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -286,12 +296,6 @@ select {
 
 /* Points the way it will move. */
 .nav--collapsed .nav__toggle svg { transform: rotate(180deg); }
-
-/* Collapsed there is no edge to sit against, so it centres on the rail. */
-.nav--collapsed .nav__toggle {
-  right: 50%;
-  transform: translate(50%, -50%);
-}
 
 /* The button is positioned against the rail, so the rail is the frame. */
 .nav {
@@ -10588,4 +10592,272 @@ h3,
 .pagehead--merged .filters > .btn {
   align-self: flex-end;
   margin-bottom: 2px;
+}
+
+/* ======================================================================== */
+/* The app bar — 1 Oct 2026.                                                 */
+/*                                                                           */
+/* Replaces `.pagehead--merged`, which carried the page name as well as the   */
+/* global controls. The bar now holds only what is true of the whole app -    */
+/* the brand, the filters, the data date and the tools - and the page name    */
+/* moved below it into the scrolling content.                                 */
+/*                                                                           */
+/* It needs no `position: sticky`: the bar sits OUTSIDE `.scroll`, which is   */
+/* the element that scrolls, so it has always stayed put. Nothing can overlap */
+/* it either, which is why there is no z-index or top offset here.            */
+/* ======================================================================== */
+
+.appbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3) var(--s4);
+  padding: var(--s3) var(--s5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+/* ---- the brand --------------------------------------------------------- */
+
+.appbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+  /* No rule after the wordmark: the gap to the next control already separates
+     them, and a divider on a bar this light reads as a seam. */
+  padding-right: var(--s2);
+}
+
+/*
+ * Height, not width. swish-logo.png is a 1500x525 wordmark - 2.86:1 - so a
+ * square box would squash it, which is the mistake the boot screen made.
+ */
+.appbar__logo {
+  height: 19px;
+  width: auto;
+  display: block;
+  flex: none;
+}
+
+.appbar__name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.015em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ---- the controls ------------------------------------------------------ */
+
+/*
+ * The filters sit directly on the bar, not in the grey tray they had when they
+ * were a band of their own. The reference puts its controls straight onto the
+ * white bar, and a tray inside a bar is a box inside a box.
+ */
+.appbar .topbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  min-height: 0;
+}
+
+.appbar .filters {
+  align-items: flex-end;
+  gap: var(--s3) var(--s4);
+}
+
+/*
+ * Wrapping is the behaviour, not a fallback.
+ *
+ * Stock Article offers eight slicers where the reference offers four; with the
+ * brand block and the trailing tools there is no width at which those fit one
+ * line on an ordinary screen. The bar becomes two rows there and one row on
+ * Overview and Products, which is the honest answer - the alternative is
+ * filters scrolled out of sight.
+ */
+.appbar .topbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+}
+
+/* ---- the page title, below the bar ------------------------------------- */
+
+/*
+ * First thing in the scrolling area, so it moves with the content it names -
+ * which is what makes the bar read as the application and this as the page.
+ */
+.pagetitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+/* ---- narrow windows ---------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .appbar .topbar__actions {
+    margin-left: 0;
+  }
+}
+
+/*
+ * The bar's two rows, ordered — 1 Oct 2026.
+ *
+ * The walkthrough, the data date and Calculations belong on the FIRST row with
+ * the brand: they are about the application and the page as a whole, where the
+ * filters are about what is being looked at. Left in source order they fell to
+ * whichever row the wrapping put them on, which on Stock Article meant the
+ * second one, under eight slicers.
+ *
+ * Ordered rather than moved in the markup, and the filter tray takes a full
+ * line so the split is the same on every page instead of depending on how many
+ * slicers that page happens to offer.
+ */
+.appbar__brand {
+  order: 1;
+}
+
+.appbar .topbar__actions {
+  order: 2;
+  margin-left: auto;
+}
+
+.appbar .topbar {
+  order: 3;
+  flex: 1 1 100%;
+}
+
+/*
+ * The brand block, coloured — 1 Oct 2026.
+ *
+ * The same green-to-blue the boot screen sets the product name in, so the two
+ * places the app names itself agree. The gradient is painted through the text
+ * rather than behind it.
+ *
+ * `color` is set first and only then made transparent: a browser that does not
+ * support `background-clip: text` — and print, which drops backgrounds — keeps
+ * the solid brand green instead of rendering the name invisible.
+ */
+.appbar__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.appbar__name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  color: var(--brand);
+  background: linear-gradient(95deg, #297836 0%, #3b7dd8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .appbar__name {
+    color: transparent;
+  }
+}
+
+@media print {
+  .appbar__name {
+    color: var(--brand);
+    background: none;
+  }
+}
+
+/* The line underneath says what the application is, in the register the rest
+   of the chrome uses for a caption. */
+.appbar__tag {
+  font-size: 10px;
+  font-weight: var(--w-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.005em;
+}
+
+/*
+ * A square tile, as the reference frames its mark.
+ *
+ * swish-logo.png is a 1500x525 wordmark - 2.86:1 - so it cannot fill a square
+ * without distorting. `object-fit: contain` fits it inside and letterboxes the
+ * rest, which is how it is already handled on the sign-in page; the padding
+ * keeps it off the tile's edges rather than letting it run corner to corner.
+ *
+ * Fixed width AND height, with `flex: none`: in a flex row an image with only
+ * one dimension set gets squeezed by its neighbours before it shrinks the row.
+ */
+.appbar__logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 6px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+}
+
+/*
+ * Slicers on the brand's row — Overview and Products only, 1 Oct 2026.
+ *
+ * The bar's default is two rows, because eight slicers cannot share a line with
+ * the brand and the tools. These two pages carry four, so their slicers sit to
+ * the right of the brand and the bar is one row tall.
+ *
+ * Order, so the row reads brand -> what is being looked at -> what acts on it:
+ * the filters take the middle and the tools stay pinned right.
+ */
+.appbar--inline .topbar {
+  order: 2;
+  flex: 0 1 auto;
+}
+
+.appbar--inline .topbar__actions {
+  order: 3;
+  margin-left: auto;
+}
+
+/* It still wraps. If the window is too narrow for four fields beside the brand,
+   they drop to a second row rather than eliding or scrolling out of sight. */
+
+/*
+ * The collapsed rail's icons, dropped to meet the bar — 1 Oct 2026.
+ *
+ * Collapsed, the "Reports" heading is `display: none`, so the list sat flush
+ * against the rail's top edge and the first icon's centre landed at 15.5px
+ * (7px of item padding plus half a 17px glyph) while the brand beside it
+ * centred at 37px. 22px of padding on the LIST closes that, which moves every
+ * icon together and leaves the spacing between them untouched.
+ *
+ * Collapsed only. Expanded, the "Reports" heading is visible and already
+ * carries the list about 35px down; adding this on top of it would open a gap
+ * rather than close one.
+ *
+ * Exact on Overview and Products, where the filters share the brand's row and
+ * make it 50px tall. On the pages whose filters take a second row that row is
+ * 34px, so the brand centres at 29px and the icon reads about 8px low. Pinning
+ * the brand to the top of the bar would make it exact everywhere, at the cost
+ * of the logo no longer sitting centred on the pages with tall controls.
+ */
+.nav--collapsed .nav__items {
+  padding-top: 22px;
 }

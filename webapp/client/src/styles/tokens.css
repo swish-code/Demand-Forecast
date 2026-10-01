@@ -145,7 +145,9 @@
   --pair-h: 520px;
 
   --nav-w: 208px;
-  --nav-w-collapsed: 66px;
+  /* Widened from 66px on 1 Oct 2026. One token, so both the rail itself and the
+     narrow-screen rule that reads it move together. */
+  --nav-w-collapsed: 76px;
 }
 
 @media (prefers-color-scheme: dark) {

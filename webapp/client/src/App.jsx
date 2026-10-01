@@ -119,6 +119,17 @@ const RAW_ON_SITE_PAGES = true
  */
 const YELO_FACTORY_PAGE_ON = true
 
+/*
+ * The Unclassified page - OFF, temporarily, from 1 Oct 2026.
+ *
+ * Switched off on request rather than deleted, the same way the combined
+ * Production page is: the page, its rules and its department wiring all stay
+ * intact, so turning it back on is this one word. It was already admin-only
+ * while the classification was being validated, so no account loses a tab it
+ * was using.
+ */
+const UNCLASSIFIED_PAGE_ON = false
+
 
 
 /*
@@ -442,6 +453,8 @@ const PAGES = [
     },
         ]
       : []),
+    ...(UNCLASSIFIED_PAGE_ON
+      ? [
     {
       id: 'src-none',
       label: 'Unclassified',
@@ -465,6 +478,8 @@ const PAGES = [
       adminOnly: true,
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
     },
+        ]
+      : []),
       ]
     : []),
   {
@@ -1166,20 +1181,31 @@ export default function App({ session, onSignedOut }) {
           * edge - which is why this is a per-page modifier rather than the
           * default. Every other page keeps the tray on its own line.
           */}
+        {/*
+          * `--inline` lifts the slicers onto the brand's own row.
+          *
+          * Only Overview and Products, which offer four. Stock Article offers
+          * eight and the production pages six, and on those the bar keeps its
+          * second row - there is no width at which eight fields fit beside the
+          * brand and the tools on an ordinary screen.
+          */}
         <header
-          className={`pagehead pagehead--merged${
-            INLINE_SLICER_PAGES.has(page.id) ? ' pagehead--inline' : ''
-          }`}
+          className={`appbar${INLINE_SLICER_PAGES.has(page.id) ? ' appbar--inline' : ''}`}
         >
           {/*
-            * The page name alone, from 1 Oct 2026.
+            * The brand sits here rather than in the rail, from 1 Oct 2026.
             *
-            * `page.blurb` is still what the rail's buttons say on hover, and it
-            * is still read by the Admin page's own page list - it has stopped
-            * being printed under the heading, not stopped existing.
+            * It was at the top of the green rail; the reference puts it at the
+            * left of the bar and nothing else does, so showing it in both would
+            * have printed the wordmark twice about 200px apart. The rail now
+            * starts with its REPORTS heading.
             */}
-          <div className="topbar__titles">
-            <h1>{page.label}</h1>
+          <div className="appbar__brand">
+            <img className="appbar__logo" src="/swish-logo.png" alt="" />
+            <span className="appbar__names">
+              <span className="appbar__name">Demand Forecast</span>
+              <span className="appbar__tag">Business Performance &amp; Analytics</span>
+            </span>
           </div>
 
           {page.slicers.length > 0 && (
@@ -1259,6 +1285,16 @@ export default function App({ session, onSignedOut }) {
         </header>
 
         <div className="scroll" ref={pageRef}>
+          {/*
+            * The page name, below the bar and scrolling with the content - the
+            * arrangement the reference uses. It was inside the bar until
+            * 1 Oct 2026, which left the bar carrying both the app's identity
+            * and the page's.
+            *
+            * No line under it: `page.blurb` stopped being printed on request,
+            * and the date it would otherwise carry is already in the bar.
+            */}
+          <h1 className="pagetitle">{page.label}</h1>
           {mailboxResult && (
             <InfoBanner tone={mailboxResult.tone === 'ok' ? 'info' : 'warn'}>
               {mailboxResult.text}
