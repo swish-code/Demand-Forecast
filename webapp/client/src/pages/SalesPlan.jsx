@@ -12,6 +12,7 @@
  * that ratio represents.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { exportFileName } from '../exportName.js'
 import { api, fmtQty, downloadCsv } from '../api.js'
 import { Panel, ErrorBanner, ChartSkeleton, Empty, Pill } from '../components/ui.jsx'
 import { DataTable } from '../components/DataTable.jsx'
@@ -97,9 +98,28 @@ export function SalesPlan({ isAdmin = false }) {
     setDownloading(kind)
     setNote('')
     setError(null)
-    // Say in the filename what the sheet actually covers, so two downloads
-    // taken under different filters cannot be mistaken for each other.
-    const suffix = `${fBrand ? `-${fBrand}` : ''}${fMonth ? `-${MONTH_NAMES[Number(fMonth) - 1]}` : ''}`
+    /*
+     * Named for the table and the period it covers - 13 Oct 2026.
+     *
+     * The same rule as every other download in the app: the table, then the
+     * dates. This page selects a YEAR and optionally a month rather than a
+     * range, so the selection is written out as the range it means - a whole
+     * plan year, or the one month of it that was chosen.
+     *
+     * The brand went with it. It is a slicer, and slicers are deliberately not
+     * in these names any more.
+     */
+    const pad = (n) => String(n).padStart(2, '0')
+    const m = Number(fMonth)
+    const span =
+      m >= 1 && m <= 12
+        ? {
+            from: `${data.year}-${pad(m)}-01`,
+            to: `${data.year}-${pad(m)}-${pad(new Date(Date.UTC(data.year, m, 0)).getUTCDate())}`,
+          }
+        : { from: `${data.year}-01-01`, to: `${data.year}-12-31` }
+    const sheetName = (table) =>
+      exportFileName(table, { dateFrom: span.from, dateTo: span.to })
     /*
      * The sheet gets the same rows the table is showing, slicer included.
      * Applied here rather than server-side because the slicer narrows the
@@ -119,7 +139,7 @@ export function SalesPlan({ isAdmin = false }) {
           brand: fBrand || undefined,
           month: fMonth || undefined,
         })
-        downloadCsv(`product-forecast-${data.year}${suffix}.csv`, keep(rows), [
+        downloadCsv(sheetName('Product Forecast'), keep(rows), [
           { key: 'brand', label: 'Brand' },
           { key: 'plu', label: 'PLU' },
           { key: 'product', label: 'Product' },
@@ -131,7 +151,7 @@ export function SalesPlan({ isAdmin = false }) {
           brand: fBrand || undefined,
           month: fMonth || undefined,
         })
-        downloadCsv(`article-forecast-${data.year}${suffix}.csv`, keep(rows), [
+        downloadCsv(sheetName('Article Forecast'), keep(rows), [
           { key: 'brand', label: 'Brand' },
           { key: 'article', label: 'Article No.' },
           { key: 'item', label: 'Article' },

@@ -11,3 +11,7 @@ client/dist/
 
 # curl cookie jars from local testing.
 cookies.txt
+
+# Backups of the manually entered tables. They hold the mailbox refresh
+# token, so this must never be committed. See server/db/backup.js.
+/backups/

@@ -8,6 +8,8 @@ import { FmNotice, Panel, ErrorBanner, ChartSkeleton, Empty, Pill, MetricCard } 
 import { BrandTag } from '../components/BrandTag.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import { whAccuracy, coveredByStock, whRatioAccuracy } from '../whAccuracy.js'
+import { mixAccuracy } from '../mixAccuracy.js'
+import { exportFileName } from '../exportName.js'
 import { ArticleUsage } from '../components/ArticleUsage.jsx'
 import { ArticleFinder } from '../components/ArticleFinder.jsx'
 import ReplenishmentPlanning from '../components/ReplenishmentPlanning.jsx'
@@ -41,6 +43,25 @@ const STATUS_TONE = {
  * It appears here only to be said out loud in a tooltip.
  */
 const TARGET_COVER = 1.25
+
+/**
+ * The tooltip for a stock balance, naming the day it was actually read on.
+ *
+ * `Stock_As_At` is the window's last day whenever the inventory feed has one,
+ * and the newest day it does hold when that day has not happened yet. The two
+ * cases read differently and the reader needs to be able to tell them apart,
+ * so the sentence changes rather than the number being quietly relabelled.
+ */
+function asAtTitle(row, what = 'The shops’ closing stock') {
+  const day = row?.Stock_As_At
+  if (!day) return `${what} on the last day of the selected range.`
+  return (
+    `${what} as at ${day} — the most recent day the inventory feed has reported. ` +
+    'Where the selected range ends later than that, this is the latest known ' +
+    'balance rather than a reading for the day you picked, because stock is a ' +
+    'balance and a day that has not happened has none.'
+  )
+}
 
 /*
  * Severity, not identity. Every pill carries its own words, so nothing here
@@ -1134,7 +1155,10 @@ const COLUMNS = [
   {
     key: 'WH_Closing_SOH',
     label: 'WH closing',
-    hint: 'Warehouse stock on hand on the last day of the selected date range. Opening minus closing should be roughly what went out.',
+    hint:
+      'Warehouse stock on hand on the last day of the selected date range — or, ' +
+      'where that day has not happened yet, on the most recent day the inventory ' +
+      'feed has reported. Opening minus closing should be roughly what went out.',
     autoWidth: true,
     num: true,
     group: 'whstock',
@@ -1251,7 +1275,13 @@ const COLUMNS = [
   {
     key: 'Store_SOH',
     label: 'Store SOH',
-    hint: "Closing stock in the shops on the last day of the selected date range. This is the shops' own stock, not the warehouse's, and it is never used in any warehouse calculation.",
+    hint:
+      "Closing stock in the shops, read on the last day of the selected date range " +
+      "— or, where that day has not happened yet, on the most recent day the " +
+      "inventory feed has reported. Stock is a balance, so a future day has none " +
+      "of its own and the latest known one is the only figure that can be acted " +
+      "on; the cell says which day it came from. This is the shops' own stock, " +
+      "not the warehouse's, and it is never used in any warehouse calculation.",
     autoWidth: true,
     num: true,
     /*
@@ -1272,11 +1302,11 @@ const COLUMNS = [
     group: 'whstock',
     total: 'sum',
     renderTotal: fmtQty,
-    render: (v) =>
+    render: (v, r) =>
       v === null || v === undefined ? (
         <span
           className="muted"
-          title="No closing-stock reading for this article in these brands' shops on the last day of the selected range. That is not the same as zero stock — it means nothing is known, so nothing is claimed. A range whose last day has not happened yet has no reading at all."
+          title="No closing-stock reading for this article in these brands' shops. That is not the same as zero stock — it means nothing is known, so nothing is claimed."
         >
           –
         </span>
@@ -1290,7 +1320,16 @@ const COLUMNS = [
           {fmtQty(v)}
         </span>
       ) : (
-        fmtQty(v)
+        /*
+         * The day the balance was read on, where it is not the one selected.
+         *
+         * Stock is a balance, and the inventory feed only reaches yesterday -
+         * so a range ending today or later is answered with the newest reading
+         * there is. Saying so is the whole point: a figure shown against a
+         * future month is today's shelf, not a prediction of that month's, and
+         * nothing else on the row would tell the reader which.
+         */
+        <span title={asAtTitle(r)}>{fmtQty(v)}</span>
       ),
   },
   {
@@ -1512,7 +1551,7 @@ const COLUMN_ORDER = [
  *
  * Warehouse stock is unaffected. Its data is sound and it has its own switch.
  */
-const STORE_COLUMNS_ON = false
+export const STORE_COLUMNS_ON = false
 
 /*
  * The Stock group, kept apart from the store-replenishment block on purpose.
@@ -1525,7 +1564,7 @@ const STORE_COLUMNS_ON = false
  * keeps its own STORE_SOH_ON switch, because it is the one column here that the
  * posting gap can affect. Sharing a heading is not sharing a gate.
  */
-const WH_STOCK_COLUMNS = new Set(['WH_Opening_SOH', 'WH_Closing_SOH', 'Open_PO_Qty'])
+export const WH_STOCK_COLUMNS = new Set(['WH_Opening_SOH', 'WH_Closing_SOH', 'Open_PO_Qty'])
 
 /*
  * Replenishment is off, asked for on 14 Sep 2026.
@@ -1547,8 +1586,8 @@ const REPL_COLUMNS = new Set(['Required_Shipment', 'Shipment_Status'])
  * number somebody can see and judge is worth showing where a ratio built on it
  * is not. Set STORE_COLUMNS_ON back to true for those two.
  */
-const STORE_SOH_ON = true
-const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
+export const STORE_SOH_ON = true
+export const STORE_SOH_COLUMNS = new Set(['Store_SOH', 'Store_DTL'])
 
 /*
  * What the Production page has no use for.
@@ -1594,17 +1633,26 @@ const NO_WAREHOUSE_COLUMNS = new Set([
  * Admin only from 1 Oct 2026. Kept as a set beside the other column groups so
  * there is one place to add to, rather than a condition per column.
  */
-const ADMIN_ONLY_COLUMNS = new Set(['WH_Ratio_Acc', 'WH_New_Pct', 'WH_Rounded'])
+export const ADMIN_ONLY_COLUMNS = new Set(['WH_Ratio_Acc', 'WH_New_Pct', 'WH_Rounded'])
 
 /** The derived store figures, still off. */
-const STOCK_COLUMNS = new Set([
+export const STOCK_COLUMNS = new Set([
   'Stock_Cover',
   'SOH_Status',
   'Required_Shipment',
   'Shipment_Status',
 ])
 
-const ORDERED_COLUMNS = (() => {
+/*
+ * Exported from 8 Oct 2026, for the Procurement view.
+ *
+ * That page shows a subset of these columns in a different layout, and it reads
+ * THESE definitions rather than declaring its own - so a renderer, a width, a
+ * tooltip or a format fixed here is fixed on both pages, and the two can never
+ * disagree about what a column means. Nothing about this page changes: the
+ * array, its order and every gate below are exactly as they were.
+ */
+export const ORDERED_COLUMNS = (() => {
   const rank = new Map(COLUMN_ORDER.map((key, i) => [key, i]))
   // Anything not named keeps its relative position at the end rather than
   // silently jumping to the front, so a column added below still appears.
@@ -2408,16 +2456,23 @@ export function ComponentLevel({
             ? (held.implied ?? 0) + (Number(r.Store_SOH) || 0) - held.consumed
             : null,
         WH_Accuracy: carriesWarehouse
-          ? whAccuracy(score(held?.wh ?? null), held?.wh ?? null, r.Store_SOH)
+          ? whAccuracy(score(held?.wh ?? null), held?.wh ?? null, r.Store_SOH, r.Stock_Covered)
           : null,
         // So the column can say WHY a row reads 100%.
-        WH_Acc_Covered: carriesWarehouse && coveredByStock(held?.wh ?? null, r.Store_SOH),
+        // The server's answer where it sent one - see `ruleFired`. An account
+        // that may not see the quantity still gets the dot that explains the
+        // 100%, which is the whole point of sending the boolean.
+        WH_Acc_Covered:
+          carriesWarehouse &&
+          (typeof r.Stock_Covered === 'boolean'
+            ? r.Stock_Covered
+            : coveredByStock(held?.wh ?? null, r.Store_SOH)),
         /*
          * The directional score, beside the symmetric one: what shipped as a
          * share of what was forecast, with the same stock rule applied first.
          */
         WH_Ratio_Acc: carriesWarehouse
-          ? whRatioAccuracy(held?.consumed ?? null, held?.wh ?? null, r.Store_SOH)
+          ? whRatioAccuracy(held?.consumed ?? null, held?.wh ?? null, r.Store_SOH, r.Stock_Covered)
           : null,
         /*
          * Both sides present, or nothing at all.
@@ -2674,6 +2729,24 @@ export function ComponentLevel({
       held.Open_PO_Value = add(held.Open_PO_Value, r.Open_PO_Value)
       held.Store_SOH = add(held.Store_SOH, r.Store_SOH)
       /*
+       * The stock rule's answer, folded for readers who have no quantity.
+       *
+       * An account permitted the stock uses the SUMMED Store SOH below, exactly
+       * as before - a group judged on the stock of the articles actually in it.
+       * An account that is not has no quantity to sum, so the best available
+       * answer is "every article in this group was covered on its own", which
+       * is what this accumulates.
+       *
+       * The two can differ for a MIXED group: summed stock can clear twice the
+       * summed forecast while one member did not clear its own. Noted rather
+       * than hidden - it only applies to grouped rows for unpermitted readers,
+       * and the alternative for them is no rule at all, which is what produced
+       * two different accuracies for the same page.
+       */
+      if (typeof r.Stock_Covered === 'boolean') {
+        held.Stock_Covered = held.Stock_Covered === undefined ? r.Stock_Covered : held.Stock_Covered && r.Stock_Covered
+      }
+      /*
        * Store DTL is CARRIED, not added — and it has to be carried, not left
        * to the spread above.
        *
@@ -2692,6 +2765,17 @@ export function ComponentLevel({
        * for the same reason.
        */
       held.Store_DTL = held.Store_DTL ?? r.Store_DTL
+      /*
+       * Carried, for the same reason Store_DTL above is.
+       *
+       * The day the balances were read on is stamped once per article, on its
+       * carrying row. The fold seeds from the FIRST row of the group, which for
+       * a raw material is a recipe line with no stock on it - so without this a
+       * folded row would show a stock figure and a tooltip that could not say
+       * which day it came from. It is the same date for every article in the
+       * response, so taking the first non-null is exact rather than a pick.
+       */
+      held.Stock_As_At = held.Stock_As_At ?? r.Stock_As_At
       held.New_Required_Qty = add(held.New_Required_Qty, r.New_Required_Qty)
       held.__articles.add(String(r['Item No.'] ?? '').trim())
       // First non-null wins per article: the value repeats across an article's
@@ -2791,19 +2875,24 @@ export function ComponentLevel({
         // Unrounded, for the same reason `held.wh` is: see `priced` above.
         // The stock rule uses the folded row's own summed Store SOH, so a
         // group is judged on the stock of the articles actually in it.
+        // The summed quantity decides where there is one; the folded flag is
+        // the fallback for a reader who may not see it. `undefined` means
+        // neither, and the helpers then treat the row as uncovered as before.
         WH_Accuracy: whAccuracy(
           rescore(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty),
           r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
-          r.Store_SOH
+          r.Store_SOH,
+          r.Store_SOH === null || r.Store_SOH === undefined ? r.Stock_Covered : undefined
         ),
-        WH_Acc_Covered: coveredByStock(
-          r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
-          r.Store_SOH
-        ),
+        WH_Acc_Covered:
+          r.Store_SOH === null || r.Store_SOH === undefined
+            ? Boolean(r.Stock_Covered)
+            : coveredByStock(r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty, r.Store_SOH),
         WH_Ratio_Acc: whRatioAccuracy(
           c,
           r.WH_Forecast_Unrounded ?? r.WH_Constant_Forecast_Qty,
-          r.Store_SOH
+          r.Store_SOH,
+          r.Store_SOH === null || r.Store_SOH === undefined ? r.Stock_Covered : undefined
         ),
         /*
          * Re-divided on the folded row's own totals, not carried over: a merged
@@ -2828,16 +2917,14 @@ export function ComponentLevel({
          * happened to keep, so a merged row could show quantities from several
          * articles beside an accuracy belonging to one of them.
          */
-        Sales_Accuracy:
-          r.Component_Actual_Qty === null ||
-          r.Component_Actual_Qty === undefined ||
-          Number(r.Component_Actual_Qty) <= 0 ||
-          r.Component_Forecast_Qty === null ||
-          r.Component_Forecast_Qty === undefined
-            ? null
-            : 1 -
-              Math.abs(Number(r.Component_Actual_Qty) - Number(r.Component_Forecast_Qty)) /
-                Number(r.Component_Actual_Qty),
+        /*
+         * The formula moved to `mixAccuracy.js` on 8 Oct 2026, unchanged.
+         *
+         * The Procurement view scores the same thing per article per month, and
+         * two copies of one rule is two things to fix. Same three null cases,
+         * same arithmetic, same signed result.
+         */
+        Sales_Accuracy: mixAccuracy(r.Component_Forecast_Qty, r.Component_Actual_Qty),
         /*
          * The two variances, on the folded row's own totals.
          *
@@ -3017,12 +3104,24 @@ export function ComponentLevel({
    * cannot be told apart from last week's is a download somebody has to open to
    * identify, and browsers helpfully append "(7)" rather than complaining.
    */
-  const exportName = useMemo(() => {
-    const from = filters?.dateFrom
-    const to = filters?.dateTo
-    const period = from && to ? (from === to ? from : `${from} to ${to}`) : 'all dates'
-    return `Stock Articles - ${period}.csv`
-  }, [filters?.dateFrom, filters?.dateTo])
+  /*
+   * Named for the page it was taken from, and the selection - 13 Oct 2026.
+   *
+   * The made-in-house pages export prep steps and prepared articles, so "Stock
+   * Articles" named them after the page they were split OUT of. "PA Articles"
+   * is what those rows are. Keyed on `noWarehouse` rather than on a page id
+   * because that flag is exactly the made-in-house set - Production, the three
+   * site pages and Unclassified - and Stock Article and Procurement, which show
+   * the bought half, are exactly the ones without it.
+   */
+  const exportName = useMemo(
+    () =>
+      exportFileName(noWarehouse ? 'PA Articles' : 'Stock Articles', {
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+      }),
+    [noWarehouse, filters?.dateFrom, filters?.dateTo]
+  )
 
   /*
    * The cards read the table's OWN rows, not a re-selection from the full set.
@@ -3314,7 +3413,7 @@ export function ComponentLevel({
       newScored += 1
       // The row's own score, stock rule included — the same number the column
       // shows, so the card cannot disagree with the rows it summarises.
-      const a = whRatioAccuracy(c, f, r.Store_SOH)
+      const a = whRatioAccuracy(c, f, r.Store_SOH, r.Stock_Covered)
       newAccSum += a === null ? 0 : a
     }
     const newRatio = newScored > 0 ? newAccSum / newScored : null

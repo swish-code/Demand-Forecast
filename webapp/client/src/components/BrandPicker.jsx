@@ -133,7 +133,7 @@ export function BrandPicker({ brands = [], selected = [], onChange }) {
                 <button
                   key={b.code}
                   type="button"
-                  className="opt opt--button"
+                  className="opt opt--button opt--brand"
                   disabled={last}
                   title={last ? 'At least one brand has to stay selected' : b.label}
                   onClick={() => toggle(b.code)}
@@ -141,9 +141,22 @@ export function BrandPicker({ brands = [], selected = [], onChange }) {
                   <span className={`opt__box${on ? ' opt__box--on' : ''}`} aria-hidden="true">
                     {on && <IconCheck size={10} />}
                   </span>
-                  <BrandMark code={b.code} size={24} />
+                  {/*
+                   * The code and the mark are ONE cell, stacked.
+                   *
+                   * They used to be two separate children, with the code last —
+                   * and `.opt` is a three-column grid, so a fourth child had
+                   * nowhere to go and wrapped onto an implicit second row, in
+                   * the first column. That put every brand's code underneath
+                   * its own row and directly above the NEXT brand's name, so
+                   * BBT read as a heading for Chilli Pepper and the first row
+                   * looked as though it had no code at all.
+                   */}
+                  <span className="opt__brand">
+                    <span className="opt__brandcode">{b.code}</span>
+                    <BrandMark code={b.code} size={24} />
+                  </span>
                   <span className="opt__text">{b.label}</span>
-                  <span className="opt__code">{b.code}</span>
                 </button>
               )
             })}

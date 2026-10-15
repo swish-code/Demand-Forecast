@@ -1,2 +1,4 @@
 **/.pbi/localSettings.json
 **/.pbi/cache.abf
+# Backups of the manually entered tables — they hold a mailbox refresh token.
+/backups/

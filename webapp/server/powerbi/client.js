@@ -1,4 +1,4 @@
-import { timed } from '../perf.js'
+import { note, tag, timed } from '../perf.js'
 import { config } from '../config.js'
 import { getAccessToken } from './auth.js'
 import { HttpError } from './errors.js'
@@ -210,7 +210,21 @@ export const concurrency = () => ({ limit, inFlight, waiting: waiting.length })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export async function executeQuery(dax, datasetId, { bulk = false, workspace = null } = {}) {
-  await acquire()
+  /*
+   * Waiting for a slot is work, and it was invisible.
+   *
+   * `timed('pbi', ...)` further down wraps the HTTP call only, so the ledger
+   * reported how long Power BI took to answer and said nothing about how long
+   * the request sat in the queue before it was asked. That is the difference
+   * between "Power BI is slow" and "we are asking it too much at once", which
+   * are opposite problems with opposite fixes - and on a page issuing a
+   * hundred-odd queries the second one dominates.
+   *
+   * Recorded separately so a request line now reads, for example,
+   * `pbi 112x58000ms · pbi-wait 112x61000ms · pbi-429 7`, which says plainly
+   * that more time went to queueing than to querying.
+   */
+  await timed('pbi-wait', acquire)
   try {
     let lastError
     const started = Date.now()
@@ -230,7 +244,12 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
         // as a 429 does, so it narrows the gate and gets the longer budget.
         const overloaded =
           err.status === 429 || (err.status === 400 && TRANSIENT_TEXT.test(err.message ?? ''))
-        if (overloaded) throttled()
+        if (overloaded) {
+          // Counted, because a collapsed gate is the thing that makes every
+          // OTHER page slow too and nothing recorded that it had happened.
+          note('pbi-429', 0)
+          throttled()
+        }
 
         const budget = overloaded
           ? THROTTLE_DEADLINE_MS
@@ -263,6 +282,10 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
       }
     }
   } finally {
+    // The width of the gate as this request left it. A line reporting `gate 2`
+    // is a request that spent its life behind a gate that had collapsed, which
+    // is a different diagnosis from the same request reporting `gate 8`.
+    tag('gate', limit)
     release()
   }
 }

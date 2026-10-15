@@ -215,8 +215,49 @@ async function read(method, path, body, options) {
   throw lastError
 }
 
+/*
+ * One request at a time for any given GET, however many callers ask.
+ *
+ * React runs every effect twice in development, so a component that fetches on
+ * mount fetches twice. Measured on 15 Oct 2026 from the request ledger, opening
+ * the Admin page issued two of each of its eight reads — and the expensive one
+ * is not cheap to double: /admin/model-review is eighteen Power BI queries and
+ * took 61 and 76 seconds running alongside itself. Those two copies occupied
+ * the Power BI concurrency gate between them, which is shared, so every other
+ * page waited behind a duplicate of something nobody asked for twice.
+ *
+ * The debounce in `useData` already absorbs this for the pages, because the
+ * first mount's timer is cleared before it fires. Nothing absorbed it for the
+ * calls made straight from an effect, which is most of the admin screens.
+ *
+ * This is DEDUPE and not a cache: the entry lives exactly as long as the
+ * request does, so nobody is ever handed a figure that was already on screen.
+ * The only thing it rules out is asking the same question twice at the same
+ * moment, which has no answer of its own.
+ */
+const inflightGets = new Map()
+
 /** Reads a JSON endpoint, routing an expired session back to the login screen. */
-const get = (path) => read('GET', path)
+const get = (path) => {
+  const held = inflightGets.get(path)
+  if (held) return held
+
+  const promise = read('GET', path)
+  inflightGets.set(path, promise)
+  /*
+   * Cleared by identity, so a later request for the same path cannot be
+   * removed by an earlier one finishing. The trailing catch is not
+   * indifference — the rejection belongs to whoever called `get`, and without
+   * it this derived promise is one nothing handles, which Node and the browser
+   * both report as an unhandled rejection.
+   */
+  promise
+    .finally(() => {
+      if (inflightGets.get(path) === promise) inflightGets.delete(path)
+    })
+    .catch(() => {})
+  return promise
+}
 
 /** POST/PATCH/DELETE share one path so they share one set of error rules. */
 const send = (method, path, body) => request(method, path, body)
@@ -457,6 +498,13 @@ export const fmtLongDate = (iso) => {
 }
 
 /** Download an array of row objects as CSV. */
+/**
+ * The byte-order mark Excel looks for, written as an escape rather than as the
+ * character itself - an invisible literal in source is a thing an editor, a
+ * formatter or a careless paste can quietly remove.
+ */
+const BOM = '\ufeff'
+
 export function downloadCsv(filename, rows, columns, notes) {
   if (!rows?.length) return
   const cols = columns ?? Object.keys(rows[0]).map((key) => ({ key, label: key }))
@@ -487,7 +535,21 @@ export function downloadCsv(filename, rows, columns, notes) {
     ...extra,
   ].join('\n')
 
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  /*
+   * A byte-order mark, so Excel reads this as UTF-8.
+   *
+   * The blob already declares `charset=utf-8`, and Excel ignores it: opening a
+   * local CSV it falls back to the system codepage, so every byte outside ASCII
+   * is misread. An em dash came out as "a EUR"", and the article names suffer
+   * the same way - "4x7x28cm" and "SUUUBER(tm)" carry multi-byte characters
+   * that mangle identically.
+   *
+   * The mark costs three bytes, is invisible in every reader that understands
+   * it, and is what Excel looks for. Nothing else in the file changes.
+   */
+  const url = URL.createObjectURL(
+    new Blob([BOM, csv], { type: 'text/csv;charset=utf-8;' })
+  )
   const a = document.createElement('a')
   a.href = url
   a.download = filename

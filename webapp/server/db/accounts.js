@@ -695,6 +695,25 @@ ALTER TABLE cube_coverage ALTER COLUMN to_date DROP NOT NULL;
  * on its own schedule, and copying them a row at a time would take far longer
  * than letting it.
  */
+/*
+ * AUDITED 7 Oct 2026, after a rebuild silently lost the 2027 sales plan.
+ *
+ * This list is what the OLD SQLITE FILE can supply, and nothing more - adding
+ * a table it never held achieves nothing. `cube_sales_plan` is the case in
+ * point: it has never existed in app.db, so listing it here would have looked
+ * like a fix and changed nothing. The JSON backup in `backup.js` is what
+ * actually protects it, and `ENTERED_TABLES` there is the list to keep current.
+ *
+ * Deliberately absent, and why:
+ *   cube_*          derived; 1.5 million rows the extract rebuilds itself.
+ *                   `cube_sales_plan` is the one exception and is covered by
+ *                   the backup instead, for the reason above.
+ *   mail_consents   a PKCE verifier alive for ten minutes. Restoring an expired
+ *                   one is worse than restoring nothing.
+ *   sessions        carried here because the file has them, but see the backup:
+ *                   restoring a session hands out a live sign-in, so the backup
+ *                   leaves them out on purpose.
+ */
 const TABLES = [
   'users',
   'user_scopes',
@@ -779,6 +798,39 @@ async function importFromSqlite() {
 export async function initDatabase() {
   await connect()
   await pg.exec(SCHEMA)
+
+  /*
+   * The JSON backup first, the SQLite file second - 7 Oct 2026.
+   *
+   * ORDER MATTERS, and this is the whole reason the order is this way round.
+   * The backup is written after every extract and on every clean shutdown, so
+   * it is as current as the last time the app ran. The SQLite file stopped
+   * being written on 25 Aug 2026 when the local engine took over, so it is a
+   * floor rather than a source of truth.
+   *
+   * Both refuse to touch a table that already has rows, so running them in this
+   * order gives newest-wins: the backup fills what it has, and the migration
+   * then fills only what the backup could not - the history tables it carries
+   * and the backup deliberately does not.
+   *
+   * On a database that is merely restarting, both do nothing: every table is
+   * already populated.
+   */
+  let restored = null
+  try {
+    const { restoreEntered } = await import('./backup.js')
+    restored = await restoreEntered()
+  } catch (err) {
+    console.warn(`  [backup] could not restore entered tables: ${String(err.message).slice(0, 90)}`)
+  }
+  if (restored?.restored) {
+    const put = Object.entries(restored.restored)
+      .filter(([, v]) => typeof v === 'number' && v > 0)
+      .map(([k, v]) => `${k} ${v}`)
+    if (put.length) {
+      console.log(`  Restored from backup (${restored.takenAt}): ${put.join(', ')}`)
+    }
+  }
 
   const result = await importFromSqlite()
   const { n } = (await pg.get('SELECT COUNT(*)::int AS n FROM users')) ?? { n: 0 }

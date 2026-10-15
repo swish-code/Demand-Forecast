@@ -1,7 +1,29 @@
 import { config } from './config.js'
-import { note } from './perf.js'
+import { note, timed } from './perf.js'
 
 const store = new Map()
+
+/*
+ * What a key is ABOUT, for the timing ledger.
+ *
+ * The ledger counts Power BI calls and copy queries, which answers "where did
+ * the time go" at the level of the layer and not at the level of the question.
+ * A request logging `pbi 32x33806ms` says a third of a minute went to Power BI
+ * and nothing whatever about which thirty-two lookups those were, so there is
+ * no way to tell a lookup worth caching harder from one that is simply slow.
+ *
+ * Keys here are colon-separated and start either with a dataset id - a GUID, of
+ * no interest - or with the name of the thing. So: drop a leading GUID, take
+ * the next segment, and leave the rest, which is the window or the brand and
+ * would turn one counter into hundreds.
+ */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-/i
+
+function labelFor(key) {
+  const parts = String(key).split(':')
+  const name = GUID.test(parts[0]) ? parts[1] : parts[0]
+  return `miss:${name || 'other'}`
+}
 
 /**
  * How far past its TTL a value may still be served while a refresh runs behind
@@ -22,9 +44,7 @@ function refresh(key, fn, ttl) {
   // Promise.resolve, not fn().then: some producers are synchronous now that the
   // local copy answers straight out of SQLite, and calling .then on an array
   // throws.
-  const promise = Promise.resolve()
-    .then(fn)
-    .then(
+  const promise = timed(labelFor(key), () => Promise.resolve().then(fn)).then(
     (value) => {
       store.set(key, { value, settled: value, hasSettled: true, expires: Date.now() + ttl })
       return value

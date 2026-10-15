@@ -26,6 +26,10 @@ export const DEPARTMENTS = [
   'Analytics',
   'Supply Chain',
   'Procurement',
+  // Added 14 Oct 2026. Holds Warehouse Insights and nothing else: the forecast
+  // against what actually left the warehouse, which is the page that answers
+  // what the stock movement cost against what was planned.
+  'Cost Controller',
   'Finance',
   'Marketing',
   'IT',
@@ -142,8 +146,36 @@ export const DEPARTMENT_PAGES = {
    *
    * `guide` is added by `withGuide`, so it is not listed.
    */
-  Procurement: ['component'],
+  /*
+   * Procurement also holds its own view of that page, from 8 Oct 2026.
+   *
+   * `procurement` is the same data and the same calculations as `component`,
+   * laid out for ordering rather than for reviewing a forecast: three cards
+   * (product mix, warehouse, outbound) and a month-by-month grid. Granted
+   * beside Stock Article rather than instead of it - the detail table is still
+   * where a single article is examined, and this is where a period is planned.
+   */
+  Procurement: ['component', 'procurement'],
   'Supply Chain': ['component'],
+  /*
+   * Stock Article, and nothing else - 14 Oct 2026.
+   *
+   * `guide` is not listed because `withGuide` adds it wherever `component` is
+   * granted: that page is Stock Article's own walkthrough, and the "How to use
+   * this page" button in its filter bar navigates to it. Without it the button
+   * would resolve to a page the account may not open and look broken.
+   *
+   * It is page-only, like the three stock departments above, and therefore sees
+   * every brand and every branch. That is not a choice made here: Stock Article
+   * is in `PAGE_ONLY_PAGES`, so `restrictedByPageOnly` reaches the same answer
+   * from the grant alone whether or not the department is listed. It IS listed
+   * below anyway, so the rule is stated rather than emergent.
+   *
+   * The reasoning is the page's: WH forecast and Outbound are brand-level facts
+   * that refuse a branch filter, so narrowing this account by brand or branch
+   * would empty the columns it was given the page for.
+   */
+  'Cost Controller': ['component'],
   /*
    * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
    *
@@ -243,6 +275,10 @@ export const PAGE_ONLY_DEPARTMENTS = [
   'Warehouse',
   'Procurement',
   'Supply Chain',
+  // Holds Stock Article alone - 14 Oct 2026. Listed so the rule is explicit;
+  // `restrictedByPageOnly` would reach it from the grant regardless, because
+  // `component` is in PAGE_ONLY_PAGES below.
+  'Cost Controller',
   'Production',
   'Bakery',
   'YELO Factory',
@@ -265,7 +301,16 @@ const PAGE_ONLY = new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
  * Article alone: no department holds Warehouse Insights now, so listing it here
  * would only widen an explicit grant nobody has.
  */
-const PAGE_ONLY_PAGES = new Set(['component', 'src-ck', 'src-bakery', 'src-factory'])
+const PAGE_ONLY_PAGES = new Set([
+  'component',
+  // The same bought half as `component`, laid out for ordering. An account
+  // holding it has been narrowed by the page exactly as one holding Stock
+  // Article has, so it belongs in this set for the same reason.
+  'procurement',
+  'src-ck',
+  'src-bakery',
+  'src-factory',
+])
 
 /**
  * Is this account restricted by page alone, seeing all data within it?
@@ -306,6 +351,18 @@ export const BRAND_LEVEL_DEPARTMENTS = [
   // missing from this list, so a branch grant still narrowed it - and both site
   // figures refuse a branch filter, so its page would have gone blank.
   'YELO Factory',
+  /*
+   * Added 14 Oct 2026 with the department itself.
+   *
+   * It holds Stock Article, where WH forecast and Outbound are brand-level
+   * facts and refuse a branch filter outright - so an account carrying branch
+   * grants would open its one page to a blank warehouse forecast, blank
+   * outbound, and the non-recipe rows missing entirely. That is the same
+   * failure recorded against the five departments above, and it is prevented
+   * the same way: brands are still granted per account, branches no longer
+   * narrow within them.
+   */
+  'Cost Controller',
 ]
 
 const BRAND_LEVEL = new Set(BRAND_LEVEL_DEPARTMENTS.map(norm))
@@ -360,13 +417,21 @@ export const worksAtBrandLevel = (department) => BRAND_LEVEL.has(norm(department
  * and Supply Chain off this list - they need to know an article is used, not
  * what it is used in - does not apply to it.
  */
-export const RECIPE_DETAIL_DEPARTMENTS = ['Procurement', 'Bakery', 'Management']
+/*
+ * `Cost Controller` added 15 Oct 2026, with the stock columns below.
+ *
+ * Stock Article is the only page it holds, so "everything on that page" has to
+ * include the drill-in behind an article - which menu items use it and at what
+ * rate. Without it the article opens a panel that refuses to answer, on the one
+ * page the department exists for.
+ */
+export const RECIPE_DETAIL_DEPARTMENTS = ['Procurement', 'Bakery', 'Management', 'Cost Controller']
 
 const RECIPE_DETAIL = new Set(RECIPE_DETAIL_DEPARTMENTS.map(norm))
 
 /** May this account see which menu items use an article, and at what rate? */
 export const seesRecipeDetail = (user) =>
-  user?.role === 'admin' || RECIPE_DETAIL.has(norm(user?.department))
+  seesEverything(user) || RECIPE_DETAIL.has(norm(user?.department))
 
 /*
  * Management added 21 Sep 2026, for the same reason and on the same ask.
@@ -393,7 +458,49 @@ export const seesRecipeDetail = (user) =>
  * If Procurement should not see supplier names, pending orders and order
  * deadlines, this is the line to take it off again - not the page grant.
  */
-export const STOCK_DETAIL_DEPARTMENTS = ['Warehouse', 'Procurement', 'Supply Chain', 'Management']
+/**
+ * Departments that read every report exactly as an administrator does.
+ *
+ * Added 5 Oct 2026. The administrator's own department is Analytics, and the
+ * analysts are expected to see what the administrator sees: the same rows, the
+ * same columns, the same stock and recipe detail, and no brand or branch
+ * narrowing.
+ *
+ * It is NOT the admin role. The role still decides the Admin page, the user
+ * and recipient editors, and every write on the admin router. This answers a
+ * narrower question - "may this account read everything the reports hold" - so
+ * granting it cannot hand anybody the ability to change access, accounts or
+ * the sales plan.
+ *
+ * One list, read by `seesEverything` below, which the stock-detail, recipe-
+ * detail and data-scope rules all defer to. Adding a department here gives it
+ * all three at once rather than three separate edits that can drift.
+ */
+export const FULL_ACCESS_DEPARTMENTS = ['Analytics']
+
+const FULL_ACCESS = new Set(FULL_ACCESS_DEPARTMENTS.map(norm))
+
+/** Does this account read every report as an administrator does? */
+export const seesEverything = (user) =>
+  user?.role === 'admin' || FULL_ACCESS.has(norm(user?.department))
+
+/*
+ * `Cost Controller` added 15 Oct 2026, on request: it needs Store SOH, the
+ * warehouse opening and closing readings, pending POs and Store DTL - the whole
+ * stock group - because costing the movement is the job the department exists
+ * for and the page is the only one it holds.
+ *
+ * It carries the same caveats as for every other department here: store stock
+ * is still settling, and the Replenishment Planning table this also unlocks
+ * issues an instruction rather than reporting a measurement.
+ */
+export const STOCK_DETAIL_DEPARTMENTS = [
+  'Warehouse',
+  'Procurement',
+  'Supply Chain',
+  'Management',
+  'Cost Controller',
+]
 
 const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
 
@@ -407,7 +514,7 @@ const STOCK_DETAIL = new Set(STOCK_DETAIL_DEPARTMENTS.map(norm))
  * disagree about who is allowed them.
  */
 export const seesStockDetail = (user) =>
-  user?.role === 'admin' || STOCK_DETAIL.has(norm(user?.department))
+  seesEverything(user) || STOCK_DETAIL.has(norm(user?.department))
 
 const PAGES_BY_NAME = byNormalisedName(DEPARTMENT_PAGES)
 
@@ -444,6 +551,14 @@ export const PAGE_IDS = [
   'src-bakery',
   'src-factory',
   'src-none',
+  /*
+   * Procurement's own view of Stock Article - 8 Oct 2026.
+   *
+   * Its own id, not a mode of `component`, because access is granted per page
+   * id and the two are granted separately: a department may hold the ordering
+   * view without the detail table, or the other way round.
+   */
+  'procurement',
   'warehouse',
   'production',
   'guide',
@@ -501,7 +616,10 @@ const withGuide = (pages) =>
  */
 export function maySeeSalesPlan(user) {
   if (!user) return false
-  if (user.role === 'admin') return true
+  // Analytics reads it for the same reason an administrator does - see
+  // FULL_ACCESS_DEPARTMENTS. Reading only; the writes on that router are still
+  // the admin role's.
+  if (seesEverything(user)) return true
 
   const granted = Array.isArray(user.pages)
     ? user.pages

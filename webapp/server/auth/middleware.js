@@ -1,7 +1,7 @@
 import { pg } from '../db/accounts.js'
 import { config } from '../config.js'
 import { COOKIE_NAME, readCookie, resolveSession } from './sessions.js'
-import { restrictedByPageOnly, worksAtBrandLevel } from '../departments.js'
+import { restrictedByPageOnly, worksAtBrandLevel, seesEverything } from '../departments.js'
 
 /**
  * Authentication, roles, and — most importantly — data scoping.
@@ -70,7 +70,18 @@ export function requireRole(...roles) {
  *   anyBrand  branches granted without a brand, or null for all of them
  */
 export async function loadScope(userId, role, department = null, pages = null) {
-  if (role === 'admin') return { brands: null, locations: null, byBrand: null, anyBrand: null }
+  /*
+   * An administrator, or a department that reads everything an administrator
+   * does - Analytics, from 5 Oct 2026. See FULL_ACCESS_DEPARTMENTS.
+   *
+   * Decided before the grants are read, because the answer does not depend on
+   * them: without this an Analytics account with no brand rows would get the
+   * empty scope below - "no grants means nothing, never everything" - and every
+   * page would render almost empty.
+   */
+  if (seesEverything({ role, department })) {
+    return { brands: null, locations: null, byBrand: null, anyBrand: null }
+  }
 
   /*
    * A page-only department sees everything on the page it holds.

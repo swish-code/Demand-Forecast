@@ -1,5 +1,7 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import * as nodeChildProcess from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -23,6 +25,16 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const DATA_DIR = process.env.DATA_DIR || path.join(HERE, '..', '..', 'data')
+
+/**
+ * How long to wait for a living holder of the database directory to let go.
+ *
+ * Long enough to cover a `--watch` handover, whose outgoing process writes a
+ * backup before it closes, and short enough that a genuinely stuck second copy
+ * is reported rather than waited on forever.
+ */
+const CLAIM_WAIT_MS = Number(process.env.DB_CLAIM_WAIT_MS) || 15000
+const CLAIM_POLL_MS = 250
 
 /**
  * Rewrite `?` placeholders to PostgreSQL's `$1, $2`.
@@ -121,6 +133,68 @@ async function openPg(url) {
 }
 
 /**
+ * Roughly when this machine last booted, as a millisecond timestamp.
+ *
+ * Derived rather than read, because no cross-platform API reports it. It drifts
+ * by a second or two between readings, and on a machine that has slept it can
+ * move further — Windows does not always count suspended time as uptime. So it
+ * is only ever compared with a generous tolerance, and never on its own.
+ */
+export function bootedAt() {
+  return Date.now() - os.uptime() * 1000
+}
+
+/** Two boot stamps this far apart are taken to be different boots. */
+const BOOT_TOLERANCE_MS = 5 * 60 * 1000
+
+/** Is a pid still running? */
+function alive(pid) {
+  try {
+    process.kill(pid, 0) // does not signal; throws when the pid is gone
+    return true
+  } catch (err) {
+    // EPERM means it exists and belongs to somebody else, which still counts.
+    return err.code !== 'ESRCH'
+  }
+}
+
+/**
+ * Could this pid be a copy of this application, or is it plainly something else?
+ *
+ * Only ever asked about a pid that is ALIVE but whose lock was written before
+ * the current boot — which is to say, a pid Windows has handed to somebody new.
+ * `true` and `null` are treated the same way by the caller; the useful answer is
+ * a definite `false`, which says the holder is not a Node process at all and the
+ * lock is a leftover.
+ *
+ * Best-effort on purpose. A machine where the lookup fails falls back to
+ * refusing to start, which is the safe direction.
+ */
+function holderMightBeNode(pid) {
+  try {
+    const { spawnSync } = nodeChildProcess
+    const probe =
+      process.platform === 'win32'
+        ? spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/NH', '/FO', 'CSV'], {
+            encoding: 'utf8',
+            timeout: 4000,
+            windowsHide: true,
+          })
+        : spawnSync('ps', ['-o', 'comm=', '-p', String(pid)], {
+            encoding: 'utf8',
+            timeout: 4000,
+          })
+    if (probe.error || probe.status === null) return null
+    const text = String(probe.stdout || '')
+    // No row at all: the pid went away between the two checks. Not ours.
+    if (!text.trim() || /no tasks are running/i.test(text)) return false
+    return /node(\.exe)?/i.test(text)
+  } catch {
+    return null
+  }
+}
+
+/**
  * One process at a time, enforced.
  *
  * The engine does not stop a second process opening the same directory; it just
@@ -131,32 +205,100 @@ async function openPg(url) {
  * So the owner writes its pid and refuses to start if a living process already
  * holds the directory. A pid belonging to nothing is a crash, not a conflict,
  * and is taken over.
+ *
+ * TWO WAYS THAT WENT WRONG, both fixed here on 8 Oct 2026.
+ *
+ * A pid is only meaningful within one boot. The lock file survives a restart of
+ * the laptop and the operating system then hands that same number to something
+ * unrelated, so `process.kill(pid, 0)` succeeds against a stranger and the
+ * server refuses to start — not once, but on every attempt, until somebody
+ * deletes the file by hand. Reported after exactly that: laptop restarted, VS
+ * Code opened, server dead on the lock. So the lock now records the boot it was
+ * taken in, and one taken before this boot cannot be held by anybody.
+ *
+ * The other is a handover, not a conflict. `node --watch` starts the incoming
+ * process while the outgoing one is still closing — and closing now includes a
+ * backup, so it takes a moment. A single look was a coin toss; losing it threw,
+ * and because the start failed `--watch` sat waiting for a file change rather
+ * than trying again, leaving the app down until someone noticed. So a live
+ * holder is now waited for rather than refused outright.
  */
-function claimDirectory(dir) {
+export async function claimDirectory(dir, { waitMs = CLAIM_WAIT_MS } = {}) {
   const lockFile = path.join(dir, 'owner.pid')
-  try {
-    const held = Number(fs.readFileSync(lockFile, 'utf8').trim())
-    if (held && held !== process.pid) {
-      try {
-        process.kill(held, 0) // does not signal; throws when the pid is gone
-        throw new Error(
-          `the local database at ${dir} is already open in process ${held}. ` +
-            'It allows one process at a time — stop the other copy of the app, ' +
-            'or set DATABASE_URL to use a real PostgreSQL server.'
-        )
-      } catch (err) {
-        if (err.code !== 'ESRCH') throw err
-        // ESRCH: the holder died without cleaning up. The directory is ours.
-      }
+
+  /*
+   * Both shapes of lock file.
+   *
+   * It used to hold a bare pid, and an upgrade must not be a reason to refuse to
+   * start. A bare pid simply arrives with no boot stamp, which the checks below
+   * treat as "cannot tell" - the old behaviour, for one restart, after which the
+   * file is rewritten in the new shape.
+   */
+  const read = () => {
+    let text
+    try {
+      text = fs.readFileSync(lockFile, 'utf8').trim()
+    } catch (err) {
+      if (err.code === 'ENOENT') return null
+      throw err
     }
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err
+    if (!text) return null
+    try {
+      const held = JSON.parse(text)
+      return { pid: Number(held.pid), bootedAt: Number(held.bootedAt) || null }
+    } catch {
+      const pid = Number(text)
+      return Number.isFinite(pid) && pid > 0 ? { pid, bootedAt: null } : null
+    }
   }
 
-  fs.writeFileSync(lockFile, String(process.pid))
+  const deadline = Date.now() + waitMs
+  let waited = false
+
+  for (;;) {
+    const held = read()
+
+    if (!held?.pid || held.pid === process.pid) break
+    if (!alive(held.pid)) break // a crash, or a reboot. The directory is ours.
+
+    /*
+     * A live pid whose lock predates this boot is a recycled number, not a
+     * holder — nothing running now can have taken a lock before the machine
+     * started. The image name is checked anyway, because the boot stamp is
+     * derived and a machine that has slept can report a misleading one; a
+     * holder that really is Node is left alone and waited for instead.
+     */
+    const sameBoot =
+      held.bootedAt === null || Math.abs(held.bootedAt - bootedAt()) <= BOOT_TOLERANCE_MS
+    if (!sameBoot && holderMightBeNode(held.pid) === false) {
+      console.warn(
+        `  [db] ignoring a lock left by process ${held.pid} from before this boot — ` +
+          'the pid now belongs to something else.'
+      )
+      break
+    }
+
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `the local database at ${dir} is already open in process ${held.pid}. ` +
+          'It allows one process at a time — stop the other copy of the app, ' +
+          'or set DATABASE_URL to use a real PostgreSQL server.'
+      )
+    }
+
+    // The handover case: the outgoing process of a --watch restart is still
+    // closing. Said once, so a slow restart does not look like a hang.
+    if (!waited) {
+      waited = true
+      console.log(`  [db] waiting for process ${held.pid} to release the database…`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, CLAIM_POLL_MS))
+  }
+
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, bootedAt: bootedAt() }))
   releaseLock = () => {
     try {
-      if (fs.readFileSync(lockFile, 'utf8').trim() === String(process.pid)) fs.unlinkSync(lockFile)
+      if (read()?.pid === process.pid) fs.unlinkSync(lockFile)
     } catch {
       // Going away anyway.
     }
@@ -175,7 +317,7 @@ async function openPglite() {
   const { PGlite } = await import('@electric-sql/pglite')
   const dir = path.join(DATA_DIR, 'pg')
   fs.mkdirSync(dir, { recursive: true })
-  claimDirectory(dir)
+  await claimDirectory(dir)
 
   /*
    * One retry, then a plain explanation.
@@ -274,6 +416,28 @@ let closing = false
 const shutdown = async (signal) => {
   if (closing) return
   closing = true
+  /*
+   * One last backup on the way out, from 7 Oct 2026.
+   *
+   * A clean shutdown is the other moment the data is known-good, and it is the
+   * one that matters most: a restart for a code change is by far the commonest
+   * reason this process stops, and it is when the entered tables are newest.
+   *
+   * Before the close below, because it has to read the database. Wrapped and
+   * time-boxed: the signal handler has to finish promptly or the engine is
+   * killed mid-write, which is the failure this whole file exists to prevent.
+   */
+  try {
+    if (driver) {
+      const { exportEntered } = await import('./backup.js')
+      await Promise.race([
+        exportEntered(),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ])
+    }
+  } catch {
+    // Never delay or block an exit over a backup.
+  }
   try {
     if (driver) await driver.close()
   } catch {

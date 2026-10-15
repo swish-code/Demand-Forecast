@@ -3,6 +3,7 @@ import { api, fmtInt, fmtPct, fmtSignedPct, fmtDate, downloadCsv } from '../api.
 import { isFutureWindow } from '../window.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
+import { exportFileName } from '../exportName.js'
 import { DataTable } from '../components/DataTable.jsx'
 import {
   Panel,
@@ -162,6 +163,16 @@ function Sparkline({ points, color, width = 96, height = 24 }) {
 const FUTURE_DROP = ['Actual_Qty', 'Variance_Pct', 'Accuracy']
 
 export function ForecastSummary({ filters, options, ready, refreshNonce, onLoaded, onDrill }) {
+  /*
+   * Three tables on one page, one date range between them.
+   *
+   * Each download is named for its own table - the panel heading above it - so
+   * "Products By Quantity" and "By Location" taken on the same dates are still
+   * told apart by their names rather than by opening them.
+   */
+  const exportName = (table) =>
+    exportFileName(table, { dateFrom: filters?.dateFrom, dateTo: filters?.dateTo })
+
   const colors = useChartTheme()
   const contextFilters = useMemo(
     () => ({ ...filters, dateFrom: undefined, dateTo: undefined }),
@@ -558,7 +569,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
                     ...(context?.enough ? [{ label: 'Usual range', color: colors.neutral, bar: true }] : []),
                   ]}
                 />
-                <ExportButton rows={trend} name="bbt-forecast-trend.csv" />
+                <ExportButton rows={trend} name={exportName('Demand Tracking')} />
               </>
             }
           >
@@ -661,7 +672,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
             calc="summary-products,actual-qty,forecast-qty"
             count={busy ? undefined : `${productRows.length.toLocaleString()} products`}
             sub="Scroll for the full list · click a bar to open it in Product Level"
-            tools={<ExportButton rows={productRows} name="bbt-products.csv" />}
+            tools={<ExportButton rows={productRows} name={exportName('Products By Quantity')} />}
           >
             {busy ? (
             <ChartSkeleton height={420} />
@@ -696,7 +707,7 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
                     ? `${belowTarget} below ${fmtPct(ACCURACY_FLOOR, 0)} accuracy · worst first`
                     : 'Sorted worst accuracy first'
             }
-            tools={<ExportButton rows={locationRows} name="bbt-qty-by-location.csv" />}
+            tools={<ExportButton rows={locationRows} name={exportName('By Location')} />}
             flush
           >
             {busy ? (

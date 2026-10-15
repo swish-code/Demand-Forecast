@@ -173,6 +173,7 @@ export const S = {
   DAYS: 6, // whole days
   RATE: 7, // two decimals, for per-day quantities
   LABEL: 8, // bold, for the constants sheet
+  SPAN: 9, // bold and centred, for a header merged across its columns
 }
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -188,7 +189,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border/></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="9">
+<cellXfs count="10">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
 <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
@@ -198,6 +199,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 <xf numFmtId="168" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center"/></xf>
 </cellXfs>
 </styleSheet>`
 
@@ -264,7 +266,15 @@ function cell(ref, c) {
   return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${esc(c.v)}</t></is></c>`
 }
 
-function sheetXml(rows, { widths, freeze } = {}) {
+/*
+ * Merged cells, for a header that spans the columns beneath it.
+ *
+ * Added 15 Oct 2026 so an export can carry the two-row header the pages show -
+ * the month once, centred over its own columns, rather than repeated in every
+ * one of them. Written AFTER <sheetData>, which is where the schema puts it;
+ * before it, Excel reports the file as corrupt.
+ */
+function sheetXml(rows, { widths, freeze, merges } = {}) {
   const cols = widths?.length
     ? `<cols>${widths
         .map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`)
@@ -283,15 +293,20 @@ function sheetXml(rows, { widths, freeze } = {}) {
     })
     .filter(Boolean)
     .join('')
+  const merged = merges?.length
+    ? `<mergeCells count="${merges.length}">${merges
+        .map((ref) => `<mergeCell ref="${ref}"/>`)
+        .join('')}</mergeCells>`
+    : ''
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${pane}${cols}<sheetData>${body}</sheetData></worksheet>`
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${pane}${cols}<sheetData>${body}</sheetData>${merged}</worksheet>`
 }
 
 /**
  * Build a workbook from `[{ name, rows, widths, freeze }]` and return a Blob.
  *
  * `rows` is an array of arrays of cells; a cell is `{ v, f, s }`, or null for
- * an empty one. Sheet names are used verbatim in formulas, so keep them simple.
+ * an empty one. `merges` is a list of ranges like 'C1:E1'. Sheet names are used verbatim in formulas, so keep them simple.
  */
 export function buildXlsx(sheets) {
   const parts = [

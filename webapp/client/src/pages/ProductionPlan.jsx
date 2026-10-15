@@ -2,6 +2,7 @@ import { Suspense, lazy, useState, useMemo } from 'react'
 import { api, fmtInt, fmtPct, fmtDate, fmtLongDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
+import { exportFileName } from '../exportName.js'
 import {
   MetricCard,
   Panel,
@@ -293,7 +294,10 @@ export function ProductionPlan({ filters, options, refreshNonce, onLoaded, onDri
             disabled={!(view?.rows ?? rows).length}
             onClick={() =>
               downloadCsv(
-                'bbt-production-plan.csv',
+                exportFileName('Production Plan', {
+                  dateFrom: filters?.dateFrom,
+                  dateTo: filters?.dateTo,
+                }),
                 view?.rows ?? rows,
                 view?.columns ?? COLUMNS.map(({ key, label }) => ({ key, label }))
               )

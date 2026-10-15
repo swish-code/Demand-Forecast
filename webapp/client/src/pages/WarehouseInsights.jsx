@@ -38,6 +38,7 @@ import {
   Pill,
 } from '../components/ui.jsx'
 import { W } from '../columns.js'
+import { exportFileName } from '../exportName.js'
 import { whAccuracy } from '../whAccuracy.js'
 
 /**
@@ -1169,7 +1170,14 @@ export function WarehouseInsights({ filters, ready, refreshNonce, onLoaded }) {
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={() => downloadCsv('warehouse-insights.csv', view.rows, view.columns)}
+              onClick={() => downloadCsv(
+                  exportFileName('Warehouse Article Detail', {
+                    dateFrom: filters?.dateFrom,
+                    dateTo: filters?.dateTo,
+                  }),
+                  view.rows,
+                  view.columns
+                )}
             >
               CSV
             </button>

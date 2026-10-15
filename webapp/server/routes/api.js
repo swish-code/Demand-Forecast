@@ -26,6 +26,7 @@ import {
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
+import { coveredByStock } from '../insights/stockCover.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
 import { productionSourceByArticle, UNCLASSIFIED } from '../insights/productionSource.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
@@ -120,6 +121,32 @@ function grainOf(req) {
    * display choice: the merge has to not happen in the first place.
    */
   return { date: want.has('date'), location: want.has('location'), brand: want.has('brand') }
+}
+
+/**
+ * Enrichment the caller has said it will not use.
+ *
+ * Some of the columns this route adds cost a great deal to produce and are not
+ * wanted by every caller. The open-PO book is the clearest case: one Power BI
+ * query against the inventory model, measured at about twenty-one seconds, and
+ * the Procurement page reads it for exactly ONE of the months it asks about -
+ * the order book is the position now, so it is meaningless against a month
+ * that has not happened. The other five were computed and discarded.
+ *
+ * Opt-OUT rather than opt-in, and read from the body rather than from the
+ * filters, so that a caller which says nothing gets precisely the response it
+ * has always had. `parseFilters` is a whitelist, so this key never reaches the
+ * query layer and cannot affect which rows are returned or how they are
+ * cached.
+ *
+ * This asks for LESS, never for different. Anything named here is omitted from
+ * the response; nothing here changes how a figure is computed.
+ */
+function omitsOf(req) {
+  const src = req.method === 'POST' ? req.body || {} : req.query || {}
+  const raw = src.omit
+  const asked = Array.isArray(raw) ? raw : String(raw ?? '').split(',')
+  return new Set(asked.map((v) => String(v).trim()).filter(Boolean))
 }
 
 /** Accept filters from a JSON body (POST) or query string (GET). */
@@ -285,6 +312,15 @@ api.use(requireAuth, (req, res, next) => {
  */
 export const COMPONENT_PAGES = [
   'component',
+  /*
+   * Procurement's ordering view - 8 Oct 2026.
+   *
+   * It reads this endpoint with no production source pinned, exactly as Stock
+   * Article does, and differs only in how the rows are laid out on screen. It
+   * has to be listed or an account granted `procurement` alone is refused the
+   * data behind the page it was given.
+   */
+  'procurement',
   'madeinhouse',
   'src-ck',
   'src-bakery',
@@ -2019,7 +2055,25 @@ async function withStoreStock(rows, filters, buckets, grain, admin) {
    * are never put in the response at all. Dropping them in the browser would
    * leave them one network tab away.
    */
-  if (!admin) return rows
+  /*
+   * NOT `if (!admin) return rows` any more - changed 5 Oct 2026.
+   *
+   * It used to leave before the stock was even read, which meant an account
+   * without stock detail got no `Store_SOH` AND no stock rule: the client then
+   * scored every row on the raw ratio, and the same page reported different
+   * accuracy to different people. Outbound vs forecast read 113.6% for one
+   * reader and 85.7% for another, from identical rows.
+   *
+   * So the stock is read for everyone and the RULE is evaluated here, where the
+   * quantity is known. What differs by permission is what is put in the
+   * response: the full columns for those allowed them, and for everyone else a
+   * single boolean saying whether the rule fired. The quantity itself is still
+   * never serialised for an account that may not see it - the withholding below
+   * is unchanged, only its scope narrowed from "the rule" to "the number".
+   *
+   * It costs no extra query: `storeStock` is cached on the window and buckets,
+   * not on the user, so this shares the entry an admin request already filled.
+   */
   if (grain.date || grain.location) return rows
   if (filters?.locations?.length || filters?.products?.length || filters?.articles?.length) return rows
 
@@ -2086,13 +2140,46 @@ async function withStoreStock(rows, filters, buckets, grain, admin) {
     if (!carries) return r
     claimed.add(article)
     const cols = stockColumnsFor(article, r.WH_Constant_Forecast_Qty, held)
+
+    /*
+     * The rule's ANSWER, decided here where the quantity is known.
+     *
+     * Sent to everyone, because the accuracy it governs must be the same figure
+     * whoever is reading. It is a boolean: it says the shops held at least
+     * twice the forecast, and nothing about how much they held - two articles
+     * with wildly different stock give the same `true`, so it cannot be read
+     * backwards into a quantity.
+     */
+    const covered = coveredByStock(r.WH_Constant_Forecast_Qty, cols.Store_SOH)
+
+    /*
+     * An account without stock detail gets the answer and NOT the number.
+     *
+     * Built as a fresh object rather than by deleting from `cols`, so a field
+     * added to `stockColumnsFor` later cannot reach these users by default. The
+     * safe direction for that mistake to fail in is "missing", not "leaked".
+     */
+    if (!admin) return { ...r, Stock_Covered: covered }
+
     // Whichever half is switched off is never put in the response at all,
     // rather than hidden in the browser one network tab away.
     if (!STORE_SOH_ON) for (const k of STORE_SOH_FIELDS) delete cols[k]
     if (!STORE_COLUMNS_ON) for (const k of STORE_DERIVED_FIELDS) delete cols[k]
     if (!WH_STOCK_COLUMNS_ON) for (const k of WAREHOUSE_ONLY_FIELDS) delete cols[k]
     if (!REPL_COLUMNS_ON) for (const k of REPLENISHMENT_FIELDS) delete cols[k]
-    return { ...r, ...cols }
+    /*
+     * Which day these balances were actually read on - 11 Oct 2026.
+     *
+     * Normally the window's last day. Where that day has not happened yet it is
+     * the newest day the inventory feed holds, and the reader has to be told
+     * which: a balance shown against October is otherwise indistinguishable
+     * from a forecast of October's stock, and it is not one. The column
+     * tooltips carry it; see `storeStock` for why the clamp exists at all.
+     *
+     * Only ever sent to an account that may see the quantities, because it
+     * travels with them and means nothing without them.
+     */
+    return { ...r, ...cols, Stock_Covered: covered, Stock_As_At: held.asAt ?? null }
   })
 }
 
@@ -2939,12 +3026,31 @@ api.all('/component-level', handle(async (req, res) => {
    */
   const forecastBy = new Map()
   if (sourcesAsked && !grain.date && !grain.location) {
-    for (const p of g.parts) {
-      const code = p.brand.chain ?? p.brand.code
-      const [held, fc] = await Promise.all([
-        siteOutboundByArticle(code, p.f).catch(() => null),
-        siteForecastFor(code, p.f).catch(() => null),
-      ])
+    /*
+     * Every brand at once, then folded in a fixed order.
+     *
+     * This loop used to await one brand before starting the next, so nine
+     * brands cost nine round trips end to end for two lookups that have
+     * nothing to say to each other. Both are cached, which hides it once the
+     * entries are warm and does nothing at all for the first request after a
+     * restart — which is the one anybody notices.
+     *
+     * The fold stays sequential and in `g.parts` order. It builds a Set and a
+     * Map of Sets, so the result does not actually depend on that order, but
+     * pinning it means the answer cannot start varying with which query
+     * happened to return first.
+     */
+    const looked = await Promise.all(
+      g.parts.map(async (p) => {
+        const code = p.brand.chain ?? p.brand.code
+        const [held, fc] = await Promise.all([
+          siteOutboundByArticle(code, p.f).catch(() => null),
+          siteForecastFor(code, p.f).catch(() => null),
+        ])
+        return { p, held, fc }
+      })
+    )
+    for (const { p, held, fc } of looked) {
       for (const a of held?.keys() ?? []) movedAnywhere.add(a)
       for (const a of fc?.keys() ?? []) {
         if (!forecastBy.has(a)) forecastBy.set(a, new Set())
@@ -3146,6 +3252,53 @@ api.all('/component-level', handle(async (req, res) => {
   // bakery the page already adds under the catch-all.
   const buckets = [...g.parts.map((p) => p.brand.code), OTHER_BUCKET]
 
+  /*
+   * The enrichment lookups, started together instead of one after another.
+   *
+   * The chain below reads as a pipeline and runs as one: each `with…` pass
+   * takes the rows the previous pass produced, so they cannot be reordered or
+   * overlapped. But the pass itself is two separate things — fetching a map of
+   * articles, then stamping it onto the rows — and only the second half
+   * genuinely depends on what came before. The first half was paying full
+   * latency in series for maps that have nothing to do with each other: what
+   * the warehouse supplies, how each article behaves, its category, its pack
+   * size, which site makes it, its safety stock, its open purchase orders.
+   *
+   * Every one of these goes through `cached()`, which shares an in-flight
+   * promise for a key rather than issuing a second query. So starting them here
+   * does not add work — it moves the waiting to one place, and by the time each
+   * pass asks for its map the answer is already on its way or already there.
+   *
+   * Nothing is read from these promises. They are started for their effect on
+   * the cache and the chain below is untouched, so the figures it produces are
+   * the same figures in the same order; only the clock is different. The
+   * rejections are swallowed here for the same reason — each pass still does
+   * its own `.catch`, and an unhandled rejection from a prefetch would take the
+   * process down for an error the chain is about to handle properly.
+   */
+  const admin = seesStockDetail(req.user)
+  const fine = Boolean(grain.date || grain.location)
+  /*
+   * The open-PO book, unless the caller has said it will not read it.
+   *
+   * Still gated on `admin` exactly as it was — the omission can only narrow
+   * what is returned, never widen it past what this account may see.
+   */
+  const poAdmin = admin && !omitsOf(req).has('openPo')
+  const asAt =
+    clampAsAt(window?.dateTo ? String(window.dateTo).slice(0, 10) : null, cube.lastActualDate()) ??
+    new Date().toISOString().slice(0, 10)
+  const warm = [
+    warehouseSourcedArticles(),
+    classifyArticles({ asAt }),
+    categoryByArticle(),
+    productionSourceByArticle(),
+    ...(admin ? [packByArticle()] : []),
+    ...(admin && !fine ? [safetyStockByArticle(), warehouseStockNow()] : []),
+    ...(poAdmin && !fine ? [openPoByArticle(window?.dateTo ?? null)] : []),
+  ]
+  for (const p of warm) p.catch(() => {})
+
   if (g.single)
     return res.json({
       sales,
@@ -3167,7 +3320,7 @@ api.all('/component-level', handle(async (req, res) => {
             ),
             window,
             grain,
-            seesStockDetail(req.user)
+            poAdmin
           ),
           window,
           grain,
@@ -3205,7 +3358,7 @@ api.all('/component-level', handle(async (req, res) => {
           ),
           window,
           grain,
-          seesStockDetail(req.user)
+          poAdmin
         ),
         window,
         grain,

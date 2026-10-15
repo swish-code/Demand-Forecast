@@ -32,6 +32,7 @@
  * is for.
  */
 import { useMemo } from 'react'
+import { exportFileName } from '../exportName.js'
 import { fmtQty, fmtPct, downloadCsv } from '../api.js'
 import { Panel, Pill, ChartSkeleton } from '../components/ui.jsx'
 import { DataTable } from '../components/DataTable.jsx'
@@ -998,7 +999,11 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           title="The table with every calculated column as a working Excel formula"
           onClick={() =>
             downloadXlsx(
-              'replenishment-planning',
+              exportFileName('Replenishment Planning', {
+                dateFrom: filters?.dateFrom,
+                dateTo: filters?.dateTo,
+                ext: 'xlsx',
+              }),
               planningSheets(planned, columns.map(({ key, label }) => ({ key, label })), {
                 dateFrom: filters?.dateFrom,
                 dateTo: filters?.dateTo,
@@ -1019,7 +1024,10 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           title="A flat snapshot, with the formulas listed as text underneath"
           onClick={() =>
             downloadCsv(
-              'replenishment-planning',
+              exportFileName('Replenishment Planning', {
+                dateFrom: filters?.dateFrom,
+                dateTo: filters?.dateTo,
+              }),
               planned,
               // The schedule is an array on the row; the sheet takes its
               // one-line form instead, which reads the same.

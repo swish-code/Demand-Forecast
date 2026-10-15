@@ -131,7 +131,41 @@ export const SOH_BANDS = {
  * reading for at all — the two are different, because an article can legibly
  * hold zero and that is not the same as never having been seen.
  */
+/*
+ * Cached on the arguments these actually read, not on the window that asked.
+ *
+ * `storeStock` below caches its whole answer under the window, which is right
+ * for a page that asks about one window and useless for the Procurement page,
+ * which asks about six at once. Those six windows do not need six of
+ * everything underneath:
+ *
+ *   stockOn        reads a SINGLE day, `asAt` - and `asAt` is clamped to the
+ *                  last day the inventory feed holds, so every window ending
+ *                  in the future resolves to the SAME day. Six months of
+ *                  ordering ahead ran this identical query against a 6.5m-row
+ *                  table six times over.
+ *   warehouseStock genuinely differs per window - it samples weekly from the
+ *                  window's own start - so it is keyed on all three arguments
+ *                  and shares only where a window is repeated.
+ *   purchasesOver  likewise, and it is skipped outright for a window the feed
+ *                  cannot measure.
+ *
+ * Measured from data/perf.log on 15 Oct 2026: `miss:store-stock` cost 460
+ * seconds over 15 misses - the single most expensive lookup in the
+ * application, and the reason a six-month Procurement range took a minute and
+ * a half.
+ *
+ * These are pure functions of their arguments, so memoising them returns the
+ * same object the call would have built. Nothing about what is asked, or of
+ * which model, changes.
+ */
+const bucketKey = (buckets) => [...buckets].sort().join(',')
+
 async function stockOn(date, buckets) {
+  return cached(`store-stock:on:${date}:${bucketKey(buckets)}`, () => stockOnLive(date, buckets))
+}
+
+async function stockOnLive(date, buckets) {
   const map = await destinationBuckets()
   if (!map?.size) return null
 
@@ -199,6 +233,12 @@ SUMMARIZECOLUMNS(
  * table if that question is ever wanted instead.
  */
 async function purchasesOver(from, to, buckets) {
+  return cached(`store-stock:intake:${from}:${to}:${bucketKey(buckets)}`, () =>
+    purchasesOverLive(from, to, buckets)
+  )
+}
+
+async function purchasesOverLive(from, to, buckets) {
   const map = await destinationBuckets()
   if (!map?.size) return null
 
@@ -240,6 +280,10 @@ SUMMARIZECOLUMNS(
  * explained by a shortage that a monthly reading could not see.
  */
 async function warehouseStock(from, to, anchor) {
+  return cached(`store-stock:wh:${from}:${to}:${anchor}`, () => warehouseStockLive(from, to, anchor))
+}
+
+async function warehouseStockLive(from, to, anchor) {
   const map = await destinationBuckets()
   if (!map?.size) return null
   const locations = []
@@ -347,6 +391,36 @@ SUMMARIZECOLUMNS(
 }
 
 /**
+ * The last day the inventory feed has reported, or null.
+ *
+ * One tiny query, cached, shared by every window - the answer does not depend
+ * on who is asking or what they selected, and it changes once a day when the
+ * feed lands.
+ *
+ * Null rather than a guess when it cannot be read: the caller then uses the
+ * date it was given, which is exactly the behaviour this file had before the
+ * clamp existed. A fault here must not be able to move a figure.
+ */
+export async function latestStockDate() {
+  if (!isConfigured()) return null
+  return cached('store-stock:latest-day', async () => {
+    try {
+      const rows = await executeQuery(
+        `EVALUATE ROW("AsOf", MAX(cc_daily_inventory[Movement Date]))`,
+        config.inventory.datasetId,
+        { workspace: config.inventory.workspaceId }
+      )
+      const v = rows?.[0]?.AsOf ?? rows?.[0]?.['[AsOf]']
+      const day = v ? String(v).slice(0, 10) : ''
+      return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null
+    } catch (err) {
+      console.warn(`  [store-stock] latest day unreadable: ${String(err.message).slice(0, 80)}`)
+      return null
+    }
+  })
+}
+
+/**
  * Everything the store-inventory and replenishment columns need, for one window.
  *
  * Null when there is no inventory model, so the caller leaves the columns off
@@ -360,7 +434,45 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
    * it for its opening reading.
    */
   const anchor = iso(Date.parse(`${dateFrom}T00:00:00Z`) - DAY)
-  const key = `store-stock:${anchor}:${dateTo}:${[...buckets].sort().join(',')}`
+
+  /*
+   * CLAMPED TO THE LAST DAY THE FEED ACTUALLY HOLDS - 11 Oct 2026.
+   *
+   * Every reading below is taken on the window's last day, and the inventory
+   * model only reaches yesterday: measured 11 Oct 2026, `cc_daily_inventory`
+   * runs 2026-01-01 to 2026-10-10. So a window ending today or later asked for
+   * a date with no rows in it and got none, and Store SOH, Store DTL, WH
+   * opening and WH closing all read blank.
+   *
+   * That was not a rare case. "Month to date" ends today; the current month
+   * ends on the 31st; every forward-looking window a person ordering actually
+   * uses ends in the future. The four columns were blank for all of them, and
+   * blank reads as "this article has no stock" rather than "the feed has not
+   * reported that day yet".
+   *
+   * Stock is a BALANCE, so the honest answer for a day that has not happened is
+   * the most recent balance there is - which is also the only answer somebody
+   * ordering can act on. `asAt` is returned with the figures and shown in the
+   * column tooltip, so a reader is told which day they are looking at rather
+   * than being left to assume it is the one they picked.
+   *
+   * It is a clamp, never an extension: a window that ends inside the feed is
+   * unaffected, so every historical figure is exactly what it was.
+   */
+  const latest = await latestStockDate()
+  const asAt = latest && dateTo > latest ? latest : dateTo
+
+  /*
+   * A window lying ENTIRELY past the feed has a balance but no flow.
+   *
+   * The balance is still the latest one - that is what is on the shelf. The
+   * intake rate behind Store DTL is a measurement over the window, and there is
+   * no part of this window to measure, so it is not asked for and DTL stays
+   * blank rather than being divided by days that reported nothing.
+   */
+  const measurable = asAt >= dateFrom
+
+  const key = `store-stock:${anchor}:${dateTo}:${asAt}:${[...buckets].sort().join(',')}`
 
   return cached(key, async () => {
     /*
@@ -374,16 +486,19 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
      * on 15 Sep 2026, and it also puts Store SOH on the same footing as the
      * New Required Qty column, which moved to closing stock the day before.
      *
-     * One consequence, the same one the WH closing column has: a window whose
-     * last day has not happened has no reading, so Store SOH is blank for a
-     * current or future period rather than showing the latest known balance.
+     * That consequence - blank for a window whose last day has not happened -
+     * is what `asAt` above removes. The reading is still the window's last day
+     * wherever the feed has one; it is only a day that does not exist yet that
+     * falls back to the newest one that does.
      */
     const [store, warehouse, purchases] = await Promise.all([
-      stockOn(dateTo, buckets).catch(() => null),
-      warehouseStock(dateFrom, dateTo, anchor).catch(() => null),
+      stockOn(asAt, buckets).catch(() => null),
+      warehouseStock(dateFrom, asAt, anchor).catch(() => null),
       // Its own catch: Store DTL is one column, and losing it must not take
       // Store SOH and the warehouse readings down with it.
-      purchasesOver(dateFrom, dateTo, buckets).catch(() => null),
+      measurable
+        ? purchasesOver(dateFrom, asAt, buckets).catch(() => null)
+        : Promise.resolve(null),
     ])
     /*
      * Either side is enough to be worth returning.
@@ -397,14 +512,23 @@ export async function storeStock({ dateFrom, dateTo, buckets }) {
      */
     if (!store && !warehouse) return null
 
+    /*
+     * Measured to `asAt`, not to the window's end.
+     *
+     * This is the divisor behind Store DTL - intake over the window, spread
+     * over its calendar days. Counting days the feed has not reported would
+     * divide a part-window's receipts by a whole window's length, understating
+     * the rate and overstating the cover it implies. The two halves of that
+     * ratio now cover the same days.
+     */
     const days = Math.max(
       1,
-      Math.round((Date.parse(`${dateTo}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) / DAY) + 1
+      Math.round((Date.parse(`${asAt}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) / DAY) + 1
     )
     // `soh` and `known` first so that a missing store side leaves them null
     // rather than absent: `stockColumnsFor` reads both, and null is the
     // truthful answer for "no reading" either way.
-    return { soh: null, known: null, ...(store ?? {}), warehouse, purchases, anchor, days }
+    return { soh: null, known: null, ...(store ?? {}), warehouse, purchases, anchor, days, asAt }
   })
 }
 

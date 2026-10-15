@@ -8,7 +8,13 @@ import {
   sessionCookie,
 } from '../auth/sessions.js'
 import { allowedBrands, loadScope, requireAuth } from '../auth/middleware.js'
-import { allowedPages, maySeeSalesPlan, seesStockDetail, seesRecipeDetail } from '../departments.js'
+import {
+  allowedPages,
+  maySeeSalesPlan,
+  seesStockDetail,
+  seesRecipeDetail,
+  seesEverything,
+} from '../departments.js'
 import { config } from '../config.js'
 import { beginSignIn, completeSignIn, accountFor, isConfigured } from '../auth/microsoft.js'
 import { isConnectState, completeConnect } from '../mail/delegated.js'
@@ -74,6 +80,16 @@ async function sessionPayload(user) {
        * one owner of the rule, and no department names to match on the client.
        */
       stockDetail: seesStockDetail(user),
+      /*
+       * Reads every report as an administrator does - the columns, the detail
+       * and the whole data scope - WITHOUT being an administrator.
+       *
+       * Separate from `role` on purpose. The role still decides the Admin page
+       * and every write on the admin router; this decides what the report pages
+       * show. Sending them as two answers is what lets Analytics have the
+       * second without the first.
+       */
+      fullAccess: seesEverything(user),
     },
     brands: allowedBrands(scope).map(({ code, label }) => ({ code, label })),
     scope: {

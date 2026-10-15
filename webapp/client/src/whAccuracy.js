@@ -73,11 +73,28 @@ export function coveredByStock(forecast, storeSoh) {
  * already has one and they differ slightly in how they treat missing sides, so
  * it is passed in rather than recomputed here.
  */
-export function whAccuracy(plain, forecast, storeSoh) {
+/**
+ * Did the stock rule fire for this row?
+ *
+ * `decided` is the server's own answer, sent as `Stock_Covered`. It is used in
+ * preference to re-deriving, because an account that may not see the stock
+ * QUANTITY still has to get the same score as one that may - and from 5 Oct
+ * 2026 the server evaluates the rule for everyone and withholds only the
+ * number. Where no answer was sent, the rule is applied here exactly as before.
+ *
+ * Only a real boolean is taken as decided. `undefined` means "the server did
+ * not say", which is not the same as "no".
+ */
+function ruleFired(decided, forecast, storeSoh) {
+  if (typeof decided === 'boolean') return decided
+  return coveredByStock(forecast, storeSoh)
+}
+
+export function whAccuracy(plain, forecast, storeSoh, decided) {
   // The stock rule only ever LIFTS a score that exists. A row with nothing to
   // compare stays blank: no outbound and no forecast is not a perfect forecast.
   if (plain === null || plain === undefined) return plain
-  return coveredByStock(forecast, storeSoh) ? 1 : plain
+  return ruleFired(decided, forecast, storeSoh) ? 1 : plain
 }
 
 /**
@@ -109,12 +126,82 @@ export function whAccuracy(plain, forecast, storeSoh) {
  *   average of rows, no stock rule               95.1%
  *   average of rows, with the stock rule         91.7%
  */
-export function whRatioAccuracy(outbound, forecast, storeSoh) {
+export function whRatioAccuracy(outbound, forecast, storeSoh, decided) {
   const f = Number(forecast)
   const o = Number(outbound)
   // No forecast, no ratio - dividing by nothing is not a score of zero.
   if (!Number.isFinite(f) || f <= 0) return null
-  if (coveredByStock(f, storeSoh)) return 1
+  if (ruleFired(decided, f, storeSoh)) return 1
   if (!Number.isFinite(o)) return null
   return o / f
 }
+
+/*
+ * A MISSING side is not a zero side.
+ *
+ * `Number(null)` is 0, and 0 is finite, so a null outbound used to pass the
+ * guard below and score the article at 0% - a forecast judged completely wrong
+ * against a warehouse reading that does not exist. Stock Article has always
+ * refused that: its `rescore` tests `c !== null && c !== undefined` BEFORE
+ * converting, and returns null.
+ *
+ * It is why the two pages scored different numbers of articles for the same
+ * period - 1,153 here against 1,089 there, the 64 difference being exactly the
+ * articles with a forecast and no outbound.
+ */
+export function plainWhScore(forecast, outbound) {
+  if (forecast === null || forecast === undefined) return null
+  if (outbound === null || outbound === undefined) return null
+  const f = Number(forecast)
+  const o = Number(outbound)
+  if (!Number.isFinite(f) || !Number.isFinite(o)) return null
+  const worst = Math.max(f, o)
+  if (worst <= 0) return null
+  return 1 - Math.abs(f - o) / worst
+}
+
+/**
+ * Which answer the stock rule should be given, exactly as Stock Article picks it.
+ *
+ * `whAccuracy` takes a `decided` flag and only falls back to working the rule
+ * out itself when that flag is `undefined`. The two pages were passing
+ * different things:
+ *
+ *   Stock Article  re-derives from the row's OWN Store SOH whenever it has
+ *                  one, and trusts the server's flag only when it does not -
+ *                  see ComponentLevel.jsx, `WH_Accuracy`.
+ *   Procurement    always passed the server's flag.
+ *
+ * The rule sets a row to 100% outright, so disagreeing about it moves the
+ * headline a long way. This makes Procurement ask the question the same way.
+ */
+export const stockRuleFor = (storeSoh, covered) =>
+  storeSoh === null || storeSoh === undefined ? covered : undefined
+
+/**
+ * The branch Stock Article actually takes, reproduced so Procurement can take
+ * the same one.
+ *
+ * Stock Article does not use one rule here, it uses two, and which one depends
+ * on how many recipe lines folded into the article:
+ *
+ *   one line    `whAccuracy(..., r.Store_SOH, r.Stock_Covered)` - the server's
+ *               flag is passed straight through, and only an absent flag falls
+ *               back to re-deriving. (ComponentLevel.jsx, the `carriesWarehouse`
+ *               branch.)
+ *   several     the folded row re-derives from its OWN summed Store SOH, and
+ *               consults the flag only when it has no SOH at all - `stockRuleFor`
+ *               above. (The `folded` branch, after the `if (!folded) return r`.)
+ *
+ * That difference is not obviously deliberate, and the two branches can
+ * disagree about the same article. It is reproduced rather than tidied because
+ * the requirement is that the two pages agree, and Stock Article is the one
+ * being matched - a "fix" here would move its figure, which is explicitly out
+ * of scope.
+ *
+ * Procurement applying only the second branch is what left it reading 89.0%
+ * against 88.1%: re-deriving marks more articles covered than the flag does,
+ * and a covered article scores 100% outright.
+ */
+export const stockRuleDecision = (rowsFolded, storeSoh, covered) =>
+  rowsFolded > 1 ? stockRuleFor(storeSoh, covered) : covered

@@ -89,6 +89,20 @@ export const weightedScore = (rows, key, weightKey) => {
     sum += score * weight
     total += weight
   }
+  /*
+   * `count` is how many ARTICLES went into the figure, the same thing
+   * `averageScore` reports, so a caption reading "N scored" means the same on
+   * either helper.
+   *
+   * Added 15 Oct 2026. Procurement's warehouse card had always asked for
+   * `.count` here and this returned only `{ value, weight }`, so the caption
+   * read "0 scored" beneath a real percentage. Purely additive - every
+   * existing caller reads `.value`, and none of them changes.
+   *
+   * Deliberately `seen.size` rather than a count of the rows with weight: the
+   * question is how many articles were scored, and an article that scored but
+   * shipped nothing was still scored.
+   */
   // No volume at all is not a zero-accuracy answer, it is no answer.
-  return total > 0 ? { value: sum / total, weight: total } : null
+  return total > 0 ? { value: sum / total, weight: total, count: seen.size } : null
 }

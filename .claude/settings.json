@@ -39,7 +39,13 @@
       "Bash(grep -n -B2 -A8 'className={`nav__item' client/src/components/SideNav.jsx)",
       "Bash(node /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/scope.mjs)",
       "Bash(curl -s \"http://localhost:7006/src/pages/WarehouseInsights.jsx\")",
-      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -like '\\\\''*server/index.js*'\\\\'' } | Select-Object ProcessId,CommandLine | Format-List')"
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -like '\\\\''*server/index.js*'\\\\'' } | Select-Object ProcessId,CommandLine | Format-List')",
+      "Bash(curl -s -m 8 http://localhost:7005/api/health)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(python -c ' *)",
+      "Bash(python /c/Users/Fathima/AppData/Local/Temp/claude/c--Projects-DemandForecast/c0ceeffc-2438-4003-ad64-411cf5dce6f7/scratchpad/stock_article_guide.py)",
+      "Bash(tasklist //FI \"PID eq 56708\" //NH)",
+      "Bash(node --test client/src/*.test.js)"
     ]
   }
 }

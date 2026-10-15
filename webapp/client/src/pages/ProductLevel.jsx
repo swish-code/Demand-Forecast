@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { api, fmtInt, fmtPct, fmtSignedPct, fmtDate, downloadCsv } from '../api.js'
 import { useData } from '../useData.js'
 import { W } from '../columns.js'
+import { exportFileName } from '../exportName.js'
 import {
   Panel,
   ErrorBanner,
@@ -160,6 +161,21 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
    * which is before the button can be clicked.
    */
   const [view, setView] = useState(null)
+
+  /*
+   * The file is named for what it is and what was selected - 13 Oct 2026.
+   *
+   * It was "bbt-product-level.csv", which was wrong twice over: the table is
+   * Product Detail, and it has not been BBT-only since brands became a slicer.
+   */
+  const exportName = useMemo(
+    () =>
+      exportFileName('Product Details', {
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+      }),
+    [filters?.dateFrom, filters?.dateTo]
+  )
 
   const [hiddenCols, setHiddenCols] = useState(() => {
     try {
@@ -360,7 +376,7 @@ export function ProductLevel({ filters, options, ready, refreshNonce, onLoaded, 
             disabled={!(view?.rows ?? rows).length}
             onClick={() =>
               downloadCsv(
-                'bbt-product-level.csv',
+                exportName,
                 view?.rows ?? rows,
                 view?.columns ?? COLUMNS.map(({ key, label }) => ({ key, label }))
               )

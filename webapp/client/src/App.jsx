@@ -37,6 +37,7 @@ const lazyPage = (load, name) => lazy(() => load().then((m) => ({ default: m[nam
 const ForecastSummary = lazyPage(() => import('./pages/ForecastSummary.jsx'), 'ForecastSummary')
 const ProductLevel = lazyPage(() => import('./pages/ProductLevel.jsx'), 'ProductLevel')
 const ComponentLevel = lazyPage(() => import('./pages/ComponentLevel.jsx'), 'ComponentLevel')
+const Procurement = lazyPage(() => import('./pages/Procurement.jsx'), 'Procurement')
 const WarehouseInsights = lazyPage(
   () => import('./pages/WarehouseInsights.jsx'),
   'WarehouseInsights'
@@ -224,6 +225,37 @@ const PAGES = [
      * slicers, so a product chosen on Products cannot silently filter this one.
      */
     slicers: ['location', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
+  },
+  {
+    /*
+     * Stock Article again, laid out for ordering - 8 Oct 2026.
+     *
+     * Its own id, not a mode of `component`: access is granted per page id, and
+     * the two are granted separately. Same endpoint, same figures, same column
+     * definitions - see the header of `Procurement.jsx` for why the layout is
+     * different and what it deliberately does not recalculate.
+     *
+     * `lockNodeTypes: ['RAW']` for the same reason Stock Article has it. This is
+     * the BOUGHT half; prep steps and prepared articles belong to the kitchens
+     * and to the Production pages.
+     */
+    id: 'procurement',
+    label: 'Procurement',
+    kicker: 'Plan a period',
+    blurb: 'Product mix, warehouse stock and outbound, month by month',
+    Icon: IconPlan,
+    Component: Procurement,
+    lockNodeTypes: ['RAW'],
+    /*
+     * No `location` slicer, deliberately.
+     *
+     * Both warehouse figures refuse a branch filter - outbound names a brand
+     * and not a branch, and the sales total behind the constant has no branch
+     * column - so a branch selection would blank the WH forecast and Outbound
+     * columns on a page whose whole purpose is those columns. The same reason
+     * `BRAND_LEVEL_DEPARTMENTS` exists on the server.
+     */
+    slicers: ['date', 'item', 'category', 'supply', 'status'],
   },
   ...(PRODUCTION_PAGE_ON
     ? [
@@ -1282,7 +1314,7 @@ export default function App({ session, onSignedOut }) {
               * opens is served from an admin route, so offering it to anybody
               * else would be a button that answers 403.
               */}
-            {session?.user?.role === 'admin' && page.slicers.length > 0 && (
+            {Boolean(session?.user?.fullAccess) && page.slicers.length > 0 && (
               <button
                 type="button"
                 className={`btn btn--ghost${inspecting ? ' btn--on' : ''}`}
@@ -1368,7 +1400,13 @@ export default function App({ session, onSignedOut }) {
               onDrill={drill}
               // Some detail is for the people who maintain the numbers rather
               // than the people who read them.
-              isAdmin={session?.user?.role === 'admin'}
+              // The wider answer, not the role. This prop gates COLUMNS and page
+              // features - the model-comparison columns here, the Method column on
+              // the Sales Plan. Analytics reads those as an administrator does,
+              // while the Admin PAGE stays on the role via the rail's `adminOnly`
+              // filter. Two questions, two answers, which is what lets one be
+              // granted without the other.
+              isAdmin={Boolean(session?.user?.fullAccess)}
               // And the warehouse, whose job this page is: the server decides
               // which departments count, so the two sides cannot drift.
               fullDetail={Boolean(session?.user?.fullDetail)}

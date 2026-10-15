@@ -99,6 +99,26 @@ async function guarded(label, run) {
       // Statistics are an optimisation, not something to fail an extract over.
     }
 
+    /*
+     * Back up the entered tables, from 7 Oct 2026.
+     *
+     * Here because this is the moment the database is known-good: a guarded
+     * extract has just finished and committed. Backing up on a timer instead
+     * would sometimes catch it mid-write.
+     *
+     * It reads about thirty rows and writes a few kilobytes, so it costs
+     * nothing beside the extract it follows. Failure is logged and swallowed -
+     * a backup that cannot be written must never fail the extract that just
+     * succeeded.
+     */
+    try {
+      const { exportEntered } = await import('../db/backup.js')
+      const done = await exportEntered()
+      console.log(`  [backup] entered tables saved - ${JSON.stringify(done.counts)}`)
+    } catch (err) {
+      console.warn(`  [backup] could not save entered tables: ${String(err.message).slice(0, 90)}`)
+    }
+
     // Anything already answered from the old rows is now out of date.
     clearCache()
     lastError = null

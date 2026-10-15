@@ -9928,6 +9928,66 @@ h3,
   color: var(--text);
 }
 
+/*
+ * The brand rows, which carry one thing more than every other option row.
+ *
+ * A slicer row is a box, a name and a count — the three columns `.opt` above
+ * declares. A brand row also has its mark and its short code, and those two
+ * belong to each other: the code names the logo beside it, not the row below
+ * it. So they share one cell and stack, and the row keeps three columns.
+ *
+ * Scoped to `.opt--brand` deliberately. `.opt` is shared with every other
+ * popup in the application, and widening the grid there would move the count
+ * column on all of them.
+ */
+.opt--brand {
+  /* A fixed middle column, so marks and codes line up down the list however
+     long the code is — two characters or four. */
+  grid-template-columns: auto 56px 1fr;
+  /* Taller than the 36px of a plain row, because this one stacks two things.
+     Set rather than left to the content so every brand row is the same height
+     whether or not its logo loaded. */
+  min-height: 48px;
+}
+
+.opt__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.opt__brandcode {
+  font-size: 10.5px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  /* The name is what the eye should land on; the code is for confirming it. */
+  font-weight: var(--w-medium);
+}
+
+/*
+ * The name stays hard against the right edge, where it already was.
+ *
+ * It arrived there by accident — pushed into the third column by the overflow
+ * this fixes — but it reads well, so it is now asked for rather than inherited.
+ */
+.opt--brand .opt__text {
+  text-align: right;
+}
+
+/*
+ * The fallback when a logo file is missing: `BrandMark` renders the code as a
+ * filled chip. Quieter here, because the code is already written above it and
+ * two identical full-strength labels read as a mistake.
+ */
+.opt__brand .brandpick__code {
+  font-size: 9.5px;
+  padding: 1px 5px;
+}
+
 /* ---- the header band --------------------------------------------------- */
 
 /*
@@ -10890,4 +10950,140 @@ h3,
   background: var(--red-tint);
   border-radius: var(--r-pill);
   padding: var(--s2) var(--s3);
+}
+
+/* ---------------------------------------------------------------------------
+ * Procurement's three option cards.
+ *
+ * The page's one control, and it is built from `KpiCard` so that it is the
+ * same object as the figure cards on Products and Stock Article - same chip,
+ * same uppercase label, same type scale, same hover lift. Nothing here styles
+ * a card; it only makes the button around one invisible and marks the chosen
+ * one.
+ *
+ * Three cards on a wide screen would each be 600px of mostly empty card, so
+ * the track is capped. They stay left-aligned, which is where every other row
+ * of cards in the app starts.
+ * ------------------------------------------------------------------------- */
+/*
+ * The option cards and the figure cards share one track.
+ *
+ * Both rows hold two or three cards, and `.kpis` spreads whatever it is given
+ * across the full width - so a single figure card stretched to 1,800px and
+ * dwarfed the buttons above it. Capping the track keeps a lone card the same
+ * width as the option card above it, and the two rows line up down the left.
+ */
+/*
+ * Two rows: the figure cards, then the controls under them.
+ *
+ * The cards keep a capped track so a single card does not stretch the width of
+ * the page, and the row starts at the left so both rows line up down the same
+ * edge.
+ */
+.proc__metrics {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 360px));
+  justify-content: start;
+  margin-bottom: var(--s3);
+}
+
+/*
+ * The three buttons stay on one line.
+ *
+ * Fixed at three columns rather than auto-fit: auto-fit lets them wrap into a
+ * narrow column when the row is short of space, and these are one control - a
+ * choice of three - not a grid of cards that can reflow.
+ */
+.proc__cards {
+  grid-template-columns: repeat(3, minmax(0, 300px));
+  justify-content: start;
+  margin-bottom: var(--s3);
+}
+
+/* Narrow enough that three across would squeeze: let them stack. */
+@media (max-width: 760px) {
+  .proc__cards {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+/*
+ * The button is behaviour only. The card inside it is the visual.
+ *
+ * Without this the browser draws its own button - a border, a grey ground and
+ * centred text - around the card, so each option appeared boxed twice.
+ */
+.proc__card {
+  display: block;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  border-radius: var(--r-card);
+}
+
+.proc__card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(17, 24, 39, 0.26), 0 2px 6px -2px rgba(17, 24, 39, 0.1);
+}
+
+/* Keyboard focus has to be visible on a control that looks like a card. */
+.proc__card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * The chosen one, marked three ways.
+ *
+ * The accent bar underneath is filled by `progress`, which is the card's own
+ * mechanism; the border and the ground are added here. Three signals rather
+ * than one because a single tint is easy to miss on a wide screen, and the bar
+ * and the border both carry it by shape as well as by colour. `aria-pressed`
+ * on the button is what says it to a screen reader.
+ */
+.proc__card--on > .kpi {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+/*
+ * The option name, sized here on purpose - do not remove this.
+ *
+ * `textValue` puts the name on `.kpi__value--text`, which is meant to shrink a
+ * text value to 14px. It does not win: `.kpi__value` is redefined later in this
+ * stylesheet (the 27px rule further down) and both selectors carry the same
+ * specificity, so the last one declared takes it. The option names rendered at
+ * 27px and towered over the figure cards below them.
+ *
+ * Two classes rather than one, so this beats both regardless of order. A card
+ * here is a control with a name on it, not a headline figure.
+ */
+.proc__card .kpi__value {
+  font-size: 16px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+/*
+ * Tighter than a figure card, because it is a control.
+ *
+ * `.kpi` is padded for a 27px number with a bar under it; these hold two short
+ * lines, and at the figure card's height three of them filled a third of the
+ * screen before any data appeared.
+ */
+.proc__card > .kpi {
+  height: 100%;
+  padding: var(--s3) var(--s4) var(--s4);
+  gap: 2px;
+}
+
+/* A blurb is a sentence and has to wrap, where a card's foot is a few words. */
+.proc__card .kpi__foot {
+  white-space: normal;
+  line-height: 1.35;
 }

@@ -10,6 +10,7 @@ import {
   PAGE_IDS,
   maySeeSalesPlan,
   isDepartment,
+  seesEverything,
 } from '../departments.js'
 import { calculationsPayload } from '../calculations.js'
 import {
@@ -84,9 +85,28 @@ const PLAN_OPEN = new Map([
   ['/sales-plan/articles', new Set(['GET'])],
 ])
 
+/*
+ * Read-only routes a full-access department may call - 5 Oct 2026.
+ *
+ * The Calculations drawer is served from here, so a department given the button
+ * and not the route would get a control that answers 403. GET only, and named
+ * individually for the same reason the plan paths are: this router is admin by
+ * default and each exception is a decision.
+ *
+ * `/calculations` is a catalogue of the formulas this app computes. It reads
+ * nothing about accounts, writes nothing, and says only what the pages already
+ * show - which is why it is safe to open and the user and recipient routes
+ * beside it are not.
+ */
+const FULL_ACCESS_OPEN = new Map([['/calculations', new Set(['GET'])]])
+
 admin.use((req, res, next) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in' })
   if (req.user.role === 'admin') return next()
+
+  // A full-access department reads the handful of GET routes named above.
+  const open = FULL_ACCESS_OPEN.get(req.path)
+  if (open?.has(req.method) && seesEverything(req.user)) return next()
 
   // Path first, then the grant. An account without the page never reaches the
   // grant lookup, and a path not on the list is refused whatever it holds.
