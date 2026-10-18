@@ -1,5 +1,7 @@
 import { config } from '../config.js'
 import { cached } from '../cache.js'
+import { timed } from '../perf.js'
+import { pg } from '../db/accounts.js'
 import { executeQuery } from './client.js'
 
 /**
@@ -62,10 +64,109 @@ const asDate = (iso) => {
  * Cached on brand and window. A page reads it once per brand per request and
  * the answer cannot change inside one.
  */
+/*
+ * THE SAME FIGURE, OUT OF THE LOCAL COPY, WHEN THE WINDOW IS WHOLE MONTHS.
+ *
+ * `cube_site_outbound_monthly` is filled by `siteOutboundByMonth` further down
+ * this same file, and the two queries are the same query: the same
+ * `SITE_NAMES` on Cost Center/Store, the same Status Group filter, the same
+ * `SUM(Action Base Qty)`, grouped by article and by the brand that received
+ * it. The only difference is that the extract asks a month at a time and this
+ * asks a window. So for a window that is EXACTLY whole months, adding those
+ * months up gives the identical answer - not an approximation of it.
+ *
+ * Worth doing because this is the most frequent Power BI query in the
+ * application. It runs once per brand per window, which is nine on a
+ * nine-brand request, and the Procurement page makes a request per month: a
+ * six-month range was fifty-four of these. Measured 15 Oct 2026, the capacity
+ * refused 29.2% of all attempts with a 429, and Power BI answers each of those
+ * with Retry-After: 60 - so a single throttled query costs a minute. Cutting
+ * the volume is the only thing that helps.
+ *
+ * TWO GUARDS, because being slow is recoverable and being wrong is not:
+ *
+ *   whole months  A window that starts mid-month or ends mid-month is not the
+ *                 sum of any set of months, so it goes to Power BI.
+ *   every month   Each month in the range must be present in the copy. The
+ *                 extract replaces a month wholesale, so a month that is there
+ *                 is complete; a month that is missing - never fetched, or
+ *                 skipped because its own query failed - falls back rather
+ *                 than silently reporting a short total.
+ *
+ * A month in which nothing moved anywhere holds no rows and therefore reads as
+ * missing, which costs a fallback query and cannot cost a wrong figure.
+ */
+const MONTH_FIRST = /^\d{4}-\d{2}-01$/
+
+function wholeMonths(dateFrom, dateTo) {
+  if (!MONTH_FIRST.test(String(dateFrom))) return null
+  const last = String(dateTo).slice(0, 7)
+  if (String(dateTo) !== `${last}-${lastDayOf(last)}`) return null
+
+  const out = []
+  let [y, m] = String(dateFrom).slice(0, 7).split('-').map(Number)
+  // Bounded rather than `while (true)`: a nonsensical range must not spin.
+  for (let i = 0; i < 48; i++) {
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    out.push(key)
+    if (key === last) return out
+    m += 1
+    if (m > 12) {
+      m = 1
+      y += 1
+    }
+  }
+  return null
+}
+
+async function copyHoldsEvery(months) {
+  const rows = await timed('copy', () =>
+    pg.all(
+      `SELECT DISTINCT month FROM cube_site_outbound_monthly
+        WHERE month IN (${months.map(() => '?').join(', ')})`,
+      months
+    )
+  )
+  const held = new Set(rows.map((r) => String(r.month)))
+  return months.every((m) => held.has(m))
+}
+
+async function siteOutboundFromCopy(brandCode, months) {
+  const rows = await timed('copy', () =>
+    pg.all(
+      `SELECT article, SUM(qty) AS qty
+         FROM cube_site_outbound_monthly
+        WHERE brand = ? AND month IN (${months.map(() => '?').join(', ')})
+        GROUP BY article`,
+      [brandCode, ...months]
+    )
+  )
+  const out = new Map()
+  for (const r of rows) {
+    const article = String(r.article ?? '').trim()
+    if (!article) continue
+    out.set(article, (out.get(article) ?? 0) + (Number(r.qty) || 0))
+  }
+  return out
+}
+
 export async function siteOutboundByArticle(brandCode, { dateFrom, dateTo } = {}) {
   if (!isConfigured() || !brandCode || !dateFrom || !dateTo) return null
 
   return cached(`site-outbound:${brandCode}:${dateFrom}:${dateTo}`, async () => {
+    const months = wholeMonths(dateFrom, dateTo)
+    if (months) {
+      const local = await copyHoldsEvery(months)
+        .then((ok) => (ok ? siteOutboundFromCopy(brandCode, months) : null))
+        .catch((err) => {
+          // The copy is an optimisation; a fault in it must cost a round trip,
+          // never a figure. Exactly how `salesFor` treats the same choice.
+          console.warn(`  [site-outbound] copy unusable for ${brandCode}: ${err.message}`)
+          return null
+        })
+      if (local) return local
+    }
+
     const dax = `EVALUATE
 SUMMARIZECOLUMNS(
   fact_outbound_line[Article No.],

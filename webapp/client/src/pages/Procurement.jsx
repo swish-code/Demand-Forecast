@@ -282,33 +282,86 @@ export function Procurement({
      * is what lets an abandoned request be cancelled — the handles, not an
      * AbortController here, now own that.
      */
-    const handles = months.map((mo) =>
-      fetchCached(api.componentLevel, {
-        // The month replaces the range; every other filter is passed
-        // through exactly as the page received it.
-        ...filters,
-        dateFrom: mo.from,
-        dateTo: mo.to,
-        grain: [],
-        /*
-         * A future month's order book is not asked for.
-         *
-         * The fold below reads `Open_PO_Qty` from the latest month that is NOT
-         * in the future, and skips future ones outright — pending POs are the
-         * position now, so August's outstanding orders say nothing about
-         * December. The server was computing them anyway: one Power BI query
-         * against the inventory model per month, around twenty seconds each,
-         * every one of them for a figure this page then threw away.
-         *
-         * Only the future months, deliberately. The rule the fold applies is
-         * "skip future", so omitting exactly those cannot change which month
-         * it settles on, even when the newest past month turns out to have no
-         * warehouse reading and it falls back to an earlier one.
-         */
-        ...(future.has(mo.key) ? { omit: ['openPo'] } : null),
-      })
-    )
-    const letGo = () => handles.forEach((h) => h.release())
+    const payloadFor = (mo) => ({
+      // The month replaces the range; every other filter is passed
+      // through exactly as the page received it.
+      ...filters,
+      dateFrom: mo.from,
+      dateTo: mo.to,
+      grain: [],
+      /*
+       * What this page will not read, so the server does not build it.
+       *
+       * `site` is unconditional: there is no site column in any of the three
+       * modes, and producing those two fields costs a Power BI query per brand.
+       *
+       * `openPo` only for a future month, because the fold below reads the
+       * order book from the latest month that is NOT in the future, and skips
+       * future ones outright - pending POs are the position now, so August's
+       * outstanding orders say nothing about December. Only the future months,
+       * deliberately: the rule the fold applies is "skip future", so omitting
+       * exactly those cannot change which month it settles on, even when the
+       * newest past month turns out to have no warehouse reading and it falls
+       * back to an earlier one.
+       */
+      omit: future.has(mo.key) ? ['site', 'openPo'] : ['site'],
+    })
+
+    /*
+     * TWO MONTHS IN FLIGHT AT A TIME, NOT ALL SIX.
+     *
+     * Each month is a full server pipeline that issues of the order of a dozen
+     * Power BI queries, so six at once offered the capacity something like a
+     * hundred queries in one burst. It refused a large share of them:
+     * data/perf.log for 15 Oct 2026 records 314 throttles across 1,077
+     * attempts - 29.2% - and Power BI answers each with Retry-After: 60. The
+     * page then spent its time sleeping and re-asking rather than querying,
+     * which is why 8,180 seconds were spent queued against 905 seconds
+     * actually querying.
+     *
+     * Throttling is a VOLUME problem and the only honest fix is to ask for
+     * less at once. This does not reduce the total work - every month is still
+     * fetched, in full, with the same filters - it spreads it over the
+     * capacity instead of stacking it. The later waves are also cheaper than
+     * the first, because everything window-independent is cached by then.
+     *
+     * Deliberately NOT a bigger number. The gate in server/powerbi/client.js
+     * halves on every throttle and needs twenty clean responses to widen by
+     * one, so a burst that triggers throttling leaves every other page behind
+     * a collapsed gate for a long time afterwards.
+     */
+    const MAX_PARALLEL_MONTHS = 2
+
+    /*
+     * Live handles, so an abandoned load really is cancelled.
+     *
+     * The requests start as a worker reaches them rather than all at once, so
+     * there is no complete list to release up front - they are tracked as they
+     * are created and released on unmount, wherever the queue had got to.
+     */
+    const live = new Set()
+    const letGo = () => {
+      for (const h of live) h.release()
+      live.clear()
+    }
+
+    const got = new Array(months.length)
+    let next = 0
+    const worker = async () => {
+      for (;;) {
+        const i = next++
+        if (i >= months.length || !alive) return
+        const h = fetchCached(api.componentLevel, payloadFor(months[i]))
+        live.add(h)
+        try {
+          const d = await h.promise
+          got[i] = { month: months[i], rows: d?.rows ?? [] }
+        } finally {
+          live.delete(h)
+          h.release()
+        }
+      }
+    }
 
     /*
      * Only shows the spinner when there is actually something to wait for.
@@ -324,9 +377,9 @@ export function Procurement({
     setError(null)
 
     Promise.all(
-      handles.map((h, i) => h.promise.then((d) => ({ month: months[i], rows: d?.rows ?? [] })))
+      Array.from({ length: Math.min(MAX_PARALLEL_MONTHS, months.length) }, worker)
     )
-      .then((got) => {
+      .then(() => {
         settled = true
         if (!alive) return
         setParts(got)

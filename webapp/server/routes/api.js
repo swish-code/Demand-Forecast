@@ -2971,6 +2971,22 @@ api.all('/component-level', handle(async (req, res) => {
   const g = guardMany(req, res)
   if (!g) return
   const grain = grainOf(req)
+  const omit = omitsOf(req)
+  /*
+   * The per-SITE columns, unless the caller has said it will not read them.
+   *
+   * `Site_Outbound_Qty` and `Site_Forecast_Qty` are the only things these two
+   * passes add, and the Procurement page shows neither - it has no site column
+   * at all. Producing them costs `siteForecastFor` once per brand, which is
+   * nine Power BI queries on a nine-brand request, and Procurement makes one
+   * request per month.
+   *
+   * `withSiteOutbound` is skipped alongside it for the same reason, though it
+   * costs nothing extra on its own: the lookup behind it is already fetched
+   * for `siteOnlyRows` below, which decides which rows EXIST and so cannot be
+   * skipped.
+   */
+  const wantSite = !omit.has('site')
 
   /*
    * Which production sources this request is really asking for.
@@ -3203,27 +3219,26 @@ api.all('/component-level', handle(async (req, res) => {
      * per brand - the destination filter is what makes a quantity this brand's
      * rather than another's. After the merge there is no brand to ask with.
      */
-    const withOutbound = await withSiteForecast(
-      await withSiteOutbound(
-        await withConsumption([...rows, ...extra, ...siteOnly], brand, f, grain, mine),
-        brand,
-        f,
-        grain,
-        /*
-         * All destinations on the YELO Factory page only - asked for 30 Sep
-         * 2026. Tested on the sources the request actually resolved to, so a
-         * page grant cannot widen it: an account restricted to the factory gets
-         * the factory's rule, and the Production page, which asks for every
-         * site, keeps the brand rule.
-         */
-        sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
-      ),
-      brand,
-      f,
-      grain,
-      // Same rule as the Outbound column above, so the pair is comparable.
-      sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
-    )
+    const consumed = await withConsumption([...rows, ...extra, ...siteOnly], brand, f, grain, mine)
+    /*
+     * All destinations on the YELO Factory page only - asked for 30 Sep 2026.
+     * Tested on the sources the request actually resolved to, so a page grant
+     * cannot widen it: an account restricted to the factory gets the factory's
+     * rule, and the Production page, which asks for every site, keeps the
+     * brand rule.
+     */
+    const allDestinations = sourcesAsked?.length === 1 && sourcesAsked[0] === 'YELO Factory'
+    const withOutbound = wantSite
+      ? await withSiteForecast(
+          // Same rule on both, so the forecast and the outbound beside it are
+          // comparable.
+          await withSiteOutbound(consumed, brand, f, grain, allDestinations),
+          brand,
+          f,
+          grain,
+          allDestinations
+        )
+      : consumed
 
     /*
      * Only stamped when the table is actually split by brand: carrying it
@@ -3284,7 +3299,7 @@ api.all('/component-level', handle(async (req, res) => {
    * Still gated on `admin` exactly as it was — the omission can only narrow
    * what is returned, never widen it past what this account may see.
    */
-  const poAdmin = admin && !omitsOf(req).has('openPo')
+  const poAdmin = admin && !omit.has('openPo')
   const asAt =
     clampAsAt(window?.dateTo ? String(window.dateTo).slice(0, 10) : null, cube.lastActualDate()) ??
     new Date().toISOString().slice(0, 10)
