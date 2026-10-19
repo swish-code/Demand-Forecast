@@ -1,4 +1,46 @@
+# ---------------------------------------------------------------------------
+# What this repository ships
+#
+# The deployable application is webapp/ and nothing else. Everything below is
+# kept on local disk and deliberately NOT committed, so that a hosting provider
+# cloning this repository sees the application and not the analytics estate
+# around it.
+#
+# IMPORTANT: ignoring these does not delete them. They remain on disk exactly
+# as they are. It only stops git tracking them from here on.
+# ---------------------------------------------------------------------------
+
+# --- Power BI projects -----------------------------------------------------
+#
+# The .pbip projects and their .Report / .SemanticModel folders are the source
+# of truth for every DAX measure the application reads, so they matter - but
+# they are an analytics artefact, not part of the deployed service, and they
+# accounted for roughly 1,900 of the 2,100 files in this repository.
+#
+# THEY ARE NO LONGER BACKED UP BY THIS REPOSITORY. Keep them somewhere that is.
+*.pbip
+*.Report/
+*.SemanticModel/
+
+# Power BI local caches, which were already ignored and are regenerated.
 **/.pbi/localSettings.json
 **/.pbi/cache.abf
-# Backups of the manually entered tables — they hold a mailbox refresh token.
+
+# --- Working spreadsheets and extracts --------------------------------------
+#
+# Root-level only, anchored with a leading slash: webapp/docs holds exported
+# analysis datasets that are part of the documentation and must stay tracked.
+/*.xlsx
+/*.csv
+/*.pdf
+
+# --- Local tooling ----------------------------------------------------------
+#
+# Accumulated tool permissions, specific to one machine and one checkout, and
+# containing local filesystem paths. Nothing here is needed to run the app.
+/.claude/
+
+# --- Backups ----------------------------------------------------------------
+#
+# Backups of the manually entered tables - they hold a mailbox refresh token.
 /backups/
