@@ -256,6 +256,60 @@ const COLUMNS = [
   // the reason a consumption figure can be put beside a recipe figure at all.
   { key: 'Item No.', label: 'Article No.', width: 104, hiddenByDefault: true },
   /*
+   * HOW the article arrived, in the window on screen.
+   *
+   * Beside Article No. because it is a fact about the article rather than a
+   * measurement, and deliberately NOT beside the Supply column: the two read
+   * alike and answer different questions. Supply is a standing property - has
+   * the Central Warehouse ever issued this - with no date range at all. This
+   * is what actually happened between the selected dates, read from inbound
+   * receipts and internal transfers.
+   *
+   * The LATEST movement only - 25 Oct 2026. An article with four weeks of
+   * ordinary activity behind it read "Purchase + Internal TRF IN +
+   * Internal TRF OUT", which is every true thing at once and no answer to
+   * "how is this moving now". Two movements on the SAME day still show both,
+   * joined with " + ", because nothing in the data orders them.
+   *
+   * Blank means not known - the warehouse model did not answer - which is a
+   * different thing from "no channel" and is left to read as a gap.
+   */
+  {
+    key: 'Transaction Type',
+    label: 'Transaction Type',
+    autoWidth: true,
+    hint:
+      'The article’s most recent movement inside the chosen date range, named from the end that RECEIVED it — not everything that happened in the range. ' +
+      'Purchase = an external supplier delivered into a cost centre other than the Main Warehouse. ' +
+      'Internal TRF IN = one Swish cost centre received from another, such as warehouse to production. ' +
+      'Internal TRF OUT = the same movement named from the sending end, so it always appears together with Internal TRF IN — the Path column shows the direction. ' +
+      'Issue to Store = a Swish cost centre sent stock out to a brand or store. ' +
+      'Brand Transfer = one brand sent stock to another brand. ' +
+      'Return IN = a cost centre sent goods back to an external supplier. ' +
+      'Two movements on the same day show both, separated by "+". ' +
+      'Needs Review means the receiving location could not be matched to a cost centre. ' +
+      'Blank means the movement deliberately has no type: a supplier delivery into the Main Warehouse, a brand returning stock to a Swish cost centre, or anything touching HO, Marketing, Merchandise, LVB or SM. ' +
+      'The Path column beside it shows where the goods came from. ' +
+      'This is separate from the Supply column, which asks whether the warehouse has ever issued the article and ignores the date range.',
+  },
+  /*
+   * Where the latest movement ran, source to destination.
+   *
+   * Added 31 Oct 2026 alongside the destination-only change. The Transaction
+   * Type column can only name one end of a movement without putting both
+   * halves on the same row, so the other end lives here, where naming the cost
+   * centre outright is more useful than a second coded value would be.
+   */
+  {
+    key: 'Path',
+    label: 'Path',
+    autoWidth: true,
+    hint:
+      'The two cost centres the latest movement ran between, in the direction the goods travelled. ' +
+      '"Supplier" appears where the goods came from outside — a GRN carries no originating cost centre. ' +
+      'Two movements on the same day show both paths, separated by ";".',
+  },
+  /*
    * Consumed, not "actual".
    *
    * The old actual came from the same place as the forecast — recipe quantities
@@ -1992,7 +2046,20 @@ Step 3 — multiply by the forecast sales for the dates on screen.`,
   ],
 }
 
-const fromRecipe = (r) => !String(r['Recipe Group'] ?? '').startsWith('No recipe')
+/*
+ * `Recipe Kind` wins where the server set it.
+ *
+ * The recipe-group test is a DEFAULT: it asks whether the row was stamped
+ * "No recipe - from outbound" when appended, which every FM article is,
+ * because no forecast brand's explosion can produce one. The server looks
+ * those up in the recipe master and sets `Recipe Kind` where a recipe really
+ * does name the article - see `withFmArticles`. One test, in two places, so
+ * the badge and the slicer cannot disagree.
+ */
+const fromRecipe = (r) =>
+  r['Recipe Kind']
+    ? r['Recipe Kind'] === 'Recipe'
+    : !String(r['Recipe Group'] ?? '').startsWith('No recipe')
 
 /**
  * Actual ACC% — forecast against what the production sites actually issued.

@@ -430,6 +430,14 @@ ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS components INTEGER NOT NULL D
 -- for days that do not exist anywhere, so the copy can still answer it.
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_from TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS model_to TEXT;
+-- How far forward the SALES copy was last filled.
+--
+-- Deliberately separate from model_to. The product tables stop where the Power
+-- BI calendar stops; 'FORECAST (2)' carries further - all of 2027 for all nine
+-- brands as of 21 Oct 2026 - and cube_sales_daily is filled to there. The
+-- hourly top-up compares its far end against this, so a copy that is short at
+-- the FORWARD end is noticed; every other depth check looks only backwards.
+ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS sales_to TEXT;
 -- The recipe copy keeps its own dates: one of the three wide fetches can fail
 -- on its own, and the Ingredients page must not inherit a range from a table it
 -- does not read.
@@ -562,6 +570,41 @@ CREATE TABLE IF NOT EXISTS cube_plan_shape (
   month  INTEGER NOT NULL,
   weight DOUBLE PRECISION NOT NULL,
   source TEXT NOT NULL,
+  PRIMARY KEY (brand, year, month)
+);
+
+-- HOW BIG a planned year is, read from the model instead of typed.
+--
+-- cube_sales_plan above holds a figure somebody typed. That existed because
+-- an audit on 15 Sep 2026 found Forecast_Product_Table empty for 2027 and
+-- concluded "a typed figure is the only 2027 number there is". That conclusion
+-- was drawn from the PRODUCT table and never checked the BRAND one: audited
+-- again on 20 Oct 2026, 'FORECAST (2)'[Totalsale] carries all twelve months of
+-- 2027 for all nine brands, every month positive.
+--
+-- The two disagree materially, and the typed figure is the high one every time
+-- - BBT 10,262,328 typed against 6,218,954 in the model, YP 10,076,033 against
+-- 5,653,919. So every 2027 quantity on the page was inflated by 16-78%.
+--
+-- This table holds the model's own twelve monthly figures. The ANNUAL SUM is
+-- what replaces the typed size; the twelve are kept rather than just the total
+-- so the reconciliation can be shown month by month without re-querying.
+--
+-- WHAT THIS DOES NOT TOUCH
+--
+-- The SHAPE still comes from cube_plan_shape, which prefers the seasonal
+-- factors. That separation is deliberate and is argued in planShape.js: the
+-- factors put March at 1.26-1.46 while Totalsale has it at 8.9-9.3% of the
+-- year, barely above a flat 8.33%. Totalsale is a forecast of SIZE, and it is
+-- now used for size only - taking its months as the shape as well would
+-- discard the better seasonality and apply the source twice.
+CREATE TABLE IF NOT EXISTS cube_plan_source (
+  brand      TEXT NOT NULL,
+  year       INTEGER NOT NULL,
+  month      INTEGER NOT NULL,
+  value      DOUBLE PRECISION NOT NULL,
+  source     TEXT NOT NULL,
+  updated_at TEXT,
   PRIMARY KEY (brand, year, month)
 );
 
@@ -739,9 +782,32 @@ const TABLES = [
  * Identity columns are reset afterwards. Copying rows with explicit ids leaves
  * the sequence at 1, and the next insert would collide with the first row.
  */
+/*
+ * FIXED 25 Oct 2026. The guard below used to be `users` alone, and that made
+ * this function dead code the moment the JSON backup started running first.
+ *
+ * The backup restores `users` before this is called, so "are there users yet"
+ * was always answered YES and the migration returned without doing anything.
+ * The comment in `initDatabase` says the two run newest-wins, with this one
+ * filling "the history tables it carries and the backup deliberately does not"
+ * - and that had silently stopped being true. The 7 Oct and 25 Oct rebuilds
+ * both lost `login_events`, `audit_log`, `digests`, `alerts` and `email_log`
+ * although app.db still held them.
+ *
+ * So freshness is asked of the HISTORY tables, which only this function fills.
+ * Every insert below is ON CONFLICT DO NOTHING, so a second run could not
+ * overwrite anything anyway; this just stops it reading a 330MB file on a boot
+ * that has nothing to gain from it.
+ */
 async function importFromSqlite() {
-  const { n } = (await pg.get('SELECT COUNT(*)::int AS n FROM users')) ?? { n: 0 }
-  if (n > 0) return { imported: false, reason: 'accounts already present' }
+  const fresh = await pg.get(
+    `SELECT (SELECT COUNT(*) FROM users) = 0 AS no_users,
+            (SELECT COUNT(*) FROM login_events) = 0
+              AND (SELECT COUNT(*) FROM audit_log) = 0 AS no_history`
+  )
+  if (!fresh?.no_users && !fresh?.no_history) {
+    return { imported: false, reason: 'accounts and history already present' }
+  }
 
   /*
    * The old SQLite file, if this machine still has one.

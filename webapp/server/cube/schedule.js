@@ -9,6 +9,7 @@ import { refreshAllSalesOnly } from './salesOnly.js'
 import { clearCache } from '../cache.js'
 import { loadCoverage } from './query.js'
 import { refreshPlanShapes } from './planShape.js'
+import { refreshPlanSources } from './planSource.js'
 import { loadSalesPlans, salesPlans } from '../insights/salesPlan.js'
 import { raise, clear } from '../insights/alerts.js'
 
@@ -479,6 +480,11 @@ async function salesValuesIfEmpty() {
        FROM cube_sales_daily GROUP BY brand`
   )
   const held = new Map(per.map((r) => [String(r.brand), r]))
+  // How far forward the last extract actually reached, per brand.
+  const horizons = await pg.all(`SELECT brand, sales_to FROM cube_coverage`, [])
+  const salesTo = new Map(
+    horizons.filter((r) => r.sales_to).map((r) => [String(r.brand), String(r.sales_to).slice(0, 10)])
+  )
   const short = config.brands.filter((b) => {
     const r = held.get(b.code)
     if (!r || !r.lo || String(r.lo) > oldest) return true
@@ -496,6 +502,28 @@ async function salesValuesIfEmpty() {
      * So a brand whose actuals do not reach back through its own history is
      * short too, and one full refresh repairs it.
      */
+    /*
+     * A fourth trap, caught 21 Oct 2026: depth was only ever measured at the
+     * OLD end.
+     *
+     * Every check above asks how far back the rows reach. None asked how far
+     * FORWARD, because until now the copy stopped where the Power BI calendar
+     * stopped and there was nothing further to want. The sales window now
+     * reaches into 2027 - 'FORECAST (2)' carries it - and a brand holding 2026
+     * alone satisfied every test here and was skipped for ever, so the widened
+     * window would never have been fetched by this job at all.
+     *
+     * Compared against the horizon the last extract actually REACHED, recorded
+     * in `cube_coverage.sales_to`, rather than against a computed date. A
+     * computed date would fire every hour for ever on any brand whose model
+     * stops earlier than it - nine extra Power BI queries an hour, against a
+     * gate that has had 429 trouble before. A null means no extract has run
+     * since the column appeared, which is exactly the one catch-up wanted.
+     */
+    const horizon = salesTo.get(b.code) ?? null
+    if (!horizon) return true
+    if (!r.hi || String(r.hi) < String(horizon)) return true
+
     const acted = Number(r.acted ?? 0)
     if (!acted) return true
     const reach = r.act_hi ? String(r.act_hi) : null
@@ -615,6 +643,26 @@ async function refreshShapesForPlannedYears() {
     console.log(
       `  [plan] ${year} shapes: ${moved.length} read${moved.length ? ` (${moved.join(' ')})` : ''}` +
         `${skipped.length ? `, ${skipped.length} unchanged` : ''}`
+    )
+
+    /*
+     * The SIZE, on the same trigger as the shape.
+     *
+     * 'FORECAST (2)'[Totalsale] is revised upstream - planShape.js records MM's
+     * series moving between two audits a day apart - so a figure read once at
+     * boot would drift away from the model. This re-reads it nightly, next to
+     * the shape, for the same reason and at the same cost of one query a brand.
+     */
+    const sized = await refreshPlanSources(year).catch((err) => {
+      console.log(`  [plan] size refresh ${year} failed: ${err.message.slice(0, 100)}`)
+      return []
+    })
+    const read = sized.filter((r) => r.total)
+    const missed = sized.filter((r) => r.skipped || r.error)
+    console.log(
+      `  [plan] ${year} sizes: ${read.length} read` +
+        `${read.length ? ` (${read.map((r) => `${r.brand}:${Math.round(r.total).toLocaleString('en-US')}`).join(' ')})` : ''}` +
+        `${missed.length ? `, ${missed.length} unchanged` : ''}`
     )
   }
 

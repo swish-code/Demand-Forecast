@@ -1,6 +1,6 @@
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
-import { planWindow, plannedThrough, salesPlans, planBoundaryError } from '../insights/salesPlan.js'
+import { planWindow, plannedThrough, salesPlans, planBoundaryError, forecastSourceError } from '../insights/salesPlan.js'
 import { planProductRows } from '../insights/planForecast.js'
 
 /**
@@ -750,6 +750,7 @@ export function canAnswerComponents(brand, filters = {}) {
 
 export async function componentLevel(brand, f, grain = {}) {
   guardPlanBoundary(brand, f)
+  guardForecastSource(brand, f)
   /*
    * A planned year, sized the same way the product level is.
    *
@@ -766,7 +767,7 @@ export async function componentLevel(brand, f, grain = {}) {
    */
   const plan = planWindow(brand, f)
   if (plan) {
-    const mix = await planMix(brand, plan)
+    const mix = await planMix(brand, plan, f)
     if (!mix) return []
     const rows = await componentLevel(brand, { ...f, dateFrom: mix.from, dateTo: mix.to }, grain)
     return rows.map((r) => ({
@@ -1210,11 +1211,95 @@ function guardPlanBoundary(brand, f) {
   throw err
 }
 
+/*
+ * A forecast year the model has not sized, said out loud.
+ *
+ * Without this the same situation returns an empty table, which is
+ * indistinguishable from a brand that genuinely has nothing to make. Saying it
+ * is what requirement "report missing source data rather than fall back"
+ * actually means in practice - and the message is explicit that typing a Sales
+ * Plan target will NOT fix it, because that is the first thing anybody would
+ * reasonably try.
+ */
+function guardForecastSource(brand, f) {
+  const message = forecastSourceError(brand, f)
+  if (!message) return
+  const err = new Error(message)
+  err.status = 503
+  throw err
+}
+
+/**
+ * What the sales copy itself holds for a window, or null if it holds nothing.
+ *
+ * Null and zero are different answers and the difference decides which branch
+ * every caller below takes: null means "this window is not in the copy", zero
+ * would mean "the copy says these days are worth nothing".
+ */
+async function copySales(brand, from, to, allBrands = false) {
+  const rows = await rowsOf(
+    `SELECT SUM(value) AS v, COUNT(*) AS n FROM cube_sales_daily
+      WHERE ${allBrands ? '' : 'brand = ? AND '}date >= ? AND date <= ?`,
+    allBrands ? [from, to] : [brand, from, to]
+  )
+  if (!Number(rows[0]?.n)) return null
+  const v = Number(rows[0]?.v)
+  return Number.isFinite(v) ? v : null
+}
+
+/**
+ * The copy's twelve monthly totals for a year, or null if it has no rows.
+ *
+ * Null for the whole year rather than per month, so a year the copy does not
+ * cover takes the derived path WHOLE. Mixing real months with derived ones
+ * inside one year would put two different series in one column and nothing on
+ * screen would say which month came from where.
+ */
+async function copyMonthlySales(brand, year) {
+  const rows = await rowsOf(
+    `SELECT LEFT(date, 7) AS m, SUM(value) AS v FROM cube_sales_daily
+      WHERE brand = ? AND date >= ? AND date <= ?
+      GROUP BY LEFT(date, 7)`,
+    [brand, `${year}-01-01`, `${year}-12-31`]
+  )
+  if (!rows.length) return null
+  const out = new Array(12).fill(null)
+  for (const r of rows) {
+    const m = Number(String(r.m ?? '').slice(5, 7))
+    if (m >= 1 && m <= 12) out[m - 1] = Number(r.v) || 0
+  }
+  return out
+}
+
+/**
+ * A forecast year's sales, derived - and only when the copy cannot answer.
+ *
+ * SINCE 21 OCT 2026 THIS IS THE FALLBACK, NOT THE PATH
+ *
+ * The sales extract now reaches past the Power BI calendar into 2027, because
+ * 'FORECAST (2)' carries those days. So a 2027 window normally has REAL daily
+ * rows, and returning null here lets `forecastSales` read them - the same code
+ * path, and the same source, as every other year.
+ *
+ * Deriving it from the annual figure and a seasonal shape was what had to be
+ * done while the copy stopped at 2026. Keeping it as a fallback matters: a
+ * brand whose sales fetch failed would otherwise answer 0 for 2027 rather than
+ * fall back to a figure that is still model-derived.
+ *
+ * Two sources for one quantity is exactly the conflation this work exists to
+ * remove, so the order is explicit rather than incidental: the copy first,
+ * always.
+ */
 async function plannedSales(brand, f, allBrands) {
   if (allBrands) {
     const year = Number(String(f.dateFrom).slice(0, 4))
-    const scoped = salesPlans().filter((p) => p.year === year && p.usable)
+    // `forecastUsable`: the bucket sums what the MODEL says each brand is
+    // worth, so a brand with a typed target and no model figure contributes
+    // nothing rather than contributing the target.
+    const scoped = salesPlans().filter((p) => p.year === year && p.forecastUsable)
     if (!scoped.length) return null
+    // The copy covers every brand at once; if it holds the window, use it.
+    if ((await copySales(null, f.dateFrom, f.dateTo, true)) !== null) return null
     let total = 0
     for (const plan of scoped) {
       const mapped = planWindow(plan.brand, f)
@@ -1226,6 +1311,7 @@ async function plannedSales(brand, f, allBrands) {
 
   const plan = planWindow(brand, f)
   if (!plan) return null
+  if ((await copySales(brand, f.dateFrom, f.dateTo)) !== null) return null
   return plan.plannedValue
 }
 
@@ -1258,7 +1344,7 @@ async function plannedSales(brand, f, allBrands) {
  * Losing within-year mix drift for such a month is the cost, and it is a great
  * deal cheaper than reporting nothing at all for it.
  */
-async function planMix(brand, plan) {
+async function planMix(brand, plan, window = null) {
   const salesOf = async (from, to) => {
     const rows = await rowsOf(
       `SELECT SUM(value) AS forecast FROM cube_sales_daily
@@ -1268,9 +1354,22 @@ async function planMix(brand, plan) {
     return Number(rows[0]?.forecast) || 0
   }
 
+  /*
+   * The numerator: what this window's sales actually are.
+   *
+   * The copy first, for the same reason as `plannedSales` - since the extract
+   * widened, a 2027 window normally has real daily rows, and sizing the mix
+   * from them is what keeps the article total equal to the warehouse total for
+   * the same window. Falling back to the derived figure keeps a brand whose
+   * sales fetch failed producing a model-derived answer rather than nothing.
+   */
+  const target =
+    (window ? await copySales(brand, window.dateFrom, window.dateTo) : null) ?? plan.plannedValue
+  if (!(target > 0)) return null
+
   const direct = await salesOf(plan.from, plan.to)
   if (direct > 0) {
-    return { from: plan.from, to: plan.to, factor: plan.plannedValue / direct, fellBack: false }
+    return { from: plan.from, to: plan.to, factor: target / direct, fellBack: false }
   }
 
   const wide = await salesOf(plan.fallbackFrom, plan.fallbackTo)
@@ -1278,7 +1377,7 @@ async function planMix(brand, plan) {
   return {
     from: plan.fallbackFrom,
     to: plan.fallbackTo,
-    factor: plan.plannedValue / wide,
+    factor: target / wide,
     fellBack: true,
   }
 }
@@ -1286,6 +1385,7 @@ async function planMix(brand, plan) {
 export async function forecastSales(brand, f, { allBrands = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   if (!allBrands) guardPlanBoundary(brand, f)
+  if (!allBrands) guardForecastSource(brand, f)
   // A typed figure for this year replaces the model's, which is the whole point
   // of the plan. Null here means there is no plan and nothing changes.
   const planned = await plannedSales(brand, f, allBrands)
@@ -1673,6 +1773,7 @@ export function canAnswerArticles(brand, filters = {}) {
 
 export async function productLevel(brand, f) {
   guardPlanBoundary(brand, f)
+  guardForecastSource(brand, f)
   /*
    * A planned year takes a base-year product mix, sized to the plan.
    *
@@ -1707,9 +1808,13 @@ export async function productLevel(brand, f) {
      * It returns the same (article, product) grain the SQL below returns, so
      * every caller — the page, the download — is unchanged.
      */
-    const rows = await planProductRows(brand, plan.year ?? Number(String(f.dateFrom).slice(0, 4)), {
+    const year = plan.year ?? Number(String(f.dateFrom).slice(0, 4))
+    const rows = await planProductRows(brand, year, {
       from: f.dateFrom,
       to: f.dateTo,
+      // The copy's twelve months where it covers the year, so the product
+      // forecast is sized by the same series as the warehouse forecast.
+      monthlySales: await copyMonthlySales(brand, year),
     })
     if (!f.products?.length) return rows
     const wanted = new Set(f.products.map(String))

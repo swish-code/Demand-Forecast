@@ -303,6 +303,18 @@ async function writeMasterActual(brand, rows) {
   })
 }
 
+/**
+ * Record how far forward the sales copy was just filled.
+ *
+ * Written whenever sales are, rather than only by `noteCoverage`, because the
+ * hourly top-up refreshes sales without touching coverage - and that is the
+ * job whose staleness check reads this back.
+ */
+async function noteSalesHorizon(brand, to) {
+  if (!to) return
+  await pg.run(`UPDATE cube_coverage SET sales_to = ? WHERE brand = ?`, [String(to).slice(0, 10), brand])
+}
+
 async function writeSalesValue(brand, rows, scope) {
   if (!rows.length && !scope) return
   await pg.tx(async () => {
@@ -697,7 +709,10 @@ async function noteCoverage(brand, _from, _to, detail = null, model = null, cale
 const AHEAD_DAYS = Number(process.env.CUBE_AHEAD_DAYS) || 35
 
 async function windowFor(brand) {
-  const rows = await executeQuery(dax.slicerQuery.dateRange(), brand.datasetId)
+  const rows = await executeQuery(
+    dax.slicerQuery.dateRange(brand.chain ?? brand.code),
+    brand.datasetId
+  )
   const r = rows[0] ?? {}
   const pick = (...names) => {
     for (const n of names) {
@@ -710,6 +725,7 @@ async function windowFor(brand) {
   const max = pick('MaxDate')
   const min = pick('MinDate')
   const lastActual = pick('LastActual')
+  const salesMax = pick('SalesMax')
   const anchor = today || max
   if (!anchor) return null
 
@@ -730,11 +746,26 @@ async function windowFor(brand) {
 
   // `anchor` travels with the window because the hourly refresh needs to know
   // where "now" is, not just where the window ends.
+  /*
+   * The sales window, which reaches past the model calendar.
+   *
+   * Only ever WIDER than `wide`, never narrower: `Math.max` means a model whose
+   * 'FORECAST (2)' stops early - or a read that returned nothing for SalesMax -
+   * leaves the sales copy exactly as it was rather than truncating it, which
+   * would delete days the pages already answer from.
+   */
+  const wideTo = max || detailTo
+  const salesTo = iso(Math.max(Date.parse(wideTo), Date.parse(salesMax) || 0))
+
   return {
     from: detailFrom,
     to: detailTo,
     anchor,
-    wide: { from: min || detailFrom, to: max || detailTo },
+    wide: { from: min || detailFrom, to: wideTo },
+    // Totalsale runs past the calendar; see `dateRange`. Separate from `wide`
+    // because only the sales table may be filled this far - the product tables
+    // genuinely have nothing beyond the calendar.
+    sales: { from: min || detailFrom, to: salesTo },
     // Carried so it can be written down: every page needs these four dates and
     // nothing but the extract had any reason to ask for them.
     calendar: { min, max, today, lastActual },
@@ -780,7 +811,7 @@ export async function backfillBrand(brand, onStep) {
    * a quarter is about fourteen thousand; branch totals sixteen a day, which is
    * six thousand for the entire year and needs no splitting at all.
    */
-  await fillWide(brand, window.wide)
+  await fillWide(brand, window.wide, window.sales ?? window.wide)
 
   await noteCoverage(brand, window.wide.from, window.wide.to, { from: window.from, to: window.to }, window.wide, window.calendar)
   return { brand: brand.code, rows, from: window.wide.from, to: window.wide.to, branches: locations.length }
@@ -794,13 +825,29 @@ export async function backfillBrand(brand, onStep) {
  * branch on top. A copy whose branch rollup holds eight days when the pages ask
  * for thirty does not need every branch re-pulled — it needs these three.
  */
-async function fillWide(brand, wide) {
+async function fillWide(brand, wide, sales = wide) {
   for (const [what, run] of [
     ['articles', async () =>
       writeArticles(brand.code, await inSpans(wide, 30, (w) => fetchArticles(brand, w)), wide)],
     ['branches', async () =>
       writeLocationDaily(brand.code, await fetchLocationDaily(brand, wide), wide)],
-    ['sales', async () => writeSalesValue(brand.code, await fetchSalesValue(brand, wide), wide)],
+    /*
+     * Sales take the wider window, everything else the calendar.
+     *
+     * The scope passed to `writeSalesValue` is also what it DELETEs before
+     * inserting, so it has to be the window actually fetched - handing it the
+     * narrow one would leave last run's 2027 rows behind and then write over
+     * only part of them.
+     */
+    ['sales', async () => {
+      await writeSalesValue(brand.code, await fetchSalesValue(brand, sales), sales)
+      await noteSalesHorizon(brand.code, sales.to)
+    }],
+    /*
+     * The master actual stays on the calendar window. It is an ACTUAL, and
+     * there is nothing actual about 2027 - asking for it would spend a query
+     * to write nulls over days that already hold null.
+     */
     ['actual sales', async () =>
       writeMasterActual(brand.code, await fetchMasterActual(brand, wide))],
     ['components', async () =>
@@ -836,7 +883,7 @@ export async function backfillWide(brand) {
   const window = await windowFor(brand)
   if (!window) return { brand: brand.code, skipped: 'no calendar' }
   await sleep(GAP_MS)
-  await fillWide(brand, window.wide)
+  await fillWide(brand, window.wide, window.sales ?? window.wide)
   await noteCoverage(brand, window.wide.from, window.wide.to, null, window.wide, window.calendar)
   return { brand: brand.code, from: window.wide.from, to: window.wide.to }
 }
@@ -1049,17 +1096,27 @@ export async function refreshSalesValues(onBrand = null) {
         out.push({ brand: brand.code, skipped: 'no calendar' })
         continue
       }
-      const rows = await fetchSalesValue(brand, window.wide)
-      await writeSalesValue(brand.code, rows, window.wide)
+      /*
+       * The SALES window, not the calendar one.
+       *
+       * This is the path the hourly top-up takes, so it is the one that has to
+       * reach past the Power BI calendar - filling only `wide` here would have
+       * left the widening in `fillWide` to the nightly backfill alone and the
+       * copy would still have stopped on 31 Dec 2026 all day.
+       */
+      const salesWindow = window.sales ?? window.wide
+      const rows = await fetchSalesValue(brand, salesWindow)
+      await writeSalesValue(brand.code, rows, salesWindow)
+      await noteSalesHorizon(brand.code, salesWindow.to)
       const total = rows.reduce((n, r) => n + (Number(r.Value) || 0), 0)
       out.push({
         brand: brand.code,
         rows: rows.length,
         total,
-        from: window.wide.from,
-        to: window.wide.to,
+        from: salesWindow.from,
+        to: salesWindow.to,
       })
-      onBrand?.({ brand: brand.code, rows: rows.length, from: window.wide.from, to: window.wide.to })
+      onBrand?.({ brand: brand.code, rows: rows.length, from: salesWindow.from, to: salesWindow.to })
     } catch (err) {
       out.push({ brand: brand.code, error: err.message.slice(0, 120) })
       onBrand?.({ brand: brand.code, error: err.message.slice(0, 120) })

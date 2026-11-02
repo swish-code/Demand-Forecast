@@ -20,6 +20,7 @@ import { startCubeSchedule, cubeState } from './cube/schedule.js'
 import { loadCoverage } from './cube/query.js'
 import { loadSalesPlans, salesPlans } from './insights/salesPlan.js'
 import { ensurePlanShape } from './cube/planShape.js'
+import { ensurePlanSource } from './cube/planSource.js'
 
 /**
  * Give every saved plan the seasonal shape it needs, once, at boot.
@@ -47,6 +48,40 @@ async function backfillPlanShapes() {
   }
   await loadSalesPlans()
 }
+
+/**
+ * The model's own annual figure for each planned year, fetched once.
+ *
+ * The same argument as `backfillPlanShapes` above, for the other half of a
+ * plan. A plan year with no stored source figure falls back to whatever was
+ * typed, and the typed figures were measured on 20 Oct 2026 at 16-78% above
+ * the model's own forecast - so a plan left un-backfilled is not merely
+ * incomplete, it is inflated. Fetching here means the correction applies on
+ * the first boot after this change rather than at the next nightly run.
+ *
+ * Failures are logged and swallowed, for the same reason: an unreachable model
+ * must not stop the server, and the brand simply keeps the state it had.
+ */
+async function backfillPlanSources() {
+  const years = [...new Set(salesPlans().map((p) => p.year))]
+  if (!years.length) return
+  for (const year of years) {
+    for (const brand of config.brands) {
+      try {
+        const got = await ensurePlanSource(brand.code, year)
+        if (got.cached) continue
+        if (got.total) {
+          console.log(`  [plan] ${brand.code} ${year} size ${Math.round(got.total).toLocaleString('en-US')} from the model`)
+        } else {
+          console.log(`  [plan] ${brand.code} ${year} ${got.skipped ?? got.error ?? 'no source figure'}`)
+        }
+      } catch (err) {
+        console.log(`  [plan] ${brand.code} ${year} size failed: ${String(err.message).slice(0, 80)}`)
+      }
+    }
+  }
+  await loadSalesPlans()
+}
 import { raise, clear, isOpen, loadOpenAlerts } from './insights/alerts.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -66,6 +101,7 @@ await loadOpenAlerts()
 // year, and it can only do that once the plans are in memory.
 await loadSalesPlans()
 await backfillPlanShapes()
+await backfillPlanSources()
 await loadCoverage()
 await purgeExpiredSessions()
 

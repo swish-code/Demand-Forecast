@@ -23,6 +23,15 @@ import {
   OTHER_BUCKET,
   warehouseSourcedArticles,
 } from '../powerbi/warehouse.js'
+import { fmOnlyArticles, recipeMasterArticles, FM } from '../powerbi/fmArticles.js'
+import { channelsForWindow } from '../powerbi/orderingChannel.js'
+import {
+  formatChannels,
+  formatPaths,
+  pathsForBrand,
+  matchesChannelFilter,
+  effectiveChannels,
+} from '../insights/orderingChannel.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
@@ -99,7 +108,12 @@ function allowsRaw(filters) {
  * being a column any query can narrow on, so the copy must not treat it as a
  * reason to go live - see COMPONENT_FILTERS in cube/query.js.
  */
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources']
+/*
+ * `channels` is the Transaction Type slicer. Post-hoc like `supply`: it is
+ * stamped on the assembled rows from the warehouse model, not a column any
+ * brand query can narrow on.
+ */
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -1325,6 +1339,85 @@ async function withSupply(rows, filters) {
 }
 
 /**
+ * HOW each article reached its cost centre, in the window on screen.
+ *
+ * Separate from `withSupply` above in every respect, and deliberately so. That
+ * one is a per-article global fact read from outbound alone; this is a set of
+ * channels observed between two dates, read from inbound receipts and internal
+ * transfers. Neither touches the other's column.
+ *
+ * `Transaction Type` names the article's latest movement from its RECEIVING
+ * end, and `Path` names the two cost centres that movement ran between. One row
+ * per article either way: the columns answer a question about the row rather
+ * than expanding it, and nothing here sums a quantity, so an article supplied
+ * two ways cannot be counted twice.
+ *
+ * No brand scope is passed any more (31 Oct 2026) - the brand/Swish split is a
+ * classification inside the rule now, not a filter on what the rule may see.
+ *
+ * A null column means "not known" - the warehouse model could not be reached -
+ * and is left blank rather than being asserted as "no channel".
+ */
+async function withOrderingChannel(rows, filters) {
+  const channels = await channelsForWindow(
+    filters?.dateFrom ?? null,
+    filters?.dateTo ?? null
+  ).catch((err) => {
+    console.warn(`  [channel] unavailable — column left blank: ${String(err.message).slice(0, 90)}`)
+    return null
+  })
+
+  /*
+   * FM's brand, which this row does not carry yet.
+   *
+   * `withFmArticles` stamps `CHAINID: FM` on an FM-only article, and it runs
+   * LAST in the chain - after this function. So the brand the Path column would
+   * narrow by is not on the row at the moment it is read, and every FM article
+   * fell through to the no-brand case and printed all of its legs. Measured
+   * 2 Nov 2026 over 1-31 Oct: 83 of the 112 PA articles showing more than one
+   * leg on Production and Swish Bakery were exactly this.
+   *
+   * The same lookup `withFmArticles` uses, so the two cannot disagree about who
+   * an article belongs to; asking for it here costs nothing, because that
+   * function has already started the fetch and this joins the same promise.
+   */
+  const fmOnly = await fmOnlyArticles().catch(() => null)
+
+  const labelled = rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    // No article number is no evidence either way - a kitchen prep step has no
+    // ERP article to receive or transfer, exactly as `withSupply` reasons.
+    const found = !article || !channels ? null : channels.get(article) ?? null
+    const held = found?.channels ?? null
+    /*
+     * The row's own brand where it has one, FM where it is about to be given
+     * one. A row that reached no brand at all - `__unattributed` - still has
+     * none, and keeps every leg: the brand column deliberately says nothing
+     * about those and the Path column must not say more than it does.
+     */
+    const brand =
+      String(r.CHAINID ?? '').trim() || (article && fmOnly?.has(article) ? FM : null)
+    return {
+      ...r,
+      'Transaction Type': channels ? formatChannels(held) : null,
+      // Narrowed to the row's own brand - a warehouse issue that fanned out to
+      // three brands is three rows, each naming only its own leg.
+      Path: channels ? formatPaths(pathsForBrand(found?.paths, brand)) : null,
+      // Carried as the EFFECTIVE set, so the slicer filters on exactly what
+      // the cell shows. Stripped again before the row leaves this function.
+      __channels: held ? [...effectiveChannels(held)] : null,
+    }
+  })
+
+  const wanted = (filters?.channels ?? []).filter(Boolean)
+  if (!wanted.length) return labelled.map(({ __channels, ...r }) => r)
+
+  return labelled
+    .filter((r) => matchesChannelFilter(r.__channels, wanted))
+    .map(({ __channels, ...r }) => r)
+}
+
+/**
  * Rows a recipe asks for, rows only the warehouse ships, or both.
  *
  * Decided by the recipe group the row arrived with — the non-recipe rows are
@@ -1332,8 +1425,93 @@ async function withSupply(rows, filters) {
  * the answer rather than working it out a second way. The page's Recipe column
  * makes the same test, which is why it has to stay one test.
  */
+/*
+ * `Recipe Kind`, where it is set, is the answer.
+ *
+ * Added 22 Oct 2026 for the FM articles. The recipe-group test below is a
+ * DEFAULT, not evidence: it only asks whether the row was stamped "No recipe -
+ * from outbound" when it was appended, and an FM article is always stamped
+ * that way because no forecast brand's recipe explosion can produce it. For 37
+ * of the 87, a recipe does name the article - under FM's own groups - so the
+ * stamp was wrong. `withFmArticles` sets this field for exactly those rows and
+ * leaves every other row to the test it has always used.
+ */
 const RECIPE_KIND = (r) =>
-  String(r['Recipe Group'] ?? '').startsWith('No recipe') ? 'Non-recipe' : 'Recipe'
+  r['Recipe Kind'] ??
+  (String(r['Recipe Group'] ?? '').startsWith('No recipe') ? 'Non-recipe' : 'Recipe')
+
+/**
+ * FM's own articles: whose they are.
+ *
+ * Display-only, applied after the brands are merged so no grouping, row count
+ * or quantity moves. The brand is stamped FM where the cell is empty, for
+ * articles that reach FM and no forecast brand. The ten that reach both are
+ * left exactly as they were - see fmArticles.js for why.
+ *
+ * The recipe side of this used to live here too, as an FM-only promotion. It
+ * is now `withRecipeFile` below, which asks the same question of every row.
+ */
+async function withFmArticles(rows) {
+  const fmOnly = await fmOnlyArticles().catch(() => null)
+  if (!fmOnly?.size) return rows
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article || !fmOnly.has(article)) return r
+    // Only where no brand is already shown. An article the merge did attribute
+    // keeps that attribution.
+    if (String(r.CHAINID ?? '').trim()) return r
+    return { ...r, CHAINID: FM }
+  })
+}
+
+/**
+ * Recipe or not, decided by the recipe FILE - 26 Oct 2026, at the user's
+ * instruction: "consider only recipe articles listed in the recipe file".
+ *
+ * WHAT THIS REPLACES
+ *
+ * The badge used to be inferred from the Recipe Group string the row arrived
+ * with: rows appended from outbound are stamped "No recipe - ..." when they
+ * are built, and `RECIPE_KIND` called everything else Recipe. That reads the
+ * row's PROVENANCE, not the recipe master, so an article could be badged
+ * Recipe while its number appears nowhere in the workbook - which is what a
+ * reader matching the page against the file kept running into.
+ *
+ * Now the article number is looked up. In the file it is Recipe; not in the
+ * file it is Non-recipe. The badge and the Recipe slicer therefore agree with
+ * the workbook by construction, in both directions - a row the explosion
+ * produced is demoted if the file does not name it, and a row appended from
+ * outbound is promoted if it does.
+ *
+ * DISPLAY ONLY. It sets one field on rows that are already assembled. No
+ * quantity, forecast, accuracy or row count depends on it; the only behaviour
+ * that changes is the Recipe column and the slicer that reads it.
+ *
+ * A row with no article number keeps whatever it came with. A kitchen prep
+ * step is a recipe node in its own right and has no ERP article to look up, so
+ * there is nothing here to decide it with.
+ */
+async function withRecipeFile(rows) {
+  const named = await recipeMasterArticles().catch(() => null)
+  // Unreachable master means unknown, not "nothing is a recipe".
+  if (!named?.size) return rows
+
+  return rows.map((r) => {
+    const article = String(r['Item No.'] ?? '').trim()
+    if (!article) return r
+    /*
+     * Both spellings, because the workbook stores the number as an integer and
+     * the warehouse as text: "0102000003" and "102000003" are one article.
+     * `recipeMasterArticles` holds both forms; this tries both keys.
+     */
+    const asNumber = Number(article)
+    const inFile =
+      named.has(article) || (Number.isFinite(asNumber) && named.has(String(asNumber)))
+    const kind = inFile ? 'Recipe' : 'Non-recipe'
+    return kind === RECIPE_KIND(r) ? r : { ...r, 'Recipe Kind': kind }
+  })
+}
 
 /**
  * Each row's article status, and the slicer that filters on it.
@@ -3260,6 +3438,20 @@ api.all('/component-level', handle(async (req, res) => {
       : withOutbound
   })
   const window = g.parts[0].f
+
+  /*
+   * No cost-centre scope for Transaction Type any more - removed 31 Oct 2026.
+   *
+   * This used to narrow the column to the brands on screen. That is what made
+   * Internal TRF read as a brand-to-brand idea: every warehouse-to-production
+   * movement, which is what an internal transfer actually IS, fell outside the
+   * brand codes and was discarded before it could be classified.
+   *
+   * The brand/Swish distinction now lives in `costCentreKind`, where it decides
+   * WHICH value a movement gets rather than whether it is seen at all. So the
+   * answer is global per article, which is also what makes it cacheable once
+   * per window instead of once per brand selection.
+   */
   // One local query per brand, and the answer is a few dozen numbers.
   const sales = await salesByDay(g.parts)
 
@@ -3305,6 +3497,26 @@ api.all('/component-level', handle(async (req, res) => {
     new Date().toISOString().slice(0, 10)
   const warm = [
     warehouseSourcedArticles(),
+    /*
+     * Started here rather than awaited in the pipeline below.
+     *
+     * The two channel reads take about 1.7s cold against the warehouse model,
+     * and the row pipeline is sequential - so awaiting it in place added that
+     * to every cold load. Launched alongside the other prefetches it overlaps
+     * the brand fan-out instead, and `withOrderingChannel` joins the same
+     * cached promise rather than starting a second one.
+     */
+    channelsForWindow(window?.dateFrom ?? null, window?.dateTo ?? null),
+    /*
+     * The FM lookups, started early for the same reason.
+     *
+     * Together they are about 4.6s cold - one scan of every outbound
+     * destination and one of the recipe master - and both are membership sets
+     * that change only when a site opens or the workbook is edited, so after
+     * the first request they answer instantly for the life of the process.
+     */
+    fmOnlyArticles(),
+    recipeMasterArticles(),
     classifyArticles({ asAt }),
     categoryByArticle(),
     productionSourceByArticle(),
@@ -3317,15 +3529,17 @@ api.all('/component-level', handle(async (req, res) => {
   if (g.single)
     return res.json({
       sales,
-      rows: await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
-        await withSafetyStock(
+      rows: await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+        // The file decides the badge BEFORE the slicer reads it, so the column
+        // and the filter can never disagree about what a Recipe row is.
+        await withRecipeFile(await withSafetyStock(
           await withOpenPo(
             await withStoreStock(
               await withStatus(
-                await withSupply(
+                await withOrderingChannel(await withSupply(
                   await addWarehouseWide(results[0], window, grain, mtdAll?.get(OTHER_BUCKET)),
                   window
-                ),
+                ), window),
                 window
               ),
               window,
@@ -3340,21 +3554,22 @@ api.all('/component-level', handle(async (req, res) => {
           window,
           grain,
           seesStockDetail(req.user)
-        ),
+        )),
         window
-      ), window), seesStockDetail(req.user)), window, req.user),
+      ), window), seesStockDetail(req.user)), window, req.user)),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
     sales,
-    rows: await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
-      await withSafetyStock(
+    rows: await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+      // The file decides the badge BEFORE the slicer reads it — see above.
+      await withRecipeFile(await withSafetyStock(
         await withOpenPo(
           await withStoreStock(
             await withStatus(
-              await withSupply(
+              await withOrderingChannel(await withSupply(
                 await addWarehouseWide(
                   // Split by brand, the brands are the answer, so they are not added up.
                   grain.brand ? results.flat() : merged(results),
@@ -3363,7 +3578,7 @@ api.all('/component-level', handle(async (req, res) => {
                   mtdAll?.get(OTHER_BUCKET)
                 ),
                 window
-              ),
+              ), window),
               window
             ),
             window,
@@ -3378,9 +3593,9 @@ api.all('/component-level', handle(async (req, res) => {
         window,
         grain,
         seesStockDetail(req.user)
-      ),
+      )),
       window
-    ), window), seesStockDetail(req.user)), window, req.user),
+    ), window), seesStockDetail(req.user)), window, req.user)),
   })
 }))
 

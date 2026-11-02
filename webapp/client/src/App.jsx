@@ -1,8 +1,14 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from './api.js'
+import { api, fmtDate } from './api.js'
 import { useData } from './useData.js'
 import { SideNav } from './components/SideNav.jsx'
 import { FilterBar, SLICERS } from './components/FilterBar.jsx'
+/*
+ * The small-screen chrome. Rendered at every width and hidden by CSS above
+ * 640px, so a rotation cannot unmount it and lose the filter selection - see
+ * the header of MobileChrome.jsx.
+ */
+import { MobileFilters, MobileNav } from './components/MobileChrome.jsx'
 import { ErrorBanner, InfoBanner } from './components/ui.jsx'
 import { CalcInspector } from './components/CalcInspector.jsx'
 import { GuideProduction } from './components/GuideProduction.jsx'
@@ -224,7 +230,7 @@ const PAGES = [
      * the same narrowing that keeps every other page's filters to its own
      * slicers, so a product chosen on Products cannot silently filter this one.
      */
-    slicers: ['location', 'date', 'item', 'category', 'supply', 'recipeKind', 'status'],
+    slicers: ['location', 'date', 'item', 'category', 'supply', 'channel', 'recipeKind', 'status'],
   },
   {
     /*
@@ -255,7 +261,7 @@ const PAGES = [
      * columns on a page whose whole purpose is those columns. The same reason
      * `BRAND_LEVEL_DEPARTMENTS` exists on the server.
      */
-    slicers: ['date', 'item', 'category', 'supply', 'status'],
+    slicers: ['date', 'item', 'category', 'supply', 'channel', 'status'],
   },
   ...(PRODUCTION_PAGE_ON
     ? [
@@ -338,7 +344,18 @@ const PAGES = [
      * column for: it is a recipe-line table, and Item and Recipe Group are the
      * two handles on it that do.
      */
-    slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+    /*
+     * Transaction Type added 1 Nov 2026, on request.
+     *
+     * The COLUMN was already here - it is not in `NO_WAREHOUSE_COLUMNS`, so it
+     * has always reached this page - but the slicer was not, so the column could
+     * be read and not filtered on. Path came with it for the same reason.
+     *
+     * Worth knowing what it says on a page of PREP and PA rows: a prep step has
+     * no article number, so it has no movements and the cell is blank. The
+     * values that do appear belong to the PA rows, which the warehouse stocks.
+     */
+    slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'recipeKind'],
   },
       ]
     : []),
@@ -407,7 +424,11 @@ const PAGES = [
        * population is the articles no rule could place - which is a question
        * for whoever maintains the classification, not a site's work list.
        */
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+      // Transaction Type, added 2 Nov 2026 on request, so these pages can be
+      // read the same way Stock Article is. The columns already arrive - the
+      // server stamps them on every component-level response - so this is the
+      // control for a value the rows were carrying anyway.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'recipeKind'],
     },
     {
       id: 'src-bakery',
@@ -445,7 +466,8 @@ const PAGES = [
        * population is the articles no rule could place - which is a question
        * for whoever maintains the classification, not a site's work list.
        */
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'recipeKind'],
+      // Transaction Type - see the note on Production above.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'recipeKind'],
     },
     ...(YELO_FACTORY_PAGE_ON
       ? [
@@ -613,6 +635,31 @@ const EMPTY_OPTIONS = {
   categories: [],
   // Fixed, not fetched: the two answers are computed from the outbound copy.
   supply: ['Warehouse', 'Direct Supply'],
+  /*
+   * Transaction Type. Fixed too, and deliberately NOT the same list as
+   * `supply` above - that column answers "has the warehouse ever issued this",
+   * this one answers "how did it actually arrive, in this window".
+   *
+   * `Needs Review` is offered because an unresolvable receipt is worth being
+   * able to ask for; it is a data-quality state rather than a fifth channel.
+   */
+  // 'Purchase' here is the TRANSACTION TYPE value. The `supply` list above
+  // keeps its own 'Direct Supply', which answers a different question.
+  //
+  //
+  // 'Internal TRF OUT' is here on request, and it is worth knowing what it
+  // does: an internal transfer is Swish -> Swish and both of its ends land on
+  // the same article row, so this entry selects exactly the same articles as
+  // 'Internal TRF IN'. The Path column is what shows direction.
+  channels: [
+    'Purchase',
+    'Internal TRF IN',
+    'Internal TRF OUT',
+    'Issue to Store',
+    'Brand Transfer',
+    'Return IN',
+    'Needs Review',
+  ],
   // Fixed too: a row either has a recipe behind it or it does not.
   recipeKinds: ['Recipe', 'Non-recipe'],
   /*
@@ -734,6 +781,7 @@ export default function App({ session, onSignedOut }) {
     nodeTypes: [],
     categories: [],
     supply: [],
+    channels: [],
     recipeKinds: [],
     statuses: [],
     prepStatus: [],
@@ -922,7 +970,28 @@ export default function App({ session, onSignedOut }) {
      * slicers narrow within it, so the table, the cards, the CSV and the
      * option lists all see one set without any of them knowing a lock exists.
      */
+    /*
+     * ...and it does NOT follow the reader off them again - fixed 1 Nov 2026.
+     *
+     * This set the pin and never cleared it, so the stale value survived onto
+     * every page that has no pin of its own: Stock Article, Procurement and
+     * Production. Walk from Swish Bakery to Production and the request still
+     * carried `prodSources: ["Bakery"]`, which the server honours.
+     *
+     * The visible symptom was the Production page showing no PREP rows at all.
+     * A prep step has no article number, so `withProductionSource` can never
+     * resolve it to a site and always calls it Unclassified - which a pin on
+     * "Bakery" then drops. Every one of 748 PREP rows was destroyed at that
+     * step, on the one page locked to PREP and PA. PA rows survived because
+     * they have article numbers, which is why only PREP looked broken.
+     *
+     * It was quietly wrong for PA too: those pages were showing one site's
+     * articles while claiming to show every source.
+     *
+     * Same shape as the `supply` guard above, and for the same reason.
+     */
     if (page?.lockProdSource) base.prodSources = [page.lockProdSource]
+    else delete base.prodSources
     const lock = page?.lockNodeTypes
     if (!lock?.length) return base
     const picked = base.nodeTypes ?? []
@@ -946,6 +1015,7 @@ export default function App({ session, onSignedOut }) {
     nodeType: { list: 'nodeTypes', filter: 'nodeTypes' },
     category: { list: 'categories', filter: 'categories' },
     supply: { list: 'supply', filter: 'supply' },
+    channel: { list: 'channels', filter: 'channels' },
     recipeKind: { list: 'recipeKinds', filter: 'recipeKinds' },
     status: { list: 'statuses', filter: 'statuses' },
     prepStatus: { list: 'prepStatus', filter: 'prepStatus' },
@@ -1013,6 +1083,8 @@ export default function App({ session, onSignedOut }) {
       ...EMPTY_OPTIONS,
       ...(slicers.data ?? {}),
       supply: EMPTY_OPTIONS.supply,
+      // Fixed like supply, and for the same reason: no endpoint returns it.
+      channels: EMPTY_OPTIONS.channels,
       statuses: EMPTY_OPTIONS.statuses,
       recipeKinds: EMPTY_OPTIONS.recipeKinds,
     }),
@@ -1244,6 +1316,26 @@ export default function App({ session, onSignedOut }) {
             * have printed the wordmark twice about 200px apart. The rail now
             * starts with its REPORTS heading.
             */}
+          {/*
+            * The drawer trigger, hidden above 640px.
+            *
+            * It sits before the wordmark so the reader's thumb finds it where
+            * every other application puts it. The rail itself is not removed on
+            * mobile - it is hidden by CSS and re-rendered inside the drawer, so
+            * the same component, the same permissions and the same selected
+            * state serve both.
+            */}
+          <MobileNav
+            pages={navPages}
+            active={tab}
+            onSelect={setTab}
+            health={health}
+            lastUpdated={relativeTime(updatedAt)}
+            onRefresh={refresh}
+            user={session?.user}
+            onSignOut={onSignedOut}
+          />
+
           <div className="appbar__brand">
             <img className="appbar__logo" src="/swish-logo.png" alt="" />
             <span className="appbar__names">
@@ -1325,6 +1417,35 @@ export default function App({ session, onSignedOut }) {
                 {inspecting ? 'Done' : 'Calculations'}
               </button>
             )}
+            {/*
+              * The mobile Filters button, HERE rather than in the page body.
+              *
+              * It sat inside `.scroll` as a sticky bar of its own until 1 Nov
+              * 2026, which spent a whole row of a 430px phone on one button and
+              * left Filters visually detached from Calculations beside it. Asked
+              * for in the header; this is the row the header's own controls are
+              * already in.
+              *
+              * `.mbar` is `display: contents` in the phone media query, so the
+              * button joins this row directly and the chip strip wraps onto a
+              * full-width line underneath it. Above 640px the whole thing is
+              * `display: none` exactly as before, and the grey slicer tray is
+              * still the filter interface - nothing on a desktop moves.
+              */}
+            {page.slicers.length > 0 && (
+              <MobileFilters
+                show={page.slicers}
+                options={shownOptions}
+                filters={scoped}
+                setFilters={setFilters}
+                loading={slicers.loading}
+                brands={brands}
+                selectedBrands={brandCodes}
+                onBrandChange={setBrandCodes}
+                onNeedOptions={noteListOpened}
+                dateLabel={null}
+              />
+            )}
           </div>
         </header>
 
@@ -1337,6 +1458,19 @@ export default function App({ session, onSignedOut }) {
             *
             * No line under it: `page.blurb` stopped being printed on request,
             * and the date it would otherwise carry is already in the bar.
+            */}
+          {/*
+            * The mobile filter bar, sticky at the top of the scrolling page.
+            *
+            * Hidden above 640px, where the grey slicer tray in the header is
+            * the filter interface. Below it, that tray is hidden instead and
+            * this bar replaces it - a Filters button, the date, and a chip per
+            * active slicer, so what is applied can be read without opening
+            * anything.
+            *
+            * It is INSIDE `.scroll` on purpose: sticky to the scrolling
+            * container means it cannot cover the app bar above it, and the page
+            * title scrolls under it rather than being pushed down the screen.
             */}
           <h1 className="pagetitle">{page.label}</h1>
           {mailboxResult && (

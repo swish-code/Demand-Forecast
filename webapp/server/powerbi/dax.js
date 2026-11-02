@@ -238,12 +238,32 @@ DISTINCT(
 )
 ORDER BY [Sort Order] ASC`,
 
-  dateRange: () => `EVALUATE
+  /*
+   * `SalesMax` is NOT the model calendar, and that is the point.
+   *
+   * MinDate/MaxDate come from DateTable, which every brand model hardcodes to
+   * CALENDAR(DATE(2026,1,1), DATE(2026,12,31)). The product tables really do
+   * stop there. 'FORECAST (2)' does not - audited 20 Oct 2026, it carries every
+   * day of 2027 for all nine brands - and because it is read by filtering its
+   * own Date column rather than through the calendar relationship, those days
+   * are available without touching the Power BI model at all.
+   *
+   * So the sales copy is filled to SalesMax while everything else stops at
+   * MaxDate. A brand argument scopes it, because the table holds more than one
+   * brand in some models and an unscoped MAX would promise days this brand has
+   * no rows for.
+   */
+  dateRange: (brand = null) => `EVALUATE
 ROW(
   "MinDate", MIN(DateTable[Date]),
   "MaxDate", MAX(DateTable[Date]),
   "Today", TODAY(),
-  "LastActual", CALCULATE(MAX(Forecast_Product_Table[Date]), Forecast_Product_Table[Actual_Qty] > 0)
+  "LastActual", CALCULATE(MAX(Forecast_Product_Table[Date]), Forecast_Product_Table[Actual_Qty] > 0),
+  "SalesMax", ${
+    brand
+      ? `CALCULATE(MAX('FORECAST (2)'[Date]), FILTER(ALL('FORECAST (2)'[Brand]), 'FORECAST (2)'[Brand] = "${String(brand).replace(/"/g, '""')}"))`
+      : `MAX('FORECAST (2)'[Date])`
+  }
 )`,
 }
 

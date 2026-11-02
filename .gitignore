@@ -44,3 +44,12 @@
 #
 # Backups of the manually entered tables - they hold a mailbox refresh token.
 /backups/
+
+# --- Investigation write-ups ------------------------------------------------
+#
+# Working notes from the Sep 2026 PA variance investigation, kept out of the
+# repo on request. They live on the author's machine only, so they are not
+# backed up anywhere - move them somewhere shared before relying on them.
+webapp/docs/article-variance-investigation.md
+webapp/docs/article-variance-investigation.pdf
+webapp/docs/pa-article-outbound-investigation.md

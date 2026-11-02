@@ -30,6 +30,7 @@ import {
 import { loadCoverage, productLevel } from '../cube/query.js'
 import { forecastFromConstants } from '../insights/whConstant.js'
 import { ensurePlanShape, refreshPlanShapes } from '../cube/planShape.js'
+import { ensurePlanSource, refreshPlanSources } from '../cube/planSource.js'
 import { nonRecipeForecast } from '../insights/nonRecipe.js'
 import { beginConnect, connectedMailbox, disconnectMailbox } from '../mail/delegated.js'
 import { verifyTransport, transportName } from '../mail/transport.js'
@@ -1177,9 +1178,12 @@ admin.post(
   handle(async (req, res) => {
     const year = Number(req.body?.year) || (salesPlanBaseYear() ?? 0) + 1
     const results = await refreshPlanShapes(year)
+    // The size alongside the shape: both halves of a plan are re-read from the
+    // model by this one button, so a revision upstream needs no re-typing.
+    const sizes = await refreshPlanSources(year)
     await loadSalesPlans()
     await loadCoverage()
-    res.json({ year, results })
+    res.json({ year, results, sizes })
   })
 )
 
@@ -1230,6 +1234,18 @@ function planRow(brand, year, entered, totals) {
     baseActualComplete: base.actualComplete,
     value: plan?.value ?? null,
     ratio: plan?.ratio ?? null,
+    /*
+     * The model's own figure for the year, beside the typed target.
+     *
+     * `value` above is what somebody entered here and is this page's own
+     * number. `forecastValue` is what the warehouse, product, mix and article
+     * forecasts actually run on, and nothing on this page feeds it. Carried so
+     * the page can show both and make the distinction visible - the two ran
+     * 16-78% apart on 20 Oct 2026 with nothing on screen to say so.
+     */
+    forecastValue: plan?.forecastValue ?? null,
+    forecastRatio: plan?.forecastRatio ?? null,
+    forecastUsable: plan?.forecastUsable ?? false,
     updatedAt: plan?.updatedAt ?? null,
     updatedBy: plan?.updatedBy ?? null,
     /*
@@ -1385,6 +1401,7 @@ admin.post(
               continue
             }
             await ensurePlanShape(b.code, year)
+            await ensurePlanSource(b.code, year)
             await saveSalesPlan(b.code, year, slice, req.user?.email ?? null)
           }
         }
@@ -1423,6 +1440,7 @@ admin.post(
          * is the whole of the job, and `saveSalesPlan` re-reads both.
          */
         await ensurePlanShape(brand, year)
+        await ensurePlanSource(brand, year)
         await saveSalesPlan(brand, year, Number(String(raw).replace(/[,\s]/g, '')), req.user?.email ?? null)
       }
       await loadCoverage()
@@ -1482,7 +1500,10 @@ const planYearWindow = (year, month = null) => {
  */
 const plannedBrands = (year, only = null) =>
   salesPlans()
-    .filter((p) => p.year === year && p.usable)
+    // `forecastUsable`, because these two routes explode `productLevel`, which
+    // now runs on the model's figure. Listing a brand that has a typed target
+    // but no model figure would show it here and then return nothing for it.
+    .filter((p) => p.year === year && p.forecastUsable)
     .filter((p) => !only || p.brand === only)
     .map((p) => config.brands.find((b) => b.code === p.brand))
     .filter(Boolean)

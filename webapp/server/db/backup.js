@@ -49,6 +49,28 @@ export const ENTERED_TABLES = [
   'email_recipients',
   'mail_identity',
   'cube_sales_plan',
+  /*
+   * History, added 25 Oct 2026 at the user's request.
+   *
+   * This file previously held configuration only, on the reasoning that losing
+   * history "costs nothing operational" and that the SQLite migration carried
+   * it. Both halves of that have expired: app.db stopped being written on 25
+   * Aug 2026, so everything since is here or nowhere, and the 25 Oct rebuild
+   * showed what that means - two months of sign-ins and changes gone with the
+   * directory.
+   *
+   * All five reference users(id), so they sit after `users` in this list; the
+   * restore inserts in order for exactly that reason.
+   *
+   * They are also the biggest tables here by a wide margin. If the file ever
+   * grows enough to matter, trim by age rather than dropping a table - a short
+   * audit trail is worth more than none.
+   */
+  'login_events',
+  'audit_log',
+  'digests',
+  'alerts',
+  'email_log',
 ]
 
 /**

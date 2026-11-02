@@ -133,19 +133,27 @@ const COLUMNS = [
    * missing one. A Location column here could therefore only ever be empty or
    * wrong, so there isn't one.
    */
-  {
-    key: 'Supply',
-    label: 'Supply',
-    width: 118,
-    render: (v) =>
-      v ? (
-        <Pill tone={v === 'Warehouse' ? 'green' : 'slate'}>{v}</Pill>
-      ) : (
-        <span className="muted" title="No article number, so there is nothing to look up">
-          –
-        </span>
-      ),
-  },
+  /*
+   * HIDDEN 28 Oct 2026, at the user's request, TEMPORARILY.
+   *
+   * Commented out rather than deleted, so restoring it is uncommenting this
+   * block. The server still sends the `Supply` field on every row - nothing
+   * about how it is computed has changed - so nothing downstream of this
+   * column needs to know it is gone.
+   */
+  // {
+  //   key: 'Supply',
+  //   label: 'Supply',
+  //   width: 118,
+  //   render: (v) =>
+  //     v ? (
+  //       <Pill tone={v === 'Warehouse' ? 'green' : 'slate'}>{v}</Pill>
+  //     ) : (
+  //       <span className="muted" title="No article number, so there is nothing to look up">
+  //         –
+  //       </span>
+  //     ),
+  // },
   {
     key: 'WH_Constant_Forecast_Qty',
     label: 'WH forecast',

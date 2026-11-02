@@ -48,7 +48,24 @@ export const SLICERS = [
    * whether the warehouse has issued the article in six months, so there is
    * nothing to look up and no third answer.
    */
-  { id: 'supply', key: 'supply', label: 'Supply', options: 'supply', placeholder: 'All' },
+  /*
+   * HIDDEN 28 Oct 2026, at the user's request, TEMPORARILY.
+   *
+   * Commented out rather than deleted so putting it back is uncommenting one
+   * line. Nothing else was touched: the server still computes `supply`, still
+   * accepts the filter, and `withSupply` is untouched - so a saved view or a
+   * bookmarked URL that carries a supply filter still works. Only the control
+   * is gone from the bar.
+   */
+  // { id: 'supply', key: 'supply', label: 'Supply', options: 'supply', placeholder: 'All' },
+  /*
+   * Transaction Type, which until 28 Oct 2026 sat beside Supply.
+   *
+   * The two looked similar and answered different questions - Supply is a
+   * standing fact about the article, this is what happened in the window on
+   * screen - so they were offered together and neither narrowed the other.
+   */
+  { id: 'channel', key: 'channels', label: 'Transaction Type', options: 'channels', placeholder: 'All' },
   /*
    * How long since the warehouse last issued the article.
    *
@@ -88,6 +105,7 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       nodeTypes: [],
       categories: [],
       supply: [],
+      channels: [],
       prepStatus: [],
       dateFrom: f.defaultFrom,
       dateTo: f.defaultTo,

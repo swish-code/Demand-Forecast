@@ -1600,6 +1600,17 @@ table.dt tbody tr.clickable {
   flex: none;
 }
 
+/*
+ * The two halves of the Panel `note`. See the comment on `Panel` in ui.jsx.
+ *
+ * Desktop shows the INLINE copy, which keeps the subtitle exactly as it has
+ * always read. The block copy is the phone presentation and is switched on only
+ * inside the 640px query, where it is ordered below the legend.
+ */
+.panel__note {
+  display: none;
+}
+
 .panel__body {
   padding: var(--s3) var(--s4) var(--s4);
   min-width: 0;
@@ -10162,10 +10173,23 @@ h3,
   font-weight: var(--w-bold);
 }
 
-/* Narrow windows: one card per row already, so the span would overflow. */
+/*
+ * Narrow windows: the WHOLE row, not `auto`.
+ *
+ * This said `auto` until 1 Nov 2026, on the reasoning that a narrow window is
+ * "one card per row already, so the span would overflow". That is not what
+ * `.metrics` does. It is `repeat(auto-fit, minmax(196px, 1fr))` with no narrow
+ * override, so at 430px - a phone, once the page gutter is off - two 196px
+ * tracks still fit, and `auto` put the article name in a half-width one. It
+ * read "Potato Jacket -…" and named nothing, which is the exact failure the
+ * span above exists to prevent.
+ *
+ * `1 / -1` is right at every width here: it is the full row when there are two
+ * or three columns, and a harmless no-op when there is only one.
+ */
 @media (max-width: 720px) {
   .metrics .metric:has(.metric__value--text) {
-    grid-column: auto;
+    grid-column: 1 / -1;
   }
 }
 
@@ -11086,4 +11110,899 @@ h3,
 .proc__card .kpi__foot {
   white-space: normal;
   line-height: 1.35;
+}
+
+/* ===========================================================================
+ * RESPONSIVE LAYER - added 19 Oct 2026
+ *
+ * DESKTOP IS FROZEN. Every rule below sits inside a `max-width` media query,
+ * with one exception: the four `display: none` declarations immediately after
+ * this comment, which hide UI that did not exist before. At 1025px and above
+ * nothing in this section applies and nothing new is painted, so the desktop
+ * cascade is unchanged by construction rather than by inspection.
+ *
+ * Two breakpoints, chosen to match what the stylesheet already uses rather
+ * than to introduce a third vocabulary:
+ *
+ *   <= 1024px   TABLET. The rail stays. Rows that size to their content become
+ *               equal-width grids, because flex-wrap on content-sized items is
+ *               what makes the slicer tray look ragged.
+ *   <=  640px   MOBILE. The rail becomes a drawer and the slicer tray becomes a
+ *               sticky bar plus a bottom sheet.
+ *
+ * Nothing here hides information. The rail and the tray are not removed on a
+ * phone - they are re-presented, by the same components, through the drawer and
+ * the sheet.
+ * ======================================================================== */
+
+/* The small-screen chrome, absent until a media query asks for it. These are
+   new classes: there is no desktop appearance for them to change, and
+   `display: none` is the definition of invisible. */
+.mnav__open,
+.mbar,
+.mnav,
+.msheet {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- tablet -- */
+
+@media (max-width: 1024px) {
+  /*
+   * The slicer tray, as an equal-width grid.
+   *
+   * `.filters` is a flex row of `.fld` items that are `inline-flex`, so each
+   * one is as wide as its own longest value: Brand wider than Location, Article
+   * wider than Category. Wrapped onto two lines that reads as ragged columns.
+   * A grid gives every slicer the same track, and `auto-fit` keeps the count
+   * sensible as the width falls.
+   */
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    align-items: end;
+    gap: var(--s3);
+  }
+
+  /* Grid children must be allowed to shrink inside their track. */
+  .filters > * {
+    min-width: 0;
+  }
+
+  /* `inline-flex` sizes to content and would leave the ragged edge the grid is
+     here to remove. */
+  .fld {
+    display: flex;
+  }
+
+  /* The spacer earns its place in a flex row and only adds an empty cell to a
+     grid, pushing the real slicers into a shorter track. */
+  .filters__spacer {
+    display: none;
+  }
+
+  /*
+   * The tools beside the date, allowed to wrap.
+   *
+   * `.topbar__actions` is `flex: none` with no wrap, so once the row is short
+   * of space the last control is cut rather than moved - which is the clipped
+   * "Calculat..." button.
+   */
+  .topbar__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- mobile -- */
+
+@media (max-width: 640px) {
+  /*
+   * The rail goes. It is 76px of a 440px screen on every page, and on a phone
+   * that is a permanent tax on the content for navigation used a few times a
+   * session. The same component is rendered inside the drawer instead.
+   */
+  .nav {
+    display: none;
+  }
+
+  /* The desktop slicer tray goes with it; `.mbar` below is its replacement. */
+  .topbar {
+    display: none;
+  }
+
+  .mnav__open,
+  .mbar {
+    display: flex;
+  }
+
+  .mnav,
+  .msheet {
+    display: block;
+  }
+
+  /* --- the app bar ------------------------------------------------------- */
+
+  /*
+   * Allowed to wrap rather than clip. The bar carries a wordmark, a tagline,
+   * the date and up to three buttons, which do not fit a phone on one line.
+   */
+  .appbar {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+    padding-left: var(--s3);
+    padding-right: var(--s3);
+  }
+
+  .appbar__tag {
+    display: none;
+  }
+
+  .appbar__name {
+    font-size: 14px;
+  }
+
+  /*
+   * The header's own control row, and from 1 Nov 2026 the Filters button too.
+   *
+   * It wraps, because `.mbar` below dissolves into this row and contributes
+   * both a button and a chip strip - the strip takes a full-width line of its
+   * own rather than squeezing in beside the date.
+   */
+  .topbar__actions {
+    width: 100%;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s2);
+  }
+
+  /* --- panel headers ----------------------------------------------------- */
+
+  /*
+   * Stacked, not squeezed.
+   *
+   * `.panel__head` is a flex ROW and `.panel__tools` is `flex: none`, so on a
+   * phone the legend refused to shrink and the title column - which carries
+   * `min-width: 0` - collapsed to its minimum content width. "Demand tracking"
+   * came out one word per line.
+   *
+   * Letting the head wrap and giving each part a full-width basis puts the
+   * title, the subtitle, the legend and the note each on their own line, in
+   * that order.
+   */
+  .panel__head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: var(--s2);
+    padding: var(--s3) var(--s3) var(--s2);
+  }
+
+  .panel__titles {
+    order: 1;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .panel__titles h2 {
+    /* The count chip may wrap away from a long title; it must not stretch it. */
+    flex-wrap: wrap;
+  }
+
+  .panel__tools {
+    order: 2;
+    flex: 1 1 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    row-gap: var(--s1);
+  }
+
+  /* The note moves below the legend, and the inline copy inside the subtitle
+     steps aside so the sentence is only ever rendered once. */
+  .panel__note-inline {
+    display: none;
+  }
+
+  .panel__note {
+    display: block;
+    order: 3;
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: var(--text-muted);
+  }
+
+  .panel__body {
+    padding: var(--s2) var(--s3) var(--s3);
+  }
+
+  /* --- two-column grids become one --------------------------------------- */
+
+  /*
+   * `repeat(auto-fit, minmax(430px, 1fr))` does NOT collapse on a phone: the
+   * 430px floor is wider than the content box of a 430px device once the page
+   * gutter is taken off, so the track overflowed and every panel in a `.grid2`
+   * had its right edge cut off the screen. An explicit single column is the fix;
+   * `minmax(0, 1fr)` rather than `1fr` so a wide child cannot re-inflate it.
+   */
+  .grid2,
+  .grid2--wide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s3);
+  }
+
+  .mnav__open {
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    margin-right: var(--s1);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  /* --- page body --------------------------------------------------------- */
+
+  .scroll {
+    padding: var(--s3) var(--s3) var(--s6);
+    gap: var(--s3);
+  }
+
+  .pagetitle {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  /*
+   * Cards one or two to a row rather than three.
+   *
+   * The base track is `minmax(196px, 1fr)`, which at 320px leaves a card wider
+   * than the screen once padding is taken off. 140px fits two on a 375px phone
+   * and one on a 320px one.
+   */
+  .kpis {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--s2);
+  }
+
+  /*
+   * A card whose value is a NAME gets the whole row.
+   *
+   * "Largest requirement" holds an article name - "Potato Jacket - (12 * 10
+   * *3.5 cm) Shakir" - and in a 140px half-row track there was nothing left of
+   * it but "Potato Jacket -…". The numeric cards are four or five characters
+   * wide and pair happily; this one cannot, so it stops trying.
+   *
+   * Selected by what the card CONTAINS rather than by a modifier class, because
+   * `textValue` is already the component's own signal for exactly this case and
+   * a second flag could disagree with it.
+   */
+  .kpis .kpi:has(.kpi__value--text),
+  .metrics .metric:has(.metric__value--text),
+  .flow__inputs .metric:has(.metric__value--text) {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * Nothing to set on the value itself: `.metrics .metric__value--text` already
+   * clamps it to two lines at 14px, and at full row width that is enough for an
+   * article name. A rule here would also need `.metrics` in front of it to
+   * outrank that one, and it has nothing to say that it does not already.
+   */
+
+  /* --- the notice banner ------------------------------------------------- */
+
+  /*
+   * STATIC ON A PHONE, not a marquee.
+   *
+   * The ticker slides its text through a narrow window. On a desktop the window
+   * is wide enough to read a clause at a time; at 440px it shows about four
+   * words, and the sentence it is carrying is the one about FM that somebody is
+   * meant to act on before placing an order.
+   *
+   * So the animation stops, the track becomes a block, the duplicate copy is
+   * dropped - it exists only to make the loop seamless - and the text wraps.
+   */
+  .ticker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ticker__window {
+    overflow: visible;
+    /* The fade exists to soften a moving edge. Nothing moves now, and left in
+       place it dims the first and last words of a static sentence. */
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .ticker__track {
+    animation: none;
+    width: auto;
+    display: block;
+    padding: var(--s2) var(--s3);
+  }
+
+  .ticker__item {
+    white-space: normal;
+  }
+
+  /* The second copy is scaffolding for the loop and is duplicate text once the
+     loop is gone. */
+  .ticker__track .ticker__item + .ticker__item {
+    display: none;
+  }
+
+  /* --- the sticky filter bar --------------------------------------------- */
+
+  /*
+   * `.mbar` stops being a bar and becomes nothing at all.
+   *
+   * `display: contents` removes the box but keeps its children, so `.mbar__row`
+   * and `.mbar__chips` become direct flex items of `.topbar__actions` - which is
+   * how the Filters button ends up on the same row as Calculations instead of
+   * owning a sticky strip of its own below the header.
+   *
+   * Nothing about the component changed; it still renders the same markup at
+   * every width, and above 640px the whole subtree is still `display: none`.
+   */
+  .mbar {
+    display: contents;
+  }
+
+  .mbar__row {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-width: 0;
+  }
+
+  /* Its own full-width line under the header controls. */
+  .mbar__chips {
+    flex: 1 1 100%;
+  }
+
+  .mbar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: 44px;
+    padding: 0 var(--s3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-weight: var(--w-medium);
+    cursor: pointer;
+    flex: none;
+  }
+
+  /* The established green active state, reused rather than reinvented. */
+  .mbar__btn--on {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .mbar__badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--r-pill);
+    background: var(--green);
+    color: #fff;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mbar__date {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  /*
+   * One scrolling row of chips.
+   *
+   * `flex-wrap: nowrap` with its own scroller, so a long selection lengthens
+   * this row instead of wrapping the bar onto a third line - which would push
+   * the first KPI card back under the fold, the defect this bar removes.
+   */
+  .mbar__chips {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--s2);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mbar__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mbar__chip {
+    flex: none;
+    min-height: 30px;
+    padding: 0 var(--s2);
+    border: 1px solid color-mix(in srgb, var(--green) 40%, var(--line));
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--green) 8%, var(--surface));
+    color: var(--green);
+    font: inherit;
+    font-size: 11.5px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* --- the bottom sheet -------------------------------------------------- */
+
+  .msheet {
+    position: fixed;
+    inset: 0;
+    z-index: 220;
+  }
+
+  .msheet__scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+  }
+
+  /*
+   * FULL HEIGHT, anchored to the TOP - changed 1 Nov 2026.
+   *
+   * It was a bottom sheet at `max-height: 85dvh`, which in practice opened over
+   * the lower half of the screen: the first slicer sat near the bottom edge and
+   * everything after it was below the fold, so choosing a filter meant scrolling
+   * a panel that looked like it had already ended. Filling the screen from the
+   * top shows the whole set at once, which is the point of the sheet.
+   *
+   * `dvh` rather than `vh` so a phone's retracting toolbar cannot push the
+   * pinned footer under the browser chrome.
+   */
+  .msheet__panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-radius: 0;
+    box-shadow: none;
+    animation: msheet-down 180ms ease-out;
+  }
+
+  /* The grab handle said "drag me down from the bottom". It no longer is one. */
+  .msheet__grab {
+    display: none;
+  }
+
+  /* Clear of the notch, now that the head is against the top of the screen. */
+  .msheet__head {
+    padding-top: calc(var(--s3) + env(safe-area-inset-top, 0px));
+  }
+
+  /*
+   * Tighter labels, so the whole set is visible without scrolling. Controls
+   * keep their 44px touch target - that is not negotiable on a phone - so the
+   * saving comes from the space between them and from the label type.
+   */
+  .msheet__body .fld > label,
+  .msheet__body .fld__label {
+    margin-bottom: 2px;
+    font-size: 10px;
+  }
+
+  .msheet__head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: var(--s3);
+    border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+
+  .msheet__grab {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+  }
+
+  .msheet__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: var(--w-bold);
+  }
+
+  .msheet__x,
+  .mnav__x {
+    margin-left: auto;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: var(--r-card);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  /* The sheet scrolls, not the page behind it. */
+  .msheet__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--s3);
+  }
+
+  /*
+   * The filter bar inside the sheet: one slicer per row.
+   *
+   * There is room here for full-width controls, and a long selection stays
+   * readable rather than being squeezed into half a phone.
+   */
+  .msheet__body .filters {
+    grid-template-columns: 1fr;
+    /* Tightened 1 Nov 2026 so the whole set fits the screen - see the
+       `.msheet__panel` note above. The controls keep their 44px target. */
+    gap: var(--s2);
+  }
+
+  /* Every control in the sheet is a touch target. */
+  .msheet__body .fld > button,
+  .msheet__body .ms__btn,
+  .msheet__body .brandpick {
+    min-height: 44px;
+  }
+
+  .msheet__foot {
+    flex: none;
+    display: flex;
+    gap: var(--s2);
+    padding: var(--s3);
+    /* Clear of the home indicator on a notched phone. */
+    padding-bottom: calc(var(--s3) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .msheet__done {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  /* --- the navigation drawer --------------------------------------------- */
+
+  .mnav {
+    position: fixed;
+    inset: 0;
+    z-index: 230;
+  }
+
+  .mnav__scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+  }
+
+  .mnav__panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(82vw, 300px);
+    display: flex;
+    flex-direction: column;
+    background: var(--rail);
+    color: var(--rail-fg);
+    animation: mnav-in 180ms ease-out;
+  }
+
+  .mnav__head {
+    display: flex;
+    align-items: center;
+    padding: var(--s3);
+    flex: none;
+  }
+
+  .mnav__title {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rail-fg);
+    opacity: 0.75;
+  }
+
+  .mnav__x {
+    color: var(--rail-fg);
+  }
+
+  /*
+   * The rail inside the drawer: full width, scrolling, never collapsed.
+   *
+   * `.nav` is hidden above, so this re-shows the instance the drawer renders.
+   * The selector is scoped to `.mnav__panel`, so it cannot reach the hidden
+   * one in the shell.
+   */
+  .mnav__panel .nav {
+    display: flex;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .mnav__panel .nav__item {
+    min-height: 44px;
+  }
+
+  /*
+   * THE DRAWER SHOWS PAGE NAMES, not bare icons.
+   *
+   * The drawer renders `<SideNav collapsed={false}>`, so the component believes
+   * its labels are showing. They were not: the `@media (max-width: 820px)` rail
+   * block sets `display: none` on `.nav__item-text` and friends WITHOUT the
+   * `nav--collapsed` class, so it applies to every rail on a narrow screen -
+   * including the one inside this drawer, which is the one place on a phone
+   * where there is room for the words.
+   *
+   * Scoped to `.mnav__panel`, so the hidden shell rail is untouched and the
+   * desktop collapse toggle still behaves exactly as it did.
+   */
+  /* Set to their own base values rather than `revert`, which would hand a
+     <span> back to `inline` and undo the column layout these rely on. */
+  .mnav__panel .nav__wordmark,
+  .mnav__panel .nav__item-text,
+  .mnav__panel .nav__userText {
+    display: flex;
+  }
+
+  .mnav__panel .nav__section,
+  .mnav__panel .nav__meta {
+    display: block;
+  }
+
+  .mnav__panel .nav__item,
+  .mnav__panel .nav__brand,
+  .mnav__panel .nav__action,
+  .mnav__panel .nav__user {
+    justify-content: flex-start;
+    padding-left: var(--s3);
+    padding-right: var(--s3);
+    gap: var(--s3);
+  }
+
+  /* Wrapped, not clipped: "Production plan" must not be cut to "Produc…". */
+  .mnav__panel .nav__item-text {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  /* --- tables ------------------------------------------------------------ */
+
+  /*
+   * Wide tables scroll inside their own container, never the page.
+   *
+   * `.scroll` already sets `overflow-x: hidden`, so without a scroller of its
+   * own a wide table is simply cut off. `.tablewrap` already has `overflow:
+   * auto`; this adds touch momentum and stops the table being squeezed to the
+   * phone's width, which would make every column unreadable.
+   */
+  .tablewrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table.dt {
+    /* Let the columns take the width they need and scroll, rather than
+       dividing 375px by twenty-eight. */
+    table-layout: auto;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* --- the table toolbar -------------------------------------------------- */
+
+  /*
+   * WRAPS, so nothing is pushed off the right edge.
+   *
+   * `.tbar` is a single non-wrapping flex row carrying Build view, Group by,
+   * Freeze and a 190px search box. That is comfortably wider than a phone, and
+   * because the row could not wrap, the search box - last in the order - was
+   * simply cut off at the panel edge. The controls were present and unreachable.
+   *
+   * The table itself still scrolls sideways inside `.tablewrap`; that is
+   * deliberate and unchanged. It is only the TOOLBAR that must fit the screen,
+   * because its controls cannot be scrolled to.
+   */
+  .tbar {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+
+  /*
+   * The spacer exists to push the search to the right of a wide toolbar. On a
+   * wrapping row it would eat the rest of the first line for no benefit, so it
+   * stands down and the search takes a line of its own below instead.
+   */
+  .tbar .pager__spacer {
+    display: none;
+  }
+
+  .tbar .tsearchwrap {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .tsearch {
+    width: 100%;
+  }
+
+  /* Dropdowns shrink with the row rather than setting its minimum width. */
+  .tgroup {
+    min-width: 0;
+  }
+
+  .tgroup select {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Each a real touch target, now that they have room to be one. */
+  .tbar .tgroup select,
+  .tbar .btn,
+  .tsearch input {
+    min-height: 32px;
+  }
+
+  /*
+   * FREEZING IS OFF ON A PHONE, and the control that sets it is hidden.
+   *
+   * A frozen prefix is a sticky block pinned to the left edge. On a desktop
+   * "Up to Unit" pins five narrow columns and the other twenty-eight scroll
+   * past them. On a 430px screen those same five columns are WIDER THAN THE
+   * VIEWPORT, so they cover the entire scroll area: scrolling sideways moved
+   * the table underneath them and nothing new ever appeared. The table looked
+   * like it had only the frozen columns in it, which is exactly what was
+   * reported.
+   *
+   * `left` is written as an inline style by `freezeCell`, so overriding it
+   * needs `!important` - the one place in this file that does. The alternative
+   * was to force the React state to 0 below a width, and a JS breakpoint
+   * changing a saved per-user setting on rotation is worse than a CSS override.
+   *
+   * The setting itself is untouched and takes effect again on a wider screen.
+   */
+  .dt__frz,
+  .dt__frz--last {
+    position: static !important;
+    left: auto !important;
+    z-index: auto !important;
+  }
+
+  .dt__frz--last {
+    /* The shadow marked the boundary of a pinned block that no longer exists. */
+    box-shadow: none !important;
+  }
+
+  .tfreeze {
+    display: none;
+  }
+
+  /* --- tables that are not in a DataTable --------------------------------- */
+
+  /*
+   * Panels that hold a plain <table> of their own - "Warehouse against direct
+   * supply", the Admin copy status - have no `.tablewrap` around them, so a
+   * table wider than the phone was simply cut off at the panel edge with no way
+   * to reach the rest. `display: block` turns the table itself into the
+   * scroller, which is the only option without a wrapper element to add one to.
+   *
+   * Scoped to a DIRECT child of the panel body, so the DataTable's own table -
+   * which lives inside `.tablewrap` and already scrolls - is not touched.
+   */
+  .panel__body > table.dt {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- the per-brand review rows ------------------------------------------ */
+
+  /*
+   * `.review__brandHead` is a nowrap flex row carrying a tag, a name with a
+   * 132px floor, and two or three `white-space: nowrap` statistics. That is
+   * wider than a phone, so "18 lines sold…" ran off the right edge. Wrapping
+   * the row and dropping the floor puts each statistic on screen instead.
+   */
+  .review__brandHead {
+    flex-wrap: wrap;
+    row-gap: var(--s1);
+    gap: var(--s2);
+    padding: var(--s3);
+  }
+
+  .review__brandName {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .review__stat {
+    white-space: normal;
+  }
+
+  .review__group {
+    flex-wrap: wrap;
+  }
+}
+
+/* --------------------------------------------------------- small phones -- */
+
+@media (max-width: 400px) {
+  /* One card per row: two 140px tracks plus the gap exceed a 320px screen once
+     the page padding is taken off. */
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .mbar__date {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------- sheet keyframes -- */
+
+/* Kept: `msheet-up` is no longer used by the filter sheet, which now drops from
+   the top, but nothing else should start relying on its absence. */
+@keyframes msheet-up {
+  from {
+    transform: translateY(12%);
+    opacity: 0.6;
+  }
+}
+
+/* The filter sheet fills the screen from the top, so it arrives from above. */
+@keyframes msheet-down {
+  from {
+    transform: translateY(-8%);
+    opacity: 0.6;
+  }
+}
+
+@keyframes mnav-in {
+  from {
+    transform: translateX(-12%);
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msheet__panel,
+  .mnav__panel {
+    animation: none;
+  }
 }

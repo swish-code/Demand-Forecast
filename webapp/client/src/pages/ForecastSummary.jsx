@@ -551,12 +551,19 @@ export function ForecastSummary({ filters, options, ready, refreshNonce, onLoade
           busy={busy}
             title="Demand tracking"
             calc="actual-qty,forecast-qty,summary-band"
-            sub={
+            /*
+              * Split in two so a phone can put the legend between them, which
+              * is what was asked for. Joined by `Panel` with the same " · " on
+              * a desktop, so the line there is character-for-character what it
+              * was before the split.
+              */
+            sub={busy ? 'Loading…' : 'Daily actual vs forecast'}
+            note={
               busy
-                ? 'Loading…'
+                ? undefined
                 : context?.enough
-                  ? 'Daily actual vs forecast · the grey band is where sales normally land'
-                  : 'Daily actual vs forecast · shaded where they diverge'
+                  ? 'the grey band is where sales normally land'
+                  : 'shaded where they diverge'
             }
             tools={
               <>

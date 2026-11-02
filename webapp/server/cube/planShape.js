@@ -56,7 +56,7 @@ const val = (row, name) => row?.[name] ?? row?.[`[${name}]`]
  * Grouped on `Year_Forecast`/`Month_Forecast` rather than on the date, because
  * those are real columns and SUMMARIZECOLUMNS will not group by an expression.
  */
-async function fetchForecastMonths(brand, year) {
+export async function fetchForecastMonths(brand, year) {
   const code = brand.chain ?? brand.code
   const rows = await executeQuery(
     `EVALUATE

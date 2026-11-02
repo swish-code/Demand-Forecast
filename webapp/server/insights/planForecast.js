@@ -1,5 +1,5 @@
 import { pg } from '../db/accounts.js'
-import { planMonthlyValues, salesPlanBaseYear } from './salesPlan.js'
+import { forecastMonthlyValues, salesPlanBaseYear } from './salesPlan.js'
 
 /**
  * The plan year's product forecast — Method C.
@@ -299,10 +299,20 @@ export function planMixFor(basis, month) {
 }
 
 /** How many product units one plan month's sales are worth. */
-export function planUnitsFor(basis, brand, year, month) {
+export function planUnitsFor(basis, brand, year, month, salesOverride = null) {
   if (!basis) return 0
-  const values = planMonthlyValues(brand, year)
-  const sales = values?.[month - 1] || 0
+  /*
+   * `salesOverride` is the month's sales as the COPY holds them, passed in by
+   * the caller when the sales table actually covers the year. It takes
+   * precedence so that the product forecast is sized by the same series the
+   * warehouse forecast is sized by - two sources for one month's sales is the
+   * conflation this work removes.
+   *
+   * Without it, the model's annual figure spread by the seasonal shape. Still
+   * model-derived, and still never the typed target. See `forecastMonthlyValues`.
+   */
+  const values = salesOverride === null ? forecastMonthlyValues(brand, year) : null
+  const sales = salesOverride ?? values?.[month - 1] ?? 0
   if (!(sales > 0)) return 0
   const rate = monthIsValid(basis, month) ? basis.ratio[month] : basis.brandMedian
   return rate > 0 ? sales * rate : 0
@@ -317,7 +327,11 @@ export function planUnitsFor(basis, brand, year, month) {
  * year actually shipped them, which is a description of the product rather than
  * a second forecast.
  */
-export async function planProductRows(brand, year, { from = null, to = null } = {}) {
+export async function planProductRows(
+  brand,
+  year,
+  { from = null, to = null, monthlySales = null } = {}
+) {
   const basis = await planBasis(brand)
   if (!basis) return []
 
@@ -326,7 +340,8 @@ export async function planProductRows(brand, year, { from = null, to = null } = 
     const [mf, mt] = monthRange(year, m)
     if (from && mt < from) continue
     if (to && mf > to) continue
-    const units = planUnitsFor(basis, brand, year, m)
+    // The copy's own figure for the month where the caller has one.
+    const units = planUnitsFor(basis, brand, year, m, monthlySales?.[m - 1] ?? null)
     if (!(units > 0)) continue
     const picked = planMixFor(basis, m)
     if (!picked) continue

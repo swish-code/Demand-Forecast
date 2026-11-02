@@ -1,17 +1,31 @@
 /**
- * Brand sales somebody typed in, for a year the models do not cover.
+ * Brand sales for a year the PRODUCT models do not cover.
  *
  * WHY THIS EXISTS
  *
- * The forecast models stop on 31 Dec 2026. Audited on 15 Sep 2026:
+ * The product forecast stops on 31 Dec 2026. Audited on 15 Sep 2026:
  * `Forecast_Product_Table` spans 2025-11-01 to 2026-12-31 and returns no rows
  * at all for 2027; every brand's model calendar reads 2026-01-01 to 2026-12-31;
- * `cube_sales_daily` holds 365 rows per brand, all of them 2026. So there is no
- * 2027 forecast to override — a typed figure is the only 2027 number there is.
+ * `cube_sales_daily` holds 365 rows per brand, all of them 2026.
+ *
+ * CORRECTED 20 OCT 2026 - WHERE THE SIZE COMES FROM
+ *
+ * That audit concluded "a typed figure is the only 2027 number there is". The
+ * product half of it still holds and is why the MIX is still borrowed from the
+ * base year. The brand half was wrong: it checked the product table and never
+ * checked 'FORECAST (2)', which carries all twelve months of 2027 for all nine
+ * brands, every month positive.
+ *
+ * The typed figures were the high ones every time - BBT 10,262,328 against the
+ * model's 6,218,954, YP 10,076,033 against 5,653,919 - so every 2027 quantity
+ * was inflated by 16% to 78%. The size now comes from the model, via
+ * `cube_plan_source`; see planSource.js. A typed figure remains as a recorded
+ * target and is used only where the model has no complete year.
  *
  * THE CHAIN IT DRIVES
  *
- *   typed brand sales -> brand 2027 sales -> product forecast -> article forecast
+ *   brand 2027 sales -> product mix -> article forecast
+ *                    -> warehouse forecast
  *
  * Only the first link is stored. Everything downstream is derived on read, by
  * scaling the base year's own shape:
@@ -65,6 +79,7 @@
  *     data superseding a plan is the right precedence.
  */
 import { pg } from '../db/accounts.js'
+import { loadPlanSources, forecastAnnual } from '../cube/planSource.js'
 
 /*
  * Held in memory, and readable synchronously.
@@ -117,12 +132,51 @@ export function splitAcrossBrands(target, weights) {
   return new Map(usable.map(([code, w]) => [code, (Number(target) * Number(w)) / total]))
 }
 
+/** A year is only a baseline if it has this many months of product data. */
+const BASE_YEAR_MIN_MONTHS = 6
+
 /**
- * The last whole year the models actually cover.
+ * The newest year with enough PRODUCT data to read a mix from.
  *
- * Derived rather than hard-coded: it is the year of the latest day in
- * `cube_sales_daily`, which the extract fills over each brand's model calendar.
- * Today that is 2026, and it moves on its own when the models do.
+ * A pure function over `{ y, n }` rows - year, and how many distinct months of
+ * product data it holds - so the rule can be tested without a database.
+ *
+ * WHY A MONTH COUNT AND NOT SIMPLY THE LATEST YEAR
+ *
+ * The baseline's whole job is to answer "what does this brand sell", and a year
+ * with one month of data answers that with one month's seasonality. If the
+ * product tables ever gain a partial next year - the first extract after
+ * somebody extends the Power BI calendar - taking the latest year outright
+ * would move the mix basis onto that fragment overnight. Six months is the
+ * point at which a year describes a brand rather than a season.
+ */
+export function pickBaseYear(rows, minMonths = BASE_YEAR_MIN_MONTHS) {
+  const years = (rows ?? [])
+    .map((r) => ({ y: Number(r.y), n: Number(r.n) }))
+    .filter((r) => Number.isFinite(r.y) && Number.isFinite(r.n) && r.n >= minMonths)
+    .sort((a, b) => b.y - a.y)
+  return years.length ? years[0].y : null
+}
+
+/**
+ * The year the product mix is read from.
+ *
+ * WHAT THIS IS NOT, SINCE 21 OCT 2026
+ *
+ * It used to be the year of the latest day in `cube_sales_daily`. That worked
+ * only while the sales copy and the product copy ended on the same day, and
+ * they no longer do: the sales copy now reaches into 2027, because
+ * 'FORECAST (2)' carries 2027 and the extract was widened to take it, while the
+ * product tables still stop at the end of the Power BI calendar.
+ *
+ * Left as it was, the first 2027 sales row would have moved this to 2027 and
+ * every product mix would have been read from a year with no product rows in
+ * it. So it is derived from PRODUCT coverage - `cube_article_monthly`, then
+ * `cube_component_monthly` - which is what it was always being used as.
+ *
+ * The sales-derived value survives only as a last resort, for a database whose
+ * product tables have not been filled yet; without it a fresh install would
+ * have no baseline at all and no page would answer.
  */
 export function salesPlanBaseYear() {
   return baseYear
@@ -136,13 +190,34 @@ export function salesPlanBaseYear() {
  * planned.
  */
 export async function loadSalesPlans() {
-  // The base year has to be known before the totals it scopes can be asked for,
-  // so this is two reads rather than one parallel pair.
-  const latest = await pg.all(`SELECT MAX(date) AS hi FROM cube_sales_daily`, [])
-  const hi = String(latest[0]?.hi ?? '').slice(0, 10)
-  baseYear = hi ? Number(hi.slice(0, 4)) : null
+  /*
+   * The baseline comes from PRODUCT coverage, not from the sales copy.
+   *
+   * Articles first and components second because they are the two tables a mix
+   * is actually read from; whichever has a substantial year is the year that
+   * can describe what a brand sells. The sales copy is consulted only if
+   * neither has been filled, which is a fresh install.
+   */
+  const [byArticle, byComponent] = await Promise.all([
+    pg.all(
+      `SELECT LEFT(month, 4) AS y, COUNT(DISTINCT month) AS n
+         FROM cube_article_monthly GROUP BY LEFT(month, 4)`,
+      []
+    ),
+    pg.all(
+      `SELECT LEFT(month, 4) AS y, COUNT(DISTINCT month) AS n
+         FROM cube_component_monthly GROUP BY LEFT(month, 4)`,
+      []
+    ),
+  ])
+  baseYear = pickBaseYear(byArticle) ?? pickBaseYear(byComponent)
+  if (baseYear === null) {
+    const latest = await pg.all(`SELECT MAX(date) AS hi FROM cube_sales_daily`, [])
+    const hi = String(latest[0]?.hi ?? '').slice(0, 10)
+    baseYear = hi ? Number(hi.slice(0, 4)) : null
+  }
 
-  const [rows, scoped, shaped] = await Promise.all([
+  const [rows, scoped, shaped, sources] = await Promise.all([
     pg.all(`SELECT brand, year, value, updated_at, updated_by FROM cube_sales_plan`, []),
     baseYear
       ? pg.all(
@@ -152,6 +227,7 @@ export async function loadSalesPlans() {
         )
       : Promise.resolve([]),
     pg.all(`SELECT brand, year, month, weight, source FROM cube_plan_shape`, []),
+    loadPlanSources(),
   ])
   const base = new Map(scoped.map((r) => [String(r.brand), Number(r.total) || 0]))
 
@@ -181,38 +257,88 @@ export async function loadSalesPlans() {
     shapes.set(k, { weights: g.weights.map((w) => w / total), source: g.source })
   }
 
+  /*
+   * Typed figures and model figures, together.
+   *
+   * A brand-year is planned if EITHER exists. Building from the typed rows
+   * alone was what made the typed figure load-bearing: deleting it removed the
+   * plan outright and the year fell back to `cube_sales_daily`, which holds no
+   * 2027 at all and would have answered zero. Now the model's own figure keeps
+   * the year planned on its own, so the typed rows can simply be deleted.
+   */
+  const typedBy = new Map(rows.map((r) => [key(r.brand, r.year), r]))
+  const everyKey = new Set([...typedBy.keys(), ...sources.keys()])
+
   plans.clear()
-  for (const r of rows) {
-    const brand = String(r.brand)
-    const year = Number(r.year)
-    const value = Number(r.value)
-    if (!Number.isFinite(value) || value < 0) continue
+  for (const k of everyKey) {
+    const [brand, yearText] = k.split('|')
+    const year = Number(yearText)
+    const r = typedBy.get(k) ?? null
+    const typedRaw = r === null ? null : Number(r.value)
+    const typedValue = Number.isFinite(typedRaw) && typedRaw >= 0 ? typedRaw : null
+
+    /*
+     * TWO NUMBERS, DELIBERATELY NOT ONE.
+     *
+     * `value` is what somebody typed on the Sales Plan page. It is that page's
+     * own feature - a target the business records - and nothing in the forecast
+     * reads it.
+     *
+     * `forecastValue` is what the model says the year is worth, and it is the
+     * only one the warehouse, product, mix and article forecasts may use. It is
+     * null when the model has not answered, and a null must travel as a null:
+     * the typed figure is not a substitute for it.
+     *
+     * Conflating these is the defect this separation exists to prevent. Before
+     * 21 Oct 2026 the forecasts multiplied a typed target, so editing a box on
+     * the Sales Plan page silently moved every 2027 quantity on Procurement.
+     */
+    const forecast =
+      Number.isFinite(baseYear) && year <= baseYear ? null : forecastAnnual(sources.get(k) ?? null)
+    const value = typedValue
+    // A brand-year with neither a typed target nor a model figure is nothing at
+    // all, and recording it would put an empty row on the page.
+    if (value === null && !forecast) continue
+
     const baseTotal = base.get(brand) ?? 0
     const shape = shapes.get(key(brand, year)) ?? null
     plans.set(key(brand, year), {
       brand,
       year,
       value,
+      /*
+       * The forecast side, kept apart from the typed side above.
+       *
+       * `forecastUsable` is what every forecast path tests. It needs the model
+       * figure AND a seasonal shape to spread it over AND some base-year sales
+       * to read a product mix from - a target alone has never been enough, and
+       * now a target is not part of it at all.
+       */
+      forecastValue: forecast?.value ?? null,
+      forecastMonths: forecast?.months ?? null,
+      forecastUsable: Boolean(forecast) && Boolean(shape) && baseTotal > 0,
       baseYear,
       baseTotal,
       /*
-       * `ratio` is the year-on-year growth the typed figure implies, and it is
-       * shown on the page as exactly that. It is NOT what shapes the plan any
-       * more: the months come from `shape` below, and this is not multiplied
-       * through anything.
+       * `ratio` is the year-on-year growth the TYPED target implies, and it is
+       * shown on the page as exactly that. It is NOT what shapes anything: the
+       * months come from `shape` below, and this is not multiplied through.
        */
-      ratio: baseTotal > 0 ? value / baseTotal : null,
+      ratio: baseTotal > 0 && value !== null ? value / baseTotal : null,
+      // What the model's own figure implies against the same base, so the page
+      // can show the target beside the forecast rather than in place of it.
+      forecastRatio: baseTotal > 0 && forecast ? forecast.value / baseTotal : null,
       shape: shape?.weights ?? null,
       shapeSource: shape?.source ?? null,
       /*
-       * Two things are needed before a plan drives anything: a shape, which
-       * says when the year's sales happen, and some base-year sales, which is
-       * where the product mix is read from. Missing either, the figure is
-       * recorded and does nothing.
+       * `usable` is about the TYPED target only - whether the Sales Plan page
+       * can spread what somebody entered. The forecast asks `forecastUsable`
+       * above and never this.
        */
-      usable: Boolean(shape) && baseTotal > 0,
-      updatedAt: r.updated_at ?? null,
-      updatedBy: r.updated_by ?? null,
+      usable: value !== null && Boolean(shape) && baseTotal > 0,
+      // Null for a year the model supplies and nobody typed.
+      updatedAt: r?.updated_at ?? null,
+      updatedBy: r?.updated_by ?? null,
     })
   }
   return plans.size
@@ -245,15 +371,66 @@ export function salesPlanFor(brand, year) {
   return plans.get(key(brand, year)) ?? null
 }
 
-/** The last day any plan covers for this brand, so coverage can be widened. */
+/**
+ * The plan's twelve monthly FORECAST values - the model's figure, spread.
+ *
+ * The forecast counterpart of `planMonthlyValues`. Size comes from the model,
+ * shape from the seasonal factors, and no typed target is involved in either.
+ */
+export function forecastMonthlyValues(brand, year) {
+  const plan = plans.get(key(brand, year))
+  if (!plan?.forecastUsable) return null
+  return plan.shape.map((w) => plan.forecastValue * w)
+}
+
+/**
+ * The last day a FORECAST covers for this brand, so coverage can be widened.
+ *
+ * Keyed on `forecastUsable`, not on whether anybody typed a target. A year the
+ * model can answer is answerable whether or not the Sales Plan page has a row
+ * for it, and a typed target alone no longer makes a year look answerable.
+ */
 export function plannedThrough(brand) {
   let last = null
   for (const p of plans.values()) {
-    if (p.brand !== brand || !p.usable) continue
+    if (p.brand !== brand || !p.forecastUsable) continue
     const end = `${p.year}-12-31`
     if (!last || end > last) last = end
   }
   return last
+}
+
+/**
+ * A window in a forecast year the model cannot currently size.
+ *
+ * Returns a message, or null. This exists so that a missing or failed source
+ * read is SAID rather than shown as an empty table: without it, a brand whose
+ * Power BI read failed at boot would return no rows for 2027 and read exactly
+ * like a brand with nothing to make.
+ */
+export function forecastSourceError(brand, filters) {
+  const from = String(filters?.dateFrom ?? '').slice(0, 10)
+  const to = String(filters?.dateTo ?? '').slice(0, 10)
+  if (!from || !to || !baseYear) return null
+  const y = Number(from.slice(0, 4))
+  if (!Number.isFinite(y) || y <= baseYear) return null
+  if (Number(to.slice(0, 4)) !== y) return null
+
+  const plan = plans.get(key(brand, y))
+  if (plan?.forecastUsable) return null
+
+  const why = !plan?.forecastValue
+    ? `no complete ${y} figure has been read from 'FORECAST (2)'[Totalsale] for ${brand}`
+    : !plan?.shape
+      ? `${brand} has no seasonal shape for ${y}`
+      : `${brand} has no ${baseYear} sales to read a product mix from`
+
+  return (
+    `${y} cannot be forecast for ${brand} yet: ${why}. ` +
+    `The figure is read from the model on the nightly refresh and at start-up; ` +
+    `it is not taken from the Sales Plan page, so typing a target there will not fill this in. ` +
+    `Use Refresh shapes on the Sales Plan page to read it again now.`
+  )
 }
 
 /**
@@ -325,7 +502,10 @@ export function planBoundaryError(brand, filters) {
   // side by side are read from the same table and add up honestly.
   const touched = []
   for (let y = Math.min(a, b); y <= Math.max(a, b); y += 1) {
-    if (plans.get(key(brand, y))?.usable) touched.push(y)
+    // `forecastUsable`: what makes a window unanswerable is that one half is
+    // DERIVED and the other measured, which is a property of the forecast, not
+    // of whether somebody typed a target for the year.
+    if (plans.get(key(brand, y))?.forecastUsable) touched.push(y)
   }
   if (!touched.length) return null
 
@@ -369,8 +549,16 @@ export function planWindow(brand, filters) {
   if (!Number.isFinite(y) || y === baseYear) return null
   if (Number(to.slice(0, 4)) !== y) return null
 
+  /*
+   * `forecastUsable` and `forecastValue`, never `usable` and `value`.
+   *
+   * This is the boundary the whole separation turns on. Every forecast surface
+   * - warehouse, product, mix, article - reaches the model's figure through
+   * this function and only through it, so testing the forecast side here is
+   * what keeps a typed target out of all four at once.
+   */
   const plan = plans.get(key(brand, y))
-  if (!plan?.usable) return null
+  if (!plan?.forecastUsable) return null
 
   const months = monthCoverage(from, to, y)
   if (!months.length) return null
@@ -387,7 +575,9 @@ export function planWindow(brand, filters) {
     ...plan,
     months,
     share,
-    plannedValue: plan.value * share,
+    // The model's figure for this window. `plan.value` - the typed target - is
+    // carried along in the spread above but is read by nothing downstream.
+    plannedValue: plan.forecastValue * share,
     // The equivalent window in the base year. The MIX comes from here; the size
     // does not.
     from: toBaseYear(from, y, baseYear),

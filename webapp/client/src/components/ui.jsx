@@ -50,7 +50,21 @@ export function KpiCard({ label, value, foot, accent = 'slate', tint, progress, 
  * selection with nothing to say they are out of date. First loads still use a
  * skeleton; this is for the reloads that come after.
  */
-export function Panel({ title, count, sub, tools, children, flush, fill, calc, busy }) {
+/*
+ * `note` is the TAIL of the subtitle, and it exists for one reason: on a phone
+ * it has to sit on its own line BELOW the legend, while on a desktop it belongs
+ * on the subtitle line as it always has.
+ *
+ * So it is rendered twice and only ever shown once. The inline copy lives
+ * inside the subtitle and is the desktop presentation, unchanged to the pixel;
+ * the block copy is the last child of the header and is shown only inside the
+ * phone media query, where `order` places it after the tools. One of the two is
+ * always `display: none`, so no reader ever meets the sentence twice.
+ *
+ * Passing the whole sentence in `sub` instead would have been simpler and
+ * cannot work: CSS can move an element, and it cannot break a string in half.
+ */
+export function Panel({ title, count, sub, note, tools, children, flush, fill, calc, busy }) {
   return (
     <section className={`panel${fill ? ' panel--fill' : ''}`} data-calc={calc || undefined}>
       <header className="panel__head">
@@ -59,9 +73,15 @@ export function Panel({ title, count, sub, tools, children, flush, fill, calc, b
             {title}
             {count !== undefined && <span className="panel__count">{count}</span>}
           </h2>
-          {sub ? <p>{sub}</p> : null}
+          {sub ? (
+            <p>
+              {sub}
+              {note ? <span className="panel__note-inline"> · {note}</span> : null}
+            </p>
+          ) : null}
         </div>
         {tools ? <div className="panel__tools">{tools}</div> : null}
+        {note ? <p className="panel__note">{note}</p> : null}
       </header>
       <div
         className={`panel__body${flush ? ' panel__body--flush' : ''}${busy ? ' tblwrap tblwrap--busy' : ''}`}
