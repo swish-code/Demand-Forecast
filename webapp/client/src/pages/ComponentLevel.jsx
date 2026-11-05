@@ -310,6 +310,39 @@ const COLUMNS = [
       'Two movements on the same day show both paths, separated by ";".',
   },
   /*
+   * Did the article reach THIS brand straight from a Swish site?
+   *
+   * The whole window, not the latest movement - which is what separates it
+   * from the two columns above. See `transferStatus` on the server for the
+   * rule and for why "Not traceable" is a third answer rather than a No.
+   */
+  {
+    key: 'Transfer Status',
+    label: 'Transfer Status',
+    width: 150,
+    hiddenByDefault: true,
+    hint:
+      'Whether this article was transferred DIRECTLY from a Swish cost centre (CPU, Central Kitchen, Swish Bakery, Yelo Factory, the Central Warehouse) to the brand on this row, at any point in the chosen date range. ' +
+      'Direct Transfer = at least one such movement. ' +
+      'No Direct Transfer = the article moved only between Swish cost centres, or only to a different brand, or did not move at all. ' +
+      'Not traceable = a prep step, which carries no article number in any model, so there is nothing in the movement data to look it up by — it is an absence of evidence, not a No. ' +
+      'Blank means the row reached no brand at all, so the question does not arise.',
+    render: (v) =>
+      v ? (
+        <Pill
+          tone={
+            v === 'Direct Transfer' ? 'green' : v === 'No Direct Transfer' ? 'amber' : 'slate'
+          }
+        >
+          {v}
+        </Pill>
+      ) : (
+        <span className="muted" title="This row reached no brand, so there is no brand to have been transferred to">
+          –
+        </span>
+      ),
+  },
+  /*
    * Consumed, not "actual".
    *
    * The old actual came from the same place as the forecast — recipe quantities
@@ -2191,6 +2224,8 @@ export function ComponentLevel({
    * blank or misleading there. Stock Article leaves it off and keeps them.
    */
   noWarehouse = false,
+  // Production and Swish Bakery only: both list the same unplaceable prep steps.
+  prepShared = false,
 }) {
   /*
    * Which extra dimensions the reader has switched on.
@@ -4057,6 +4092,16 @@ export function ComponentLevel({
         title="Article detail"
         count={busy ? undefined : `${rows.length.toLocaleString()} rows`}
         sub="What the forecast implies you need, beside what actually left the warehouse"
+        /*
+         * Said on the page, not only in a code comment, because the number it
+         * warns about is one a reader would otherwise compute wrongly: the same
+         * prep step is listed here and on the other production page.
+         */
+        note={
+          prepShared
+            ? 'Prep steps appear on both Production and Swish Bakery — they carry no article number, so nothing says which site makes them. Do not add the two pages’ prep totals together.'
+            : undefined
+        }
         flush
         fill
         tools={

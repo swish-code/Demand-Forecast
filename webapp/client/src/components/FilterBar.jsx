@@ -67,6 +67,15 @@ export const SLICERS = [
    */
   { id: 'channel', key: 'channels', label: 'Transaction Type', options: 'channels', placeholder: 'All' },
   /*
+   * Transfer Status, added 3 Nov 2026 for the production-source pages.
+   *
+   * Beside Transaction Type because both are read from the warehouse model,
+   * and separate from it because they ask different questions: that column
+   * names the LATEST movement, this one asks whether a direct transfer to the
+   * row's own brand happened anywhere in the window.
+   */
+  { id: 'transferStatus', key: 'transferStatus', label: 'Transfer Status', options: 'transferStatus', placeholder: 'All' },
+  /*
    * How long since the warehouse last issued the article.
    *
    * The same ladder the forecast routes on, so filtering to Non-Moving shows
@@ -106,6 +115,7 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       categories: [],
       supply: [],
       channels: [],
+      transferStatus: [],
       prepStatus: [],
       dateFrom: f.defaultFrom,
       dateTo: f.defaultTo,

@@ -19,6 +19,7 @@ import { executeQuery } from './client.js'
 import { cached } from '../cache.js'
 import {
   CHANNEL,
+  brandOfCostCentre,
   classifyInbound,
   classifyTransfer,
   costCentreKind,
@@ -121,7 +122,10 @@ export async function channelsForWindow(from, to) {
   return cached(
     // Prefix changed with the shape on 31 Oct 2026, so a cached answer from
     // the brand-scoped version cannot be served against the new rule.
-    `transaction-type-destination:${from}:${to}`,
+    // Prefix bumped again on 3 Nov 2026 with the shape: an entry cached before
+    // `issuedTo` existed would answer Transfer Status with an empty set, which
+    // reads as "never reached its brand" on every article it was asked about.
+    `transaction-type-issued:${from}:${to}`,
     async () => {
       const mapping = await warehouseToCostCentre()
 
@@ -208,6 +212,27 @@ SUMMARIZECOLUMNS(
         if (!events.has(article)) events.set(article, [])
         events.get(article).push({ date, channel, path })
       }
+
+      /*
+       * Which brands each article was ISSUED to, over the WHOLE window.
+       *
+       * Deliberately not `latestMovement`'s answer. The Transaction Type column
+       * asks "how is this moving now" and keeps only the most recent movement;
+       * Transfer Status asks "did this ever reach its brand between these
+       * dates", which is a different question and a wider one. An article
+       * issued to MM on the 3rd and transferred to the bakery on the 28th has a
+       * direct transfer, and a latest-movement read would miss it.
+       *
+       * Costs nothing extra: the transfer rows are already fetched and already
+       * classified below, so this is one Set per article off the same pass.
+       */
+      const issuedTo = new Map()
+      const noteIssue = (article, costCentre) => {
+        const brand = brandOfCostCentre(costCentre)
+        if (!article || !brand) return
+        if (!issuedTo.has(article)) issuedTo.set(article, new Set())
+        issuedTo.get(article).add(brand)
+      }
       const day = (v) => {
         const s = String(v ?? '').slice(0, 10)
         // ISO dates compare correctly as strings; anything else is not a date.
@@ -268,13 +293,27 @@ SUMMARIZECOLUMNS(
          * of its ends. Both land on this one article row, so such a row reads
          * "Internal TRF IN + Internal TRF OUT" - see classifyTransfer.
          */
-        for (const stamp of moved) add(article, date, stamp.channel, stamp.path)
+        for (const stamp of moved) {
+          add(article, date, stamp.channel, stamp.path)
+          // A Swish cost centre sending stock to a brand IS the direct
+          // transfer Transfer Status asks about - same test, named once.
+          if (stamp.channel === CHANNEL.ISSUE) noteIssue(article, stamp.costCentre)
+        }
       }
 
+      /*
+       * Every article that moved, whether or not its latest movement produced a
+       * channel.
+       *
+       * `issuedTo` is carried for ALL of them, including the ones whose latest
+       * movement collapsed to nothing, because "did it reach its brand" has an
+       * answer even where "how is it moving now" does not.
+       */
       const out = new Map()
-      for (const [article, list] of events) {
-        const { channels, paths } = latestMovement(list)
-        if (channels.size) out.set(article, { channels, paths })
+      const seen = new Set([...events.keys(), ...issuedTo.keys()])
+      for (const article of seen) {
+        const { channels, paths } = latestMovement(events.get(article) ?? [])
+        out.set(article, { channels, paths, issuedTo: issuedTo.get(article) ?? new Set() })
       }
       return out
     },

@@ -29,6 +29,7 @@ import {
   formatChannels,
   formatPaths,
   pathsForBrand,
+  transferStatus,
   matchesChannelFilter,
   effectiveChannels,
 } from '../insights/orderingChannel.js'
@@ -37,7 +38,13 @@ import { nonRecipeRows } from '../insights/nonRecipe.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
 import { coveredByStock } from '../insights/stockCover.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
-import { productionSourceByArticle, UNCLASSIFIED } from '../insights/productionSource.js'
+import {
+  productionSourceByArticle,
+  UNCLASSIFIED,
+  SOURCE,
+  isPrepRow,
+  prepSurvives,
+} from '../insights/productionSource.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
 import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
@@ -112,8 +119,11 @@ function allowsRaw(filters) {
  * `channels` is the Transaction Type slicer. Post-hoc like `supply`: it is
  * stamped on the assembled rows from the warehouse model, not a column any
  * brand query can narrow on.
+ *
+ * `transferStatus` is the Transfer Status slicer, and the same in every
+ * respect - stamped by `withOrderingChannel` off the same read.
  */
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels']
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels', 'transferStatus']
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -1403,16 +1413,42 @@ async function withOrderingChannel(rows, filters) {
       // Narrowed to the row's own brand - a warehouse issue that fanned out to
       // three brands is three rows, each naming only its own leg.
       Path: channels ? formatPaths(pathsForBrand(found?.paths, brand)) : null,
+      /*
+       * Did this article reach THIS brand straight from a Swish site?
+       *
+       * Asked over the whole window rather than off the latest movement - see
+       * `transferStatus`. `known` is false when the warehouse model could not
+       * be reached, which leaves the column blank rather than answering "No"
+       * from an absence the model never confirmed.
+       */
+      'Transfer Status': transferStatus({
+        article,
+        brand,
+        issuedTo: found?.issuedTo,
+        known: Boolean(channels),
+      }),
       // Carried as the EFFECTIVE set, so the slicer filters on exactly what
       // the cell shows. Stripped again before the row leaves this function.
       __channels: held ? [...effectiveChannels(held)] : null,
     }
   })
 
-  const wanted = (filters?.channels ?? []).filter(Boolean)
-  if (!wanted.length) return labelled.map(({ __channels, ...r }) => r)
+  /*
+   * The Transfer Status slicer, applied here beside the Transaction Type one.
+   *
+   * A row the column left BLANK is never returned by a selection: blank means
+   * "no brand to ask about", and a reader asking for No Direct Transfer has
+   * not asked for rows where the question does not arise.
+   */
+  const statuses = (filters?.transferStatus ?? []).filter(Boolean)
+  const narrowed = statuses.length
+    ? labelled.filter((r) => statuses.includes(r['Transfer Status']))
+    : labelled
 
-  return labelled
+  const wanted = (filters?.channels ?? []).filter(Boolean)
+  if (!wanted.length) return narrowed.map(({ __channels, ...r }) => r)
+
+  return narrowed
     .filter((r) => matchesChannelFilter(r.__channels, wanted))
     .map(({ __channels, ...r }) => r)
 }
@@ -2055,9 +2091,9 @@ async function withSiteForecast(rows, brand, filters, grain = {}, allDestination
  * request to say which page it came from.
  */
 const SOURCE_BY_PAGE = {
-  'src-ck': 'Central Kitchen / CPU',
-  'src-bakery': 'Bakery',
-  'src-factory': 'YELO Factory',
+  'src-ck': SOURCE.CK,
+  'src-bakery': SOURCE.BAKERY,
+  'src-factory': SOURCE.FACTORY,
   'src-none': UNCLASSIFIED,
 }
 
@@ -2108,11 +2144,36 @@ async function withProductionSource(rows, filters, user) {
 
   const wanted = effective?.length ? new Set(effective) : permitted ? new Set() : null
 
+  /*
+   * Whether a PREP row may stay on the pages this request resolved to.
+   *
+   * Worked out once rather than per row: it depends only on `wanted`.
+   */
+  const keepPrep = prepSurvives(wanted)
+
   const out = []
   for (const r of rows) {
     const article = String(r['Item No.'] ?? '').trim()
     const source = (article && map.get(article)) || UNCLASSIFIED
-    if (wanted && !wanted.has(source)) continue
+    if (wanted && !wanted.has(source)) {
+      /*
+       * PREP survives the pin on the Kitchen and Bakery pages - 3 Nov 2026.
+       *
+       * A prep step has no article number in any model, so it can never resolve
+       * to a site and always lands on `Unclassified`; the pin then dropped
+       * every one of them from the three site pages, and they were visible only
+       * on the admin-only Unclassified page. Power BI shows them because it
+       * groups by recipe group and item NAME, which needs no article number.
+       *
+       * Tested on `Node Type`, deliberately NOT on a blank article number: a PA
+       * row that is missing its number is a data fault and must keep being
+       * dropped, rather than being quietly rescued by the same rule.
+       *
+       * The row keeps `Prod_Source: 'Unclassified'` below, because this is an
+       * exemption and not an attribution - see `PREP_SOURCES`.
+       */
+      if (!(keepPrep && isPrepRow(r))) continue
+    }
     /*
      * `__unattributed` has done its work by now - the brand stamp happens
      * inside the fan-out, this runs after the merge - so it is dropped rather

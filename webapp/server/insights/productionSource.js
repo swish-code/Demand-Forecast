@@ -52,15 +52,29 @@ import { executeQuery } from '../powerbi/client.js'
 
 const SIX_MONTHS = 6
 
+/**
+ * The three real sites, named once.
+ *
+ * They were string literals in six places - the two maps below, `FROM_MEANS`,
+ * `SOURCES`, `SOURCE_BY_PAGE` in routes/api.js and `lockProdSource` on each
+ * page - and the PREP rule below has to agree with all of them exactly,
+ * because a typo would silently stop exempting rather than fail.
+ */
+export const SOURCE = {
+  CK: 'Central Kitchen / CPU',
+  BAKERY: 'Bakery',
+  FACTORY: 'YELO Factory',
+}
+
 /** Raw cost-centre names that are production sites, and what to call them. */
 const CATEGORY = new Map([
-  ['CENTERAL KITCHEN', 'Central Kitchen / CPU'],
-  ['CENTRAL PRODUCTION UNIT', 'Central Kitchen / CPU'],
-  ['YELO FACTORY', 'YELO Factory'],
+  ['CENTERAL KITCHEN', SOURCE.CK],
+  ['CENTRAL PRODUCTION UNIT', SOURCE.CK],
+  ['YELO FACTORY', SOURCE.FACTORY],
 ])
 
 /** Mapped values that decide a category on their own. */
-const BY_MAPPED = new Map([['SWISH BAKERY', 'Bakery']])
+const BY_MAPPED = new Map([['SWISH BAKERY', SOURCE.BAKERY]])
 
 /*
  * Not production sites, despite mapping into CKU/CPU. Named rather than
@@ -69,13 +83,48 @@ const BY_MAPPED = new Map([['SWISH BAKERY', 'Bakery']])
 const NOT_A_SITE = new Set(['STAFF MEAL', 'FM- CPU', 'ERMG CK'])
 
 export const UNCLASSIFIED = 'Unclassified'
-export const SOURCES = ['Central Kitchen / CPU', 'Bakery', 'YELO Factory', UNCLASSIFIED]
+
+export const SOURCES = [SOURCE.CK, SOURCE.BAKERY, SOURCE.FACTORY, UNCLASSIFIED]
+
+/**
+ * The pages a PREP step is shown on despite resolving to `Unclassified`.
+ *
+ * A prep step carries no `Item No.` in any of the nine models - 45,312 of
+ * 45,312 rows blank, measured 3 Nov 2026 - so `productionSourceByArticle` can
+ * never place it and it always comes out `Unclassified`. The per-site pages pin
+ * themselves to one source, so every PREP row was dropped from all three of
+ * them and survived only on the admin-only Unclassified page.
+ *
+ * The Central Kitchen and the Bakery are where prep work actually happens, so
+ * those two show it. The YELO Factory does not, on request.
+ *
+ * THIS IS AN EXEMPTION, NOT AN ATTRIBUTION. The rows still carry
+ * `Prod_Source: 'Unclassified'`, because nothing in the data says which of the
+ * two sites made them - which is also why the same prep step appears on both
+ * pages and why their PREP totals must never be added together.
+ */
+export const PREP_SOURCES = new Set([SOURCE.CK, SOURCE.BAKERY])
+
+/** Is this row a prep step? Decided by Node Type, never by a blank article. */
+export const isPrepRow = (row) =>
+  String(row?.['Node Type'] ?? '').trim().toUpperCase() === 'PREP'
+
+/**
+ * May a PREP row stay, given the sources this request resolved to?
+ *
+ * Only where EVERY source in play is one that shows prep work. A mixed request
+ * - the kitchen and the factory together - keeps the stricter answer, so the
+ * factory's exclusion cannot be widened by asking for it alongside something
+ * else. A request pinned to nothing never reaches here.
+ */
+export const prepSurvives = (wanted) =>
+  Boolean(wanted?.size) && [...wanted].every((s) => PREP_SOURCES.has(s))
 
 /** What your hand-entered `FROM` column means, used only where movements are silent. */
 const FROM_MEANS = new Map([
-  ['CK', 'Central Kitchen / CPU'],
-  ['BK', 'Bakery'],
-  ['FCT', 'YELO Factory'],
+  ['CK', SOURCE.CK],
+  ['BK', SOURCE.BAKERY],
+  ['FCT', SOURCE.FACTORY],
 ])
 
 const norm = (s) => String(s ?? '').trim().toUpperCase()

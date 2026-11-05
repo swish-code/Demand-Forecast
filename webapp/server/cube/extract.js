@@ -119,11 +119,15 @@ async function writeRows(brand, rows, scope) {
 /**
  * One slice of the cube.
  *
- * Built through the same dax helpers the live pages use, so the report-level
- * filters — the hidden "SM" exclusion, and the chain pin for the two models
- * that hold two brands each — are applied identically. A copy that filtered
- * differently would disagree with Power BI, which is the one thing it must
- * never do.
+ * Built through the same dax helpers the live pages use, so whatever scoping
+ * they apply — today, the chain pin for the two models that hold two brands
+ * each — is applied identically. A copy that filtered differently from the
+ * live pages would disagree with them, which is the one thing it must never do.
+ *
+ * The hidden "SM" exclusion used to be part of that scoping and was removed on
+ * 5 Nov 2026 (see powerbi/dax.js). ANY SLICE EXTRACTED BEFORE THAT DATE IS
+ * STILL FILTERED, and stays that way until it is re-extracted — so a cube and a
+ * live query can legitimately disagree until the copy is rebuilt.
  */
 async function fetchSlice(brand, filters) {
   const query = `EVALUATE

@@ -41,28 +41,42 @@ const COLUMN = {
   nodeTypes: "'RECIPE TABLE'[Node Type]",
 }
 
-/**
- * Filters the Power BI reports apply to every page, hidden from the reader.
+/*
+ * THE "SM" EXCLUSION WAS REMOVED ON 5 NOV 2026, AT THE USER'S INSTRUCTION.
  *
- * Without these the app and the report disagree. Products whose name begins
- * "SM" are excluded by every report, and they are not marginal: they are 1.9%
- * of BBT and 10.4% of Yelo Pizza, so every figure for those brands read high
- * until this was applied.
+ * Every report hides products whose name begins "SM", and this file reproduced
+ * that filter on every query so the app and the report would agree:
  *
- * Two further report filters — excluding brand "YP COOP" and a null ChainName —
- * were measured against all nine models and changed nothing, so they are
- * deliberately not reproduced here. Adding inert filters to every query would
- * be surface area with no benefit.
+ *   FILTER(ALL(Forecast_Product_Table[ProductName_Fixed_Option]),
+ *     NOT(LEFT(Forecast_Product_Table[ProductName_Fixed_Option], 2) = "SM"))
  *
- * A caveat worth passing on: the report matches on the first two characters, so
- * it also removes genuine products that merely start with "Sm" — Smokey Rolls
- * Beef among them. The app copies that behaviour on purpose, because agreeing
- * with the report matters more than being cleverer than it. Fixing it belongs
- * in the report, and both would then need changing together.
+ * WHY IT IS GONE
+ *
+ * The rule means staff meal - products named "SM - ..." - but it matches on the
+ * first two characters and DAX compares case-insensitively, so it also removed
+ * every ordinary product beginning "Sm". Measured across all nine models,
+ * 1-30 Sep 2026: of 214,380 units excluded, 146,159 were genuine staff meal and
+ * 68,221 were not. The collateral is Small Potato Wedges (33,424), Small Baked
+ * Wedges (6,483), Small (5,263), Small Pan Margarita (4,496), Small Fries
+ * (2,328), Smokehouse Burger (1,961) and Smokey Rolls Beef (1,277). Yelo Pizza
+ * lost 7.4% of its sales to it; on one article - Crinckle Wedges - it hid 40%
+ * of the month's consumption.
+ *
+ * Offered the narrower fix (match "SM " / "SM-" only, keeping staff meal out),
+ * the user chose to remove the exclusion outright, so staff meal now counts
+ * toward the forecast like anything else.
+ *
+ * WHAT THIS COSTS, STATED PLAINLY
+ *
+ * The app no longer agrees with the Power BI reports, which still apply the old
+ * two-character match. Every figure on both sides should be expected to differ
+ * by the numbers above until the REPORTS are changed to match. That was the
+ * user's explicit choice on 5 Nov 2026: app now, report later.
+ *
+ * The cube in `cube/extract.js` is built through this function, so a copy
+ * extracted before this date is still filtered. It needs re-extracting before
+ * cube-backed pages show the new population.
  */
-const REPORT_FILTERS = [
-  'FILTER(ALL(Forecast_Product_Table[ProductName_Fixed_Option]), NOT(LEFT(Forecast_Product_Table[ProductName_Fixed_Option], 2) = "SM"))',
-]
 
 /**
  * Turn the UI filter state into SUMMARIZECOLUMNS filter arguments.
@@ -74,8 +88,8 @@ const REPORT_FILTERS = [
  * @param {boolean}  [options.withDate] include the date range (default true)
  */
 export function filterArgs(f = {}, options = {}) {
-  const { only, skip = [], withDate = true, reportFilters = true } = options
-  const args = reportFilters ? [...REPORT_FILTERS] : []
+  const { only, skip = [], withDate = true } = options
+  const args = []
 
   for (const [key, column] of Object.entries(COLUMN)) {
     if (only && !only.includes(key)) continue

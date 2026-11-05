@@ -36,13 +36,14 @@ const int = (v) => Math.round(num(v)).toLocaleString('en-US')
 async function probe(brand, window) {
   const pin = brand.chain ? `\n  TREATAS({"${brand.chain}"}, Forecast_Product_Table[CHAINID]),` : ''
   const dates = `TREATAS(CALENDAR(DATE(${window.from.replaceAll('-', ',')}), DATE(${window.to.replaceAll('-', ',')})), DateTable[Date])`
-  const noSm =
-    'FILTER(ALL(Forecast_Product_Table[ProductName_Fixed_Option]), NOT(LEFT(Forecast_Product_Table[ProductName_Fixed_Option], 2) = "SM"))'
-
+  /*
+   * The "SM" exclusion went on 5 Nov 2026 - see the note in powerbi/dax.js.
+   * Dropped here too: this panel has to measure the same population the pages
+   * do, or it reviews a model nobody is looking at.
+   */
   const dax = `EVALUATE
 SUMMARIZECOLUMNS(${pin}
   ${dates},
-  ${noSm},
   "Actual", [Total_Actual_Qty],
   "Forecast", [Total_Forecast_Qty],
   "Accuracy", [Forecast Accuracy %],
@@ -88,16 +89,13 @@ async function probeAccuracy(brand, window) {
     ? `\n      TREATAS({"${brand.chain}"}, Forecast_Product_Table[CHAINID]),`
     : ''
   const dates = `TREATAS(CALENDAR(DATE(${window.from.replaceAll('-', ',')}), DATE(${window.to.replaceAll('-', ',')})), DateTable[Date])`
-  const noSm =
-    'FILTER(ALL(Forecast_Product_Table[ProductName_Fixed_Option]), NOT(LEFT(Forecast_Product_Table[ProductName_Fixed_Option], 2) = "SM"))'
-
+  // Same removal as `probe` above - see powerbi/dax.js.
   const dax = `
 DEFINE
   VAR Base =
     SUMMARIZECOLUMNS(
       Forecast_Product_Table[Clean_ItemID],${pin}
       ${dates},
-      ${noSm},
       "A", [Total_Actual_Qty],
       "F", [Total_Forecast_Qty],
       "Acc", [Forecast Accuracy %]

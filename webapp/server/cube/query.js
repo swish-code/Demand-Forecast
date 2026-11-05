@@ -685,6 +685,22 @@ const COMPONENT_FILTERS = new Set([
    * live component query that knows nothing about production sources.
    */
   'prodSources',
+  /*
+   * And the two warehouse-model slicers, for the same reason a fourth time.
+   *
+   * `withOrderingChannel` stamps Transaction Type, Path and Transfer Status
+   * from the warehouse model and filters the assembled rows, so neither
+   * narrows anything here.
+   *
+   * `channels` was missing until 3 Nov 2026 - an oversight when the slicer was
+   * added, not a decision. Selecting a Transaction Type sent all nine brands to
+   * a live component query that knows nothing about channels, on the 8s budget:
+   * slow at best, "Could not reach Power BI" at worst, and the filter appeared
+   * to do nothing either way. `transferStatus` is added with it so the new
+   * slicer cannot repeat it.
+   */
+  'channels',
+  'transferStatus',
   'brand',
   'brands',
   'dateFrom',

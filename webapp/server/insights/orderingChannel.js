@@ -490,6 +490,66 @@ export function pathsForBrand(paths, brand) {
 }
 
 /**
+ * Did this article reach the brand on its row, straight from a Swish site?
+ *
+ * The question asked on 3 Nov 2026: which articles are NOT transferred
+ * directly from a Swish cost centre to their own brand. It is deliberately
+ * narrow - "its respective brand", not "any brand" - so an article the kitchen
+ * sent to PAT does not count as a direct transfer on the MM row.
+ *
+ * `issuedTo` is the set of brands that received this article from a Swish cost
+ * centre ANYWHERE in the window, which is what `channelsForWindow` accumulates
+ * off the transfer rows it already reads. A direct transfer is exactly the
+ * `Issue to Store` channel, so this and the Transaction Type column are one
+ * test rather than two definitions of the same idea.
+ *
+ * Three answers, and the third is the important one:
+ *
+ *   Direct Transfer      at least one Swish -> this brand movement
+ *   No Direct Transfer   movements exist but none of them did that, or the
+ *                        article did not move at all
+ *   Not traceable        there is no article number to look up
+ *
+ * NOT TRACEABLE IS NOT A SOFTER "NO" - it is the absence of evidence, and on
+ * these pages it is most of the population. A prep step carries no ERP article
+ * number in any of the nine models (45,312 of 45,312 rows blank, measured
+ * 3 Nov 2026) and its name matches a warehouse article in 3 of 978 cases. So
+ * nothing in the movement data can be joined to it. Calling that "No Direct
+ * Transfer" would publish 978 findings nobody looked up.
+ */
+export const TRANSFER_STATUS = {
+  DIRECT: 'Direct Transfer',
+  NONE: 'No Direct Transfer',
+  UNTRACEABLE: 'Not traceable',
+}
+
+export function transferStatus({ article, brand, issuedTo, known = true }) {
+  // No article number is no evidence either way - see above.
+  if (!norm(article)) return TRANSFER_STATUS.UNTRACEABLE
+  /*
+   * No brand on the row is no question to ask. These are the `__unattributed`
+   * rows - stock a site issued somewhere that is not a brand - and the brand
+   * column deliberately says nothing about them, so this must not either.
+   */
+  if (!norm(brand)) return null
+  // The warehouse model did not answer. Blank, not "No".
+  if (!known) return null
+  /*
+   * Both ends resolved through `brandOfCostCentre`, so a store code matches
+   * the brand above it: an article issued to YP-DFC reached YP.
+   *
+   * The caller already resolves what it collects, so this is resolving a brand
+   * code to itself most of the time. Done anyway, because a raw cost centre
+   * arriving here must not silently read as "No".
+   */
+  const want = key(brandOfCostCentre(brand) ?? brand)
+  for (const got of issuedTo ?? []) {
+    if (key(brandOfCostCentre(got) ?? got) === want) return TRANSFER_STATUS.DIRECT
+  }
+  return TRANSFER_STATUS.NONE
+}
+
+/**
  * The Path column's text: where the article came from and where it went.
  *
  * Joined with " ; " rather than " + " so it cannot be mistaken for the

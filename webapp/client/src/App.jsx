@@ -398,6 +398,14 @@ const PAGES = [
        */
       lockProdSource: 'Central Kitchen / CPU',
       /*
+       * Prep steps are shown here AND on Swish Bakery, deliberately.
+       *
+       * They carry no article number, so nothing can say which of the two made
+       * them - see `PREP_SOURCES` on the server. The flag turns on the note
+       * that says so, so nobody adds the two pages' prep totals together.
+       */
+      prepShared: true,
+      /*
        * PA and PREP only, asked for on 30 Sep 2026.
        *
        * Not RAW_ON_SITE_PAGES any more: the rule is per page now. Production
@@ -428,7 +436,11 @@ const PAGES = [
       // read the same way Stock Article is. The columns already arrive - the
       // server stamps them on every component-level response - so this is the
       // control for a value the rows were carrying anyway.
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'recipeKind'],
+      //
+      // Transfer Status joined it on 3 Nov 2026, and only on these two pages:
+      // it asks whether an article reached its own brand from a Swish site,
+      // which is a question about what these sites make.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
     },
     {
       id: 'src-bakery',
@@ -449,6 +461,8 @@ const PAGES = [
        * behind the rules and what is still unconfirmed.
        */
       lockProdSource: 'Bakery',
+      // Shared with the Production page - see the note there.
+      prepShared: true,
       // PA and PREP only - see the note on Production above.
       lockNodeTypes: ['PREP', 'PA'],
       noWarehouse: true,
@@ -466,8 +480,8 @@ const PAGES = [
        * population is the articles no rule could place - which is a question
        * for whoever maintains the classification, not a site's work list.
        */
-      // Transaction Type - see the note on Production above.
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'recipeKind'],
+      // Transaction Type and Transfer Status - see the note on Production.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
     },
     ...(YELO_FACTORY_PAGE_ON
       ? [
@@ -660,6 +674,16 @@ const EMPTY_OPTIONS = {
     'Return IN',
     'Needs Review',
   ],
+  /*
+   * Transfer Status. Fixed for the same reason - the server decides it per row
+   * from the warehouse model, so there is no list to fetch.
+   *
+   * 'Not traceable' is offered rather than hidden. It is most of the
+   * population on these pages - every prep step is one, because no model
+   * carries an article number for them - and a reader who cannot select it has
+   * no way to see how much of the table the other two answers actually cover.
+   */
+  transferStatus: ['Direct Transfer', 'No Direct Transfer', 'Not traceable'],
   // Fixed too: a row either has a recipe behind it or it does not.
   recipeKinds: ['Recipe', 'Non-recipe'],
   /*
@@ -782,6 +806,7 @@ export default function App({ session, onSignedOut }) {
     categories: [],
     supply: [],
     channels: [],
+    transferStatus: [],
     recipeKinds: [],
     statuses: [],
     prepStatus: [],
@@ -1016,6 +1041,7 @@ export default function App({ session, onSignedOut }) {
     category: { list: 'categories', filter: 'categories' },
     supply: { list: 'supply', filter: 'supply' },
     channel: { list: 'channels', filter: 'channels' },
+    transferStatus: { list: 'transferStatus', filter: 'transferStatus' },
     recipeKind: { list: 'recipeKinds', filter: 'recipeKinds' },
     status: { list: 'statuses', filter: 'statuses' },
     prepStatus: { list: 'prepStatus', filter: 'prepStatus' },
@@ -1085,6 +1111,7 @@ export default function App({ session, onSignedOut }) {
       supply: EMPTY_OPTIONS.supply,
       // Fixed like supply, and for the same reason: no endpoint returns it.
       channels: EMPTY_OPTIONS.channels,
+      transferStatus: EMPTY_OPTIONS.transferStatus,
       statuses: EMPTY_OPTIONS.statuses,
       recipeKinds: EMPTY_OPTIONS.recipeKinds,
     }),
@@ -1555,6 +1582,8 @@ export default function App({ session, onSignedOut }) {
               stockDetail={Boolean(session?.user?.stockDetail)}
               // Page-scoped: see `noWarehouse` on the Production page.
               noWarehouse={Boolean(page.noWarehouse)}
+              // Only the two pages that show prep steps they cannot place.
+              prepShared={Boolean(page.prepShared)}
             />
           )}
             </>

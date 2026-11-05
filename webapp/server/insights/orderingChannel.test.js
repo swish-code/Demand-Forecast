@@ -13,6 +13,8 @@ import {
   latestMovement,
   pathsForBrand,
   brandOfCostCentre,
+  transferStatus,
+  TRANSFER_STATUS,
 } from './orderingChannel.js'
 
 /*
@@ -449,6 +451,66 @@ test('a row with no brand keeps every path', () => {
 
 test('no path for this brand leaves the column blank, not another brand', () => {
   assert.equal(formatPaths(pathsForBrand(['Central Warehouse → TBL'], 'MM')), null)
+})
+
+/* ------------------------------------------- Transfer Status ----------- */
+
+test('a Swish issue to the row\'s own brand is a Direct Transfer', () => {
+  assert.equal(
+    transferStatus({ article: '106400606', brand: 'MM', issuedTo: new Set(['MM']) }),
+    TRANSFER_STATUS.DIRECT
+  )
+})
+
+test('an issue to a DIFFERENT brand is not a direct transfer', () => {
+  // The whole point of the rule: "its respective brand", not "any brand".
+  assert.equal(
+    transferStatus({ article: '106400606', brand: 'MM', issuedTo: new Set(['PAT', 'TBL']) }),
+    TRANSFER_STATUS.NONE
+  )
+})
+
+test('a store code counts as its brand', () => {
+  assert.equal(
+    transferStatus({ article: '1', brand: 'YP', issuedTo: new Set(['YP-DFC']) }),
+    TRANSFER_STATUS.DIRECT
+  )
+})
+
+test('Swish-to-Swish only, and no movement at all, both read No Direct Transfer', () => {
+  // An article that went only to the bakery never reached a brand...
+  assert.equal(
+    transferStatus({ article: '1', brand: 'BBT', issuedTo: new Set() }),
+    TRANSFER_STATUS.NONE
+  )
+  // ...and neither did one that did not move, which arrives the same way: the
+  // article is simply absent from the map, so `issuedTo` is undefined.
+  assert.equal(
+    transferStatus({ article: '1', brand: 'BBT', issuedTo: undefined }),
+    TRANSFER_STATUS.NONE
+  )
+})
+
+test('a prep step is Not traceable, never a No', () => {
+  // No article number in any of the nine models, so nothing was looked up.
+  assert.equal(
+    transferStatus({ article: '', brand: 'BBT', issuedTo: undefined }),
+    TRANSFER_STATUS.UNTRACEABLE
+  )
+  assert.equal(
+    transferStatus({ article: null, brand: 'BBT', issuedTo: new Set(['BBT']) }),
+    TRANSFER_STATUS.UNTRACEABLE
+  )
+})
+
+test('no brand, or no answer from the model, leaves the column blank', () => {
+  // An unattributed row has no brand for the question to be about.
+  assert.equal(transferStatus({ article: '1', brand: '', issuedTo: new Set() }), null)
+  // And an unreachable warehouse model is not evidence of absence.
+  assert.equal(
+    transferStatus({ article: '1', brand: 'BBT', issuedTo: undefined, known: false }),
+    null
+  )
 })
 
 test('a path belonging to a dropped Needs Review does not survive it', () => {
