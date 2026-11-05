@@ -34,6 +34,7 @@
  * carries `proposal: true` rather than an instruction.
  */
 import * as cube from '../cube/query.js'
+import { siteShipHistory } from '../powerbi/siteOutbound.js'
 
 /**
  * Where each rung starts, in days since the last shipment.
@@ -219,6 +220,36 @@ export async function classifyArticles({ asAt = new Date() } = {}) {
   const recentFrom = iso(Date.parse(`${at}T00:00:00Z`) - RECENT_WINDOW_DAYS * DAY)
 
   const history = await cube.shipHistory({ asAt: at, recentFrom }).catch(() => new Map())
+  const out = new Map()
+  for (const [article, record] of history) {
+    out.set(article, classifyOne(record, at))
+  }
+  return out
+}
+
+/**
+ * The same ladder, dated from ONE PRODUCTION SITE'S issuing instead.
+ *
+ * Added 5 Nov 2026. On a page of articles the warehouse never handles, "days
+ * since the warehouse last issued it" has no answer and every row read Never
+ * shipped. `sites` is the page's own cost centres - CK/CPU on Production - so
+ * the question becomes "how many days since this site last issued it".
+ *
+ * `classifyOne` is reused untouched: the ladder is arithmetic over a last-issued
+ * date, and only the source of that date differs. So the two pages cannot drift
+ * into two definitions of Slow-Moving.
+ *
+ * Returns NULL where the site history could not be fetched, which the caller
+ * must treat as "unknown" and leave blank. An empty Map would say every article
+ * on the page has never moved, which is the one wrong answer worth guarding.
+ */
+export async function classifySiteArticles({ asAt = new Date(), sites } = {}) {
+  const at = typeof asAt === 'string' ? asAt.slice(0, 10) : iso(asAt)
+  const recentFrom = iso(Date.parse(`${at}T00:00:00Z`) - RECENT_WINDOW_DAYS * DAY)
+
+  const history = await siteShipHistory({ asAt: at, recentFrom, sites }).catch(() => null)
+  if (!history) return null
+
   const out = new Map()
   for (const [article, record] of history) {
     out.set(article, classifyOne(record, at))

@@ -76,7 +76,10 @@ export const SLICERS = [
    */
   { id: 'transferStatus', key: 'transferStatus', label: 'Transfer Status', options: 'transferStatus', placeholder: 'All' },
   /*
-   * How long since the warehouse last issued the article.
+   * How long since the article was last issued - by the CENTRAL WAREHOUSE on
+   * Stock Article, and by the page's own production site where one is pinned
+   * (Production reads CK/CPU, from 5 Nov 2026). Same ladder either way; the
+   * server picks the source in `withStatus`.
    *
    * The same ladder the forecast routes on, so filtering to Non-Moving shows
    * exactly the articles the forecast decided not to forecast.

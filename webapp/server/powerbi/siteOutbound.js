@@ -3,6 +3,7 @@ import { cached } from '../cache.js'
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
 import { executeQuery } from './client.js'
+import { SITE_COST_CENTRES } from '../insights/productionSource.js'
 
 /**
  * What a PRODUCTION SITE issued of each article, per brand, for one window.
@@ -36,12 +37,7 @@ import { executeQuery } from './client.js'
  */
 
 /** The raw cost-centre names that are production sites. */
-export const SITE_NAMES = [
-  'Central Production Unit',
-  'Centeral Kitchen',
-  'Swish Bakery',
-  'Yelo Factory',
-]
+export const SITE_NAMES = [...SITE_COST_CENTRES.values()].flat()
 
 const isConfigured = () =>
   Boolean(config.warehouse?.datasetId && config.warehouse?.workspaceId)
@@ -324,4 +320,106 @@ SUMMARIZECOLUMNS(
     }
   }
   return out
+}
+
+/**
+ * When each article was LAST ISSUED BY A GIVEN SITE, and how much it has moved.
+ *
+ * The site twin of `cube.shipHistory`, and the same shape, so `classifyOne` can
+ * read either without knowing which it was given. That matters: the Status
+ * ladder is pure arithmetic over a last-issued date, and the only thing that
+ * should differ between Stock Article and the production pages is WHOSE issuing
+ * is being dated.
+ *
+ * ASKED FOR ON 5 NOV 2026. The warehouse ladder is the wrong question on a page
+ * of articles the warehouse never handles - a prepared article is made at the
+ * kitchen and issued from there, so the warehouse has no line for it and every
+ * row read "Never shipped". `sites` is the page's OWN site, not production in
+ * general: "production" on the Production page means CK/CPU.
+ *
+ * WHY A DAILY DATE AND NOT `cube_site_outbound_monthly`
+ *
+ * That copy is keyed by month and carries no source site, and the ladder's rungs
+ * are thirty days apart - so a month-grained answer can place an article a whole
+ * rung wrong, on a status that proposes deactivation. This reads the fact table
+ * for a real date instead.
+ *
+ * THE LOOKBACK IS TWO YEARS, and that is a trade.
+ *
+ * The warehouse twin reads its whole copied history; this reads the fact table
+ * live, so it is bounded to keep the query honest in size. An article last
+ * issued more than two years ago therefore reads "Never shipped" rather than
+ * "To Be Deactivated". Both mean stop forecasting it, so nothing downstream acts
+ * differently - but the two are not the same sentence, and a reader comparing
+ * this page with Stock Article should know which one they are being told.
+ */
+const LOOKBACK_DAYS = 730
+const DAY_MS = 86_400_000
+const minus = (isoDate, days) =>
+  new Date(Date.parse(`${isoDate}T00:00:00Z`) - days * DAY_MS).toISOString().slice(0, 10)
+
+export async function siteShipHistory({ asAt, recentFrom, sites }) {
+  const names = (sites ?? []).filter(Boolean)
+  if (!isConfigured() || !asAt || !names.length) return null
+
+  return cached(`site-ship-history:${names.join('|')}:${asAt}:${recentFrom ?? ''}`, async () => {
+    const from = minus(asAt, LOOKBACK_DAYS)
+    /*
+     * `LastDate` and the counts all ignore zero-quantity lines, exactly as the
+     * warehouse copy does with `WHERE qty > 0`. A cancelled line dated later
+     * than the real one would otherwise become the article's last issue and
+     * make a moving article look idle.
+     */
+    const dax = `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Article No.],
+  TREATAS({${lit(names)}}, fact_outbound_line[Cost Center/Store]),
+  DATESBETWEEN(dim_date[Date], ${asDate(from)}, ${asDate(asAt)}),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${lit(config.warehouse.statuses)}}
+  ),
+  "LastDate", CALCULATE(MAX(dim_date[Date]),
+    FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0)),
+  "FirstDate", CALCULATE(MIN(dim_date[Date]),
+    FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0)),
+  "TotalQty", CALCULATE(SUM(fact_outbound_line[Action Base Qty]),
+    FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0)),
+  "RecentDays", CALCULATE(DISTINCTCOUNT(dim_date[Date]),
+    FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0),
+    DATESBETWEEN(dim_date[Date], ${asDate(recentFrom ?? from)}, ${asDate(asAt)}))
+)`
+
+    const rows = await executeQuery(dax, config.warehouse.datasetId, {
+      bulk: true,
+      workspace: config.warehouse.workspaceId,
+    }).catch((err) => {
+      console.warn(`  [site-status] ${names[0]}: ${String(err.message).slice(0, 90)}`)
+      return null
+    })
+    // Null, not empty: "we could not ask" must not read as "nothing ever moved",
+    // which would mark the whole page Never shipped.
+    if (!rows) return null
+
+    const day = (v) => {
+      const s = String(v ?? '').slice(0, 10)
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null
+    }
+    const val = (r, k) => r[k] ?? r[`[${k}]`]
+    const out = new Map()
+    for (const r of rows) {
+      const article = String(val(r, 'Article No.') ?? '').trim()
+      if (!article) continue
+      const lastShipped = day(val(r, 'LastDate'))
+      // No dated line in the lookback is no history to classify from.
+      if (!lastShipped) continue
+      out.set(article, {
+        lastShipped,
+        firstShipped: day(val(r, 'FirstDate')),
+        totalQty: Number(val(r, 'TotalQty')) || 0,
+        recentDays: Number(val(r, 'RecentDays')) || 0,
+      })
+    }
+    return out
+  })
 }

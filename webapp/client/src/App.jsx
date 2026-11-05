@@ -230,7 +230,16 @@ const PAGES = [
      * the same narrowing that keeps every other page's filters to its own
      * slicers, so a product chosen on Products cannot silently filter this one.
      */
-    slicers: ['location', 'date', 'item', 'category', 'supply', 'channel', 'recipeKind', 'status'],
+    /*
+     * Transfer Status joined on 5 Nov 2026, on request.
+     *
+     * It reads differently here than on the production pages, and usefully so.
+     * These are RAW articles the CENTRAL WAREHOUSE ships, and the warehouse is
+     * a Swish cost centre, so `swish -> brand` is the ordinary flow rather than
+     * the exception: Direct Transfer means "the warehouse issued this article
+     * to this brand inside the window".
+     */
+    slicers: ['location', 'date', 'item', 'category', 'supply', 'channel', 'transferStatus', 'recipeKind', 'status'],
   },
   {
     /*
@@ -440,7 +449,20 @@ const PAGES = [
       // Transfer Status joined it on 3 Nov 2026, and only on these two pages:
       // it asks whether an article reached its own brand from a Swish site,
       // which is a question about what these sites make.
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
+      //
+      // Status joined on 5 Nov 2026, on request, with the same rule Stock
+      // Article uses - `withStatus` already stamps every component row, so this
+      // offers a control for a value the rows were carrying anyway.
+      //
+      // It measures THIS SITE'S issuing, not the warehouse's: on this page the
+      // ladder is "days since CK/CPU last issued the article", because the
+      // warehouse never handles what the kitchen makes and dating it from the
+      // warehouse marked every row Never shipped. The server picks the source
+      // from the page's own `lockProdSource` - see `withStatus` in routes/api.js.
+      //
+      // A prep step still has no article number and so no status at all, which
+      // means ANY Status selection hides every PREP row on this page.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'status', 'recipeKind'],
     },
     {
       id: 'src-bakery',
@@ -682,8 +704,18 @@ const EMPTY_OPTIONS = {
    * population on these pages - every prep step is one, because no model
    * carries an article number for them - and a reader who cannot select it has
    * no way to see how much of the table the other two answers actually cover.
+   *
+   * 'No Movement' split out of 'No Direct Transfer' on 5 Nov 2026. They are
+   * different findings: one says the article moved and never reached a brand,
+   * the other says the window holds no movement for it at all. 208 of 901
+   * CK/CPU articles were the second wearing the first's label.
    */
-  transferStatus: ['Direct Transfer', 'No Direct Transfer', 'Not traceable'],
+  transferStatus: [
+    'Direct Transfer',
+    'No Direct Transfer',
+    'No Movement',
+    'Not traceable',
+  ],
   // Fixed too: a row either has a recipe behind it or it does not.
   recipeKinds: ['Recipe', 'Non-recipe'],
   /*

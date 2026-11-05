@@ -131,7 +131,13 @@ const COLUMNS = [
    */
   {
     /*
-     * How long since the warehouse last issued the article.
+     * How long since the article was last issued — by WHOM depends on the page.
+     *
+     * Stock Article dates it from the CENTRAL WAREHOUSE. A page pinned to a
+     * production site dates it from THAT SITE instead, so Production reads
+     * "days since CK/CPU last issued this". Same ladder, same thresholds, same
+     * labels; only the source of the date differs, and the server decides it —
+     * see `withStatus` in routes/api.js.
      *
      * The same ladder the forecast routes on, so a reader who wonders why a row
      * has no warehouse forecast can see the reason in the row rather than
@@ -310,11 +316,13 @@ const COLUMNS = [
       'Two movements on the same day show both paths, separated by ";".',
   },
   /*
-   * Did the article reach THIS brand straight from a Swish site?
+   * Did the article reach ANY brand straight from a Swish site?
    *
    * The whole window, not the latest movement - which is what separates it
-   * from the two columns above. See `transferStatus` on the server for the
-   * rule and for why "Not traceable" is a third answer rather than a No.
+   * from the two columns above. Article-level from 5 Nov 2026: every brand row
+   * for an article agrees, and the Path column beside it says where the article
+   * actually went. See `transferStatus` on the server for the rule, and for why
+   * "No Movement" and "Not traceable" are answers rather than softer Nos.
    */
   {
     key: 'Transfer Status',
@@ -322,11 +330,12 @@ const COLUMNS = [
     width: 150,
     hiddenByDefault: true,
     hint:
-      'Whether this article was transferred DIRECTLY from a Swish cost centre (CPU, Central Kitchen, Swish Bakery, Yelo Factory, the Central Warehouse) to the brand on this row, at any point in the chosen date range. ' +
-      'Direct Transfer = at least one such movement. ' +
-      'No Direct Transfer = the article moved only between Swish cost centres, or only to a different brand, or did not move at all. ' +
-      'Not traceable = a prep step, which carries no article number in any model, so there is nothing in the movement data to look it up by — it is an absence of evidence, not a No. ' +
-      'Blank means the row reached no brand at all, so the question does not arise.',
+      'Whether this article was transferred DIRECTLY from a Swish cost centre (CPU, Central Kitchen, Swish Bakery, Yelo Factory, the Central Warehouse) to ANY brand, at any point in the chosen date range. ' +
+      'It is a fact about the ARTICLE, so every brand row for it shows the same answer — Path says which brands it actually reached. ' +
+      'Direct Transfer = at least one Swish-to-brand movement. ' +
+      'No Direct Transfer = the article moved, but only between Swish cost centres — typically CKU/CPU to Swish Bakery. ' +
+      'No Movement = the window holds no movement record for it at all, which is an absence of evidence rather than a No. ' +
+      'Not traceable = a prep step, which carries no article number in any model, so there is nothing in the movement data to look it up by.',
     render: (v) =>
       v ? (
         <Pill
@@ -337,7 +346,7 @@ const COLUMNS = [
           {v}
         </Pill>
       ) : (
-        <span className="muted" title="This row reached no brand, so there is no brand to have been transferred to">
+        <span className="muted" title="The warehouse model could not be reached, so this is unknown rather than a No">
           –
         </span>
       ),
@@ -4204,14 +4213,23 @@ export function ComponentLevel({
              */
             collapsibleGroups
             /*
-             * No Freeze control where the warehouse columns are gone.
+             * Freeze is offered on every page, from 5 Nov 2026.
              *
-             * Removing the warehouse and variance groups takes about fifteen
-             * columns off the table, and what is left fits without scrolling
-             * sideways - so there is nothing for a pinned first column to hold
-             * still against.
+             * It used to be `!noWarehouse`, on the reasoning that dropping the
+             * warehouse and variance groups left about fifteen fewer columns
+             * and a table narrow enough never to scroll sideways - so there was
+             * nothing for a pinned column to hold still against.
+             *
+             * That stopped being true as columns were added back: Prod_Source,
+             * then Transaction Type and Path, then Transfer Status. Production
+             * and Swish Bakery scroll sideways again, and Recipe and Article
+             * scroll away with everything else, which is exactly the case the
+             * control exists for. Asked for on 5 Nov 2026.
+             *
+             * Harmless where it is not needed. The default is no frozen column,
+             * so nothing turns sticky until a reader picks one.
              */
-            freezable={!noWarehouse}
+            freezable
             onColumnsChange={setHiddenCols}
             onViewChange={setView}
             onRowClick={(row) => setUsage(row)}

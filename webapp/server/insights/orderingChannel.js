@@ -468,85 +468,164 @@ export function brandOfCostCentre(costCentre) {
  * "Yelo Al Salam Mall → YP" into "YP → YP" and then into nothing, and that leg
  * is the only evidence for the Brand Transfer the column beside it names - a
  * channel with no path under it is worse than a path with two lines.
+ *
+ * THE OTHER BRANDS ARE NOW NAMED RATHER THAN HIDDEN - 5 NOV 2026.
+ *
+ * Dropping them left the cell blank beside a Transaction Type reading "Issue to
+ * Store", which reads as missing data rather than as "this leg belongs to
+ * another row". Measured over 1-30 Oct: of the 586 CK/CPU articles that did
+ * reach a brand, 514 reached exactly one - so on eight of nine brand rows the
+ * only leg there was got filtered away.
+ *
+ * So the legs still go, and one summary line takes their place, naming the
+ * distinct brands this article actually reached. Any real leg for THIS row is
+ * kept beside it, so the cell never loses a path it could have shown.
+ *
+ * `issuedTo` is the source of truth for that summary, not `paths`. The paths
+ * describe the LATEST movement only, while `issuedTo` is the whole window - an
+ * article issued to PAT on the 3rd and moved to the bakery on the 28th has no
+ * brand leg left in `paths`, and the reader still needs to be told about PAT.
  */
-export function pathsForBrand(paths, brand) {
+const transferredLine = (names) =>
+  names.length > 1
+    ? `Transferred to different brands → ${names.join(', ')}`
+    : `Transferred to a different brand → ${names[0]}`
+
+/*
+ * A SECOND LINE, for legs that were dropped but were never a transfer.
+ *
+ * Measured 5 Nov 2026 after the summary above went in: 499 of 16,290 brand rows
+ * still showed a Transaction Type beside a blank Path. They are legs belonging
+ * to another brand that did not come from an `Issue to Store` - 475 purchases
+ * delivered straight into another brand ("Supplier → FM" on a BBT row) and 24
+ * brand-to-brand transfers ("MM → MM-PLC"). `issuedTo` holds neither, because
+ * it only collects Swish -> brand issues.
+ *
+ * Worded separately rather than folded into the line above, because calling a
+ * supplier delivery into FM a "transfer" would be false. Same blank cell, a
+ * different fact, so it gets its own sentence.
+ */
+const elsewhereLine = (names) => `Another brand's movement → ${names.join(', ')}`
+
+/** Distinct brand names from `values`, excluding `want`, in name order. */
+function otherBrands(values, want, exclude = new Set()) {
+  // Keyed case-insensitively so "YP-DFC" and "YP" cannot both be listed, and
+  // so a store code is named by the brand above it rather than by itself.
+  const out = new Map()
+  for (const got of values ?? []) {
+    const owner = norm(brandOfCostCentre(got) ?? got)
+    if (!owner) continue
+    const k = key(owner)
+    if (k === want || out.has(k) || exclude.has(k)) continue
+    out.set(k, owner)
+  }
+  return [...out.values()].sort()
+}
+
+export function pathsForBrand(paths, brand, issuedTo) {
   const want = key(brand)
   const list = (paths ?? []).filter(Boolean)
   if (!want) return list
   const seen = new Set()
   const kept = []
+  const droppedTo = []
   for (const p of list) {
     const text = String(p)
     const at = text.lastIndexOf('→')
     const owner = brandOfCostCentre(at < 0 ? text : text.slice(at + 1))
-    if (owner !== null && key(owner) !== want) continue
+    if (owner !== null && key(owner) !== want) {
+      droppedTo.push(owner)
+      continue
+    }
     // A store code says the brand's name once the row already carries it.
     const line = owner === null || at < 0 ? text : `${text.slice(0, at).trimEnd()} → ${owner}`
     if (seen.has(line)) continue
     seen.add(line)
     kept.push(line)
   }
+
+  const transferred = otherBrands(issuedTo, want)
+  if (transferred.length) kept.push(transferredLine(transferred))
+
+  // Anything already named as a transfer is not repeated here.
+  const named = new Set(transferred.map(key))
+  const elsewhere = otherBrands(droppedTo, want, named)
+  if (elsewhere.length) kept.push(elsewhereLine(elsewhere))
+
   return kept
 }
 
 /**
- * Did this article reach the brand on its row, straight from a Swish site?
+ * Was this article transferred straight from a Swish site to ANY brand?
  *
- * The question asked on 3 Nov 2026: which articles are NOT transferred
- * directly from a Swish cost centre to their own brand. It is deliberately
- * narrow - "its respective brand", not "any brand" - so an article the kitchen
- * sent to PAT does not count as a direct transfer on the MM row.
+ * ANY BRAND, FROM 5 NOV 2026. Until then the question was "did it reach the
+ * brand on THIS ROW", and that turned out to answer No far more often than the
+ * business meant. Measured over 1-30 Oct: 586 CK/CPU articles did transfer
+ * directly to a brand, but 514 of them reached exactly one - so of the 5,274
+ * brand rows those articles occupy, only 731 could say Direct Transfer. The
+ * other 86% read No about an article that demonstrably does transfer out.
+ *
+ * The rule is now a property of the ARTICLE, not of the article-and-brand pair,
+ * so every brand row for an article agrees. Where that article actually went is
+ * the Path column's job - see `pathsForBrand`, which names the other brands
+ * rather than leaving the cell blank.
  *
  * `issuedTo` is the set of brands that received this article from a Swish cost
  * centre ANYWHERE in the window, which is what `channelsForWindow` accumulates
  * off the transfer rows it already reads. A direct transfer is exactly the
- * `Issue to Store` channel, so this and the Transaction Type column are one
- * test rather than two definitions of the same idea.
+ * `Issue to Store` channel - Swish -> brand - so this and the Transaction Type
+ * column are one test rather than two definitions of the same idea. The
+ * Central Warehouse is a Swish cost centre, so the ordinary Stock Article flow
+ * of warehouse -> brand qualifies exactly as the kitchens' do.
  *
- * Three answers, and the third is the important one:
+ * FOUR ANSWERS, and the last two are the ones that are easy to merge wrongly:
  *
- *   Direct Transfer      at least one Swish -> this brand movement
- *   No Direct Transfer   movements exist but none of them did that, or the
- *                        article did not move at all
- *   Not traceable        there is no article number to look up
+ *   Direct Transfer      at least one Swish -> brand movement, any brand
+ *   No Direct Transfer   the article MOVED, and none of it was Swish -> brand.
+ *                        Swish-to-Swish only, typically CKU/CPU -> SWISH BAKERY
+ *   No Movement          no movement record at all in the window
+ *   Not traceable        there is no article number to look anything up by
  *
- * NOT TRACEABLE IS NOT A SOFTER "NO" - it is the absence of evidence, and on
- * these pages it is most of the population. A prep step carries no ERP article
- * number in any of the nine models (45,312 of 45,312 rows blank, measured
- * 3 Nov 2026) and its name matches a warehouse article in 3 of 978 cases. So
- * nothing in the movement data can be joined to it. Calling that "No Direct
- * Transfer" would publish 978 findings nobody looked up.
+ * NO MOVEMENT IS NOT A NO - split out on 5 Nov 2026. It used to fall through to
+ * No Direct Transfer, which asserted a negative from an absence of evidence:
+ * 208 of 901 CK/CPU articles have no movement row at all in October, and the
+ * column was reporting all of them as a finding about transfers. "Nothing
+ * shipped here" and "this came out at nought" are different answers, and only
+ * the second is a No.
+ *
+ * NOT TRACEABLE IS NOT A SOFTER "NO" EITHER - it is the absence of a KEY. A prep
+ * step carries no ERP article number in any of the nine models (45,312 of
+ * 45,312 rows blank, measured 3 Nov 2026) and its name matches a warehouse
+ * article in 3 of 978 cases. So nothing in the movement data can be joined to
+ * it. Calling that "No Direct Transfer" would publish 978 findings nobody
+ * looked up.
  */
 export const TRANSFER_STATUS = {
   DIRECT: 'Direct Transfer',
   NONE: 'No Direct Transfer',
+  NO_MOVEMENT: 'No Movement',
   UNTRACEABLE: 'Not traceable',
 }
 
-export function transferStatus({ article, brand, issuedTo, known = true }) {
+/**
+ * @param {object}  args
+ * @param {string}  args.article   the ERP article number, blank on a prep step
+ * @param {Set}     args.issuedTo  brands this article reached from a Swish site
+ * @param {boolean} args.moved     does the model hold ANY movement for it
+ * @param {boolean} args.known     did the warehouse model answer at all
+ */
+export function transferStatus({ article, issuedTo, moved = false, known = true }) {
   // No article number is no evidence either way - see above.
   if (!norm(article)) return TRANSFER_STATUS.UNTRACEABLE
-  /*
-   * No brand on the row is no question to ask. These are the `__unattributed`
-   * rows - stock a site issued somewhere that is not a brand - and the brand
-   * column deliberately says nothing about them, so this must not either.
-   */
-  if (!norm(brand)) return null
   // The warehouse model did not answer. Blank, not "No".
   if (!known) return null
   /*
-   * Both ends resolved through `brandOfCostCentre`, so a store code matches
-   * the brand above it: an article issued to YP-DFC reached YP.
-   *
-   * The caller already resolves what it collects, so this is resolving a brand
-   * code to itself most of the time. Done anyway, because a raw cost centre
-   * arriving here must not silently read as "No".
+   * The row's own brand is deliberately NOT consulted. This is article-level,
+   * so an `__unattributed` row - one that reached no brand - now gets a real
+   * answer too, where it used to be blanked for having no brand to ask about.
    */
-  const want = key(brandOfCostCentre(brand) ?? brand)
-  for (const got of issuedTo ?? []) {
-    if (key(brandOfCostCentre(got) ?? got) === want) return TRANSFER_STATUS.DIRECT
-  }
-  return TRANSFER_STATUS.NONE
+  if ((issuedTo?.size ?? 0) > 0) return TRANSFER_STATUS.DIRECT
+  return moved ? TRANSFER_STATUS.NONE : TRANSFER_STATUS.NO_MOVEMENT
 }
 
 /**

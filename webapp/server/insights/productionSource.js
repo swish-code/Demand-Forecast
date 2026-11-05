@@ -82,6 +82,29 @@ const BY_MAPPED = new Map([['SWISH BAKERY', SOURCE.BAKERY]])
  */
 const NOT_A_SITE = new Set(['STAFF MEAL', 'FM- CPU', 'ERMG CK'])
 
+/**
+ * Each site's own cost-centre names, as `fact_outbound_line` spells them.
+ *
+ * `CATEGORY` and `BY_MAPPED` above answer "which site is this line from"; this
+ * answers the reverse, "which lines are this site's", and the Status ladder on
+ * the production pages needs the reverse - "how many days since CK/CPU last
+ * issued this article" cannot be asked without naming CK/CPU's own lines.
+ *
+ * Central Kitchen and Central Production Unit are listed together for the same
+ * reason they share a category: the evidence says one cost centre renamed in
+ * early 2026, unconfirmed by the business. Separating them is a change here and
+ * in `CATEGORY`, together.
+ *
+ * Spelled as the RAW column holds them, including the source's own "Centeral".
+ * `siteOutbound.js` flattens this into `SITE_NAMES`, so the names cannot drift
+ * between "what counts as production" and "what this site issued".
+ */
+export const SITE_COST_CENTRES = new Map([
+  [SOURCE.CK, ['Central Production Unit', 'Centeral Kitchen']],
+  [SOURCE.BAKERY, ['Swish Bakery']],
+  [SOURCE.FACTORY, ['Yelo Factory']],
+])
+
 export const UNCLASSIFIED = 'Unclassified'
 
 export const SOURCES = [SOURCE.CK, SOURCE.BAKERY, SOURCE.FACTORY, UNCLASSIFIED]

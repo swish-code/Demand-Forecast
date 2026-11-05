@@ -387,10 +387,22 @@ test('the same path twice on one day is said once', () => {
 
 /* --------------------------------- paths, narrowed to the row's brand --- */
 
-test("a row shows only its own brand's leg of a fan-out", () => {
+test("a row shows only its own brand's leg of a fan-out, and names the rest", () => {
+  /*
+   * The narrowing is unchanged; what changed on 5 Nov 2026 is that the legs
+   * belonging to other brands are summarised instead of vanishing. Passing no
+   * `issuedTo` here, so the other leg is reported as a movement rather than as
+   * a transfer - see the two summary lines in `pathsForBrand`.
+   */
   const paths = ['Central Warehouse → MM', 'Central Warehouse → TBL']
-  assert.equal(formatPaths(pathsForBrand(paths, 'MM')), 'Central Warehouse → MM')
-  assert.equal(formatPaths(pathsForBrand(paths, 'TBL')), 'Central Warehouse → TBL')
+  assert.equal(
+    formatPaths(pathsForBrand(paths, 'MM')),
+    "Central Warehouse → MM ; Another brand's movement → TBL"
+  )
+  assert.equal(
+    formatPaths(pathsForBrand(paths, 'TBL')),
+    "Central Warehouse → TBL ; Another brand's movement → MM"
+  )
 })
 
 test('a path with no brand at either end is kept for every row', () => {
@@ -437,8 +449,12 @@ test("FM-JHR is FM's, so an FM row keeps both of its own legs", () => {
   assert.equal(brandOfCostCentre('FM-JHR'), 'FM')
   // Both are FM's and both come from the kitchen, so they are one leg.
   assert.equal(formatPaths(pathsForBrand(paths, 'FM')), 'CKU/CPU → FM')
-  // ...and it is still not anyone else's.
-  assert.equal(formatPaths(pathsForBrand(paths, 'PAT')), null)
+  // ...and it is still not PAT's. PAT is told whose it is rather than nothing,
+  // and told it ONCE, because FM-JHR resolves to FM like the other leg.
+  assert.equal(
+    formatPaths(pathsForBrand(paths, 'PAT')),
+    "Another brand's movement → FM"
+  )
 })
 
 test('a row with no brand keeps every path', () => {
@@ -449,67 +465,179 @@ test('a row with no brand keeps every path', () => {
   assert.deepEqual(pathsForBrand(paths, null), paths)
 })
 
-test('no path for this brand leaves the column blank, not another brand', () => {
-  assert.equal(formatPaths(pathsForBrand(['Central Warehouse → TBL'], 'MM')), null)
+test("another brand's leg is never printed as though it were this row's", () => {
+  /*
+   * The original rule, and still the point: an MM row must never read
+   * "Central Warehouse → TBL", which looks like MM received it. It used to go
+   * blank; from 5 Nov 2026 it says whose leg it was instead, which is the same
+   * protection with the missing-data look removed.
+   */
+  const out = formatPaths(pathsForBrand(['Central Warehouse → TBL'], 'MM'))
+  assert.equal(out, "Another brand's movement → TBL")
+  assert.ok(!out.includes('Central Warehouse → TBL'))
 })
 
 /* ------------------------------------------- Transfer Status ----------- */
 
 test('a Swish issue to the row\'s own brand is a Direct Transfer', () => {
   assert.equal(
-    transferStatus({ article: '106400606', brand: 'MM', issuedTo: new Set(['MM']) }),
+    transferStatus({ article: '106400606', issuedTo: new Set(['MM']), moved: true }),
     TRANSFER_STATUS.DIRECT
   )
 })
 
-test('an issue to a DIFFERENT brand is not a direct transfer', () => {
-  // The whole point of the rule: "its respective brand", not "any brand".
+test('an issue to a DIFFERENT brand is ALSO a Direct Transfer', () => {
+  /*
+   * The 5 Nov 2026 change, and the reason for it. Under the old rule this read
+   * No on every brand row but PAT's and TBL's - and 514 of 586 CK/CPU articles
+   * reach exactly one brand, so the column said No about articles that
+   * demonstrably transfer out. Which brands is now the Path column's job.
+   */
   assert.equal(
-    transferStatus({ article: '106400606', brand: 'MM', issuedTo: new Set(['PAT', 'TBL']) }),
-    TRANSFER_STATUS.NONE
-  )
-})
-
-test('a store code counts as its brand', () => {
-  assert.equal(
-    transferStatus({ article: '1', brand: 'YP', issuedTo: new Set(['YP-DFC']) }),
+    transferStatus({ article: '106400606', issuedTo: new Set(['PAT', 'TBL']), moved: true }),
     TRANSFER_STATUS.DIRECT
   )
 })
 
-test('Swish-to-Swish only, and no movement at all, both read No Direct Transfer', () => {
-  // An article that went only to the bakery never reached a brand...
+test('a store code still counts as a brand', () => {
   assert.equal(
-    transferStatus({ article: '1', brand: 'BBT', issuedTo: new Set() }),
+    transferStatus({ article: '1', issuedTo: new Set(['YP-DFC']), moved: true }),
+    TRANSFER_STATUS.DIRECT
+  )
+})
+
+test('Swish-to-Swish only is No Direct Transfer - it MOVED, just not to a brand', () => {
+  assert.equal(
+    transferStatus({ article: '1', issuedTo: new Set(), moved: true }),
     TRANSFER_STATUS.NONE
   )
-  // ...and neither did one that did not move, which arrives the same way: the
-  // article is simply absent from the map, so `issuedTo` is undefined.
+})
+
+test('no movement at all is No Movement, NOT No Direct Transfer', () => {
+  /*
+   * Split out on 5 Nov 2026. These two used to share a label, which asserted a
+   * negative from an absence of evidence - 208 of 901 CK/CPU articles have no
+   * movement row at all in October and every one was being reported as a
+   * finding about transfers.
+   *
+   * An article the model never saw is simply absent from the map, so the caller
+   * passes `moved: false` and `issuedTo` undefined.
+   */
   assert.equal(
-    transferStatus({ article: '1', brand: 'BBT', issuedTo: undefined }),
-    TRANSFER_STATUS.NONE
+    transferStatus({ article: '1', issuedTo: undefined, moved: false }),
+    TRANSFER_STATUS.NO_MOVEMENT
   )
+  // `moved` defaults to false, so a caller that forgets it cannot accidentally
+  // publish a No.
+  assert.equal(transferStatus({ article: '1' }), TRANSFER_STATUS.NO_MOVEMENT)
 })
 
 test('a prep step is Not traceable, never a No', () => {
   // No article number in any of the nine models, so nothing was looked up.
   assert.equal(
-    transferStatus({ article: '', brand: 'BBT', issuedTo: undefined }),
+    transferStatus({ article: '', issuedTo: undefined, moved: false }),
     TRANSFER_STATUS.UNTRACEABLE
   )
   assert.equal(
-    transferStatus({ article: null, brand: 'BBT', issuedTo: new Set(['BBT']) }),
+    transferStatus({ article: null, issuedTo: new Set(['BBT']), moved: true }),
     TRANSFER_STATUS.UNTRACEABLE
   )
 })
 
-test('no brand, or no answer from the model, leaves the column blank', () => {
-  // An unattributed row has no brand for the question to be about.
-  assert.equal(transferStatus({ article: '1', brand: '', issuedTo: new Set() }), null)
-  // And an unreachable warehouse model is not evidence of absence.
+test('an unreachable model leaves the column blank, and a brandless row does not', () => {
+  // An unreachable warehouse model is not evidence of absence.
   assert.equal(
-    transferStatus({ article: '1', brand: 'BBT', issuedTo: undefined, known: false }),
+    transferStatus({ article: '1', issuedTo: undefined, moved: false, known: false }),
     null
+  )
+  /*
+   * An `__unattributed` row - one that reached no brand - now gets a real
+   * answer. The question is about the ARTICLE, so having no brand on the row no
+   * longer makes it unanswerable, which is what used to blank these.
+   */
+  assert.equal(
+    transferStatus({ article: '1', issuedTo: new Set(['BBT']), moved: true }),
+    TRANSFER_STATUS.DIRECT
+  )
+})
+
+/* --------------------------------- Path: the other brands get named ---- */
+
+test('a leg to another brand is summarised rather than dropped', () => {
+  // Scenario B in the 5 Nov 2026 brief: nothing of this row's own to show, so
+  // the cell used to be blank beside a Transaction Type reading Issue to Store.
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['PAT'])),
+    ['Transferred to a different brand → PAT']
+  )
+})
+
+test('several other brands are listed once each, in order', () => {
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['TBL', 'PAT', 'TBL'])),
+    ['Transferred to different brands → PAT, TBL']
+  )
+})
+
+test('store codes collapse to their brand and do not repeat it', () => {
+  assert.deepEqual(
+    pathsForBrand([], 'MM', new Set(['YP-DFC', 'YP', 'YP-PLC'])),
+    ['Transferred to a different brand → YP']
+  )
+})
+
+test('this row\'s own leg is kept, with the others named beside it', () => {
+  // "Preserve the actual transfer path wherever it is available" - Scenario A
+  // and B together on one row.
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → MM', 'CKU/CPU → PAT'], 'MM', new Set(['MM', 'PAT'])),
+    ['CKU/CPU → MM', 'Transferred to a different brand → PAT']
+  )
+})
+
+test('reaching only this row\'s brand adds no summary line', () => {
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → MM'], 'MM', new Set(['MM'])),
+    ['CKU/CPU → MM']
+  )
+})
+
+test('a Swish-to-Swish leg is untouched and earns no summary', () => {
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → SWISH BAKERY'], 'BBT', new Set()),
+    ['CKU/CPU → SWISH BAKERY']
+  )
+})
+
+test('a dropped leg that was NOT a transfer is named, but not called one', () => {
+  /*
+   * 475 of 16,290 brand rows, measured 5 Nov 2026: a supplier delivering into
+   * another brand. `issuedTo` is empty because that is not an Issue to Store,
+   * so the transfer line cannot cover it - and calling a purchase a transfer
+   * would be false.
+   */
+  assert.deepEqual(
+    pathsForBrand(['Supplier → FM'], 'BBT', new Set()),
+    ["Another brand's movement → FM"]
+  )
+  // A brand-to-brand transfer between two OTHER brands, same treatment.
+  assert.deepEqual(
+    pathsForBrand(['MM → MM-PLC'], 'BBT', new Set()),
+    ["Another brand's movement → MM"]
+  )
+})
+
+test('a brand named as a transfer is not repeated as a stray leg', () => {
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['PAT'])),
+    ['Transferred to a different brand → PAT']
+  )
+})
+
+test('both lines can appear, each naming its own brands', () => {
+  assert.deepEqual(
+    pathsForBrand(['CKU/CPU → PAT', 'Supplier → FM'], 'MM', new Set(['PAT'])),
+    ['Transferred to a different brand → PAT', "Another brand's movement → FM"]
   )
 })
 

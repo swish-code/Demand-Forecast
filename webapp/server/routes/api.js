@@ -42,13 +42,20 @@ import {
   productionSourceByArticle,
   UNCLASSIFIED,
   SOURCE,
+  SITE_COST_CENTRES,
   isPrepRow,
   prepSurvives,
 } from '../insights/productionSource.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
 import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
-import { classifyArticles, classifyOne, clampAsAt, statusOf } from '../insights/whClassify.js'
+import {
+  classifyArticles,
+  classifySiteArticles,
+  classifyOne,
+  clampAsAt,
+  statusOf,
+} from '../insights/whClassify.js'
 import { sohTrend } from '../insights/sohTrend.js'
 import { storeStock, stockColumnsFor, warehouseStockNow } from '../insights/storeStock.js'
 import { openPoByArticle } from '../insights/openPo.js'
@@ -1410,21 +1417,30 @@ async function withOrderingChannel(rows, filters) {
     return {
       ...r,
       'Transaction Type': channels ? formatChannels(held) : null,
-      // Narrowed to the row's own brand - a warehouse issue that fanned out to
-      // three brands is three rows, each naming only its own leg.
-      Path: channels ? formatPaths(pathsForBrand(found?.paths, brand)) : null,
       /*
-       * Did this article reach THIS brand straight from a Swish site?
+       * Narrowed to the row's own brand - a warehouse issue that fanned out to
+       * three brands is three rows, each naming only its own leg. The brands it
+       * reached that are NOT this row's are summarised on one line instead of
+       * being dropped, which is why `issuedTo` comes along: see `pathsForBrand`.
+       */
+      Path: channels ? formatPaths(pathsForBrand(found?.paths, brand, found?.issuedTo)) : null,
+      /*
+       * Was this article transferred straight from a Swish site to ANY brand?
        *
-       * Asked over the whole window rather than off the latest movement - see
-       * `transferStatus`. `known` is false when the warehouse model could not
-       * be reached, which leaves the column blank rather than answering "No"
-       * from an absence the model never confirmed.
+       * Article-level from 5 Nov 2026, so the row's brand is not consulted -
+       * see `transferStatus`. Asked over the whole window rather than off the
+       * latest movement.
+       *
+       * `moved` separates "it moved, but never to a brand" from "it did not
+       * move at all": an article the model has never heard of in this window is
+       * absent from the map, and that is No Movement rather than a No. `known`
+       * is false when the model could not be reached at all, which leaves the
+       * column blank rather than answering from an absence it never confirmed.
        */
       'Transfer Status': transferStatus({
         article,
-        brand,
         issuedTo: found?.issuedTo,
+        moved: Boolean(found),
         known: Boolean(channels),
       }),
       // Carried as the EFFECTIVE set, so the slicer filters on exactly what
@@ -1576,12 +1592,33 @@ async function withStatus(rows, filters) {
    */
   const selected = filters?.dateTo ? String(filters.dateTo).slice(0, 10) : null
   const asAt = clampAsAt(selected, cube.lastActualDate()) ?? new Date().toISOString().slice(0, 10)
-  const classes = await classifyArticles({ asAt }).catch(() => new Map())
+
+  /*
+   * Whose issuing dates the ladder, from 5 Nov 2026.
+   *
+   * A page that pins a real production site asks about THAT SITE - "how many
+   * days since CK/CPU last issued this article" - because the warehouse never
+   * handles what those sites make, and dating it from the warehouse marked the
+   * whole page Never shipped.
+   *
+   * Keyed on the page's own pin, so Stock Article (no pin) and the Unclassified
+   * page (pinned to a label that is not a site) both keep the warehouse ladder
+   * untouched. `SITE_COST_CENTRES` has an entry only for the three real sites,
+   * which is what makes that distinction without naming the pages here.
+   */
+  const sites = (filters?.prodSources ?? [])
+    .flatMap((s) => SITE_COST_CENTRES.get(s) ?? [])
+  const classes = sites.length
+    ? await classifySiteArticles({ asAt, sites }).catch(() => null)
+    : await classifyArticles({ asAt }).catch(() => new Map())
 
   const labelled = rows.map((r) => {
     const article = String(r['Item No.'] ?? '').trim()
     // A kitchen step has no article number, so there is nothing to classify.
     if (!article) return { ...r, Status: null, Days_Idle: null }
+    // The site history could not be fetched. Blank, not "Never shipped" - see
+    // `classifySiteArticles`.
+    if (!classes) return { ...r, Status: null, Days_Idle: null }
     const c = classes.get(article) ?? classifyOne(null, asAt)
     return {
       ...r,
