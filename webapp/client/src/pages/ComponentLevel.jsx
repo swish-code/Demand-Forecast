@@ -313,7 +313,9 @@ const COLUMNS = [
     hint:
       'The two cost centres the latest movement ran between, in the direction the goods travelled. ' +
       '"Supplier" appears where the goods came from outside — a GRN carries no originating cost centre. ' +
-      'Two movements on the same day show both paths, separated by ";".',
+      'Two movements on the same day show both paths, separated by ";". ' +
+      'Narrowed to this row’s own brand: a leg belonging to another brand is never shown here, and ' +
+      '"Not transferred to X" means the article moved in this window but none of it reached X.',
   },
   /*
    * Did the article reach ANY brand straight from a Swish site?

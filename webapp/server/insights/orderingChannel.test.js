@@ -395,14 +395,10 @@ test("a row shows only its own brand's leg of a fan-out, and names the rest", ()
    * a transfer - see the two summary lines in `pathsForBrand`.
    */
   const paths = ['Central Warehouse → MM', 'Central Warehouse → TBL']
-  assert.equal(
-    formatPaths(pathsForBrand(paths, 'MM')),
-    "Central Warehouse → MM ; Another brand's movement → TBL"
-  )
-  assert.equal(
-    formatPaths(pathsForBrand(paths, 'TBL')),
-    "Central Warehouse → TBL ; Another brand's movement → MM"
-  )
+  // Each row shows its OWN leg and says nothing about the other brand, from
+  // 8 Nov 2026. Both rows reached their own brand, so neither earns the note.
+  assert.equal(formatPaths(pathsForBrand(paths, 'MM')), 'Central Warehouse → MM')
+  assert.equal(formatPaths(pathsForBrand(paths, 'TBL')), 'Central Warehouse → TBL')
 })
 
 test('a path with no brand at either end is kept for every row', () => {
@@ -451,10 +447,7 @@ test("FM-JHR is FM's, so an FM row keeps both of its own legs", () => {
   assert.equal(formatPaths(pathsForBrand(paths, 'FM')), 'CKU/CPU → FM')
   // ...and it is still not PAT's. PAT is told whose it is rather than nothing,
   // and told it ONCE, because FM-JHR resolves to FM like the other leg.
-  assert.equal(
-    formatPaths(pathsForBrand(paths, 'PAT')),
-    "Another brand's movement → FM"
-  )
+  assert.equal(formatPaths(pathsForBrand(paths, 'PAT')), 'Not transferred to PAT')
 })
 
 test('a row with no brand keeps every path', () => {
@@ -473,8 +466,11 @@ test("another brand's leg is never printed as though it were this row's", () => 
    * protection with the missing-data look removed.
    */
   const out = formatPaths(pathsForBrand(['Central Warehouse → TBL'], 'MM'))
-  assert.equal(out, "Another brand's movement → TBL")
+  assert.equal(out, 'Not transferred to MM')
   assert.ok(!out.includes('Central Warehouse → TBL'))
+  // And it names no other brand either, which is the 8 Nov 2026 change: the
+  // row carries one brand, so the cell talks about that brand and no other.
+  assert.ok(!out.includes('TBL'))
 })
 
 /* ------------------------------------------- Transfer Status ----------- */
@@ -563,35 +559,38 @@ test('an unreachable model leaves the column blank, and a brandless row does not
 
 /* --------------------------------- Path: the other brands get named ---- */
 
-test('a leg to another brand is summarised rather than dropped', () => {
-  // Scenario B in the 5 Nov 2026 brief: nothing of this row's own to show, so
-  // the cell used to be blank beside a Transaction Type reading Issue to Store.
-  assert.deepEqual(
-    pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['PAT'])),
-    ['Transferred to a different brand → PAT']
-  )
+test('a leg to another brand earns a note about THIS brand, not that one', () => {
+  // Nothing of this row's own to show. It used to be blank; from 5 Nov it
+  // named the other brand; from 8 Nov it names only the row's own.
+  assert.deepEqual(pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['PAT'])), [
+    'Not transferred to MM',
+  ])
 })
 
-test('several other brands are listed once each, in order', () => {
+test('however many other brands it reached, none of them is named', () => {
+  /*
+   * The screenshot that prompted this: a TBL row reading "Transferred to
+   * different brands → BUR, CHP, FM, MM, SLC, SS". Six other brands' business
+   * printed on one brand's row, where the reader wanted to know about TBL.
+   */
   assert.deepEqual(
     pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['TBL', 'PAT', 'TBL'])),
-    ['Transferred to different brands → PAT, TBL']
+    ['Not transferred to MM']
   )
 })
 
-test('store codes collapse to their brand and do not repeat it', () => {
-  assert.deepEqual(
-    pathsForBrand([], 'MM', new Set(['YP-DFC', 'YP', 'YP-PLC'])),
-    ['Transferred to a different brand → YP']
-  )
+test('a store-code-only fan-out still says nothing about those brands', () => {
+  assert.deepEqual(pathsForBrand([], 'MM', new Set(['YP-DFC', 'YP', 'YP-PLC'])), [
+    'Not transferred to MM',
+  ])
 })
 
-test('this row\'s own leg is kept, with the others named beside it', () => {
-  // "Preserve the actual transfer path wherever it is available" - Scenario A
-  // and B together on one row.
+test('this row\'s own leg is kept, and the others are not mentioned', () => {
+  // Having a leg of its own is what silences the note: the row has a real
+  // answer, so there is nothing left to explain.
   assert.deepEqual(
     pathsForBrand(['CKU/CPU → MM', 'CKU/CPU → PAT'], 'MM', new Set(['MM', 'PAT'])),
-    ['CKU/CPU → MM', 'Transferred to a different brand → PAT']
+    ['CKU/CPU → MM']
   )
 })
 
@@ -616,28 +615,34 @@ test('a dropped leg that was NOT a transfer is named, but not called one', () =>
    * so the transfer line cannot cover it - and calling a purchase a transfer
    * would be false.
    */
-  assert.deepEqual(
-    pathsForBrand(['Supplier → FM'], 'BBT', new Set()),
-    ["Another brand's movement → FM"]
-  )
+  assert.deepEqual(pathsForBrand(['Supplier → FM'], 'BBT', new Set()), [
+    'Not transferred to BBT',
+  ])
   // A brand-to-brand transfer between two OTHER brands, same treatment.
-  assert.deepEqual(
-    pathsForBrand(['MM → MM-PLC'], 'BBT', new Set()),
-    ["Another brand's movement → MM"]
-  )
+  assert.deepEqual(pathsForBrand(['MM → MM-PLC'], 'BBT', new Set()), [
+    'Not transferred to BBT',
+  ])
 })
 
-test('a brand named as a transfer is not repeated as a stray leg', () => {
-  assert.deepEqual(
-    pathsForBrand(['CKU/CPU → PAT'], 'MM', new Set(['PAT'])),
-    ['Transferred to a different brand → PAT']
-  )
-})
-
-test('both lines can appear, each naming its own brands', () => {
+test('the note is said ONCE, however many other brands are involved', () => {
+  // Two separate reasons to drop a leg - an issue to PAT and a purchase into
+  // FM - and still one line, because the line is about MM.
   assert.deepEqual(
     pathsForBrand(['CKU/CPU → PAT', 'Supplier → FM'], 'MM', new Set(['PAT'])),
-    ['Transferred to a different brand → PAT', "Another brand's movement → FM"]
+    ['Not transferred to MM']
+  )
+})
+
+test('a Swish leg is kept AND the note is added beside it', () => {
+  /*
+   * "Supplier → CKU/CPU" belongs to no brand, so it shows on every row - but
+   * it is not evidence that MM received anything. The note is decided on
+   * whether a leg ends at the row's OWN brand, not on whether anything at all
+   * survived the narrowing, or this row would read as though it had.
+   */
+  assert.deepEqual(
+    pathsForBrand(['Supplier → CKU/CPU', 'CKU/CPU → PAT'], 'MM', new Set(['PAT'])),
+    ['Supplier → CKU/CPU', 'Not transferred to MM']
   )
 })
 

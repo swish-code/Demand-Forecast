@@ -486,26 +486,24 @@ export function brandOfCostCentre(costCentre) {
  * article issued to PAT on the 3rd and moved to the bakery on the 28th has no
  * brand leg left in `paths`, and the reader still needs to be told about PAT.
  */
-const transferredLine = (names) =>
-  names.length > 1
-    ? `Transferred to different brands → ${names.join(', ')}`
-    : `Transferred to a different brand → ${names[0]}`
-
-/*
- * A SECOND LINE, for legs that were dropped but were never a transfer.
+/**
+ * What a row says when nothing reached its OWN brand.
  *
- * Measured 5 Nov 2026 after the summary above went in: 499 of 16,290 brand rows
- * still showed a Transaction Type beside a blank Path. They are legs belonging
- * to another brand that did not come from an `Issue to Store` - 475 purchases
- * delivered straight into another brand ("Supplier → FM" on a BBT row) and 24
- * brand-to-brand transfers ("MM → MM-PLC"). `issuedTo` holds neither, because
- * it only collects Swish -> brand issues.
+ * NAMES ONLY THIS BRAND, DELIBERATELY - 8 Nov 2026, on request.
  *
- * Worded separately rather than folded into the line above, because calling a
- * supplier delivery into FM a "transfer" would be false. Same blank cell, a
- * different fact, so it gets its own sentence.
+ * Until now these rows listed the brands the article DID reach:
+ * "Transferred to different brands → BUR, CHP, FM, MM, SLC, SS" on a TBL row.
+ * That was asked for on 5 Nov so the hidden legs were not simply dropped, and
+ * it is correct - but it reads as a statement about TBL and is a statement
+ * about six other brands, which is not what a reader scanning the TBL page
+ * wants to know.
+ *
+ * Blanking those rows instead was measured first and is much worse: only
+ * 32.6% of brand rows have a leg of their own, so 10,974 of 16,317 rows -
+ * 67.4% - would have emptied this column. One short line that names the row's
+ * own brand and nothing else keeps the answer honest at 0.2% blank.
  */
-const elsewhereLine = (names) => `Another brand's movement → ${names.join(', ')}`
+const noLegLine = (brand) => `Not transferred to ${brand}`
 
 /** Distinct brand names from `values`, excluding `want`, in name order. */
 function otherBrands(values, want, exclude = new Set()) {
@@ -544,13 +542,31 @@ export function pathsForBrand(paths, brand, issuedTo) {
     kept.push(line)
   }
 
-  const transferred = otherBrands(issuedTo, want)
-  if (transferred.length) kept.push(transferredLine(transferred))
+  /*
+   * Did anything actually reach THIS brand?
+   *
+   * `kept` can hold legs that end at a Swish cost centre - "Supplier → CKU/CPU"
+   * - which belong to nobody's brand and are shown on every row. They are not
+   * evidence that this brand received anything, so the note is decided on
+   * whether a leg ends at the brand itself, not on whether `kept` is empty.
+   */
+  const reachedThisBrand = list.some((p) => {
+    const text = String(p)
+    const at = text.lastIndexOf('→')
+    const owner = brandOfCostCentre(at < 0 ? text : text.slice(at + 1))
+    return owner !== null && key(owner) === want
+  })
 
-  // Anything already named as a transfer is not repeated here.
-  const named = new Set(transferred.map(key))
-  const elsewhere = otherBrands(droppedTo, want, named)
-  if (elsewhere.length) kept.push(elsewhereLine(elsewhere))
+  /*
+   * One line about this brand, where something moved and none of it came here.
+   *
+   * `issuedTo` is consulted as well as the dropped legs because the two answer
+   * different questions - it holds every Swish -> brand issue in the window,
+   * while `droppedTo` holds only the latest movement's legs. Either is reason
+   * enough to say the article moved and did not reach this brand.
+   */
+  const movedElsewhere = droppedTo.length > 0 || otherBrands(issuedTo, want).length > 0
+  if (!reachedThisBrand && movedElsewhere) kept.push(noLegLine(brand))
 
   return kept
 }
