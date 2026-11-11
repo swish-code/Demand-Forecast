@@ -338,6 +338,13 @@ export const api = {
   context: (filters, options) => query('/context', filters, options),
   productLevel: (filters, options) => query('/product-level', filters, options),
   componentLevel: (filters, options) => query('/component-level', filters, options),
+  /*
+   * The new-branch forecast - a POST, because it is defined by what the user
+   * typed rather than by a resource that exists, and nothing is stored.
+   */
+  newStoreForecast: (body) => post('/new-store/forecast', body),
+  newStoreProducts: ({ brand, openingDate }) =>
+    get(`/new-store/products?brand=${encodeURIComponent(brand)}&openingDate=${encodeURIComponent(openingDate)}`),
   // Which menu items use one article, and how much of it each takes.
   articleUsage: (filters, options) => query('/article-usage', filters, options),
   /* The lookup behind "Find an article" — a GET, because it takes one term and

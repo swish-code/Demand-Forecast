@@ -35,6 +35,7 @@ import {
 } from '../insights/orderingChannel.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
+import { newStoreForecast, newStoreProducts } from '../insights/newStore.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
 import { coveredByStock } from '../insights/stockCover.js'
 import { forecastFromConstants, constantsFor, pastMonths } from '../insights/whConstant.js'
@@ -3834,4 +3835,39 @@ api.post('/cache/clear', (req, res) => {
 })
 
 /** What the local copy holds, for the admin panel. */
+/*
+ * NEW STORE OPENING - 11 Nov 2026.
+ *
+ * A POST because the forecast is defined by what the user typed, not by a
+ * resource that exists: brand, branch name, opening date and three monthly
+ * sales figures. Nothing is stored - the result is derived on every call, so
+ * changing an input and regenerating cannot leave a stale forecast behind.
+ *
+ * `requireAuth` rather than `requireRole('admin')`: it reads the same brand
+ * forecast every other page reads and writes nothing.
+ */
+api.post('/new-store/forecast', requireAuth, handle(async (req, res) => {
+  const body = req.body ?? {}
+  const periodSales = Array.isArray(body.periodSales) ? body.periodSales.map(Number) : []
+  res.json(
+    await newStoreForecast({
+      brand: body.brand,
+      branchName: String(body.branchName ?? '').trim(),
+      openingDate: body.openingDate,
+      periodSales,
+      exclude: Array.isArray(body.exclude) ? body.exclude : [],
+    })
+  )
+}))
+
+/** The brand's menu for the window, so the reader can pick what to exclude. */
+api.get('/new-store/products', requireAuth, handle(async (req, res) => {
+  res.json({
+    products: await newStoreProducts({
+      brand: req.query?.brand,
+      openingDate: req.query?.openingDate,
+    }),
+  })
+}))
+
 api.get('/cube', requireRole('admin'), handle(async (req, res) => res.json(await cubeState())))

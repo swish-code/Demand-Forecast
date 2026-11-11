@@ -44,6 +44,7 @@ const ForecastSummary = lazyPage(() => import('./pages/ForecastSummary.jsx'), 'F
 const ProductLevel = lazyPage(() => import('./pages/ProductLevel.jsx'), 'ProductLevel')
 const ComponentLevel = lazyPage(() => import('./pages/ComponentLevel.jsx'), 'ComponentLevel')
 const Procurement = lazyPage(() => import('./pages/Procurement.jsx'), 'Procurement')
+const NewStore = lazyPage(() => import('./pages/NewStore.jsx'), 'NewStore')
 const WarehouseInsights = lazyPage(
   () => import('./pages/WarehouseInsights.jsx'),
   'WarehouseInsights'
@@ -632,6 +633,23 @@ const PAGES = [
     // Off the rail on purpose: it is one click from the Overview button, and a
     // permanent entry would sit above the reports competing with them.
     hidden: true,
+    slicers: [],
+  },
+  {
+    /*
+     * NEW STORE OPENING - 11 Nov 2026.
+     *
+     * No slicers and no brand picker, which is unlike every other page: the
+     * brand, the dates and the sales are INPUTS to a forecast rather than
+     * filters over one, so they live in the page's own form. Nothing is
+     * fetched until Generate is pressed and nothing is stored afterwards.
+     */
+    id: 'new-store',
+    label: 'New Store Opening',
+    kicker: 'The first 90 days of a branch that does not exist yet',
+    blurb: 'The brand’s own forecast curve, scaled to what the new branch expects to sell',
+    Icon: IconUsers,
+    Component: NewStore,
     slicers: [],
   },
   {
@@ -1616,6 +1634,10 @@ export default function App({ session, onSignedOut }) {
               noWarehouse={Boolean(page.noWarehouse)}
               // Only the two pages that show prep steps they cannot place.
               prepShared={Boolean(page.prepShared)}
+              // The New Store page needs the brand list for its own dropdown:
+              // it has no brand picker, because the brand is an input to the
+              // forecast rather than a filter over one.
+              brands={brands}
             />
           )}
             </>
