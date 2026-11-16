@@ -701,6 +701,15 @@ const COMPONENT_FILTERS = new Set([
    */
   'channels',
   'transferStatus',
+  /*
+   * And the Consumption page's Variance slicer, for the same reason a fifth
+   * time. `withOracleConsumption` stamps the flag from the FM Sales model and
+   * filters the assembled rows, so it narrows nothing here. Left out of this
+   * set, picking Variance would send every brand to a live component query
+   * that has never heard of it - slow, and the filter would appear to do
+   * nothing, which is exactly how `channels` failed on 3 Nov 2026.
+   */
+  'varianceFlags',
   'brand',
   'brands',
   'dateFrom',
@@ -1089,6 +1098,21 @@ export async function outboundByMonth(brand, months) {
   }
   return out
 }
+
+/*
+ * `componentMonthlyByArticle` lived here from 15 Nov 2026 and was removed the
+ * same day.
+ *
+ * It read PM theoretical per article per month out of `cube_component_monthly`
+ * for the Variance Analysis trend. That page then had to restrict itself to
+ * Level 1 recipe lines, and the copy carries no Level column at all - so the
+ * query could not answer the question it existed for. The page reads it from
+ * Power BI instead; see `insights/recipeLevel.js`.
+ *
+ * Recorded rather than deleted silently because the obvious next idea is to
+ * put it back: if Level is ever added to the cube, this is the shape to
+ * restore, with a level filter on the WHERE.
+ */
 
 /**
  * The same shape, from the production sites rather than the warehouse.

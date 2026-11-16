@@ -9,6 +9,12 @@ const TOKENS = {
   surface: '--surface',
   red: '--red',
   amber: '--amber',
+  /*
+   * The other half of the variance pair. `.pos` is `--amber` and `.neg` is
+   * `--blue` in theme.css, and the Consumption charts draw variances with the
+   * same two so one colour means one thing in the table and in the charts.
+   */
+  blue: '--blue',
   neutral: '--neutral',
   plain: '--plain',
   bar1: '--bar-1',

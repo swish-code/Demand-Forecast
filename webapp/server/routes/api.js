@@ -25,6 +25,26 @@ import {
 } from '../powerbi/warehouse.js'
 import { fmOnlyArticles, recipeMasterArticles, FM } from '../powerbi/fmArticles.js'
 import { channelsForWindow } from '../powerbi/orderingChannel.js'
+/*
+ * Named for Oracle, because `consumptionByArticle` is already imported above.
+ *
+ * That one is the CENTRAL WAREHOUSE's issuing, out of the warehouse model.
+ * This is the OUTLETS' own consumption, out of Oracle via the FM Sales model.
+ * Two different measurements that deserve the same English word, which is
+ * exactly how they collided.
+ */
+import {
+  canonArticle,
+  oracleConsumptionByArticle,
+  oracleConsumptionTrend,
+  UNMAPPED_BRAND,
+  varianceFlag,
+  CATERING_BRANCHES,
+  mcTheoreticalClass,
+  mcScore,
+  mcStatus,
+  variancePct,
+} from '../powerbi/consumption.js'
 import {
   formatChannels,
   formatPaths,
@@ -35,6 +55,11 @@ import {
 } from '../insights/orderingChannel.js'
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
+/*
+ * Level 1 PM theoretical, for the Variance Analysis page alone - 15 Nov 2026.
+ * See `insights/recipeLevel.js` for why it cannot come from the local copy.
+ */
+import { level1ByArticle, level1ByArticleMonth } from '../insights/recipeLevel.js'
 import { newStoreForecast, newStoreProducts } from '../insights/newStore.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
 import { coveredByStock } from '../insights/stockCover.js'
@@ -131,7 +156,723 @@ function allowsRaw(filters) {
  * `transferStatus` is the Transfer Status slicer, and the same in every
  * respect - stamped by `withOrderingChannel` off the same read.
  */
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels', 'transferStatus']
+/*
+ * `varianceFlags` is the Consumption page's own slicer, and post-hoc for the
+ * same reason as `channels` - `withOracleConsumption` stamps it on the
+ * assembled rows from the FM Sales model, so no brand query can narrow on it.
+ */
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels', 'transferStatus', 'varianceFlags']
+
+/**
+ * Our theoretical consumption against Oracle's, per article per brand.
+ *
+ * TWO RECIPE ENGINES, ONE QUESTION
+ *
+ * The app explodes `'RECIPE TABLE'[QTY BU]` over the products that actually
+ * sold; Oracle explodes its own recipe over the same sales and books the answer
+ * as `Potential COS QTY`. Both are THEORETICAL, which makes them the only pair
+ * on this page that can honestly be differenced - that difference is a recipe
+ * disagreement and nothing else.
+ *
+ * `CONSUMPTION` is carried beside them and is NOT the same kind of figure: it
+ * is reconciled from stock (Opening + Transfers + Purchase - Closing + Usage)
+ * so it includes waste, over-portioning and shrinkage. Differencing ours
+ * against it folds a recipe fault and an operational loss into one number. The
+ * two variances are therefore kept apart:
+ *
+ *   Consumption_Variance    ours - Oracle's theoretical   recipe
+ *   Operational_Variance    Oracle's actual - theoretical  waste
+ *
+ * and the figure originally asked for is the first minus the second, so nothing
+ * is lost by decomposing it.
+ *
+ * STAMPED ONCE PER ARTICLE, LIKE THE WAREHOUSE FIGURES
+ *
+ * An article is spread over one row per recipe group, and Oracle's figures
+ * belong to the article rather than to any one of those rows. Repeating them on
+ * each would make every total count them once per recipe - the same trap
+ * `withOpenPo` and `withSiteOutbound` already avoid - so they land on the FIRST
+ * row carrying that article and brand and are null on the rest.
+ *
+ * Our side is summed over those same rows before the comparison, for the same
+ * reason: scoring one recipe line's quantity against the whole article's
+ * consumption is exactly the mistake that made Actual ACC% print 387.7%.
+ */
+/*
+ * NAMED FOR ORACLE, because `withConsumption` was already taken.
+ *
+ * That one is about `Consumed_Qty` - what the CENTRAL WAREHOUSE issued, out of
+ * the warehouse model. This is the OUTLETS' own consumption, out of Oracle via
+ * the FM Sales model, and the two are different measurements of different
+ * things. Function declarations hoist, so a second `withConsumption` did not
+ * fail at startup: it silently replaced the first, and every call in this file
+ * reached whichever one was declared last.
+ */
+async function withOracleConsumption(
+  rows,
+  filters,
+  brands,
+  { brandSplit = false, fullTable = false, includeUnmapped = false } = {}
+) {
+  /*
+   * The brands come from the request's own parts, not from `filters`.
+   *
+   * `window` is the FIRST brand's scoped filters - it is what every other
+   * decorator on this route reads for its dates - so taking the brand list off
+   * it would narrow a nine-brand page to whichever brand happened to be first.
+   */
+  /*
+   * THE TWO MC READS RUN CONCURRENTLY - 11 Nov 2026.
+   *
+   * They were awaited one after the other, and they do not depend on each
+   * other: the window read answers the table, the trend read answers the
+   * charts, and neither takes anything from the other. Measured against the
+   * live model for October 2026 over all nine brands:
+   *
+   *   oracleConsumptionByArticle   15.1 s
+   *   oracleConsumptionTrend        6.8 s
+   *   sequential                   21.9 s   ->   concurrent  ~15.1 s
+   *
+   * Nothing about the RESULTS changes - same queries, same arguments, same
+   * cache keys, same figures - only when they are issued. Both still swallow
+   * their own failure and return null, so one going down still costs only its
+   * own half of the page.
+   *
+   * The one behavioural difference: the trend read is now issued even when the
+   * window read fails, where before the early return skipped it. That costs a
+   * cached call on a path that is already broken, and it buys the saving on
+   * every path that is not.
+   */
+  const [held, trend] = await Promise.all([
+    oracleConsumptionByArticle({
+      from: filters?.dateFrom ?? null,
+      to: filters?.dateTo ?? null,
+      brands: brands ?? null,
+      includeUnmapped,
+      /*
+       * Catering's THEORETICAL is ignored on this page - 15 Nov 2026, on
+       * request. Its CONSUMPTION is still counted, which is what was asked.
+       *
+       * `fullTable` keeps it here: Stock Article and Procurement share this
+       * route and must keep every branch on both sides.
+       */
+      noTheoreticalFrom: fullTable ? CATERING_BRANCHES : [],
+    }).catch((err) => {
+      console.warn(`  [consumption] unavailable: ${String(err.message).slice(0, 90)}`)
+      return null
+    }),
+    /*
+     * The month-by-month figures behind the charts.
+     *
+     * It covers every month the table holds, not the selected range, so it has
+     * its own cache key and one fetch serves whatever dates the reader moves
+     * to. Same `includeUnmapped` scope as the window read, or an unmapped row
+     * would have figures in the table and no trend beside it.
+     */
+    oracleConsumptionTrend({
+      brands: brands ?? null,
+      includeUnmapped,
+      // The same exclusion as the window read above, or the monthly table and
+      // the cards would disagree about the same articles.
+      noTheoreticalFrom: fullTable ? CATERING_BRANCHES : [],
+    }).catch((err) => {
+      console.warn(`  [consumption-trend] unavailable: ${String(err.message).slice(0, 90)}`)
+      return null
+    }),
+  ])
+  if (!held) return rows
+
+  /*
+   * The branch breakdown, indexed once - 10 Nov 2026, on request.
+   *
+   * `held.byBranch` is keyed article|BRAND|CODE. Scanning it per row would be
+   * a pass over thirty-odd thousand entries for each of eight thousand rows,
+   * so it is turned into article|BRAND -> [branch rows] once, here.
+   *
+   * Attached to the row rather than splitting the row: these rows are one per
+   * article per brand, and `withConsumption` blanks Outbound entirely when the
+   * grain is a location, so splitting would cost the page its Outbound, PM vs
+   * Outbound and Consumption vs Outbound columns. The branch detail travels
+   * WITH the row and the table that needs it unfolds it client-side.
+   */
+  const branchIndex = new Map()
+  if (held?.byBranch) {
+    for (const [bk, v] of held.byBranch) {
+      const cut = bk.lastIndexOf('|')
+      const owner = bk.slice(0, cut)
+      const code = bk.slice(cut + 1)
+      const brand = owner.slice(owner.lastIndexOf('|') + 1)
+      const list = branchIndex.get(owner) ?? []
+      // Once, not three times: this runs over 34,720 branch rows per request.
+      const branchStatus = mcStatus(v.potential, v.consumption)
+      list.push({
+        code,
+        name: held.branchNames?.get(`${brand}|${code}`) ?? code,
+        potential: v.potential,
+        consumption: v.consumption,
+        /*
+         * CLASSIFIED AND SCORED HERE, at the branch grain - 11 Nov 2026.
+         *
+         * The client used to work these out itself with `plainWhScore` and a
+         * bare `potential > 0` test, which meant the branch grain and the
+         * article grain could classify the same article differently: a branch
+         * with net-negative consumption scored a negative percentage, and a
+         * branch where nothing happened at all was scored rather than
+         * excluded. The brief asks that "article-brand summaries reconcile
+         * with the corresponding branch-level details", and two grains cannot
+         * reconcile while they are applying two different rules.
+         *
+         * So the same three functions decide both, and the client renders
+         * what it is given rather than deriving anything.
+         */
+        status: branchStatus,
+        pct: variancePct(v.consumption, v.potential),
+        accuracy:
+          branchStatus === 'Match' || branchStatus === 'Variance'
+            ? mcScore(v.potential, v.consumption)
+            : null,
+      })
+      branchIndex.set(owner, list)
+    }
+    // Biggest first, so a reader opening one article sees where the quantity is.
+    for (const [, list] of branchIndex) list.sort((a, b) => b.consumption - a.consumption)
+  }
+
+  /*
+   * PM THEORETICAL, MONTH BY MONTH - 15 Nov 2026, on request.
+   *
+   * "For our theoretical and MC theoretical comparison, show monthly variance
+   * as well as monthly variance % trend."
+   *
+   * The MC trend above is MC against itself and comes from MC's own monthly
+   * table. This is the other half of the pair: the recipe explosion over the
+   * sales that actually happened, per article per month.
+   *
+   * LEVEL 1 RECIPE LINES ONLY - 15 Nov 2026, on request, and only here.
+   *
+   * It used to read `cube_component_monthly`. The copy carries no Level
+   * column, so it cannot answer the question at all, and adding one means a
+   * schema change and a full re-extract of a table four other pages read -
+   * which is precisely what "update the logic on this page only" rules out.
+   * `insights/recipeLevel.js` reads it from Power BI instead, cached for an
+   * hour, and explains why the restriction cannot be a list of articles.
+   *
+   * Over the MONTHS THE MC TREND HOLDS, not the page's window. The two series
+   * have to line up month for month or the comparison is between different
+   * spans, and the MC side deliberately ignores the date filter so that a page
+   * set to one month still has a trend to draw.
+   *
+   * Only for the Consumption page (`fullTable`): Stock Article and Procurement
+   * share this route, neither draws this trend, and neither should pay for the
+   * read - nor have their figures restricted.
+   */
+  const pmMonthly = new Map()
+  /** Brands whose Level 1 read failed, so the page can say so rather than lie. */
+  const levelUnavailable = new Set()
+  if (fullTable && trend?.months?.length && brands?.length) {
+    await Promise.all(
+      brands.map(async (code) => {
+        const key = String(code).trim().toUpperCase()
+        try {
+          /*
+           * Null is a REFUSAL, not an empty answer.
+           *
+           * Falling back to the unfiltered figure would quietly restore the
+           * behaviour this change removed, and nobody would see it happen.
+           */
+          const held = await level1ByArticleMonth(code, trend.months)
+          if (held) pmMonthly.set(key, held)
+          else levelUnavailable.add(key)
+        } catch (err) {
+          levelUnavailable.add(key)
+          console.warn(
+            `  [pm-trend] ${code} unavailable: ${String(err.message).slice(0, 90)}`
+          )
+        }
+      })
+    )
+  }
+
+  /**
+   * The two theoreticals side by side, a month at a time.
+   *
+   * Returns null unless at least one month has BOTH sides, because a chart of
+   * one series against nothing is not a comparison. A month missing on either
+   * side is left out rather than zeroed: PM has no theoretical for an article
+   * no recipe names, and MC has none for an article it does not explode, and
+   * neither absence means "nothing was needed that month".
+   */
+  const engineTrendFor = (article, brand) => {
+    if (!article || !brand) return null
+    const byArticle = pmMonthly.get(String(brand).trim().toUpperCase())
+    const mine = byArticle?.get(canonArticle(article))
+    const theirs = trend?.series?.get(`${canonArticle(article)}|${String(brand).trim().toUpperCase()}`)
+    if (!mine && !theirs) return null
+
+    const points = []
+    for (const month of trend.months) {
+      const pm = mine?.get(month)
+      const mc = theirs?.get(month)?.potential
+      const hasPm = Number.isFinite(Number(pm))
+      const hasMc = Number.isFinite(Number(mc))
+      if (!hasPm && !hasMc) continue
+      const a = hasPm ? Number(pm) : null
+      const b = hasMc ? Number(mc) : null
+      points.push({
+        month,
+        pm: a,
+        mc: b,
+        diff: a === null || b === null ? null : a - b,
+        // Against MC, the side being checked. No denominator, no percentage -
+        // never a zero, which would read as the two engines agreeing.
+        pct: a === null || !(b > 0) ? null : (a - b) / b,
+      })
+    }
+    // One point is not a trend, and a pair needs both sides at least once.
+    return points.some((p) => p.diff !== null) ? points : null
+  }
+
+  const trendFor = (k) => {
+    if (!trend) return null
+    const inner = k.includes('|') ? trend.series.get(k) : trend.byMonth.get(k)
+    if (!inner) return null
+    const points = []
+    for (const month of trend.months) {
+      const held = inner.get(month)
+      if (!held) continue
+      const theirs = held.potential
+      const v = held.consumption - theirs
+      points.push({
+        month,
+        variance: v,
+        // Same rule as the column: no theoretical is no percentage.
+        pct: theirs <= 0 ? null : v / theirs,
+        /*
+         * The denominator, carried - 12 Nov 2026.
+         *
+         * The month-by-month table can now be read as a PERCENTAGE as well as
+         * a quantity, and a six-month percentage has to be the summed variance
+         * over the summed theoretical. Averaging the six monthly percentages
+         * would weight a month that moved four units the same as one that
+         * moved forty thousand.
+         *
+         * It cannot be recovered from the two fields above either: `pct` is
+         * null wherever the theoretical is nothing, and dividing `variance` by
+         * `pct` to get it back blows up exactly where the data is thinnest.
+         * One more number per month per row is the honest way to carry it.
+         */
+        theoretical: theirs,
+      })
+    }
+    // One point is not a trend. Returning null rather than a single dot keeps
+    // the column honest about what it can show.
+    return points.length > 1 ? points : null
+  }
+
+
+  /*
+   * Our theoretical, summed per article and brand.
+   *
+   * Keyed on the brand too where the row carries one, because Oracle's figures
+   * are per brand and a row split by brand must not be compared against every
+   * brand's consumption at once. A merged row has no CHAINID, and then the
+   * article total is the right answer - `byArticle` is already narrowed to the
+   * brands this request asked for, so the two sides still agree about scope.
+   */
+  const mine = new Map()
+  /*
+   * STRICT PER-BRAND KEYING WHEN THE ROWS ARE BRAND-SPLIT - fixed 9 Nov 2026.
+   *
+   * The fallback below - no brand on the row, so take the article's total
+   * across every brand - is right for a page whose rows are MERGED across the
+   * brands asked for. It was badly wrong on a brand-split page, because the row
+   * set is a mixture: `component-level` stamps `CHAINID` per brand but
+   * deliberately leaves `__unattributed` rows blank (api.js, "the brand column
+   * has nothing true to say"). Those blank rows then matched `byArticle` and
+   * picked up all nine brands' consumption at once, on top of the per-brand
+   * rows for the same article.
+   *
+   * Measured over October 2026, all nine brands: the table holds 7,551,686
+   * Potential COS QTY and the page showed 8,631,756 - 14.3% too much - with
+   * consumption 6.2% too high for the same reason.
+   *
+   * So when the rows carry brands, a row without one cannot be matched: Oracle
+   * keeps a figure per article per BRAND, and there is no honest way to read a
+   * brand's figure off a row that belongs to no brand. Nothing is lost - the
+   * pairs those rows would have covered are appended below from Oracle itself.
+   */
+  const keyOf = (r) => {
+    const article = canonArticle(r['Item No.'])
+    if (!article) return null
+    const brand = String(r.CHAINID ?? '').trim().toUpperCase()
+    if (brandSplit) return brand ? `${article}|${brand}` : null
+    return brand ? `${article}|${brand}` : article
+  }
+  for (const r of rows) {
+    const k = keyOf(r)
+    if (!k) continue
+    const v = r.Component_Actual_Qty
+    if (v === null || v === undefined) continue
+    mine.set(k, (mine.get(k) ?? 0) + (Number(v) || 0))
+  }
+
+  /*
+   * LEVEL 1 LINES ONLY, on this page - 15 Nov 2026, on request.
+   *
+   * The rows above carry `Component_Actual_Qty` summed over EVERY recipe line
+   * that names the article, at any depth. The request is for the quantity
+   * supplied directly to the brand, which is the Level 1 lines alone, and the
+   * two differ: measured across the nine brands over April-October 2026, the
+   * Level 1 restriction keeps 73.2% of the quantity and 1,215 of the 2,230
+   * article-brands.
+   *
+   * It REPLACES the figures above rather than filtering them, because the same
+   * article can be a Level 1 line in one recipe and a Level 3 line inside a
+   * prep in another - 6,975 article-brands are - so there is no subset of
+   * these rows that answers it.
+   *
+   * `fullTable` keeps it to the Consumption page. Stock Article and
+   * Procurement share this route and must keep every level, which is what
+   * "keep the existing logic for the other pages unchanged" asks for.
+   *
+   * A brand whose read FAILED keeps its unrestricted figures and is named in
+   * `levelUnavailable`, which is LOGGED rather than shown on screen. That is a
+   * gap worth knowing about: if Power BI is unreachable for one brand, its
+   * column quietly reads at every level while the others read at Level 1, and
+   * only the server log says so. Surfacing it on the page is the obvious next
+   * step and has not been built.
+   *
+   * PREP LINES CARRY NO ARTICLE NUMBER and are dropped, as everywhere else on
+   * this route. Measured for BBT over April-October 2026, that is 1,938,749 of
+   * 11,647,818 Level 1 units - 16.6% - sitting on recipe lines with nothing to
+   * join to. It is not lost quantity, it is quantity that was never per
+   * article; the page has always worked this way.
+   */
+  if (fullTable && brands?.length) {
+    const windowFrom = filters?.dateFrom ?? null
+    const windowTo = filters?.dateTo ?? null
+    const byBrand = new Map()
+    await Promise.all(
+      brands.map(async (code) => {
+        const key = String(code).trim().toUpperCase()
+        const held = await level1ByArticle(code, { from: windowFrom, to: windowTo }).catch(
+          () => null
+        )
+        if (held) byBrand.set(key, held)
+        else levelUnavailable.add(key)
+      })
+    )
+
+    if (byBrand.size) {
+      for (const k of [...mine.keys()]) {
+        const cut = k.lastIndexOf('|')
+        const article = cut === -1 ? k : k.slice(0, cut)
+        const brand = cut === -1 ? null : k.slice(cut + 1)
+        // A row with no brand cannot be restricted to one brand's Level 1
+        // lines; it is left as it was and the brand is reported unrestricted.
+        if (!brand || levelUnavailable.has(brand)) continue
+        const held = byBrand.get(brand)
+        if (!held) continue
+        const qty = held.get(article)
+        if (qty === undefined || !(qty > 0)) mine.delete(k)
+        else mine.set(k, qty)
+      }
+    }
+  }
+
+  /*
+   * The MC classification, status and scores, in one place - 11 Nov 2026.
+   *
+   * Stamped on the row as REAL FIELDS rather than worked out when the cell is
+   * drawn, for the same reason `Variance_Flag` is: DataTable sorts, groups,
+   * filters and exports on `row[key]`, so anything computed at display time
+   * sorts wrongly and exports blank.
+   *
+   * Used by both row builders below - the recipe-side rows and the appended
+   * MC-only ones - so the two cannot classify the same article differently.
+   */
+  const mcFields = (theoretical, consumption, row, key) => {
+    const status = mcStatus(theoretical, consumption)
+    const klass = mcTheoreticalClass(theoretical, consumption)
+    const article = key ? key.split('|')[0] : canonArticle(row?.['Item No.'])
+
+    /*
+     * Where the record sits in the two mappings it depends on, as ONE field.
+     *
+     * The brief's four statuses, in precedence order - a row can be more than
+     * one of these at once and the reader needs the blocking one first:
+     *
+     *   Ambiguous      MC writes this article number under more than one
+     *                  name, so which article it is cannot be settled here.
+     *   Unresolved     the KST MAP has no brand for the outlet. The record is
+     *                  KEPT and its quantities are real; what is unknown is
+     *                  whose it is.
+     *   Not in PM      no recipe names the article, so there is no PM
+     *                  theoretical to compare. Not a fault - most of MC's
+     *                  non-recipe articles are simply bought goods.
+     *   Mapped         resolves on both sides.
+     */
+    const unresolvedBrand = !String(row?.CHAINID ?? '').trim()
+    const mapping = held.ambiguous?.has(article)
+      ? 'Ambiguous'
+      : unresolvedBrand
+        ? 'Unresolved'
+        : row?.Oracle_Only
+          ? 'Not in PM'
+          : 'Mapped'
+
+    return {
+      MC_Theoretical_Class: klass,
+      MC_Status: status,
+      /*
+       * Scored with the bounded formula, so a net reversal cannot produce a
+       * negative percentage - see `mcScore`. Null for every status that is not
+       * a real comparison, which is what keeps Not Scored and Non-recipe rows
+       * out of the accuracy figures entirely rather than dragging them down.
+       */
+      MC_Match_Pct: status === 'Match' || status === 'Variance'
+        ? mcScore(theoretical, consumption)
+        : null,
+      Mapping_Status: mapping,
+      /*
+       * MC's own ratio, carried per row for the adjusted scenario in §7.
+       *
+       * Per ARTICLE AND BRAND, never a brand-wide or article-wide rate applied
+       * to its neighbours - the brief is explicit about that, and it is the
+       * difference between an adjustment and a fudge. Null unless MC holds a
+       * positive theoretical for this exact row, which is the condition the
+       * brief sets.
+       */
+      MC_Adjust_Factor:
+        Number(theoretical) > 0 ? Number(consumption) / Number(theoretical) : null,
+    }
+  }
+
+  const stamped = new Set()
+  const labelled = rows.map((r) => {
+    const k = keyOf(r)
+    // A prep step has no article number, so Oracle has nothing to say about it.
+    if (!k || stamped.has(k)) return r
+    const found = k.includes('|') ? held.byKey.get(k) : held.byArticle.get(k)
+    if (!found) return r
+    stamped.add(k)
+
+    const ours = mine.has(k) ? mine.get(k) : null
+    const theirs = found.potential
+    const actual = found.consumption
+
+    /*
+     * THE PAGE'S VARIANCE, CHANGED 9 NOV 2026 ON REQUEST.
+     *
+     * It was `ours - theirs`: our recipe explosion against Oracle's. It is now
+     * Oracle's ACTUAL consumption against Oracle's OWN theoretical, which is
+     * what the business wanted to see - how far the outlets ran from what the
+     * recipes said, rather than how far two recipe engines are from each other.
+     *
+     * A second reason to prefer it, found the same day: both sides come from
+     * Oracle, so this figure does not depend on `Component_Actual_Qty` and is
+     * therefore immune to the local copy being stale. The recipe comparison
+     * read 412,765 against 195,488 for PAT while the copy still held doubled
+     * quantities; this variance was correct throughout.
+     */
+    const variance = actual - theirs
+    const points = trendFor(k)
+    /*
+     * Our own theoretical is KEPT as a column, without its variance.
+     *
+     * It is still the only independent check on Oracle's theoretical, so
+     * dropping it would cost the page the thing that first showed the doubling.
+     * It simply stops being what the Variance column measures.
+     */
+    return {
+      ...r,
+      Our_Theoretical: ours,
+      Sys_Potential_COS: theirs,
+      Sys_Consumption: actual,
+      Consumption_Variance: variance,
+      // Divided by the theoretical, which is the side being checked against.
+      // No denominator is no percentage, never a zero.
+      Consumption_Variance_Pct: variancePct(actual, theirs),
+      ...mcFields(theirs, actual, r, k),
+      /*
+       * Marked rather than left to the reader's eye.
+       *
+       * A real field, not something a render function works out: DataTable
+       * sorts and searches on `row[key]`, so a flag computed only at display
+       * time would sort wrongly and export blank. Asked for on 8 Nov 2026.
+       */
+      Variance_Flag: varianceFlag(actual, theirs),
+      /*
+       * Every month this article has, so the table can draw its trend.
+       *
+       * Stamped from a read that ignores the date filter on purpose - a page
+       * set to one month would otherwise have a one-point trend. Null where
+       * the trend read failed, which the column renders as nothing rather than
+       * as a flat line.
+       */
+      /*
+       * Every month this article has, for the chart panels on the page.
+       *
+       * Not a table column - it was one briefly on 9 Nov 2026 and a 112px
+       * sparkline in a row was too small to read. It drives the visuals above
+       * the table instead.
+       */
+      Variance_Trend: points,
+      /* PM against MC, month by month - the PM view's trend. */
+      Engine_Trend: engineTrendFor(r['Item No.'], r.CHAINID),
+      /*
+       * Which branches this article's MC figures came from, biggest first.
+       *
+       * One entry per branch of THIS brand - the codes repeat across brands,
+       * so the index is keyed on article and brand together and a branch can
+       * never be attributed to the wrong one. Absent where the KST MAP placed
+       * none of the article's outlets.
+       */
+      MC_By_Branch: branchIndex.get(k) ?? null,
+    }
+  })
+
+  /*
+   * The Variance slicer, applied here beside the stamp that feeds it.
+   *
+   * A row the column left BLANK is never returned by a selection, the same
+   * rule the Transfer Status slicer follows: blank means "no theoretical of
+   * ours to compare", and a reader asking for Match has not asked for the rows
+   * where the question does not arise.
+   *
+   * Only the Consumption page offers this slicer, so no other page's
+   * population can change because of it - and when nothing is selected the
+   * rows pass through untouched, which is what keeps Stock Article and
+   * Procurement identical to what they were.
+   */
+  /*
+   * EVERY ARTICLE THE CONSUMPTION TABLE HOLDS - 9 Nov 2026, on request.
+   *
+   * The rows above come from the recipe explosion, so until now the page could
+   * only ever show the INTERSECTION: an article Oracle consumed but no recipe
+   * names had nowhere to appear. Measured over October 2026, that left 1,809 of
+   * Oracle's 4,581 article-brand pairs off the page entirely.
+   *
+   * Those articles were deliberately dropped on 8 Nov, and the reason was
+   * sound AT THE TIME: the variance was then OUR theoretical against Oracle's,
+   * and an article with no recipe of ours scored -100%, so a third of the
+   * volume arrived as noise. The 9 Nov change removed that reason - the
+   * variance is now Oracle against Oracle, which needs no recipe at all. Only
+   * the `Our theoretical` cross-check column stays blank for them, which is
+   * honest: we have no figure for an article no recipe names.
+   *
+   * `fullTable` keeps this to the Consumption page. The same route serves Stock
+   * Article and Procurement, and those are recipe views - appending articles
+   * with no recipe line to them would be a different page.
+   */
+  const complete = fullTable ? labelled.concat(missingRows(labelled)) : labelled
+
+  const wanted = filters?.varianceFlags
+  if (!wanted?.length) return complete
+  const want = new Set(wanted.map((v) => String(v).trim()))
+  return complete.filter((r) => r.Variance_Flag && want.has(r.Variance_Flag))
+
+  /**
+   * One row per Oracle article-brand pair that no recipe row carried.
+   *
+   * Built from Oracle's own figures, so the page's totals come to exactly what
+   * the source table holds. The recipe-side fields are left absent rather than
+   * zeroed: `BU`, `Recipe Group` and our theoretical are things we genuinely do
+   * not know for an article no recipe names, and a zero would assert we do.
+   */
+  function missingRows(already) {
+    /*
+     * A RECIPE-SIDE SLICER SUPPRESSES THE COMPLETION ENTIRELY.
+     *
+     * The appended rows are added outermost, after every filter the route
+     * applies, so they do not see those filters at all. Left unguarded that
+     * inverted the slicers: narrowing to one Item reduced the recipe rows to
+     * one, which left 8,653 pairs "missing", which were then all appended - a
+     * filter that EXPANDED the page to the whole table.
+     *
+     * Suppressing rather than filtering, because these rows genuinely cannot
+     * answer a recipe-side question. `items`, `categories`, `recipeGroups` and
+     * `nodeTypes` are all properties of 'RECIPE TABLE', and an article no
+     * recipe names has none of them; the slicers' own option lists are built
+     * from the recipe side, so such an article can never be one of the values
+     * chosen. Claiming it matched would be false, and dropping it silently is
+     * what a filter is for.
+     *
+     * `articles` is different - it is the article NUMBER, which Oracle also
+     * has - so it narrows these rows instead of suppressing them.
+     */
+    const recipeSideFilter =
+      filters?.items?.length ||
+      filters?.categories?.length ||
+      filters?.recipeGroups?.length ||
+      filters?.nodeTypes?.length
+    if (recipeSideFilter) return []
+
+    const onlyArticles = filters?.articles?.length
+      ? new Set(filters.articles.map((a) => canonArticle(a)))
+      : null
+
+    const seen = new Set()
+    for (const r of already) {
+      if (r.Sys_Potential_COS === null || r.Sys_Potential_COS === undefined) continue
+      const article = canonArticle(r['Item No.'])
+      const brand = String(r.CHAINID ?? '').trim().toUpperCase()
+      if (article && brand) seen.add(`${article}|${brand}`)
+    }
+
+    const out = []
+    for (const [k, found] of held.byKey) {
+      if (seen.has(k)) continue
+      const [article, brand] = k.split('|')
+      if (onlyArticles && !onlyArticles.has(article)) continue
+      const theirs = found.potential
+      const variance = found.consumption - theirs
+      out.push({
+        /*
+         * An unmapped outlet gets a BLANK brand, not the sentinel.
+         *
+         * The sentinel exists so `article|BRAND` keys stay unambiguous; it is
+         * not a brand and must never reach the screen. Blank is what the Brand
+         * column already renders as a dash, and a dash is the honest answer:
+         * the KST MAP does not say whose outlet this is.
+         */
+        CHAINID: brand === UNMAPPED_BRAND ? '' : brand,
+        Unmapped_Brand: brand === UNMAPPED_BRAND || undefined,
+        'Item No.': article,
+        Item: held.names?.get(article) ?? `Article ${article}`,
+        /*
+         * Marks the row as Oracle's rather than the recipe's. The client reads
+         * it to explain a blank cross-check column, and nothing else keys on it.
+         */
+        Oracle_Only: true,
+        Our_Theoretical: null,
+        Sys_Potential_COS: theirs,
+        Sys_Consumption: found.consumption,
+        Consumption_Variance: variance,
+        Consumption_Variance_Pct: variancePct(found.consumption, theirs),
+        Variance_Flag: varianceFlag(found.consumption, theirs),
+        ...mcFields(
+          theirs,
+          found.consumption,
+          // These rows are MC's own: no recipe names the article, so the PM
+          // side is absent by definition and the mapping says so.
+          { CHAINID: brand === UNMAPPED_BRAND ? '' : brand, Oracle_Only: true },
+          k
+        ),
+        Variance_Trend: trendFor(k),
+        // No recipe names the article, so there is no PM side to pair - but the
+        // call still runs, because an article absent from THIS window's recipe
+        // rows may well have had one in an earlier month.
+        Engine_Trend: engineTrendFor(article, brand === UNMAPPED_BRAND ? '' : brand),
+        // The appended rows carry the branch detail too, or an article MC
+        // consumed and no recipe names would have a blank branch column while
+        // its neighbours were filled.
+        MC_By_Branch: branchIndex.get(k) ?? null,
+      })
+    }
+    return out
+  }
+}
 
 /**
  * Which extra dimensions the reader has asked the table to split by.
@@ -174,6 +915,20 @@ function grainOf(req) {
  * This asks for LESS, never for different. Anything named here is omitted from
  * the response; nothing here changes how a figure is computed.
  */
+/**
+ * Is this the Consumption page asking?
+ *
+ * `component-level` serves Stock Article, Procurement and Consumption, and the
+ * client sends no page id, so the Consumption view says so for itself. Read
+ * straight off the request rather than through `parseFilters`, exactly as
+ * `omit` below is: it must not reach the query layer or the cache key, because
+ * it changes what is APPENDED to a response, never what is queried.
+ */
+function consumptionViewOf(req) {
+  const src = req.method === 'POST' ? req.body || {} : req.query || {}
+  return src.consumptionView === true || String(src.consumptionView ?? '') === 'true'
+}
+
 function omitsOf(req) {
   const src = req.method === 'POST' ? req.body || {} : req.query || {}
   const raw = src.omit
@@ -353,6 +1108,15 @@ export const COMPONENT_PAGES = [
    * data behind the page it was given.
    */
   'procurement',
+  /*
+   * The consumption variance view - 8 Nov 2026.
+   *
+   * Same endpoint and the same figures as Stock Article, with Oracle's own
+   * consumption joined on beside them. Listed for the same reason Procurement
+   * is: an account granted `consumption` alone would otherwise be refused the
+   * data behind the only page it was given.
+   */
+  'consumption',
   'madeinhouse',
   'src-ck',
   'src-bakery',
@@ -2708,6 +3472,20 @@ api.all('/article-usage', handle(async (req, res) => {
   const value = (articleNo || item).replace(/"/g, '""')
 
   /*
+   * LEVEL 1 LINES ONLY, when the caller asks - 15 Nov 2026, on request.
+   *
+   * Opt-IN, not a default. This panel opens from Stock Article and from
+   * Variance Analysis, and only the second was asked to restrict itself:
+   * "update the logic on this page only". A default here would change the
+   * other page silently.
+   *
+   * The flag comes from the client rather than being inferred from the page
+   * id, because the panel is a shared component and the page that opened it
+   * is the only thing that knows which question it is asking.
+   */
+  const level1 = String(src.level1 ?? '') === 'true' || src.level1 === true
+
+  /*
    * One query per dataset, not one per brand.
    *
    * Two pairs of brands share a model — SLC with BUR, MM with TBL — and
@@ -2870,7 +3648,25 @@ api.all('/article-usage', handle(async (req, res) => {
        * precisely why an unguarded VALUE() would sit here working until the day
        * somebody loads a PLU with a letter in it.
        */
-      const dax = `EVALUATE
+      /*
+       * NOW A FUNCTION, WHICH FIXES A LATENT BUG - 15 Nov 2026.
+       *
+       * The fallback below has always called `usageDax(false)`, and
+       * `usageDax` was never defined - it was a `const dax` string. The
+       * ReferenceError was swallowed by the `.catch(() => [])` beside it, so
+       * the widening described in the comment below has never once run: an
+       * article whose only recipe belongs to an unforecast product still
+       * reported "Nothing in the recipe tree names it", which is the exact
+       * fault that comment says was fixed on 29 Sep 2026.
+       *
+       * Found while adding the Level 1 restriction, not reported.
+       *
+       * `level1` restricts to the recipe lines the article is supplied
+       * directly to the brand on - 15 Nov 2026, on request, and only for the
+       * Variance Analysis page. Every other caller leaves it off and sees
+       * every level, exactly as before.
+       */
+      const usageDax = (restrictToForecast = true, level1 = false) => `EVALUATE
 VAR PLUs =
   SELECTCOLUMNS(
     FILTER(
@@ -2890,12 +3686,18 @@ SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Recipe Path],
   'RECIPE TABLE'[Node Type],
   'RECIPE TABLE'[BU],
-  TREATAS({"${value}"}, ${column}),
+  TREATAS({"${value}"}, ${column}),${
+    level1 ? `\n  FILTER(ALL('RECIPE TABLE'[Level]), 'RECIPE TABLE'[Level] = 1),` : ''
+  }${
+    restrictToForecast
+      ? `
   FILTER(
     ALL('RECIPE TABLE'[Product PLU]),
     NOT ISERROR(VALUE('RECIPE TABLE'[Product PLU]))
       && VALUE('RECIPE TABLE'[Product PLU]) IN PLUs
-  ),
+  ),`
+      : ''
+  }
   "Qty_Per_Unit", SUM('RECIPE TABLE'[QTY BU])
 )`
 
@@ -2913,11 +3715,13 @@ SUMMARIZECOLUMNS(
        * Asked ONLY when the restricted query found nothing, so the normal case
        * costs nothing and the rows a reader usually wants are unchanged.
        */
-      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}`, async () => {
+      // `level1` is part of the key: the two answers are different sets of
+      // rows, and serving one for the other is how a cache lies.
+      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}:${level1 ? 'L1' : 'all'}`, async () => {
         // Raw rows in the cache, so nothing stored carries one caller's label.
-        const rows = await executeQuery(dax, ds, { bulk: true })
+        const rows = await executeQuery(usageDax(true, level1), ds, { bulk: true })
         if (rows.length) return rows
-        const wider = await executeQuery(usageDax(false), ds, { bulk: true }).catch(() => [])
+        const wider = await executeQuery(usageDax(false, level1), ds, { bulk: true }).catch(() => [])
         // Marked, so the panel can say which of the two facts it is looking at.
         return wider.map((r) => ({ ...r, __unforecast: 1 }))
       })
@@ -3537,6 +4341,37 @@ api.all('/component-level', handle(async (req, res) => {
       : withOutbound
   })
   const window = g.parts[0].f
+  /*
+   * Every brand this request really covers, for `withOracleConsumption`.
+   *
+   * Oracle's consumption is per brand, so the comparison has to be narrowed to
+   * the same brands the forecast side was asked for - otherwise a single-brand
+   * page would be scored against all nine brands' consumption. Taken from the
+   * parts rather than from `window`, which is only the first brand's filters.
+   */
+  const brandCodes = g.parts.map((p) => p.brand.code)
+  /*
+   * Only the Consumption page gets Oracle's own articles appended - see
+   * `withOracleConsumption`. Stock Article and Procurement read this same route
+   * and are recipe views.
+   */
+  const consumptionView = consumptionViewOf(req)
+  /*
+   * Rows whose outlet the KST MAP never mapped to a brand, and when to show them.
+   *
+   * Measured 9 Nov 2026 over October: 4,073 article rows carry a blank Brand -
+   * FM's own sites and the outlets left unresolved - holding 11.7% of the
+   * table's consumption. The Consumption page is the whole table, so they
+   * belong on it.
+   *
+   * But only while the reader is looking at EVERY brand. They belong to no
+   * brand, so beside a single brand's 571 articles they would add 4,073 rows
+   * that are not that brand's and swamp the page - a brand filter has to mean
+   * what it says. Narrow to one brand and the page is that brand's rows; widen
+   * to all and the unmapped rows come back.
+   */
+  const allBrands = brandCodes.length >= config.brands.length
+  const includeUnmapped = consumptionView && allBrands
 
   /*
    * No cost-centre scope for Transaction Type any more - removed 31 Oct 2026.
@@ -3628,7 +4463,10 @@ api.all('/component-level', handle(async (req, res) => {
   if (g.single)
     return res.json({
       sales,
-      rows: await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+      // Outermost, so every row's CHAINID is final before Oracle's figures are
+      // joined on it - `withFmArticles` is what stamps FM, and a row still
+      // missing its brand would be matched against the wrong one.
+      rows: await withOracleConsumption(await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
         // The file decides the badge BEFORE the slicer reads it, so the column
         // and the filter can never disagree about what a Recipe row is.
         await withRecipeFile(await withSafetyStock(
@@ -3655,14 +4493,15 @@ api.all('/component-level', handle(async (req, res) => {
           seesStockDetail(req.user)
         )),
         window
-      ), window), seesStockDetail(req.user)), window, req.user)),
+      ), window), seesStockDetail(req.user)), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
   // the same thing to order — these do add up.
   res.json({
     sales,
-    rows: await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+    // Outermost, for the same reason as the single-brand branch above.
+    rows: await withOracleConsumption(await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
       // The file decides the badge BEFORE the slicer reads it — see above.
       await withRecipeFile(await withSafetyStock(
         await withOpenPo(
@@ -3694,7 +4533,7 @@ api.all('/component-level', handle(async (req, res) => {
         seesStockDetail(req.user)
       )),
       window
-    ), window), seesStockDetail(req.user)), window, req.user)),
+    ), window), seesStockDetail(req.user)), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
   })
 }))
 

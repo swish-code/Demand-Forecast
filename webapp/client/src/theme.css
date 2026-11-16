@@ -12007,6 +12007,118 @@ h3,
   }
 }
 
+
+/* ------------------------------------------- consumption variance heat --- */
+
+/*
+ * Articles down, months across, the variance as colour. The fill itself is set
+ * inline, because it is the DATUM - a band of Oracle's own theoretical, mixed
+ * from --amber or --blue against the surface, which is why no fill appears
+ * here and why the ramp needs no second definition for dark mode.
+ */
+
+.heat__scroll {
+  overflow-x: auto;
+  /* Rows are the thing being scanned, so the matrix keeps its cell size and
+     scrolls sideways on a narrow screen rather than squeezing six months into
+     something unreadable. */
+  padding-bottom: var(--s2);
+}
+
+.heat {
+  display: grid;
+  gap: 2px;
+  min-width: 520px;
+}
+
+.heat__row {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+  padding: 2px var(--s2);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+
+.heat__row:hover {
+  background: var(--sunken);
+}
+
+.heat__row--head,
+.heat__row--head:hover {
+  background: none;
+  cursor: default;
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0;
+}
+
+.heat__head {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.heat__row--head .heat__name {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.heat__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heat__brand {
+  flex: none;
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.heat__cell {
+  height: 22px;
+  border-radius: 2px;
+  /* A 2px gap of surface between fills, so two saturated cells read as two
+     cells and not as one band. The gap is the grid's own. */
+  background: var(--grid);
+}
+
+/*
+ * A month with NO row for this article. Deliberately not the agreement colour:
+ * Oracle not recording an article is not Oracle recording that it matched, and
+ * a neutral fill here would quietly turn missing data into a clean month.
+ */
+.heat__cell--none {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--line-soft) 0 3px,
+    transparent 3px 6px
+  );
+  border: 1px dashed var(--line);
+}
+
+.heat__num {
+  font-size: 11px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------- New Store Opening (scoped) --
  *
  * Everything here is under `.nso`, which wraps that one page.
@@ -12227,4 +12339,207 @@ h3,
   border-bottom: 0;
   font-weight: var(--w-bold);
   color: var(--text);
+}
+
+
+/* ------------------------------------------- Article-Level Variance (scoped) --
+ *
+ * 11 Nov 2026. Everything here is under `.alvr`, which wraps that one page.
+ *
+ * Scoped for the same reason the New Store page is: the three-view chrome and
+ * the toggle rows belong to this page, and the ten other tables did not ask to
+ * be restyled. Every colour is an existing token, so both themes follow
+ * without a second definition here.
+ */
+
+/*
+ * The wrapper reproduces the layout its children used to get directly.
+ *
+ * `.scroll` is a flex column with a gap and every panel was a child of it, so
+ * a div in between has to be the same kind of box - same direction, same gap -
+ * or the panels stack edge to edge. The New Store page learned this the hard
+ * way on 11 Nov; it is the same trap.
+ */
+.alvr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.alvr__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.alvr__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: var(--w-bold);
+  color: var(--text);
+  text-wrap: balance;
+}
+
+.alvr__sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.alvr__lede {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/*
+ * The view bar. It WRAPS rather than scrolling sideways: a control you have to
+ * scroll to find is a control nobody finds, which was the complaint about the
+ * old toggle being invisible.
+ */
+.alvr__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.alvr__views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.alvr__view {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: var(--w-medium);
+  padding: 7px 14px;
+  border-radius: var(--r-card);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.alvr__view:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.alvr__view--on {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+  font-weight: var(--w-bold);
+}
+
+.alvr__units,
+.alvr__branches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/*
+ * The branch picker row - two dropdowns, not 106 toggles.
+ *
+ * The pill row it replaced wrapped to six lines and pushed the table off the
+ * screen, which is the hazard with any control built one-per-value: it reads
+ * fine while the data is imagined and breaks on contact with 106 branches.
+ */
+.alvr__branches {
+  margin-bottom: var(--s3);
+  gap: var(--s3);
+}
+
+.alvr__branches-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* A branch cannot be chosen until a brand is, so the control says so. */
+.alvr__branches select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.alvr__units-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+
+.alvr__unit {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.alvr__unit:hover {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+.alvr__unit--on {
+  background: var(--blue-tint);
+  border-color: var(--blue);
+  color: var(--blue);
+  font-weight: var(--w-bold);
+}
+
+/*
+ * A unit nothing in the data actually states, kept visibly quieter than a real
+ * one so "Unknown" never reads as a measurement.
+ */
+.alvr__unit--muted {
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+/*
+ * The second KPI row carries counts rather than headline quantities, so its
+ * cards sit tighter and the four that matter stay the ones above it.
+ */
+.kpis--sub .kpi {
+  padding: var(--s2) var(--s3);
+}
+
+@media (max-width: 720px) {
+  .alvr__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .alvr__views {
+    width: 100%;
+  }
+
+  .alvr__view {
+    flex: 1 1 auto;
+    text-align: center;
+  }
 }

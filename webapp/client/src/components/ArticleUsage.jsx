@@ -213,11 +213,20 @@ const COLUMNS = [
   },
 ]
 
-export function ArticleUsage({ article, filters, onClose }) {
+/**
+ * `level1` restricts the recipe rows to the lines where the article is
+ * supplied DIRECTLY to the brand - 15 Nov 2026, on request.
+ *
+ * Opt-in, and off by default. This panel opens from Stock Article as well,
+ * and only Variance Analysis was asked to restrict itself; defaulting it on
+ * would change the other page without anybody asking.
+ */
+export function ArticleUsage({ article, filters, onClose, level1 = false }) {
   const request = {
     ...filters,
     articleNo: article?.['Item No.'] ?? '',
     item: article?.Item ?? '',
+    ...(level1 ? { level1: true } : {}),
   }
   const { data, error, loading, reload } = useData(api.articleUsage, request, {
     enabled: Boolean(article),

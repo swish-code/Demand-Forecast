@@ -559,6 +559,15 @@ export const PAGE_IDS = [
    * view without the detail table, or the other way round.
    */
   'procurement',
+  /*
+   * Consumption variance - 8 Nov 2026.
+   *
+   * Our theoretical consumption against the outlets' own, from the Oracle
+   * extracts in the FM Sales model. Its own id for the same reason Procurement
+   * has one: it reads the Stock Article endpoint but is granted separately, and
+   * it is administrator-only while the two recipe engines are being compared.
+   */
+  'consumption',
   'warehouse',
   'production',
   'guide',

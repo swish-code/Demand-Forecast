@@ -96,6 +96,15 @@ export function DataTable({
    */
   groupable,
   /**
+   * The field to fold on when the table first opens, as a `groupable` key.
+   *
+   * For a table whose whole point is the grouping - the Consumption page's
+   * monthly matrix is read brand by brand - where leaving it flat would show a
+   * thousand ungrouped rows and make the reader find the control first. The
+   * control still works normally afterwards, including back to "Nothing".
+   */
+  initialGroupBy = null,
+  /**
    * Titles for the shaded column groups, keyed by the `group` on each column.
    *
    * Supplying this adds a row above the headers spanning each run of grouped
@@ -184,7 +193,7 @@ export function DataTable({
    * just grouped a table wants to see the shape of it, and a page of closed
    * headings makes them click every one to find out what they did.
    */
-  const [groupBy, setGroupBy] = useState(null)
+  const [groupBy, setGroupBy] = useState(initialGroupBy)
   const [shut, setShut] = useState(() => new Set())
   const [pageSize, setPageSize] = useState(pageSizes[0])
   const [page, setPage] = useState(1)

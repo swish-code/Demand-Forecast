@@ -45,6 +45,10 @@ const ProductLevel = lazyPage(() => import('./pages/ProductLevel.jsx'), 'Product
 const ComponentLevel = lazyPage(() => import('./pages/ComponentLevel.jsx'), 'ComponentLevel')
 const Procurement = lazyPage(() => import('./pages/Procurement.jsx'), 'Procurement')
 const NewStore = lazyPage(() => import('./pages/NewStore.jsx'), 'NewStore')
+const ConsumptionVariance = lazyPage(
+  () => import('./pages/ConsumptionVariance.jsx'),
+  'ConsumptionVariance'
+)
 const WarehouseInsights = lazyPage(
   () => import('./pages/WarehouseInsights.jsx'),
   'WarehouseInsights'
@@ -272,6 +276,92 @@ const PAGES = [
      * `BRAND_LEVEL_DEPARTMENTS` exists on the server.
      */
     slicers: ['date', 'item', 'category', 'supply', 'channel', 'status'],
+  },
+  {
+    /*
+     * Consumption variance - 8 Nov 2026, on request.
+     *
+     * Our theoretical consumption against Oracle's, from the monthly extracts
+     * loaded into the FM Sales model. See the header of
+     * `ConsumptionVariance.jsx` for why the comparison is against
+     * `Potential COS QTY` and not against `CONSUMPTION`, and why the articles
+     * with no recipe line get a tab rather than a score.
+     *
+     * Its own id, not a mode of `component`: access is granted per page id, and
+     * this one is administrator-only while the two recipe engines are being
+     * compared for the first time. Same endpoint, same figures - it adds only
+     * the join to Oracle's own numbers.
+     */
+    /*
+     * RENAMED 10 Nov 2026, on request.
+     *
+     * "Consumption / Theoretical vs Oracle" described the page as it was
+     * built: our recipe engine against theirs. It stopped being that on 9 Nov
+     * when the comparison changed to MC's own theoretical against MC's own
+     * measured consumption - an operational question, not a reconciliation of
+     * two engines - and the whole page now reads brand by brand and month by
+     * month. The id is left alone: it is what page access is granted on.
+     */
+    id: 'consumption',
+    /*
+     * Renamed twice on 10 Nov 2026, ending here.
+     *
+     * "Usage vs Recipe" named the conclusion rather than the measurement.
+     * "Theoretical vs Consumption" named one pair - which was right while the
+     * page compared one pair, and stopped being right once it also carried PM
+     * against MC, PM against outbound, and consumption against outbound. Four
+     * comparisons do not fit in a label, and naming one of them would send a
+     * reader looking for the others somewhere else. The kicker and blurb carry
+     * the specifics.
+     */
+    label: 'Variance Analysis',
+    kicker: 'Theoretical against consumption, by article, branch and month',
+    blurb: 'What MC’s recipes say should have been used against what stock says actually was',
+    Icon: IconInsight,
+    Component: ConsumptionVariance,
+    /*
+     * Admin only to start with, on request.
+     *
+     * The comparison is new and its two biggest drivers are still open - 36.3%
+     * of Oracle's quantity has no recipe at all, and the branch half of
+     * `KST MAP` has nine outlets still unmatched. Keeping it to the people
+     * maintaining those numbers until they settle, exactly as the Production
+     * page was while its classification was being validated.
+     */
+    adminOnly: true,
+    /*
+     * No `location` slicer: the consumption side is joined on brand only.
+     *
+     * `Consumption Qty[Branch]` is populated and `KST MAP` resolves it, so
+     * adding branch later is a slicer and a group-by rather than a redesign -
+     * but it was deliberately left out of the first version, on request.
+     */
+    /*
+     * No Recipe slicer, removed 8 Nov 2026 on request.
+     *
+     * It could only ever answer "Recipe" here. The page shows one row per
+     * article that Oracle and our recipe tree BOTH know about, and our side of
+     * that comparison is the recipe explosion - so a non-recipe article has no
+     * theoretical figure, is never stamped, and never reaches this table. A
+     * slicer whose other value returns nothing is a control that empties the
+     * page, which is the same reason Stock Article dropped its Prod. type one.
+     *
+     * `oracleRecipe` is the OTHER question and it does belong here - 9 Nov
+     * 2026. Prod. type asks whether OUR tree knows the article; this asks
+     * whether ORACLE has a theoretical for it, and since the page started
+     * appending every article in 'Consumption Qty' those two stopped being the
+     * same set: 7,112 of 9,302 article-brands have consumption and no
+     * theoretical, which is most of the table and all of its largest figures.
+     *
+     * The VARIANCE slicer was removed on 10 Nov 2026, on request. It narrowed
+     * to Variance or Match, and the page had stopped being a pass/fail list:
+     * the monthly table answers "how often and how far" per article, which is
+     * the same question with the detail left in. Dropping it here also stops
+     * it filtering - `filtersForPage` only sends what a page offers - so a
+     * reader who had left it on Match is not quietly held to that selection
+     * with no control left to clear it.
+     */
+    slicers: ['date', 'item', 'category', 'oracleRecipe'],
   },
   ...(PRODUCTION_PAGE_ON
     ? [
@@ -734,6 +824,33 @@ const EMPTY_OPTIONS = {
     'No Movement',
     'Not traceable',
   ],
+  /*
+   * Fixed too: the two recipe engines either agree about an article or they do
+   * not. Stamped by `varianceFlag` on the server, so there is nothing to fetch
+   * and the tolerance that decides it lives in one place.
+   */
+  varianceFlag: ['Variance', 'Match'],
+  /*
+   * Fixed as well: Oracle either has a theoretical for the article or it has
+   * none. Read off `Sys_Potential_COS`, so there is nothing to fetch.
+   */
+  /*
+   * RENAMED AGAIN 12 Nov 2026, on request, and this time away from the word
+   * "recipe" altogether.
+   *
+   * It was "Has recipe"/"No recipe", then "Recipe"/"Non-recipe" on 10 Nov to
+   * match the Prod. type slicer's vocabulary. Both overclaimed. The test is
+   * `Sys_Potential_COS > 0` and nothing more, and a zero does NOT establish
+   * that the article has no recipe - MC may hold no figure for it this month,
+   * the recipe may be missing from MC, the article may be new. Genuine
+   * non-recipe articles exist and some of them sit on the other side of this
+   * line, which is exactly the confusion the old name created.
+   *
+   * So the values now name the measurement rather than a conclusion drawn
+   * from it. Old saved selections are still understood - see `canonChoice` in
+   * ConsumptionVariance.jsx.
+   */
+  oracleRecipe: ['Has theoretical', 'No theoretical'],
   // Fixed too: a row either has a recipe behind it or it does not.
   recipeKinds: ['Recipe', 'Non-recipe'],
   /*
@@ -857,6 +974,8 @@ export default function App({ session, onSignedOut }) {
     supply: [],
     channels: [],
     transferStatus: [],
+    varianceFlag: [],
+    oracleRecipe: [],
     recipeKinds: [],
     statuses: [],
     prepStatus: [],
@@ -1162,6 +1281,8 @@ export default function App({ session, onSignedOut }) {
       // Fixed like supply, and for the same reason: no endpoint returns it.
       channels: EMPTY_OPTIONS.channels,
       transferStatus: EMPTY_OPTIONS.transferStatus,
+      varianceFlag: EMPTY_OPTIONS.varianceFlag,
+      oracleRecipe: EMPTY_OPTIONS.oracleRecipe,
       statuses: EMPTY_OPTIONS.statuses,
       recipeKinds: EMPTY_OPTIONS.recipeKinds,
     }),

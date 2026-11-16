@@ -76,6 +76,44 @@ export const SLICERS = [
    */
   { id: 'transferStatus', key: 'transferStatus', label: 'Transfer Status', options: 'transferStatus', placeholder: 'All' },
   /*
+   * Whether our recipe and Oracle's disagree about this article - 8 Nov 2026.
+   *
+   * Two fixed values, stamped by `varianceFlag` on the server rather than being
+   * a column any query can narrow on, so the slicer is applied to the assembled
+   * rows beside Transaction Type and Transfer Status. Only the Consumption page
+   * offers it, because it is the only page carrying Oracle's figures.
+   */
+  { id: 'varianceFlag', key: 'varianceFlags', label: 'Variance', options: 'varianceFlag', placeholder: 'All' },
+  /*
+   * Whether ORACLE has a recipe for the article - 9 Nov 2026, on request.
+   *
+   * Not the same question as Prod. type, which asks whether OUR recipe tree
+   * knows it. This one asks whether Oracle's own `Potential COS QTY` is
+   * anything at all, and it exists because of what that does to the variance:
+   * where the theoretical is nothing, the whole of consumption is the variance
+   * and there is no percentage to put it in proportion, so 7,112 of 9,302
+   * article-brands - napkins, tissue, gloves, containers - swamp the figures
+   * that do have a recipe behind them. Measured 9 Nov 2026.
+   *
+   * Applied by the Consumption page itself rather than by the server: the value
+   * is read off a column already in the response, so filtering locally changes
+   * the view without re-querying Power BI for rows it is about to drop.
+   */
+  /*
+   * "MC theoretical" - renamed 12 Nov 2026, on request.
+   *
+   * It was "Recipe", then "MC recipe", and the word was the problem both
+   * times. `recipeKind` below asks whether OUR recipe tree knows the article;
+   * this asks only whether MC holds a Potential COS QTY for it. Calling both
+   * of them "recipe" invited the reading that a zero here means the article
+   * has no recipe, which it does not - genuine non-recipe articles exist on
+   * both sides of this test.
+   *
+   * The label now matches the MC Theoretical column it keys on, and the two
+   * values say what is measured rather than what might be concluded.
+   */
+  { id: 'oracleRecipe', key: 'oracleRecipes', label: 'MC theoretical', options: 'oracleRecipe', placeholder: 'All' },
+  /*
    * How long since the article was last issued - by the CENTRAL WAREHOUSE on
    * Stock Article, and by the page's own production site where one is pinned
    * (Production reads CK/CPU, from 5 Nov 2026). Same ladder either way; the
@@ -119,6 +157,8 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       supply: [],
       channels: [],
       transferStatus: [],
+      varianceFlags: [],
+      oracleRecipes: [],
       prepStatus: [],
       dateFrom: f.defaultFrom,
       dateTo: f.defaultTo,

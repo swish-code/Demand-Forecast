@@ -383,6 +383,58 @@ WH forecast  = constant * forecast sales for the window on screen`,
       'no outbound figure at all, or nothing forecast and nothing moved.',
   },
   {
+    id: 'consumption-theoretical',
+    page: 'Consumption',
+    visual: 'Theoretical — Oracle theoretical',
+    label: 'Oracle theoretical (Potential COS QTY)',
+    source: TABLE,
+    expression: "- SUM('Consumption Qty'[Potential COS QTY])",
+    detail:
+      'Oracle’s OWN recipe explosion over the same sales, from the monthly extracts in the FM ' +
+      'Sales model. Negated rather than made absolute: measured 8 Nov 2026, 70,663 rows are ' +
+      'negative and 254 positive, and those 254 are reversals that must REDUCE an article’s ' +
+      'consumption. Taking the absolute value added them instead and put the September total 55 ' +
+      'units above what the model itself reports. Joined on the article number, which is text in ' +
+      'Oracle and an integer in the recipe master, so both spellings collapse to one key.',
+    tunable: 'Which cost centres are in scope, through the 98 rows of KST MAP.',
+  },
+  {
+    id: 'consumption-variance',
+    page: 'Consumption',
+    visual: 'Theoretical — Variance',
+    label: 'Consumption variance (per article per brand)',
+    source: LOCAL,
+    expression: 'Our theoretical - Oracle theoretical',
+    detail:
+      'BOTH SIDES ARE THEORETICAL, which is the whole point: the app explodes ' +
+      "'RECIPE TABLE'[QTY BU] over the products that sold and Oracle explodes its own recipe " +
+      'over the same sales, so the difference is two recipe definitions disagreeing and carries ' +
+      'no waste. Positive means our recipe asks for more. Deliberately NOT taken against ' +
+      'CONSUMPTION, which is reconciled from stock and therefore includes waste and ' +
+      'over-portioning — that figure is the Waste variance column, and the two subtract to give ' +
+      'ours against CONSUMPTION, so nothing is lost by keeping them apart. Blank where no recipe ' +
+      'line names the article: 2,999 of 4,870 articles and 36.3% of Oracle’s quantity over ' +
+      'April–October 2026. Those articles are left off the page entirely — scoring them at -100% ' +
+      'across a third of the volume would bury every row where the engines genuinely disagree. ' +
+      'The Flag column marks a row Variance where the two are more than 1% apart, or where ' +
+      'Oracle recorded nothing and we did; Match within 1%, or within half a unit, below which a ' +
+      'percentage stops meaning anything.',
+  },
+  {
+    id: 'consumption-waste',
+    page: 'Consumption',
+    visual: 'Measured — Waste variance',
+    label: 'Waste variance (per article per brand)',
+    source: LOCAL,
+    expression: 'CONSUMPTION - Oracle theoretical',
+    detail:
+      'Oracle’s actual against Oracle’s own theoretical, so it is independent of our recipe ' +
+      'entirely. CONSUMPTION is reconciled from stock — Opening + Transfers + Purchase - ' +
+      'Closing + Usage — and the gap is what disappeared beyond what the recipe explains: ' +
+      'waste, over-portioning and shrinkage. Kept in its own column so a recipe fault can never ' +
+      'be read as an operational loss.',
+  },
+  {
     id: 'variance',
     page: 'Warehouse Insights',
     visual: 'Warehouse article detail — Variance',
