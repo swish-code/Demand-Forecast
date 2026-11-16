@@ -540,6 +540,36 @@ export function downloadCsv(filename, rows, columns, notes) {
     const s = String(v)
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
+
+  /*
+   * A column Excel must not read as a number.
+   *
+   * A Product PLU is an identifier that happens to be digits - 83001108300122
+   * is fourteen of them - and Excel's General format turns anything past
+   * eleven digits into scientific notation, so the download showed
+   * "8.30011E+13" where the reader needed the code. Past fifteen significant
+   * digits it is worse than cosmetic: the value is stored as a double and the
+   * trailing digits are replaced by zeros, so the real PLU is gone from the
+   * file rather than merely displayed oddly.
+   *
+   * `="..."` is what forces it, and it has to be a formula: quoting alone does
+   * not stop the conversion, and a leading apostrophe survives into the cell
+   * as a character. Opt-in per column rather than applied to every long
+   * number, so no existing download changes and nothing that genuinely IS a
+   * quantity stops being one.
+   */
+  const cell = (v, col) => {
+    if (!col?.text) return escape(v)
+    if (v === null || v === undefined || v === '') return ''
+    /*
+     * The whole field is CSV-quoted, so the formula's own quotes are doubled
+     * like any other literal: the field reads `"=""123"""` and unquotes to
+     * `="123"`. Emitting a bare `="123"` would be a quote inside an unquoted
+     * field - Excel forgives it, strict parsers do not, and a comma in the
+     * value would split the row.
+     */
+    return `"=""${String(v).replace(/"/g, '""')}"""`
+  }
   /*
    * Rows appended after the table, for a download that has to explain itself.
    *
@@ -558,7 +588,7 @@ export function downloadCsv(filename, rows, columns, notes) {
 
   const csv = [
     cols.map((c) => escape(c.label)).join(','),
-    ...rows.map((r) => cols.map((c) => escape(r[c.key])).join(',')),
+    ...rows.map((r) => cols.map((c) => cell(r[c.key], c)).join(',')),
     ...extra,
   ].join('\n')
 

@@ -593,6 +593,26 @@ select {
   min-height: 0;
 }
 
+/*
+ * A column of form fields, each its own natural height.
+ *
+ * The rule above exists for a column of PANELS, where stretching the last one
+ * keeps it level with a tall sibling. `min-height: 0` is what makes that work:
+ * it removes the automatic minimum that normally stops a flex item shrinking
+ * below its content.
+ *
+ * Applied to a column of form fields that is exactly wrong. The fields were
+ * made to share the height equally AND allowed to shrink past their contents,
+ * so the forecast-window card's border box ended above its own last line and
+ * the caveat text rendered outside it, on top of the next field's label.
+ *
+ * A field should be as tall as what it holds, so this opts that column out.
+ */
+.stack--form > * {
+  flex: 0 0 auto;
+  min-height: auto;
+}
+
 .kpis--stack {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

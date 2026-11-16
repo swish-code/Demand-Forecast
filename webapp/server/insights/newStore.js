@@ -169,13 +169,39 @@ export function coverageOf(periodDates, coveredDates) {
  */
 export function foldDaily(daily, periodOf, exclude = []) {
   const dropped = new Set(exclude.map((p) => String(p).trim()).filter(Boolean))
-  const perDay = new Map() // `${product}|${plu}|${date}` -> qty
-  const perPeriod = new Map() // `${product}|${plu}|${period}` -> qty
-  const items = new Map() // `${product}|${plu}` -> { product, plu }
+  const perDay = new Map() // `${key}|${date}` -> qty
+  const perPeriod = new Map() // `${key}|${period}` -> qty
+  const items = new Map() // key -> { product, plu, aliases }
   const products = new Set()
   const excludedQty = new Map() // period -> qty of the products dropped
-  const pluQty = new Map() // `${product}|${plu}` -> qty over the whole window
+  const pluQty = new Map() // key -> qty over the whole window
   const coveredDates = new Set()
+
+  /*
+   * THE GRAIN IS THE PLU ALONE, SINCE 16 NOV 2026
+   *
+   * It was `${product}|${plu}`, which looked like a PLU grain and was not. A
+   * PLU that carries TWO product names in the model became two rows, and the
+   * smaller of the two reads as a broken forecast: PLU 3003001 is both
+   * "Pepsi 24oz" (3,521 units over the window) and "CocaCola" (61), so the
+   * CocaCola row showed a figure for month 1 and blanks after - not because
+   * anything was missing, but because that name's share rounds away.
+   *
+   * Power BI does not work that way. `Forecast_Qty_7(last 28+2)` is computed
+   * per Clean_ItemID x LocationID x date, and the product name is an
+   * attribute of the item - `MAX(ProductName_Fixed_Option)` - never part of
+   * the arithmetic. Keying on the pair invented a grain the source does not
+   * have. Measured on BBT for 17 Nov 2026: 5 of 437 PLUs carry more than one
+   * name, and all five split into a full row and a near-empty one.
+   *
+   * So the key is the code, the name shown is whichever one carries the most
+   * quantity, and the others are kept as `aliases` rather than thrown away -
+   * four of those five are a genuine mis-mapping (one code reading as both
+   * Pepsi and CocaCola), and hiding it would make the data look tidier than
+   * it is.
+   */
+  const nameQty = new Map() // key -> Map(name -> qty)
+  const keyOf = (plu, product) => (plu ? plu : `(no PLU)|${product}`)
 
   for (const r of daily ?? []) {
     const date = String(val(r, 'Forecast_Product_Table[Date]') ?? '').slice(0, 10)
@@ -183,22 +209,60 @@ export function foldDaily(daily, periodOf, exclude = []) {
     const plu = String(val(r, 'Forecast_Product_Table[Clean_ItemID]') ?? '').trim()
     const qty = Number(val(r, 'Qty')) || 0
     if (!date || !product || !(qty > 0)) continue
+    if (!periodOf.get(date)) continue
+    const key = keyOf(plu, product)
+    if (!nameQty.has(key)) nameQty.set(key, new Map())
+    const m = nameQty.get(key)
+    m.set(product, (m.get(product) ?? 0) + qty)
+  }
+
+  /* The name a code trades under, and the ones it also answers to. */
+  const nameOf = new Map()
+  const aliasOf = new Map()
+  for (const [key, m] of nameQty) {
+    // Quantity first, then alphabetical - so the choice cannot change between
+    // two runs over the same data just because the rows arrived in a new order.
+    const ranked = [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    nameOf.set(key, ranked[0][0])
+    if (ranked.length > 1) aliasOf.set(key, ranked.slice(1).map(([n]) => n))
+  }
+
+  for (const r of daily ?? []) {
+    const date = String(val(r, 'Forecast_Product_Table[Date]') ?? '').slice(0, 10)
+    const rowName = String(val(r, 'Forecast_Product_Table[ProductName_Fixed_Option]') ?? '').trim()
+    const plu = String(val(r, 'Forecast_Product_Table[Clean_ItemID]') ?? '').trim()
+    const qty = Number(val(r, 'Qty')) || 0
+    if (!date || !rowName || !(qty > 0)) continue
     const p = periodOf.get(date)
     if (!p) continue
     coveredDates.add(date)
+
+    /*
+     * A product row with no PLU still has a forecast; it just has no code to
+     * put against it. Kept under an explicit marker rather than discarded, so
+     * the quantity is not silently lost from the branch's plan. Such rows stay
+     * keyed by NAME as well, because without a code there is nothing else to
+     * tell two of them apart.
+     */
+    const key = keyOf(plu, rowName)
+    const product = nameOf.get(key) ?? rowName
+
+    /*
+     * Exclusion tests the code's own name, not the name on the row.
+     *
+     * Dropping "Pepsi 24oz" has to drop every unit of PLU 3003001, including
+     * the handful the model files under "CocaCola". Testing the row's name
+     * would leave those behind - the reader would see the product gone from
+     * the table and 1.7% of its quantity still in the branch's plan.
+     */
     if (dropped.has(product)) {
       excludedQty.set(p, (excludedQty.get(p) ?? 0) + qty)
       continue
     }
-    /*
-     * A product row with no PLU still has a forecast; it just has no code to
-     * put against it. Kept under an explicit marker rather than discarded, so
-     * the quantity is not silently lost from the branch's plan.
-     */
-    const code = plu || '(no PLU)'
-    const key = `${product}|${code}`
     products.add(product)
-    if (!items.has(key)) items.set(key, { product, plu: code })
+    if (!items.has(key)) {
+      items.set(key, { product, plu: plu || '(no PLU)', aliases: aliasOf.get(key) ?? [] })
+    }
     pluQty.set(key, (pluQty.get(key) ?? 0) + qty)
     perDay.set(`${key}|${date}`, (perDay.get(`${key}|${date}`) ?? 0) + qty)
     perPeriod.set(`${key}|${p}`, (perPeriod.get(`${key}|${p}`) ?? 0) + qty)
@@ -656,6 +720,16 @@ export async function newStoreForecast({
           Product: item.product,
           // The row's OWN PLU - this is the grain, not a label on it.
           Product_PLU: item.plu,
+          /*
+           * The other names this code trades under, where there are any.
+           *
+           * Carried so searching the table for a name the model holds still
+           * finds the code: folding to PLU grain made the lesser name vanish
+           * from the page entirely, and "I cannot find CocaCola" would be a
+           * worse answer than the duplicate row it replaced. Almost always
+           * absent - 5 PLUs of 437 on BBT - so it costs nothing on a row.
+           */
+          ...(item.aliases?.length ? { Product_Aliases: item.aliases.join('; ') } : {}),
           Brand_Daily_Qty: round(o.q, 3),
           Daily_Weight_Pct: round(o.q / openTotal, 8),
           Incident_Rate: round(rate, 10),
@@ -713,6 +787,42 @@ export async function newStoreForecast({
    */
   const exactTotal = periodSummary.reduce((a, p) => a + (p.productQty ?? 0), 0)
   const wholeTotal = rows.reduce((a, r) => a + r.Daily_Product_Qty, 0)
+
+  /*
+   * A code that trades under several names is listed under each of them.
+   *
+   * The forecast is the PLU's, so every copy carries the SAME quantity - it is
+   * one forecast shown under each name the model files it against, not a share
+   * split between them. Somebody looking for "CocaCola" finds the row and sees
+   * the full figure for that code.
+   *
+   * DELIBERATELY AFTER `wholeTotal`.
+   *
+   * These rows repeat quantity that is already counted. Everything that adds
+   * up - the reconciliation above, the page's KPI, the table's totals row -
+   * has to count a PLU once, so the duplicates are created after the sum and
+   * carry `Is_Alias_Row` so the readers that total can skip them. Expanding
+   * before this line would have doubled the branch's whole plan.
+   */
+  const aliasRows = []
+  for (const r of rows) {
+    if (!r.Product_Aliases) continue
+    for (const name of String(r.Product_Aliases).split('; ')) {
+      const other = name.trim()
+      if (!other) continue
+      aliasRows.push({
+        ...r,
+        Product: other,
+        /* The names it is shown beside, from this row's point of view. */
+        Product_Aliases: [r.Product, ...String(r.Product_Aliases).split('; ').map((s) => s.trim())]
+          .filter((n) => n && n !== other)
+          .join('; '),
+        /* Not a forecast of its own: the same PLU's figure, shown again. */
+        Is_Alias_Row: true,
+      })
+    }
+  }
+  rows.push(...aliasRows)
   /*
    * PLUs that were given a quantity and ended up with no whole unit anywhere.
    *

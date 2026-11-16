@@ -175,6 +175,58 @@ const withAllPlus = (list, result) => {
   }))
 }
 
+/*
+ * The product name, plus any other name the same code trades under.
+ *
+ * Folding the table to PLU grain means one row per code, so a code the model
+ * files under two names shows only the busier one. The others are named here
+ * rather than dropped: it keeps the row findable by either name, and it makes
+ * a mis-mapping visible - PLU 3003001 reads as both "Pepsi 24oz" and
+ * "CocaCola", which is worth somebody noticing rather than tidying away.
+ */
+/**
+ * Sum a column, counting each PLU once.
+ *
+ * A code that trades under several names is listed under each of them, every
+ * copy carrying the same quantity - it is one forecast shown twice, not two
+ * forecasts. Adding the column naively would therefore overstate the branch's
+ * plan by whatever those codes are worth, so the totals row de-duplicates on
+ * the PLU. Rows with no code fall back to the name, which is the only thing
+ * that distinguishes them.
+ */
+const sumOnce = (key) => (list) => {
+  const seen = new Set()
+  let n = 0
+  for (const r of list ?? []) {
+    /*
+     * The date is part of the identity, so this is right at BOTH grains: the
+     * daily table holds one row per PLU per day and every one of them must
+     * count, while the period table holds one per PLU and has no date at all.
+     * Dropping the date would have collapsed ninety days of a PLU into one.
+     */
+    const id = `${r.Product_PLU || `(no PLU)|${r.Product}`}|${r.Forecast_Date ?? ''}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    n += Number(r[key]) || 0
+  }
+  return n
+}
+
+const productCell = (v, row) =>
+  row?.Product_Aliases ? (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '2px' }}>
+      <span>{v}</span>
+      <span className="field__help" title={`The same PLU also appears as: ${row.Product_Aliases}`}>
+        also: {row.Product_Aliases}
+      </span>
+    </span>
+  ) : (
+    v
+  )
+
+/* The columns that hold an identifier made of digits, not a quantity. */
+const PLU_COLUMNS = new Set(['Product_PLU', 'Product_PLU_All'])
+
 const PLU_HINT =
   'The Clean_ItemID this row forecasts. The forecast is per PLU, so a product selling under several codes has one row for each and the quantity beside it is that code’s alone. “of 23” means the product is spread across twenty-three such rows.'
 
@@ -216,7 +268,7 @@ const dailyColumnsFor = (result) => {
     hint: 'Which thirty-day month this date falls in: days 1–30, 31–60 or 61–90 from opening.',
     render: (v) => <Pill tone={monthTone(v)}>{monthLabel(v)}</Pill>,
   },
-  { key: 'Product', label: 'Product', autoWidth: true },
+  { key: 'Product', label: 'Product', autoWidth: true, render: productCell },
   {
     key: 'Product_PLU',
     label: 'Product PLU',
@@ -293,7 +345,7 @@ const dailyColumnsFor = (result) => {
     num: true,
     autoWidth: true,
     strong: true,
-    total: 'sum',
+    total: sumOnce('Daily_Product_Qty'),
     renderTotal: fmtQty,
     hint: 'What to plan for on this date. Whole units: the month’s quantity is shared out by the weights and the remainder given to the busiest days, so the days add up to the month exactly.',
     render: fmtInt,
@@ -380,6 +432,11 @@ export function NewStore({ brands = [] }) {
     let qty = 0
     const byDate = new Map()
     for (const r of rows) {
+      /*
+       * A PLU listed under a second name repeats a quantity already counted.
+       * The branch prepares it once, so it is added once.
+       */
+      if (r.Is_Alias_Row) continue
       qty += Number(r.Daily_Product_Qty) || 0
       byDate.set(r.Forecast_Date, (byDate.get(r.Forecast_Date) ?? 0) + (Number(r.Daily_Product_Qty) || 0))
     }
@@ -408,6 +465,10 @@ export function NewStore({ brands = [] }) {
         got = {
           Product: String(r.Product),
           Product_PLU: r.Product_PLU ?? null,
+          /* Carried through so the period grain shows the other names, and
+             so the totals row can count each PLU once. */
+          ...(r.Product_Aliases ? { Product_Aliases: r.Product_Aliases } : {}),
+          ...(r.Is_Alias_Row ? { Is_Alias_Row: true } : {}),
           Total: 0,
         }
         byItem.set(key, got)
@@ -420,11 +481,28 @@ export function NewStore({ brands = [] }) {
     return [...byItem.values()]
   }, [rows])
 
+  /* The codes carrying more than one name, for the banner above the table. */
+  const aliasPairs = useMemo(() => {
+    const seen = new Map()
+    for (const r of rows) {
+      if (!r.Product_Aliases || seen.has(r.Product_PLU)) continue
+      seen.set(r.Product_PLU, {
+        plu: r.Product_PLU,
+        names: [r.Product, ...String(r.Product_Aliases).split('; ')]
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .sort()
+          .join(' / '),
+      })
+    }
+    return [...seen.values()]
+  }, [rows])
+
   /* Columns named for the days they cover, not "Period 1". */
   const periodColumns = useMemo(() => {
     const ps = result?.periods ?? []
     return [
-      { key: 'Product', label: 'Product', required: true, strong: true },
+      { key: 'Product', label: 'Product', required: true, strong: true, render: productCell },
       {
         key: 'Product_PLU',
         label: 'Product PLU',
@@ -439,7 +517,7 @@ export function NewStore({ brands = [] }) {
         }`,
         num: true,
         autoWidth: true,
-        total: p.available ? 'sum' : undefined,
+        total: p.available ? sumOnce(`P${p.period}`) : undefined,
         renderTotal: fmtInt,
         hint: p.available
           ? `Whole units for ${monthLabel(p.period)} — ${dayRange(p.period)}, ${shortDate(
@@ -460,7 +538,7 @@ export function NewStore({ brands = [] }) {
         num: true,
         autoWidth: true,
         strong: true,
-        total: 'sum',
+        total: sumOnce('Total'),
         renderTotal: fmtInt,
         hint: 'The product’s whole units across all ninety days.',
         render: fmtInt,
@@ -519,7 +597,7 @@ export function NewStore({ brands = [] }) {
           title="The new branch"
           sub="Nothing here has been recorded anywhere — the branch does not exist yet, so these are inputs rather than filters."
         >
-          <div className="stack" style={{ padding: 'var(--s4)', gap: 'var(--s4)' }}>
+          <div className="stack stack--form" style={{ padding: 'var(--s4)', gap: 'var(--s4)' }}>
             <label className="field">
               <span className="field__label">Brand</span>
               <select
@@ -626,7 +704,7 @@ export function NewStore({ brands = [] }) {
           title="Expected sales"
           sub="One figure per thirty-day month, in KD. This is the only thing that sizes the forecast — every product quantity is this, converted at the brand’s own rate per KD."
         >
-          <div className="stack" style={{ padding: 'var(--s4)', gap: 'var(--s4)' }}>
+          <div className="stack stack--form" style={{ padding: 'var(--s4)', gap: 'var(--s4)' }}>
             {[0, 1, 2].map((i) => (
               <label className="field" key={i}>
                 {/* The month's own colour, so the box you are typing in and
@@ -779,6 +857,28 @@ export function NewStore({ brands = [] }) {
               what the Power BI model holds, so they were rebuilt from its own method — the
               forecast spine, the AOV history and the sales plan. Days the model does cover were
               taken from it unchanged; the two never both count toward the same day.
+            </InfoBanner>
+          )}
+
+          {/*
+            * Codes the model files under more than one name.
+            *
+            * Each is listed under every name, carrying the SAME quantity,
+            * because the forecast belongs to the code. That has to be said:
+            * two rows showing 126 units look like 252 units, and a reader
+            * adding them by eye would over-order. The totals row and the KPI
+            * above already count each code once.
+            */}
+          {aliasPairs.length > 0 && (
+            <InfoBanner>
+              <strong>
+                {aliasPairs.length} product {aliasPairs.length === 1 ? 'code is' : 'codes are'}{' '}
+                listed under more than one name.
+              </strong>{' '}
+              The forecast belongs to the PLU, so each name shows the same quantity — it is one
+              forecast shown twice, not two. Totals count each code once. Affected:{' '}
+              {aliasPairs.slice(0, 4).map((p) => `${p.plu} (${p.names})`).join(', ')}
+              {aliasPairs.length > 4 ? ` and ${aliasPairs.length - 4} more` : ''}.
             </InfoBanner>
           )}
 
@@ -990,8 +1090,22 @@ export function NewStore({ brands = [] }) {
                       `${result.brand} ${result.branchName} ${grain} forecast.csv`,
                       withAllPlus(tableRows, result),
                       [
-                        ...tableColumns.map(({ key, label }) => ({ key, label })),
-                        { key: 'Product_PLU_All', label: 'All PLUs' },
+                        /*
+                         * `text` on the PLU columns, so Excel keeps the code.
+                         * A fourteen-digit PLU in General format becomes
+                         * "8.30011E+13", and past fifteen digits the trailing
+                         * ones are lost to floating point - the identifier is
+                         * then not in the file at all.
+                         */
+                        ...tableColumns.map(({ key, label }) => ({
+                          key,
+                          label,
+                          text: PLU_COLUMNS.has(key),
+                        })),
+                        { key: 'Product_PLU_All', label: 'All PLUs', text: true },
+                        /* Blank on almost every row; present where one code
+                           trades under more than one name. */
+                        { key: 'Product_Aliases', label: 'Other names for this PLU' },
                       ],
                       [
                         ['Branch', result.branchName],

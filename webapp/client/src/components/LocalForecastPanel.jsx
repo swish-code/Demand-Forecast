@@ -232,7 +232,14 @@ export function LocalForecastPanel() {
               downloadCsv(
                 `Local product forecast ${from} to ${to}.csv`,
                 rows.rows.map((r) => ({ ...r, source: 'Generated locally (not Power BI)' })),
-                [...columns.filter((c) => c.key !== 'dow'), { key: 'source', label: 'Source' }]
+                [
+                  /* `text` on the PLU: Excel turns a 14-digit code into
+                     "8.30011E+13", and loses digits past the fifteenth. */
+                  ...columns
+                    .filter((c) => c.key !== 'dow')
+                    .map(({ key, label }) => ({ key, label, text: key === 'plu' })),
+                  { key: 'source', label: 'Source' },
+                ]
               )
             }
           >

@@ -232,7 +232,7 @@ const PERIOD_OF = new Map([
   ['2026-12-31', 2],
 ])
 
-test('the fold is at PLU grain: one item per product-PLU pair', () => {
+test('the fold is at PLU grain: one item per code', () => {
   const got = foldDaily(
     [
       row('2026-12-01', 'Sprite', '3002016', 10),
@@ -243,7 +243,7 @@ test('the fold is at PLU grain: one item per product-PLU pair', () => {
   )
   assert.equal(got.items.size, 3, 'Sprite under two codes is two items')
   assert.equal(got.products.size, 2, 'but still two products')
-  assert.deepEqual([...got.items.keys()].sort(), ['Fries|8300110', 'Sprite|3002016', 'Sprite|3003010'])
+  assert.deepEqual([...got.items.keys()].sort(), ['3002016', '3003010', '8300110'])
 })
 
 test('two PLUs of one product keep their own quantities', () => {
@@ -251,10 +251,55 @@ test('two PLUs of one product keep their own quantities', () => {
     [row('2026-12-01', 'Sprite', '3002016', 10), row('2026-12-01', 'Sprite', '3003010', 4)],
     PERIOD_OF
   )
-  assert.equal(got.perDay.get('Sprite|3002016|2026-12-01'), 10)
-  assert.equal(got.perDay.get('Sprite|3003010|2026-12-01'), 4)
+  assert.equal(got.perDay.get('3002016|2026-12-01'), 10)
+  assert.equal(got.perDay.get('3003010|2026-12-01'), 4)
   // And they sum back to the product - the additivity the regrain rests on.
-  assert.equal(got.perPeriod.get('Sprite|3002016|1') + got.perPeriod.get('Sprite|3003010|1'), 14)
+  assert.equal(got.perPeriod.get('3002016|1') + got.perPeriod.get('3003010|1'), 14)
+})
+
+/*
+ * The fault this regrain exists for.
+ *
+ * One code under two names was two rows, and the smaller one looked like a
+ * broken forecast. Power BI computes per Clean_ItemID and treats the name as
+ * an attribute, so this now does too.
+ */
+test('one PLU under two names is ONE item, not two', () => {
+  const got = foldDaily(
+    [
+      row('2026-12-01', 'Pepsi 24oz', '3003001', 100),
+      row('2026-12-01', 'CocaCola', '3003001', 6),
+      row('2026-12-02', 'Pepsi 24oz', '3003001', 90),
+    ],
+    PERIOD_OF
+  )
+  assert.equal(got.items.size, 1, 'one code, one row')
+  assert.equal(got.perDay.get('3003001|2026-12-01'), 106, 'both names counted on the day')
+  assert.equal(got.perPeriod.get('3003001|1'), 196, 'and nothing is lost across the period')
+})
+
+test('the name shown is the one carrying the most quantity', () => {
+  const got = foldDaily(
+    [
+      row('2026-12-01', 'CocaCola', '3003001', 6),
+      row('2026-12-01', 'Pepsi 24oz', '3003001', 100),
+    ],
+    PERIOD_OF
+  )
+  const item = [...got.items.values()][0]
+  assert.equal(item.product, 'Pepsi 24oz')
+  assert.deepEqual(item.aliases, ['CocaCola'], 'the other name is kept, not discarded')
+  assert.equal(got.products.has('CocaCola'), false, 'an alias is not a menu entry of its own')
+})
+
+test('excluding a code’s product drops the units filed under its alias too', () => {
+  const rows = [
+    row('2026-12-01', 'Pepsi 24oz', '3003001', 100),
+    row('2026-12-01', 'CocaCola', '3003001', 6),
+  ]
+  const got = foldDaily(rows, PERIOD_OF, ['Pepsi 24oz'])
+  assert.equal(got.items.size, 0, 'the whole code goes')
+  assert.equal(got.excludedQty.get(1), 106, 'including the six filed under the other name')
 })
 
 test('a product’s PLUs are listed busiest first', () => {
@@ -273,7 +318,9 @@ test('a row with no PLU keeps its quantity under an explicit marker', () => {
   const got = foldDaily([row('2026-12-01', 'Mystery Item', '', 9)], PERIOD_OF)
   assert.equal(got.items.size, 1)
   assert.equal([...got.items.values()][0].plu, '(no PLU)', 'not dropped, not blank')
-  assert.equal(got.perDay.get('Mystery Item|(no PLU)|2026-12-01'), 9)
+  // Keyed by name as well, because without a code there is nothing else to
+  // tell two such rows apart.
+  assert.equal(got.perDay.get('(no PLU)|Mystery Item|2026-12-01'), 9)
 })
 
 test('coverage is brand x date: one PLU selling that day covers the day', () => {

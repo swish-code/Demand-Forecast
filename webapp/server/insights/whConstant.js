@@ -684,7 +684,21 @@ export async function forecastFromConstants(
     ? await cube.salesVintage(brand, filters, { allBrands: wide }).catch(() => null)
     : null
 
-  const windowSales = historical ? vintage : await read(brand, filters, { allBrands: wide })
+  /*
+   * `allowUnplanned`: this forecast does not need a sales plan to exist.
+   *
+   * The constant is a rate and the window's own sales are the thing it is
+   * multiplied by, so a forecast year is answerable the moment the sales copy
+   * reaches it - which for 2027 it does. Without this, a 2027 window was
+   * refused by a guard written for the mix-based pages, which borrow the base
+   * year's product mix and genuinely cannot proceed without a plan.
+   *
+   * Only on the forecast side. `actualSales` keeps the guard, because there is
+   * nothing actual about a year that has not happened.
+   */
+  const windowSales = historical
+    ? vintage
+    : await read(brand, filters, { allBrands: wide, allowUnplanned: basis !== 'actual' })
   if (!historical && !windowSales) return new Map()
 
   /*

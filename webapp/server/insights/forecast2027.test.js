@@ -5,6 +5,7 @@ import { pickBaseYear } from './salesPlan.js'
 import { planUnitsFor, planMixFor, historyWeightFor } from './planForecast.js'
 import { explodeArticles } from './planArticles.js'
 import { forecastAnnual } from '../cube/planSource.js'
+import { modelToWithSales } from '../cube/query.js'
 
 /*
  * The 2027 pipeline, end to end, at the seams that can be tested without a
@@ -290,5 +291,54 @@ test('the baseline is derived from product tables, not from the sales copy', () 
   assert.ok(
     head.indexOf('cube_article_monthly') < head.indexOf('MAX(date) AS hi'),
     'product coverage must be consulted before the sales copy'
+  )
+})
+
+/* ===================== 6. how far the date picker may reach ================ */
+
+/*
+ * The picker's far edge is `model_to`, and `model_to` came from the Power BI
+ * calendar - which every brand model hardcodes to 2026. That is why 2027 could
+ * not be SELECTED even for brands whose sales run all the way through it.
+ *
+ * `modelToWithSales` is the rule that lets it follow the sales copy instead.
+ * The warehouse forecast is a per-article constant times the window's own
+ * sales, so it can answer any month the sales copy reaches.
+ */
+
+test('the picker follows the sales copy past the model calendar', () => {
+  assert.equal(
+    modelToWithSales({ model_to: '2026-12-31', sales_to: '2027-12-31' }),
+    '2027-12-31'
+  )
+})
+
+test('no sales measurement, no widening - nothing is invented', () => {
+  assert.equal(modelToWithSales({ model_to: '2026-12-31', sales_to: null }), null)
+  assert.equal(modelToWithSales({ model_to: '2026-12-31' }), null)
+})
+
+test('the edge never moves backwards', () => {
+  // A sales copy that is short must not shrink a calendar the product tables
+  // still cover - that would take away days the pages already answer for.
+  assert.equal(modelToWithSales({ model_to: '2026-12-31', sales_to: '2026-06-30' }), null)
+})
+
+test('an edge already far enough is left alone', () => {
+  assert.equal(modelToWithSales({ model_to: '2027-12-31', sales_to: '2027-12-31' }), null)
+})
+
+test('a brand whose sales stop early is widened only that far', () => {
+  // Not to some shared "2027" constant: each brand gets its own measured edge.
+  assert.equal(
+    modelToWithSales({ model_to: '2026-12-31', sales_to: '2027-06-30' }),
+    '2027-06-30'
+  )
+})
+
+test('a timestamp is read as a day, not compared as text', () => {
+  assert.equal(
+    modelToWithSales({ model_to: '2026-12-31T00:00:00', sales_to: '2027-12-31T00:00:00' }),
+    '2027-12-31'
   )
 })

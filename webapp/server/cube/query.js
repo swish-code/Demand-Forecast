@@ -94,6 +94,62 @@ function widenForPlans() {
     }
     coverageCache.set(brand, wider)
   }
+  widenForSales()
+}
+
+/*
+ * The warehouse forecast reaches as far as SALES do, with or without a plan.
+ *
+ * `widenForPlans` above widens only where a sales plan is usable, because the
+ * MIX-based forecast genuinely needs one: there is no 2027 product data, so a
+ * planned year borrows the base year's mix and has to be sized by the plan.
+ *
+ * The warehouse forecast needs neither. It is
+ *
+ *     constant (six months of outbound / sales)  x  the window's forecast sales
+ *
+ * and the sales half already exists for 2027: 'FORECAST (2)'[Totalsale] carries
+ * every month of it for all nine brands, and the extract deliberately fills
+ * `cube_sales_daily` past the model calendar to that far edge - which is what
+ * `sales_to` records. December 2026 is forecast from exactly these two inputs;
+ * so is December 2027.
+ *
+ * So the picker and the clamp follow `sales_to`, which is a measurement of what
+ * the copy holds rather than a date anybody typed. Nothing is invented: a brand
+ * whose sales copy stops earlier is widened less, and one with no `sales_to` is
+ * not widened at all.
+ *
+ * ONLY `model_to`, deliberately. That column bounds the date picker and the
+ * clamp - the two things that decide whether 2027 can be ASKED for. `to_date`
+ * and `comp_to` say whether the copy can ANSWER from its own tables, and for
+ * product and recipe data in 2027 it cannot. Widening those would turn an
+ * honest refusal into an empty table.
+ */
+function widenForSales() {
+  for (const [brand, cover] of coverageCache) {
+    const widened = modelToWithSales(cover)
+    if (widened) coverageCache.set(brand, { ...cover, model_to: widened })
+  }
+}
+
+/**
+ * The new `model_to` for one coverage row, or null to leave it alone.
+ *
+ * Pure and exported so the rule can be tested without a database. Three things
+ * it must never do, each of which would be a quiet fault rather than a visible
+ * one:
+ *
+ *   - widen without a measurement   no `sales_to`, no change
+ *   - move the edge BACKWARDS       a sales copy that is short must not shrink
+ *                                   a calendar the product tables still cover
+ *   - widen a brand it was not told about, which is why this takes one row
+ */
+export function modelToWithSales(cover) {
+  const through = cover?.sales_to ? String(cover.sales_to).slice(0, 10) : null
+  if (!through) return null
+  const held = cover?.model_to ? String(cover.model_to).slice(0, 10) : null
+  if (!held || held >= through) return null
+  return through
 }
 
 /**
@@ -1422,10 +1478,30 @@ async function planMix(brand, plan, window = null) {
   }
 }
 
-export async function forecastSales(brand, f, { allBrands = false } = {}) {
+export async function forecastSales(brand, f, { allBrands = false, allowUnplanned = false } = {}) {
   if (!f?.dateFrom || !f?.dateTo) return null
   if (!allBrands) guardPlanBoundary(brand, f)
-  if (!allBrands) guardForecastSource(brand, f)
+  /*
+   * `allowUnplanned` is for a forecast that does not need the plan.
+   *
+   * `guardForecastSource` refuses a forecast year unless the plan can size it,
+   * and for the MIX-based pages that is right - they borrow the base year's
+   * product mix and would otherwise show an empty table where a sentence was
+   * owed. The warehouse forecast borrows nothing: it multiplies a per-article
+   * constant by the window's own sales, and those sales are in the copy for
+   * 2027 already. Refusing it there was this guard reaching past what it was
+   * written to protect.
+   *
+   * Skipping the guard does NOT skip the plan. `plannedSales` below still runs
+   * and still wins where a usable plan exists, so a planned year keeps being
+   * sized by the plan exactly as before. This only decides what happens when
+   * there is no plan: refuse, or fall through to the sales the copy holds.
+   *
+   * And it cannot invent a figure. A window the sales copy does not cover
+   * returns null, which `forecastFromConstants` turns into no rows rather than
+   * a quantity of zero.
+   */
+  if (!allBrands && !allowUnplanned) guardForecastSource(brand, f)
   // A typed figure for this year replaces the model's, which is the whole point
   // of the plan. Null here means there is no plan and nothing changes.
   const planned = await plannedSales(brand, f, allBrands)
