@@ -55,6 +55,7 @@
 import { config } from '../config.js'
 import { executeQuery } from '../powerbi/client.js'
 import { cached } from '../cache.js'
+import { localDailyFor } from './localForecast.js'
 
 /** Three periods of thirty days each, counted from the opening day. */
 const PERIOD_COUNT = 3
@@ -177,7 +178,7 @@ export function foldDaily(daily, periodOf, exclude = []) {
   const coveredDates = new Set()
 
   for (const r of daily ?? []) {
-    const date = String(val(r, 'DateTable[Date]') ?? '').slice(0, 10)
+    const date = String(val(r, 'Forecast_Product_Table[Date]') ?? '').slice(0, 10)
     const product = String(val(r, 'Forecast_Product_Table[ProductName_Fixed_Option]') ?? '').trim()
     const plu = String(val(r, 'Forecast_Product_Table[Clean_ItemID]') ?? '').trim()
     const qty = Number(val(r, 'Qty')) || 0
@@ -251,7 +252,29 @@ export function largestRemainder(values, target) {
   return whole
 }
 
-/** The brand's daily product quantities over the window's calendar months. */
+/**
+ * The brand's daily product quantities over the window's calendar months.
+ *
+ * WHY THIS FILTERS THE FACT TABLE'S OWN DATE, NOT `DateTable`
+ *
+ * `DateTable` is a 365-row calendar that holds 2026 and stops on 31 December.
+ * `Forecast_Product_Table` does not: BBT's reaches 31 December 2027. A query
+ * routed through the calendar can only answer for dates the calendar HAS, so
+ * every date past 2026 matched nothing and came back empty - and an empty
+ * result is indistinguishable here from a genuine absence of forecast, so the
+ * page reported "no data" for months that were fully forecast.
+ *
+ * Filtering the fact table's own `[Date]` removes the calendar from the path
+ * entirely. For dates inside 2026 the two are equivalent - verified equal to
+ * the unit across a 2026 window - and outside it, only this one works.
+ *
+ * It does NOT make the forecast infinite. The real horizon is `Forecast_Spine`,
+ * which is built as `TODAY() + 210`, so `[Incidence Rate Final]` is blank past
+ * that day and the quantity is zero rather than absent. Measured 16 Nov 2026:
+ * BBT carries rows to December 2027 but quantity only to 14 June 2027, exactly
+ * 210 days out. `coverageOf` still refuses any period that is not wholly
+ * covered, so a window past the spine is reported, not silently halved.
+ */
 async function brandDaily(brand, from, to) {
   return cached(
     `newstore:daily:${brand.code}:${from}:${to}`,
@@ -259,10 +282,12 @@ async function brandDaily(brand, from, to) {
       const rows = await executeQuery(
         `EVALUATE
 SUMMARIZECOLUMNS(
-  DateTable[Date],
+  Forecast_Product_Table[Date],
   Forecast_Product_Table[ProductName_Fixed_Option],
   Forecast_Product_Table[Clean_ItemID],
-  TREATAS(CALENDAR(${dax(from)}, ${dax(to)}), DateTable[Date]),
+  FILTER(ALL(Forecast_Product_Table[Date]),
+    Forecast_Product_Table[Date] >= ${dax(from)} &&
+    Forecast_Product_Table[Date] <= ${dax(to)}),
   "Qty", [Total_Forecast_Qty]
 )`,
         brand.datasetId
@@ -304,7 +329,9 @@ async function branchCount(brand, from, to) {
         `EVALUATE
 ROW("N", CALCULATE(
   DISTINCTCOUNT(Forecast_Product_Table[LocationID]),
-  TREATAS(CALENDAR(${dax(from)}, ${dax(to)}), DateTable[Date])
+  FILTER(ALL(Forecast_Product_Table[Date]),
+    Forecast_Product_Table[Date] >= ${dax(from)} &&
+    Forecast_Product_Table[Date] <= ${dax(to)})
 ))`,
         brand.datasetId
       )
@@ -382,11 +409,54 @@ export async function newStoreForecast({
   const fullFrom = win.from
   const fullTo = win.to
 
-  const [daily, sales, branches] = await Promise.all([
+  const [pbiDaily, sales, branches] = await Promise.all([
     brandDaily(brand, fullFrom, fullTo),
     brandSales(brand, fullFrom, fullTo),
     branchCount(brand, fullFrom, fullTo),
   ])
+
+  /*
+   * WHERE POWER BI STOPS, THE LOCAL BUILD CONTINUES.
+   *
+   * Every model's `Forecast_Spine` is built as `TODAY() + 210`, and most
+   * brands' `Forecast_Product_Table` is capped at 31 December 2026 on top of
+   * that, so a window reaching into 2027 is simply absent from the model. The
+   * same forecast is rebuilt in `localForecast.js` from the model's own method
+   * and stored here; this fills the days Power BI could not answer.
+   *
+   * ONLY the days Power BI left empty, which is the whole safety of it: the
+   * two sources can never both contribute to one day, so nothing is double
+   * counted and a day Power BI does answer for is never overridden.
+   *
+   * `localUsed` is carried into the result so the page can say which days did
+   * not come from Power BI. A figure generated here must never be mistaken for
+   * one the model produced.
+   */
+  const pbiDates = new Set()
+  for (const r of pbiDaily ?? []) {
+    const d = String(val(r, 'Forecast_Product_Table[Date]') ?? '').slice(0, 10)
+    if (d && (Number(val(r, 'Qty')) || 0) > 0) pbiDates.add(d)
+  }
+  const gaps = days.map((d) => d.date).filter((d) => !pbiDates.has(d))
+
+  let localRows = []
+  let localUsed = []
+  if (gaps.length) {
+    try {
+      localRows = await localDailyFor(brand.code, gaps)
+      localUsed = [...new Set(localRows.map((r) => String(val(r, 'Forecast_Product_Table[Date]') ?? '').slice(0, 10)))]
+        .filter(Boolean)
+        .sort()
+    } catch (err) {
+      /*
+       * A missing or unbuilt local table must not take down a forecast Power
+       * BI could have answered on its own. The gap simply stays a gap, and
+       * `coverageOf` refuses the period as it always did.
+       */
+      console.warn(`  [newstore] local forecast unavailable: ${String(err.message).slice(0, 120)}`)
+    }
+  }
+  const daily = [...(pbiDaily ?? []), ...localRows]
 
   /*
    * Which period each date belongs to. Built from the window rather than from
@@ -465,7 +535,13 @@ export async function newStoreForecast({
       grain: 'plu',
       items: 0,
       row: { Brand: brand.code, Branch: branchName, Opening_Date: win.from },
-      coverage: { complete: 0, partial: 0, none: win.periods.length, lastCovered: null },
+      coverage: {
+        complete: 0,
+        partial: 0,
+        none: win.periods.length,
+        lastCovered: null,
+        localDays: localUsed,
+      },
       rounding: { exact: 0, whole: 0, lost: 0, zeroed: 0 },
       plus: {},
       available: false,
@@ -679,6 +755,12 @@ export async function newStoreForecast({
       partial: periodSummary.filter((p) => p.status === 'partial').length,
       none: periodSummary.filter((p) => p.status === 'none').length,
       lastCovered,
+      /*
+       * The days whose quantities were generated here rather than read from
+       * Power BI. Empty on the ordinary case. The page states it so a reader
+       * can tell the two apart; see `LocalForecastPanel` for the method.
+       */
+      localDays: localUsed,
     },
     rounding: {
       exact: exactTotal,

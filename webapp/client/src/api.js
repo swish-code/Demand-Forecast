@@ -367,6 +367,26 @@ export const api = {
 
   admin: {
     users: () => get('/admin/users'),
+    /*
+     * The locally built product forecast.
+     *
+     * `rows` is a GET with its filters in the query string rather than a POST
+     * body, because it is a read and nothing about it is created - which also
+     * means the browser and the `get` de-duplicator can both do their jobs.
+     */
+    localForecastStatus: () => get('/admin/local-forecast/status'),
+    localForecastBuild: (body) => post('/admin/local-forecast/build', body ?? {}),
+    localForecastVerify: (brand, date) =>
+      get(`/admin/local-forecast/verify?brand=${encodeURIComponent(brand)}&date=${encodeURIComponent(date)}`),
+    localForecastRows: ({ from, to, brands = [], branches = [], limit } = {}) => {
+      const q = new URLSearchParams()
+      if (from) q.set('from', from)
+      if (to) q.set('to', to)
+      if (brands.length) q.set('brands', brands.join(','))
+      if (branches.length) q.set('branches', branches.join(','))
+      if (limit) q.set('limit', String(limit))
+      return get(`/admin/local-forecast?${q.toString()}`)
+    },
     analytics: (days) => get(`/admin/analytics${days ? `?days=${days}` : ''}`),
     audit: () => get('/admin/audit'),
     // The catalogue of every figure and the measure or formula behind it.

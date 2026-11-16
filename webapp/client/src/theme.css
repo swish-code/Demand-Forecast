@@ -3931,6 +3931,37 @@ table.dt thead th:hover .th__sort--idle {
   user-select: all;
 }
 
+/*
+ * The stacked variant - a block of several lines rather than one row.
+ *
+ * `.issued` is a single-line pill: label, value, and `flex: 1` on the value so
+ * it takes the slack between them. Turning the container into a column with an
+ * inline style kept that `flex: 1`, which then applied to the VERTICAL axis -
+ * so the value stretched, its siblings were shrunk to nothing, and the help
+ * text spilled out of the card and landed on top of the next heading.
+ *
+ * Hence a real modifier instead: the value goes back to its natural height,
+ * and the radius drops from the pill to the card, because a pill radius on a
+ * four-line block rounds its ends into arcs.
+ */
+.issued--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  border-radius: var(--r-card);
+}
+
+.issued--stack .issued__value {
+  flex: none;
+  align-self: stretch;
+}
+
+/* Long prose inside the block wraps instead of forcing the card wider. */
+.issued--stack .field__help {
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+
 .btn--danger {
   color: var(--red);
   border-color: var(--red-tint);

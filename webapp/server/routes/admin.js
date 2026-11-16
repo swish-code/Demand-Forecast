@@ -57,6 +57,14 @@ import { forgetConstants } from '../insights/whConstant.js'
 import { articleNodeTypes } from '../insights/nodeTypes.js'
 import { planArticleRows } from '../insights/planArticles.js'
 import { config } from '../config.js'
+import {
+  buildLocalForecast,
+  buildAllLocalForecasts,
+  localForecastRows,
+  localForecastStatus,
+  localForecastBranches,
+  verifyAgainstPowerBI,
+} from '../insights/localForecast.js'
 
 export const admin = Router()
 
@@ -1706,5 +1714,113 @@ admin.get(
       .map((r) => ({ ...r, forecastQty: Math.round(r.forecastQty * 100) / 100 }))
       .sort((a, b) => a.brand.localeCompare(b.brand) || b.forecastQty - a.forecastQty)
     res.json({ year, rows })
+  })
+)
+
+// --------------------------------------------- the locally built forecast
+
+/*
+ * Power BI's product forecast, rebuilt here for the dates the models cannot
+ * hold. See `server/insights/localForecast.js` for the method and the proof;
+ * these routes only drive it.
+ *
+ * Admin-only, by the guard at the top of this file rather than by anything
+ * here: this writes a forecast people order stock against.
+ */
+
+/** What has been built, how far it reaches, and the branches to filter by. */
+admin.get(
+  '/local-forecast/status',
+  handle(async (req, res) => {
+    const [status, branches] = await Promise.all([
+      localForecastStatus(),
+      localForecastBranches(),
+    ])
+    const byBrand = new Map()
+    for (const r of branches) {
+      if (!byBrand.has(r.brand)) byBrand.set(r.brand, [])
+      byBrand.get(r.brand).push(r.location)
+    }
+    res.json({
+      brands: (config.brands ?? []).filter((b) => b.datasetId).map((b) => b.code),
+      built: status,
+      branches: Object.fromEntries(byBrand),
+    })
+  })
+)
+
+/**
+ * Extract one brand, or every brand.
+ *
+ * Sequential rather than concurrent: each brand is several large Power BI
+ * reads, and the client already limits concurrency globally - firing nine
+ * brands at once simply queues them behind each other while holding nine
+ * result sets in memory at the same time.
+ */
+admin.post(
+  '/local-forecast/build',
+  handle(async (req, res) => {
+    const want = String(req.body?.brand ?? '').trim().toUpperCase()
+    if (want) {
+      try {
+        return res.json({ built: [await buildLocalForecast(want)], failed: [] })
+      } catch (err) {
+        return res.json({ built: [], failed: [{ brand: want, error: String(err.message).slice(0, 200) }] })
+      }
+    }
+    /*
+     * `force`, because a person who pressed the button meant it. The schedule
+     * skips brands built in the last twenty hours; a manual rebuild should not.
+     * One brand's failure never discards the brands that succeeded.
+     */
+    res.json(await buildAllLocalForecasts({ force: true }))
+  })
+)
+
+/** The generated rows, filtered by brand and branch. */
+admin.get(
+  '/local-forecast',
+  handle(async (req, res) => {
+    const list = (v) =>
+      String(v ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+    const from = String(req.query.from ?? '').slice(0, 10)
+    const to = String(req.query.to ?? '').slice(0, 10)
+    if (!from || !to) return res.status(400).json({ error: 'from and to are required' })
+
+    const limit = Math.min(20000, Math.max(1, Number(req.query.limit) || 2000))
+    const rows = await localForecastRows({
+      brands: list(req.query.brands).map((s) => s.toUpperCase()),
+      locations: list(req.query.branches),
+      from,
+      to,
+      limit,
+      offset: Math.max(0, Number(req.query.offset) || 0),
+    })
+    res.json({
+      from,
+      to,
+      rows,
+      /*
+       * Stated on every response rather than left to the page to remember.
+       * These figures did not come from Power BI and a reader must never be
+       * able to mistake them for figures that did.
+       */
+      source: 'Generated locally from the Power BI method - not read from Power BI',
+    })
+  })
+)
+
+/** Score the local build against Power BI, for a date Power BI can answer. */
+admin.get(
+  '/local-forecast/verify',
+  handle(async (req, res) => {
+    const brand = String(req.query.brand ?? '').trim().toUpperCase()
+    const date = String(req.query.date ?? '').slice(0, 10)
+    if (!brand || !date) return res.status(400).json({ error: 'brand and date are required' })
+    res.json(await verifyAgainstPowerBI(brand, date))
   })
 )

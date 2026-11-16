@@ -697,6 +697,76 @@ CREATE TABLE IF NOT EXISTS cube_plan_kpis (
   refreshed_at TEXT
 );
 
+/*
+ * THE LOCALLY BUILT PRODUCT FORECAST.
+ *
+ * Power BI's Forecast_Product_Table is a CALCULATED table: active item x
+ * location combinations crossed with every forecast date, each row carrying
+ * eighteen DAX columns. That cross join is what costs memory, and it is why
+ * the models cannot simply be extended into 2027 - the brands are already at
+ * their limit.
+ *
+ * They do not need to be. The forecast reduces to
+ *
+ *     qty = ROUND( rate(item, location, weekday) * sales(location, date) / aov(location, weekday) , 0 )
+ *
+ * and only sales varies by date. Forecasted_Incidence_Rate reads the spine
+ * date ONLY through WEEKDAY(date, 2) - everything else anchors on the item's
+ * last actual - so a combination has SEVEN rates, not one per day. Measured on
+ * CHP: 1,909 item-location-weekday groups, every one holding a single rate.
+ *
+ * So the inputs are stored and the quantity is computed on read. A year of
+ * forecast for one brand is ~9,654 x 7 rates plus ~6,200 branch-days, not 3.5
+ * million rows - and extending the horizon costs nothing, because the rate
+ * table does not grow with it.
+ *
+ * Verified against Power BI on BBT, 10 March 2027: 3,348 of 3,348 rows exact.
+ */
+CREATE TABLE IF NOT EXISTS local_forecast_rate (
+  brand    TEXT NOT NULL,
+  chain    TEXT NOT NULL DEFAULT '',
+  location TEXT NOT NULL,
+  plu      TEXT NOT NULL,
+  product  TEXT NOT NULL DEFAULT '',
+  dow      SMALLINT NOT NULL,     -- WEEKDAY(date, 2): 1 = Monday .. 7 = Sunday
+  rate     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  PRIMARY KEY (brand, location, plu, dow)
+);
+CREATE INDEX IF NOT EXISTS idx_lfr_brand ON local_forecast_rate(brand, location);
+
+/*
+ * Orders per branch-day - the only part that varies with the date.
+ *
+ * The aov is carried beside the sales figure rather than recomputed on read
+ * because it is itself weekday-derived history, and storing it is what makes a
+ * generated row auditable: the three numbers that produced the quantity are
+ * all here.
+ */
+CREATE TABLE IF NOT EXISTS local_forecast_orders (
+  brand       TEXT NOT NULL,
+  location    TEXT NOT NULL,
+  date        TEXT NOT NULL,
+  total_sales DOUBLE PRECISION NOT NULL DEFAULT 0,
+  aov         DOUBLE PRECISION,
+  orders      DOUBLE PRECISION,
+  PRIMARY KEY (brand, location, date)
+);
+CREATE INDEX IF NOT EXISTS idx_lfo_brand_date ON local_forecast_orders(brand, date);
+
+/* One row a brand: what was extracted, when, and how far it reaches. */
+CREATE TABLE IF NOT EXISTS local_forecast_meta (
+  brand        TEXT PRIMARY KEY,
+  built_at     TEXT,
+  rate_from    TEXT,
+  rate_to      TEXT,
+  sales_from   TEXT,
+  sales_to     TEXT,
+  combos       INTEGER NOT NULL DEFAULT 0,
+  rate_rows    INTEGER NOT NULL DEFAULT 0,
+  order_rows   INTEGER NOT NULL DEFAULT 0,
+  note         TEXT NOT NULL DEFAULT ''
+);
+
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS cal_today TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS cal_last_actual TEXT;
 ALTER TABLE cube_coverage ADD COLUMN IF NOT EXISTS comp_from TEXT;

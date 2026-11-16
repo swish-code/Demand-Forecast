@@ -20,6 +20,7 @@ import { WhyPanel } from '../components/WhyPanel.jsx'
 import { ModelReview } from '../components/ModelReview.jsx'
 import { CubeStatus } from '../components/CubeStatus.jsx'
 import { SalesImportPanel } from '../components/SalesImportPanel.jsx'
+import { LocalForecastPanel } from '../components/LocalForecastPanel.jsx'
 import { useData } from '../useData.js'
 
 /**
@@ -427,6 +428,11 @@ export function Admin({ session }) {
 
 
       <SalesImportPanel />
+
+      {/* Sits beside the other data panels: it is a source of figures, not a
+          user or an alert, and somebody checking what the copy holds is the
+          same person who wants to know how far the forecast reaches. */}
+      <LocalForecastPanel />
 
       <ModelReview />
 

@@ -574,12 +574,16 @@ export function NewStore({ brands = [] }) {
                 about to size" before anything is fetched.
 
                 `.issued` is a horizontal row by default; this one stacks,
-                because it carries a value, a row of pills and a caveat. */}
+                because it carries a value, a row of pills and a caveat.
+
+                It stacks via `issued--stack` rather than an inline style.
+                `.issued` puts `flex: 1` on the value so it takes the slack in
+                a one-line row; flipping the container to a column inline left
+                that applying to the VERTICAL axis, so the value stretched, its
+                siblings were squeezed to nothing, and the caveat spilled out
+                of the card onto the next heading. */}
             {openingDate && (
-              <div
-                className="issued"
-                style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--s2)' }}
-              >
+              <div className="issued issued--stack">
                 <span className="issued__label">Forecast window</span>
                 <span className="issued__value">
                   {longDate(openingDate)} – {longDate(endsOn)}
@@ -750,6 +754,31 @@ export function NewStore({ brands = [] }) {
                 : '— the product forecast does not cover those dates.'}{' '}
               Those months show N/A rather than a quantity. Nothing has been substituted from
               another year, extrapolated, or scaled up from the days that do exist.
+            </InfoBanner>
+          )}
+
+          {/*
+            * Which days did not come from Power BI.
+            *
+            * The models' forecast spine is built as TODAY() + 210 and most
+            * brands' product table is capped at 31 December 2026, so a window
+            * reaching into 2027 is filled from the locally built forecast
+            * instead. It reproduces the model's own calculation exactly -
+            * verified row for row - but somebody ordering stock against these
+            * quantities is entitled to know which system produced them, so it
+            * is said on the page rather than left in a log.
+            */}
+          {result.coverage?.localDays?.length > 0 && (
+            <InfoBanner>
+              <strong>
+                {result.coverage.localDays.length} of {result.periods.length * 30} days were
+                generated locally, not read from Power BI.
+              </strong>{' '}
+              {longDate(result.coverage.localDays[0])} to{' '}
+              {longDate(result.coverage.localDays[result.coverage.localDays.length - 1])} fall past
+              what the Power BI model holds, so they were rebuilt from its own method — the
+              forecast spine, the AOV history and the sales plan. Days the model does cover were
+              taken from it unchanged; the two never both count toward the same day.
             </InfoBanner>
           )}
 

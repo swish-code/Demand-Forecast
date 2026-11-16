@@ -12,6 +12,7 @@ import { refreshPlanShapes } from './planShape.js'
 import { refreshPlanSources } from './planSource.js'
 import { loadSalesPlans, salesPlans } from '../insights/salesPlan.js'
 import { raise, clear } from '../insights/alerts.js'
+import { buildAllLocalForecasts } from '../insights/localForecast.js'
 
 /**
  * Keeping the local copy current.
@@ -721,6 +722,20 @@ async function refreshShapesForPlannedYears() {
      * shared promise chain. Same mistake, two shapes.
      */
     detached('site outbound', () => siteIfStale())
+
+    /*
+     * The local product forecast, on its own task.
+     *
+     * It must be IN the database before anybody opens a page: the admin table
+     * and the new-store forecast both read it directly, and a reader changing
+     * a filter cannot wait for seven datasets to be extracted. Built here on
+     * boot if stale, and again nightly below.
+     *
+     * Its own task for the same reason as the two above - it shares no input
+     * with the backfill chain, so a Power BI failure there must not decide
+     * whether this runs.
+     */
+    detached('local forecast', () => buildAllLocalForecasts())
     setInterval(
       () => detached('recent refresh', refreshRecentAll),
       REFRESH_MINUTES * 60_000
@@ -738,6 +753,12 @@ async function refreshShapesForPlannedYears() {
         .then(() => refreshShapesForPlannedYears())
         // Before the vacuum, so the space the prune frees is actually returned.
         .then(() => pruneSalesVintages())
+        /*
+         * Forced: the spine rolls forward as TODAY() + 210 and every rate
+         * re-anchors on the item's last actual date, so an overnight rebuild
+         * is the point rather than a freshness check that would skip it.
+         */
+        .then(() => buildAllLocalForecasts({ force: true }))
         .then(() => vacuum({ full: true }))
     detached('nightly backfill', nightly)
     setInterval(() => detached('nightly backfill', nightly), 24 * HOUR).unref?.()
