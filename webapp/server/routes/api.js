@@ -4047,7 +4047,12 @@ api.get('/article-lookup', requireAuth, handle(async (req, res) => {
 }))
 
 
-api.all('/component-level', handle(async (req, res) => {
+/*
+ * Exported so the integration route (routes/integration.js) can run exactly
+ * this pipeline in-process. The Procurement page and the supplier portal then
+ * read the same figure by construction rather than by agreement.
+ */
+export async function componentLevel(req, res) {
   if (pageDenied(req, res, COMPONENT_PAGES)) return
   const g = guardMany(req, res)
   if (!g) return
@@ -4535,7 +4540,9 @@ api.all('/component-level', handle(async (req, res) => {
       window
     ), window), seesStockDetail(req.user)), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
   })
-}))
+}
+
+api.all('/component-level', handle(componentLevel))
 
 /**
  * The production plan's measures across however many brands were asked for.

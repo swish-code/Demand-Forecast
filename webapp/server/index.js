@@ -10,6 +10,7 @@ import { initDatabase } from './db/accounts.js'
 import { attachUser } from './auth/middleware.js'
 import { purgeExpiredSessions } from './auth/sessions.js'
 import { api } from './routes/api.js'
+import { integration } from './routes/integration.js'
 import { perfMiddleware } from './perf.js'
 import { auth } from './routes/auth.js'
 import { admin } from './routes/admin.js'
@@ -244,6 +245,8 @@ const TYPES = {
 
 app.use('/api/auth', auth)
 app.use('/api/admin', admin)
+// Bearer-token machine access; ahead of `api`, which requires a session.
+app.use('/api/integration', integration)
 app.use('/api', api)
 
 /*
