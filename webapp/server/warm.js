@@ -1,6 +1,6 @@
 import { config } from './config.js'
 import { data } from './data/index.js'
-import { previousWindow } from './routes/api.js'
+import { previousWindow, nonRecipeFor } from './routes/api.js'
 
 /**
  * Keeping the cache warm, so nobody waits for the capacity.
@@ -66,6 +66,17 @@ async function warmBrand(brand) {
   const prev = previousWindow(f)
   const spanning = prev ? { ...f, dateFrom: prev.dateFrom } : f
 
+  /*
+   * The recipe explosion, kept so the job after it does not fetch it twice.
+   *
+   * `nonRecipeFor` is keyed partly on this row count and excludes exactly the
+   * articles these rows carry, so it needs the same answer the page will see.
+   * Asking `data.componentLevel` again would be a cache hit rather than a
+   * second Power BI call, but passing the value is plainly cheaper and makes
+   * the dependency between the two jobs visible.
+   */
+  let componentRows = null
+
   const jobs = [
     // Overview
     () => data.trend(spanning, brand.datasetId),
@@ -78,7 +89,34 @@ async function warmBrand(brand) {
     () => data.productLevel(f, brand.datasetId),
     () => (prev ? data.productLevel(prev, brand.datasetId) : null),
     // Ingredients
-    () => data.componentLevel(f, brand.datasetId),
+    async () => {
+      componentRows = await data.componentLevel(f, brand.datasetId)
+      return componentRows
+    },
+    /*
+     * THE TWO MOST EXPENSIVE LOOKUPS IN THE APP - added 17 Nov 2026.
+     *
+     * Measured over a month of `perf.log`: `miss:nonRecipe` averaged 194.8s
+     * and `miss:future-demand` 216.5s, and together they accounted for 85% of
+     * the Ingredients endpoint's total time. The warmer reached neither,
+     * because both hang off the route rather than off `data.componentLevel` -
+     * so every hourly `clearCache()` left them cold and the next reader paid.
+     *
+     * ONE job, not two. `nonRecipeFor` runs `forecastFromConstants`, which
+     * calls `articlesWithAnyFutureDemand`, which fans out to every brand's
+     * `articlesWithFutureDemand` in one pass. So the first brand warmed fills
+     * all nine future-demand entries and the other eight find them already
+     * there - which is also why warming future-demand separately would be the
+     * duplicate work this is meant to remove.
+     *
+     * Skipped rather than guessed when the explosion did not answer: the key
+     * carries the row count, so warming it from a null would fill an entry no
+     * request will ever look for.
+     */
+    async () => {
+      if (!componentRows) return null
+      return nonRecipeFor({ ds: brand.datasetId, f, brand, rows: componentRows })
+    },
   ]
 
   for (const job of jobs) {

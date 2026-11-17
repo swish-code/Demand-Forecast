@@ -4047,6 +4047,61 @@ api.get('/article-lookup', requireAuth, handle(async (req, res) => {
 }))
 
 
+/**
+ * The non-recipe rows for one brand and window, under the route's own key.
+ *
+ * Extracted from the fan-out below on 17 Nov 2026 so that `warm.js` can fill
+ * EXACTLY the entry a live request will look for. Measured over a month of
+ * `perf.log`: `miss:nonRecipe` cost 194.8s per miss and `miss:future-demand`
+ * 216.5s, and 41% of component-level requests paid one or both - 85% of the
+ * endpoint's total time. The warmer could not reach either, because both are
+ * reached from this route rather than from `data.componentLevel`.
+ *
+ * Shared rather than copied. A warmer that rebuilt this key from its own
+ * string would warm an entry nobody asks for the moment either side changed -
+ * silently, and the symptom would be indistinguishable from the cache simply
+ * not helping. One function, so the two cannot drift.
+ *
+ * `rows` is the recipe explosion this window already produced. It is passed in
+ * rather than fetched because both callers have it: the route computed it a
+ * line earlier, and the warmer warms it as its own job. Fetching it again here
+ * would be a second query for an answer already in hand.
+ */
+export async function nonRecipeFor({ ds, f, brand, rows, grain = {} }) {
+  /*
+   * The same guards the route has always applied, moved with the code they
+   * guard. Split by day or branch the constant is a monthly brand figure and
+   * cutting it finer would invent a shape it does not have; a recipe-side
+   * slicer or a non-RAW node filter is asking a different question.
+   */
+  if (grain.date || grain.location) return []
+  if (f.items?.length || f.recipeGroups?.length || !allowsRaw(f)) return []
+
+  return cached(
+    /*
+     * The row count joins the key, because the answer depends on it.
+     * `nonRecipeRows` excludes the articles THIS window's recipe explosion
+     * returned, so a window that answers with 2,714 rows and the same window
+     * answering with none are two different questions and must not share an
+     * entry.
+     */
+    `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}:${rows.length}`,
+    () =>
+      nonRecipeRows(brand, f, {
+        /*
+         * What the explosion actually produced here - not every article a
+         * recipe names somewhere. An article the recipes could not reach this
+         * window has no row to be double counted against, and its warehouse
+         * forecast is the only figure there is.
+         */
+        covered: new Set(rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)),
+      })
+  ).catch((err) => {
+    console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
+    return []
+  })
+}
+
 /*
  * Exported so the integration route (routes/integration.js) can run exactly
  * this pipeline in-process. The Procurement page and the supplier portal then
@@ -4219,34 +4274,7 @@ export async function componentLevel(req, res) {
      * often it was loaded. Keyed on the brand and the window, which is all it
      * depends on.
      */
-    const extra =
-      grain.date || grain.location || f.items?.length || f.recipeGroups?.length || !allowsRaw(f)
-        ? []
-        : await cached(
-            /*
-             * The row count joins the key, because the answer now depends on
-             * it. `nonRecipeRows` excludes the articles THIS window's recipe
-             * explosion returned, so a window that answers with 2,714 rows and
-             * the same window answering with none are two different questions
-             * and must not share an entry.
-             */
-            `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}:${rows.length}`,
-            () =>
-              nonRecipeRows(brand, f, {
-                /*
-                 * What the explosion actually produced here - not every article
-                 * a recipe names somewhere. An article the recipes could not
-                 * reach this window has no row to be double counted against,
-                 * and its warehouse forecast is the only figure there is.
-                 */
-                covered: new Set(
-                  rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
-                ),
-              })
-          ).catch((err) => {
-            console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
-            return []
-          })
+    const extra = await nonRecipeFor({ ds, f, brand, rows, grain })
 
     /*
      * The site-classified articles the recipe explosion never returned.
