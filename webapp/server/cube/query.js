@@ -775,7 +775,19 @@ const COMPONENT_FILTERS = new Set([
   'nodeTypes',
 ])
 
-export function canAnswerComponents(brand, filters = {}) {
+/**
+ * Can the recipe copy apply these filters at all - leaving dates aside?
+ *
+ * Split out of `canAnswerComponents` on 17 Nov 2026, because the planned-year
+ * routing override needs exactly one half of it. A planned window may ignore
+ * what the copy's DATES cover, since the planned path reads the base-year
+ * window instead; it may never ignore what the copy's COLUMNS can narrow by.
+ *
+ * Kept as one exported predicate rather than duplicated at the call site, so
+ * the two routes cannot drift: an `articles` filter the copy silently dropped
+ * would return the whole brand's rows under a heading naming one article.
+ */
+export function componentFiltersSupported(filters = {}) {
   if (filters.locations?.length) return false
   // A product filter narrows which recipes are in play, and the copy has no
   // product column on the recipe side to work that out from.
@@ -787,6 +799,11 @@ export function canAnswerComponents(brand, filters = {}) {
     if (HARMLESS.has(key)) continue
     if (!COMPONENT_FILTERS.has(key)) return false
   }
+  return true
+}
+
+export function canAnswerComponents(brand, filters = {}) {
+  if (!componentFiltersSupported(filters)) return false
 
   const cover = coverageCache.get(brand)
   if (!cover) return false

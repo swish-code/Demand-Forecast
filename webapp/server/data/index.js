@@ -305,7 +305,18 @@ export const data = {
          * app: it decided routing, and routing decided whether the question was
          * answered or quietly dropped.
          */
-        !grain.location && (cube.canAnswerComponents(f.brand, f) || isPlannedYearWindow(f))
+        !grain.location &&
+        (cube.canAnswerComponents(f.brand, f) ||
+          /*
+           * The override skips the copy's DATE coverage, never its FILTERS.
+           *
+           * Corrected 17 Nov 2026, before it shipped: `|| isPlannedYearWindow(f)`
+           * alone also skipped the filter test, so a 2027 request narrowed to one
+           * article or product would have been answered by a query that has no
+           * column to narrow by - returning the whole brand under a heading
+           * naming one article. Worse than the empty table it replaced.
+           */
+          (isPlannedYearWindow(f) && cube.componentFiltersSupported(f)))
           ? fromCopyOrLive(
               'componentLevel',
               () => cube.componentLevel(f.brand, f, grain),

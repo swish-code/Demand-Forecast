@@ -256,10 +256,27 @@ test('a planned-year window is routed to the copy, not to Power BI', () => {
     'a planned-year window must reach the copy however canAnswerComponents answers'
   )
   assert.ok(
-    /canAnswerComponents\(f\.brand, f\) \|\| isPlannedYearWindow\(f\)/.test(router),
+    /canAnswerComponents\(f\.brand, f\) \|\|/.test(router),
     'the planned-year test must WIDEN the copy path, never narrow it'
   )
+  // The override may skip the copy's date coverage. It must never skip the
+  // filter test, or a request narrowed to one article is answered by a query
+  // with no column to narrow by.
+  assert.ok(
+    /isPlannedYearWindow\(f\) && cube\.componentFiltersSupported\(f\)/.test(router),
+    'the planned-year override must still require the copy to support the filters'
+  )
 })
+
+test('componentFiltersSupported refuses the filters the recipe copy cannot narrow by', async () => {
+  const cube = await import('../cube/query.js')
+  const ok = { dateFrom: '2027-01-01', dateTo: '2027-01-31', items: ['x'] }
+  assert.equal(cube.componentFiltersSupported(ok), true)
+  for (const bad of [{ articles: ['1'] }, { products: ['p'] }, { locations: ['SAD'] }]) {
+    assert.equal(cube.componentFiltersSupported({ ...ok, ...bad }), false, JSON.stringify(bad))
+  }
+})
+
 
 test('fromCopyOrLive re-raises a deliberate refusal instead of retrying it live', () => {
   const src = readFileSync(new URL('../data/index.js', import.meta.url), 'utf8')
