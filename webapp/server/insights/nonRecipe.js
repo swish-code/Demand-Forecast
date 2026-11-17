@@ -224,7 +224,7 @@ export async function constantsFor(brand, { today = new Date() } = {}) {
  * bought in, held by the warehouse, never made. The recipe group says where
  * they came from, so nobody mistakes them for something a recipe called for.
  */
-export async function nonRecipeRows(brand, filters, { today = new Date() } = {}) {
+export async function nonRecipeRows(brand, filters, { today = new Date(), covered = null } = {}) {
   if (!filters?.dateFrom || !filters?.dateTo) return []
 
   /*
@@ -241,21 +241,58 @@ export async function nonRecipeRows(brand, filters, { today = new Date() } = {})
    * whole months is a candidate; anything a recipe already names is dropped,
    * because the explosion forecasts those and doing it twice would double them.
    */
+  /*
+   * WHAT COUNTS AS "ALREADY FORECAST" - CHANGED 17 Nov 2026, ON REQUEST.
+   *
+   * The exclusion exists to stop an article being counted twice: once by the
+   * recipe explosion and again from the warehouse constant. That risk is real,
+   * but it only arises when the explosion ACTUALLY PRODUCED A ROW for the
+   * article in the window on screen.
+   *
+   * This used to exclude every article any recipe anywhere names, whether or
+   * not the recipe side had anything to say about this window. When the recipe
+   * side returned nothing - a planned year the mix could not reach, a brand
+   * whose recipe copy starts later - the exclusion deleted articles that the
+   * warehouse could forecast perfectly well, and the page showed neither
+   * figure. Measured on the hosted app, March 2027: 0 recipe groups, 1,499
+   * rows, and Dalal Ghee - which has a warehouse constant and six months of
+   * outbound - nowhere on the page.
+   *
+   * The warehouse forecast does not depend on the product mix. It is a rate
+   * times the window's own sales. So an article the recipes could not reach
+   * still belongs here, carrying the one figure that CAN be measured.
+   *
+   * `covered` is the caller's set of articles this window's explosion really
+   * returned. Falling back to the global recipe list keeps the old behaviour
+   * for any caller that does not pass one.
+   */
   const code = brand.code ?? brand
-  const [forecasts, covered, names] = await Promise.all([
+  const [forecasts, inAnyRecipe, names] = await Promise.all([
     forecastFromConstants(code, filters, { now: today }),
     cube.recipeArticles().catch(() => new Set()),
     cube.articleMaster().catch(() => new Map()),
   ])
   if (!forecasts.size) return []
+  const already = covered ?? inAnyRecipe
 
   const rows = []
   for (const [article, qty] of forecasts) {
-    if (covered.has(article)) continue
+    if (already.has(article)) continue
     if (!Number.isFinite(qty) || qty <= 0) continue
     const known = names.get(article)
     rows.push({
-      'Recipe Group': 'No recipe — from outbound',
+      /*
+       * Two different reasons to be here, and the label says which.
+       *
+       * "No recipe" is a glove or a till roll: nothing will ever forecast it
+       * from a menu. An article a recipe DOES name, appearing because the
+       * explosion reached nothing this window, is a different fact and must
+       * not be labelled as having no recipe - somebody would correct the
+       * recipe master on the strength of it.
+       */
+      'Recipe Group': inAnyRecipe.has(article)
+        ? 'Recipe found no demand — from outbound'
+        : 'No recipe — from outbound',
       Item: known?.name || article,
       'Item No.': article,
       BU: known?.unit || '',

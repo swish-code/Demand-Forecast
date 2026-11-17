@@ -4223,8 +4223,26 @@ export async function componentLevel(req, res) {
       grain.date || grain.location || f.items?.length || f.recipeGroups?.length || !allowsRaw(f)
         ? []
         : await cached(
-            `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}`,
-            () => nonRecipeRows(brand, f)
+            /*
+             * The row count joins the key, because the answer now depends on
+             * it. `nonRecipeRows` excludes the articles THIS window's recipe
+             * explosion returned, so a window that answers with 2,714 rows and
+             * the same window answering with none are two different questions
+             * and must not share an entry.
+             */
+            `${ds}:nonRecipe:${f.dateFrom}:${f.dateTo}:${rows.length}`,
+            () =>
+              nonRecipeRows(brand, f, {
+                /*
+                 * What the explosion actually produced here - not every article
+                 * a recipe names somewhere. An article the recipes could not
+                 * reach this window has no row to be double counted against,
+                 * and its warehouse forecast is the only figure there is.
+                 */
+                covered: new Set(
+                  rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)
+                ),
+              })
           ).catch((err) => {
             console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
             return []
