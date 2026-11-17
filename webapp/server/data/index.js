@@ -3,6 +3,7 @@ import { cached } from '../cache.js'
 import * as cube from '../cube/query.js'
 import { deriveKpis } from './merge.js'
 import { raise } from '../insights/alerts.js'
+import { isPlannedYearWindow } from '../insights/salesPlan.js'
 import { demoProvider } from './demo.js'
 import { liveProvider } from './live.js'
 
@@ -92,6 +93,27 @@ async function fromCopyOrLive(what, fromCopy, fromLive) {
   try {
     return await fromCopy()
   } catch (err) {
+    /*
+     * A REFUSAL IS AN ANSWER, NOT A FAULT - and must not be retried live.
+     *
+     * `guardPlanBoundary` and `guardForecastSource` throw on purpose, carrying a
+     * status and a sentence written for whoever picked the dates. Everything
+     * above treats a throw as "the fast path broke, take the slow one", which
+     * for those two is exactly wrong: Power BI cannot answer a planned year
+     * either, so the fallback returned no rows and no message, and the refusal
+     * the guards exist to deliver was never seen.
+     *
+     * That is how a 2027 window lost the entire recipe side of Stock Article in
+     * silence. The page kept its non-recipe rows - every one of them with a
+     * blank Forecast qty, because those carry only a warehouse figure - so it
+     * read as "there is little to make" rather than "2027 cannot be sized for
+     * this brand yet, and here is the missing piece".
+     *
+     * Only a deliberate status is re-thrown. A genuine copy fault - bad SQL, a
+     * closed database - has no status and still falls back, which is the
+     * behaviour this function was written for and keeps.
+     */
+    if (err?.status) throw err
     console.error(`  [cube] ${what} failed, falling back to Power BI:`, err.message)
     raise({
       source: 'app',
@@ -259,9 +281,31 @@ export const data = {
       f,
       ds,
       () =>
-        // Splitting by branch is the one thing the recipe copy cannot do — it
-        // has no branch column — so that still goes live.
-        !grain.location && cube.canAnswerComponents(f.brand, f)
+        /*
+         * Splitting by branch is the one thing the recipe copy cannot do — it
+         * has no branch column — so that still goes live.
+         *
+         * A PLANNED YEAR GOES TO THE COPY WHATEVER `canAnswerComponents` SAYS.
+         *
+         * That predicate asks whether the recipe copy holds the window's own
+         * dates, and for 2027 it truthfully does not - nothing does. But the
+         * copy is still the only thing that can answer, because the planned
+         * path never reads those dates: `cube.componentLevel` sizes the
+         * EQUIVALENT BASE-YEAR window, which the copy does hold, and multiplies
+         * it by the plan's factor.
+         *
+         * Sent live instead, the request asked Power BI for recipe rows in a
+         * year whose product table ends on 31 Dec 2026, and got an empty answer
+         * with no error attached. Stock Article then showed only its non-recipe
+         * rows - around 1,500 of them against 2,700 - and nothing said why.
+         *
+         * `canAnswerComponents` depends on `comp_days`, `comp_span` and the
+         * widened `comp_to`, all measured per server at extract time, which is
+         * why the same date range behaved differently on two copies of the same
+         * app: it decided routing, and routing decided whether the question was
+         * answered or quietly dropped.
+         */
+        !grain.location && (cube.canAnswerComponents(f.brand, f) || isPlannedYearWindow(f))
           ? fromCopyOrLive(
               'componentLevel',
               () => cube.componentLevel(f.brand, f, grain),

@@ -849,7 +849,36 @@ export async function componentLevel(brand, f, grain = {}) {
   const plan = planWindow(brand, f)
   if (plan) {
     const mix = await planMix(brand, plan, f)
-    if (!mix) return []
+    /*
+     * SAID, NOT SHOWN AS AN EMPTY TABLE.
+     *
+     * This returned `[]`, which is the one answer that cannot be told apart
+     * from "there is nothing to make here". The plan passed `forecastUsable`,
+     * so the guards above let the window through, and then the sizing failed
+     * for a different reason and took the whole recipe side of the page with
+     * it without a word.
+     *
+     * Two things can fail here and the message names which:
+     *
+     *   no size    neither the sales copy nor the plan's own share puts a
+     *              figure on this window
+     *   no mix     the equivalent base-year window has no sales to borrow a
+     *              product mix from, and neither does the base year entire
+     *
+     * Thrown with a status so `fromCopyOrLive` lets it past rather than
+     * retrying it against Power BI, which has no 2027 recipe data to offer.
+     */
+    if (!mix) {
+      const err = new Error(
+        `${plan.year} cannot be sized for ${brand} over ${f.dateFrom} to ${f.dateTo}: ` +
+          `the plan is usable, but there is no base-year sales window to take a product mix from ` +
+          `(${plan.from} to ${plan.to}, and ${plan.fallbackFrom} to ${plan.fallbackTo} as a fallback) ` +
+          `or no sales figure to size it to. ` +
+          `The recipe side of this page is left out rather than shown as nothing to make.`
+      )
+      err.status = 503
+      throw err
+    }
     const rows = await componentLevel(brand, { ...f, dateFrom: mix.from, dateTo: mix.to }, grain)
     return rows.map((r) => ({
       ...r,

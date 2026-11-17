@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { pickBaseYear } from './salesPlan.js'
+import { pickBaseYear, isPlannedYearWindow } from './salesPlan.js'
 import { planUnitsFor, planMixFor, historyWeightFor } from './planForecast.js'
 import { explodeArticles } from './planArticles.js'
 import { forecastAnnual } from '../cube/planSource.js'
@@ -220,6 +220,77 @@ test('the copy is preferred over the derived figure, in both sizing paths', () =
     mix.slice(0, mix.indexOf('\n}\n')).includes('copySales'),
     'planMix must size from the sales copy before deriving'
   )
+})
+
+/* ===== 4b. a planned window must never be answered by an empty table ====== */
+
+/*
+ * The defect these cover, found 17 Nov 2026.
+ *
+ * Stock Article showed 2,714 rows for Jan 2027 on one copy of the app and 1,499
+ * on another, with no error on either. The 1,499 were the non-recipe rows alone
+ * - every one with a blank Forecast qty, because those carry only a warehouse
+ * figure - so the page read as "little to make" rather than as a refusal.
+ *
+ * Two independent holes, both of which turned a deliberate refusal into
+ * silence, and both of which have to stay shut:
+ *
+ *   routing   `canAnswerComponents` asks whether the recipe copy holds the
+ *             window's own dates. For 2027 it does not, and nothing does, so
+ *             the request went to Power BI - whose product table ends on
+ *             31 Dec 2026 and which therefore answered with no rows and no
+ *             error. The guards never ran, because they live past that branch.
+ *
+ *   swallow   on the copy path, `fromCopyOrLive` caught the guard's throw,
+ *             logged it as a copy fault and retried the same question live,
+ *             reaching the same empty answer by the other road.
+ */
+
+test('a planned-year window is routed to the copy, not to Power BI', () => {
+  const src = readFileSync(new URL('../data/index.js', import.meta.url), 'utf8')
+  const at = src.indexOf('componentLevel: (f, ds, grain = {}) =>')
+  assert.ok(at > 0, 'the componentLevel router must exist')
+  const router = src.slice(at, src.indexOf('\n  productionPlan:', at))
+  assert.ok(
+    router.includes('isPlannedYearWindow(f)'),
+    'a planned-year window must reach the copy however canAnswerComponents answers'
+  )
+  assert.ok(
+    /canAnswerComponents\(f\.brand, f\) \|\| isPlannedYearWindow\(f\)/.test(router),
+    'the planned-year test must WIDEN the copy path, never narrow it'
+  )
+})
+
+test('fromCopyOrLive re-raises a deliberate refusal instead of retrying it live', () => {
+  const src = readFileSync(new URL('../data/index.js', import.meta.url), 'utf8')
+  const at = src.indexOf('async function fromCopyOrLive(')
+  const fn = src.slice(at, src.indexOf('\n}\n', at))
+  assert.ok(fn.includes('if (err?.status) throw err'), 'a status-carrying error must pass through')
+  assert.ok(
+    fn.indexOf('if (err?.status) throw err') < fn.indexOf('return fromLive()'),
+    'the re-raise must come BEFORE the live fallback, or the refusal is still swallowed'
+  )
+  // A real copy fault has no status and must still fall back - that is what the
+  // function was written for and the reason the test pins both halves.
+  assert.ok(fn.includes('return fromLive()'), 'an ordinary copy fault must still fall back')
+})
+
+test('componentLevel says a planned year it cannot size, rather than returning nothing', () => {
+  const q = readFileSync(new URL('../cube/query.js', import.meta.url), 'utf8')
+  const at = q.indexOf('export async function componentLevel(')
+  const head = q.slice(at, q.indexOf('const filters = { sql: [], args: [] }', at))
+  assert.ok(!/if \(!mix\) return \[\]/.test(head), 'an unsized plan must not come back as an empty table')
+  assert.ok(/if \(!mix\) \{/.test(head), 'the unsized case must still be handled')
+  assert.ok(head.includes('err.status = 503'), 'and must be thrown with a status, so it is not retried live')
+})
+
+test('isPlannedYearWindow does not reroute when it does not know the base year', () => {
+  // Read before `loadSalesPlans()` has run, which is every fresh process. The
+  // safe answer is "no" - routing must not change on a module that has not been
+  // told what the base year is.
+  assert.equal(isPlannedYearWindow({ dateFrom: '2027-01-01', dateTo: '2027-01-31' }), false)
+  assert.equal(isPlannedYearWindow({}), false)
+  assert.equal(isPlannedYearWindow({ dateFrom: 'rubbish', dateTo: 'rubbish' }), false)
 })
 
 /* ============== 5. independence from manually entered targets ============= */

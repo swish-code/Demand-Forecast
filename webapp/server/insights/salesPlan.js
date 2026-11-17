@@ -518,6 +518,40 @@ export function planBoundaryError(brand, filters) {
 }
 
 /**
+ * Is this window in a year only the local sizing can answer?
+ *
+ * Deliberately asks about the DATES and nothing else - not the brand, not
+ * whether a plan exists, not whether that plan is usable. The question it
+ * answers is "could Power BI answer this window", and for any year past the
+ * base year the answer is no, for a reason that has nothing to do with plans:
+ * there is no product or recipe data there to read. `DateTable` is a 2026
+ * calendar in every model and `Forecast_Product_Table` stops at the end of 2026
+ * for eight of the nine brands.
+ *
+ * So a window past the base year has exactly two honest outcomes - sized from
+ * the plan, or refused out loud - and the live provider is neither. Asked live
+ * it returns no rows and no error, which is the failure this exists to stop:
+ * see `data/index.js`, where a planned window routed live emptied the recipe
+ * side of Stock Article and left only the non-recipe rows behind it.
+ *
+ * Brand-free on purpose. Routing must not depend on whether the plan happens to
+ * be usable, because an unusable plan is precisely the case whose message has
+ * to reach the reader, and that message is thrown from inside the copy path.
+ */
+export function isPlannedYearWindow(filters) {
+  const from = String(filters?.dateFrom ?? '').slice(0, 10)
+  const to = String(filters?.dateTo ?? '').slice(0, 10)
+  if (!from || !to || !baseYear) return false
+  const a = Number(from.slice(0, 4))
+  const b = Number(to.slice(0, 4))
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false
+  // Either end past the base year is enough. A window that straddles the
+  // boundary is refused by `planBoundaryError`, and that refusal is also thrown
+  // from the copy path, so it has to be routed there to be heard at all.
+  return a > baseYear || b > baseYear
+}
+
+/**
  * Does this window fall inside a plan year, and if so what shapes it?
  *
  * Returns null — meaning "nothing to do, behave exactly as before" — unless the
