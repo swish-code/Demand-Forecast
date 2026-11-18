@@ -2659,6 +2659,182 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
         </div>
       )}
 
+      {/* First after the cards - 18 Nov 2026, on request. */}
+      {/*
+        * EVERY article by brand, a column per month - 10 Nov 2026, on request.
+        *
+        * The matrix above answers "where should I look" for the top twenty;
+        * this answers "what did every article do", which is the view the Power
+        * BI page gave day by day. Grouped by brand on open, because that is how
+        * it is read and a thousand flat rows would make the reader find the
+        * grouping control first.
+        */}
+      {/*
+        * The month-by-month panels come from a SECOND read of the FM Sales
+        * Dashboard, and a failed read used to remove all four of them without
+        * a word - which is how "I can't find the visual" happens. A panel that
+        * cannot be drawn now says so rather than vanishing.
+        */}
+      {view === 'mc' && !loading && rows.length > 0 && sixMonths.length === 0 && (
+        <Panel title="All articles by brand, month by month">
+          <Empty title="The month-by-month figures could not be read">
+            Oracle’s monthly series comes from a second read of the FM Sales Dashboard, separate
+            from the figures in the table below. That read did not return, so the four
+            month-by-month panels have nothing to draw. Everything else on this page is
+            unaffected — use <strong>Refresh</strong> in the corner to try again.
+          </Empty>
+        </Panel>
+      )}
+
+      {view === 'mc' && monthly.length > 0 && (
+        <Panel
+          title="All articles by brand, month by month"
+          count={monthlyShown.length}
+          sub={`Every article in the selection, one row each, with MC’s theoretical, the consumption, the variance and the variance % in each of the ${
+            sixMonths.length
+          } months — ${monthLabel(sixMonths[0])} to ${monthLabel(
+            sixMonths[sixMonths.length - 1]
+          )}. Grouped by brand; open the group headings to read them. Amber used more than the recipe explains, blue used less, and a dash is a month MC has no row for — not a month in agreement. Use Freeze to hold the article in place while the months scroll, and Build view to drop any column you do not need.${
+            /*
+             * The skipped month is named HERE from 10 Nov 2026.
+             *
+             * It used to be said on the ranked list, which has been removed -
+             * and the fact had to move rather than go with it. Six columns
+             * where the source holds seven months is exactly the kind of
+             * silent gap this page exists to not have.
+             */
+            leftOut.length
+              ? ` ${leftOut.join(' and ')} ${
+                  leftOut.length > 1 ? 'are' : 'is'
+                } left out — only a fragment of a month is in the source, and a partial load would read as consumption collapsing.`
+              : ''
+          } Obeys every slicer on the page, so it always agrees with the cards above.`}
+          busy={loading}
+          tools={
+            <>
+              {/*
+                * Buttons rather than a checkbox: every state is named and
+                * carries its own count, so the reader can see what the others
+                * would do before pressing one. Ordered widest to narrowest.
+                */}
+              <div className="choices choices--wrap" role="group" aria-label="Which articles">
+                <button
+                  type="button"
+                  className={`choice choice--tiny${mode === 'all' ? ' choice--on' : ''}`}
+                  aria-pressed={mode === 'all'}
+                  onClick={() => setMode('all')}
+                >
+                  All articles ({fmtInt(counts.all)})
+                </button>
+                <button
+                  type="button"
+                  className={`choice choice--tiny${mode === 'quiet' ? ' choice--on' : ''}`}
+                  aria-pressed={mode === 'quiet'}
+                  onClick={() => setMode('quiet')}
+                  title="Keeps only the quiet articles: never beyond 1% of Oracle’s theoretical, or beyond it in a single month. One month is usually an event — a late delivery, a stock count landing the wrong side of a month end — rather than a pattern."
+                >
+                  High in 0–1 months ({fmtInt(counts.quiet)})
+                </button>
+                <button
+                  type="button"
+                  className={`choice choice--tiny${mode === 'high6' ? ' choice--on' : ''}`}
+                  aria-pressed={mode === 'high6'}
+                  onClick={() => setMode('high6')}
+                  title={`High in all ${sixMonths.length} months: beyond 1% of Oracle’s theoretical and beyond half a unit, every month.`}
+                >
+                  High all {sixMonths.length} ({fmtInt(counts.high6)})
+                </button>
+                <button
+                  type="button"
+                  className={`choice choice--tiny${mode === 'over20' ? ' choice--on' : ''}`}
+                  aria-pressed={mode === 'over20'}
+                  onClick={() => setMode('over20')}
+                  title="Articles whose six-month variance is more than 20% of MC’s own theoretical, in either direction. Articles MC holds no theoretical for are not here — they have no percentage to exceed a threshold."
+                >
+                  Over 20% ({fmtInt(counts.over20)})
+                </button>
+              </div>
+              <button
+                type="button"
+                className="btn"
+                disabled={!monthlyShown.length}
+                onClick={() =>
+                  downloadCsv(
+                    exportFileName(
+                      mode === 'high6'
+                        ? 'Monthly variance - high every month'
+                        : mode === 'quiet'
+                          ? 'Monthly variance - high in at most one month'
+                          : mode === 'over20'
+                            ? 'Monthly variance over 20 percent - for costing'
+                            : 'Monthly variance by article',
+                      { dateFrom: sixMonths[0], dateTo: monthEndOf(sixMonths[sixMonths.length - 1]) }
+                    ),
+                    monthlyExportRows,
+                    monthlyExportColumns,
+                    [
+                      ['Months', sixMonths.map(monthLabel).join(', ')],
+                      ['What this file is', 'One row per article per brand. For each month it carries BOTH the variance in units and the variance as a per cent of MC’s own theoretical, because a percentage cannot be costed without the quantity beside it.'],
+                      ['Variance', 'MC’s actual consumption minus MC’s own theoretical (Potential COS QTY), for that month. POSITIVE means more was used than the recipe explains.'],
+                      ['Variance %', 'That month’s variance as a per cent of that month’s MC theoretical. Written as a number of per cent: 25 means 25%.'],
+                      ['6 months variance %', 'The plain average of the monthly variance % columns, over the months MC priced. Every such month counts equally, whatever its size. Months MC did not price are excluded, not counted as zero. Do not total the monthly per cent columns: percentages do not add.'],
+                      ['Blank month', 'MC has no row for the article that month, or holds no theoretical to divide by. NOT a zero, which would mean the outlets matched the recipe exactly.'],
+                      ['Months scored', `How many of the ${sixMonths.length} months could be judged at all. A month where MC holds no theoretical cannot be high or low.`],
+                      ['Months high', 'Of those, how many were beyond 1% of MC’s theoretical AND beyond half a unit.'],
+                      ...(mode === 'over20'
+                        ? [
+                            ['Filtered', `Only articles whose SIX-MONTH variance is more than 20% of MC’s theoretical, in either direction. ${fmtInt(counts.all - counts.over20)} of ${fmtInt(counts.all)} articles are not shown.`],
+                            ['Not in this list', 'Articles MC holds no theoretical for have no percentage and cannot clear the threshold, so they are absent. That is deliberate: consumption measured against no theoretical is an unmeasured article, not a variance.'],
+                          ]
+                        : []),
+                      ...(mode === 'high6'
+                        ? [['Filtered', `Only articles high in all ${sixMonths.length} months. ${fmtInt(counts.all - counts.high6)} articles are not shown.`]]
+                        : []),
+                      ...(mode === 'quiet'
+                        ? [['Filtered', `Only the quiet articles: never beyond 1% of MC's theoretical, or beyond it in a single month. ${fmtInt(counts.all - counts.quiet)} articles that did so in two or more months are not shown.`]]
+                        : []),
+                      ['Source', 'Material Control, Consumption Qty. Consumption is reconciled from stock (Opening + Transfers + Purchase - Closing + Usage) so it includes waste, over-portioning and counting error.'],
+                      ['Slicers', 'This export carries exactly what the page was showing, including the MC theoretical filter.'],
+                    ]
+                  )
+                }
+              >
+                <IconDownload size={12} />
+                CSV
+              </button>
+            </>
+          }
+        >
+          {monthlyShown.length === 0 ? (
+            <Empty
+              title={
+                mode === 'high6'
+                  ? `No article was high in all ${sixMonths.length} months`
+                  : mode === 'over20'
+                    ? 'No article is more than 20% from MC’s theoretical over the six months'
+                    : 'Every article was high in two months or more'
+              }
+            >
+              Switch back to <strong>All articles</strong> to see the whole selection.
+            </Empty>
+          ) : (
+            <DataTable
+              tableId="consumption-monthly-grouped"
+              columns={monthlyColumns}
+              groups={monthlyGroups}
+              rows={monthlyShown}
+              groupable={[{ key: 'brand', label: 'Brand' }]}
+              initialGroupBy="brand"
+              freezable
+              totals
+              initialSort={{ key: 'total', dir: 'desc' }}
+              searchPlaceholder="Search article or name…"
+              onRowClick={openUsage}
+            />
+          )}
+        </Panel>
+      )}
+
       {view === 'mc' && (
       <Panel
         title="MC reconciliation — theoretical vs consumption"
@@ -2816,260 +2992,6 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
         </Panel>
       )}
 
-      {/*
-        * EVERY article by brand, a column per month - 10 Nov 2026, on request.
-        *
-        * The matrix above answers "where should I look" for the top twenty;
-        * this answers "what did every article do", which is the view the Power
-        * BI page gave day by day. Grouped by brand on open, because that is how
-        * it is read and a thousand flat rows would make the reader find the
-        * grouping control first.
-        */}
-      {/*
-        * The month-by-month panels come from a SECOND read of the FM Sales
-        * Dashboard, and a failed read used to remove all four of them without
-        * a word - which is how "I can't find the visual" happens. A panel that
-        * cannot be drawn now says so rather than vanishing.
-        */}
-      {view === 'mc' && !loading && rows.length > 0 && sixMonths.length === 0 && (
-        <Panel title="All articles by brand, month by month">
-          <Empty title="The month-by-month figures could not be read">
-            Oracle’s monthly series comes from a second read of the FM Sales Dashboard, separate
-            from the figures in the table below. That read did not return, so the four
-            month-by-month panels have nothing to draw. Everything else on this page is
-            unaffected — use <strong>Refresh</strong> in the corner to try again.
-          </Empty>
-        </Panel>
-      )}
-
-      {/*
-        * CONSUMPTION BY MONTH - 15 Nov 2026, on request.
-        *
-        * Above the per-article table, matching the PM tab's summary. The
-        * months are the six COMPLETE ones the trend holds, not the date
-        * slicer: MC records once per article per outlet per month, the slicer
-        * is usually set to one month, and one month is not a trend. The
-        * figures obey every other slicer - brand, article, category, MC
-        * theoretical - so the selection is the page's, only the span is not.
-        */}
-      {view === 'mc' && mcByMonth.length > 0 && (
-        <Panel
-          title="Consumption by month"
-          count={mcByMonth.length}
-          sub={`Each month's total consumption against what MC's recipes said, over ${monthLabel(
-            sixMonths[0]
-          )} to ${monthLabel(
-            sixMonths[sixMonths.length - 1]
-          )} — the complete months MC holds, not the dates in the slicer, because MC records once per month and one month is not a trend. Every other slicer still applies. Variance % runs high because it includes articles MC holds no theoretical for; the priced-only column beside it is the recipe question.`}
-          busy={loading}
-          tools={
-            <button
-              type="button"
-              className="btn"
-              disabled={!mcByMonth.length}
-              onClick={() =>
-                downloadCsv(
-                  exportFileName('MC consumption by month', {
-                    dateFrom: sixMonths[0],
-                    dateTo: monthEndOf(sixMonths[sixMonths.length - 1]),
-                  }),
-                  mcByMonth.map((d) => ({
-                    ...d,
-                    month: monthLabel(d.month),
-                    pctOut:
-                      d.pct === null || d.pct === undefined
-                        ? ''
-                        : Math.round(Number(d.pct) * 1000) / 10,
-                    pctPricedOut:
-                      d.pctPriced === null || d.pctPriced === undefined
-                        ? ''
-                        : Math.round(Number(d.pctPriced) * 1000) / 10,
-                  })),
-                  [
-                    { key: 'month', label: 'Month' },
-                    { key: 'theoretical', label: 'MC theoretical' },
-                    { key: 'consumption', label: 'Consumption' },
-                    { key: 'variance', label: 'Variance' },
-                    { key: 'pctOut', label: 'Variance %' },
-                    { key: 'pctPricedOut', label: 'Variance % (priced only)' },
-                    { key: 'articles', label: 'Articles' },
-                    { key: 'articlesPriced', label: 'Articles priced' },
-                  ],
-                  [
-                    ['Months', sixMonths.map(monthLabel).join(', ')],
-                    ['Consumption', 'Reconciled from stock: Opening + Transfers + Purchase - Closing + Usage. Measured, so it includes waste.'],
-                    ['Variance', 'Consumption minus MC theoretical. Positive means more was used than the recipes explain.'],
-                    ['Variance %', 'Over EVERY article. Runs high because articles MC holds no theoretical for put their whole consumption in the numerator with nothing under it. Written as a number of per cent: 25 means 25%.'],
-                    ['Variance % (priced only)', 'Over only the articles MC priced. This is the recipe question.'],
-                    ['Span', 'The complete months MC holds, not the date slicer - MC records once per article per outlet per month.'],
-                  ]
-                )
-              }
-            >
-              <IconDownload size={12} />
-              CSV
-            </button>
-          }
-        >
-          <DataTable
-            tableId="mc-by-month"
-            columns={mcMonthColumns}
-            rows={mcByMonth}
-            totals
-            searchable={false}
-            paginate={false}
-          />
-        </Panel>
-      )}
-
-      {view === 'mc' && monthly.length > 0 && (
-        <Panel
-          title="All articles by brand, month by month"
-          count={monthlyShown.length}
-          sub={`Every article in the selection, one row each, with MC’s theoretical, the consumption, the variance and the variance % in each of the ${
-            sixMonths.length
-          } months — ${monthLabel(sixMonths[0])} to ${monthLabel(
-            sixMonths[sixMonths.length - 1]
-          )}. Grouped by brand; open the group headings to read them. Amber used more than the recipe explains, blue used less, and a dash is a month MC has no row for — not a month in agreement. Use Freeze to hold the article in place while the months scroll, and Build view to drop any column you do not need.${
-            /*
-             * The skipped month is named HERE from 10 Nov 2026.
-             *
-             * It used to be said on the ranked list, which has been removed -
-             * and the fact had to move rather than go with it. Six columns
-             * where the source holds seven months is exactly the kind of
-             * silent gap this page exists to not have.
-             */
-            leftOut.length
-              ? ` ${leftOut.join(' and ')} ${
-                  leftOut.length > 1 ? 'are' : 'is'
-                } left out — only a fragment of a month is in the source, and a partial load would read as consumption collapsing.`
-              : ''
-          } Obeys every slicer on the page, so it always agrees with the cards above.`}
-          busy={loading}
-          tools={
-            <>
-              {/*
-                * Buttons rather than a checkbox: every state is named and
-                * carries its own count, so the reader can see what the others
-                * would do before pressing one. Ordered widest to narrowest.
-                */}
-              <div className="choices choices--wrap" role="group" aria-label="Which articles">
-                <button
-                  type="button"
-                  className={`choice choice--tiny${mode === 'all' ? ' choice--on' : ''}`}
-                  aria-pressed={mode === 'all'}
-                  onClick={() => setMode('all')}
-                >
-                  All articles ({fmtInt(counts.all)})
-                </button>
-                <button
-                  type="button"
-                  className={`choice choice--tiny${mode === 'quiet' ? ' choice--on' : ''}`}
-                  aria-pressed={mode === 'quiet'}
-                  onClick={() => setMode('quiet')}
-                  title="Keeps only the quiet articles: never beyond 1% of Oracle’s theoretical, or beyond it in a single month. One month is usually an event — a late delivery, a stock count landing the wrong side of a month end — rather than a pattern."
-                >
-                  High in 0–1 months ({fmtInt(counts.quiet)})
-                </button>
-                <button
-                  type="button"
-                  className={`choice choice--tiny${mode === 'high6' ? ' choice--on' : ''}`}
-                  aria-pressed={mode === 'high6'}
-                  onClick={() => setMode('high6')}
-                  title={`High in all ${sixMonths.length} months: beyond 1% of Oracle’s theoretical and beyond half a unit, every month.`}
-                >
-                  High all {sixMonths.length} ({fmtInt(counts.high6)})
-                </button>
-                <button
-                  type="button"
-                  className={`choice choice--tiny${mode === 'over20' ? ' choice--on' : ''}`}
-                  aria-pressed={mode === 'over20'}
-                  onClick={() => setMode('over20')}
-                  title="Articles whose six-month variance is more than 20% of MC’s own theoretical, in either direction. Articles MC holds no theoretical for are not here — they have no percentage to exceed a threshold."
-                >
-                  Over 20% ({fmtInt(counts.over20)})
-                </button>
-              </div>
-              <button
-                type="button"
-                className="btn"
-                disabled={!monthlyShown.length}
-                onClick={() =>
-                  downloadCsv(
-                    exportFileName(
-                      mode === 'high6'
-                        ? 'Monthly variance - high every month'
-                        : mode === 'quiet'
-                          ? 'Monthly variance - high in at most one month'
-                          : mode === 'over20'
-                            ? 'Monthly variance over 20 percent - for costing'
-                            : 'Monthly variance by article',
-                      { dateFrom: sixMonths[0], dateTo: monthEndOf(sixMonths[sixMonths.length - 1]) }
-                    ),
-                    monthlyExportRows,
-                    monthlyExportColumns,
-                    [
-                      ['Months', sixMonths.map(monthLabel).join(', ')],
-                      ['What this file is', 'One row per article per brand. For each month it carries BOTH the variance in units and the variance as a per cent of MC’s own theoretical, because a percentage cannot be costed without the quantity beside it.'],
-                      ['Variance', 'MC’s actual consumption minus MC’s own theoretical (Potential COS QTY), for that month. POSITIVE means more was used than the recipe explains.'],
-                      ['Variance %', 'That month’s variance as a per cent of that month’s MC theoretical. Written as a number of per cent: 25 means 25%.'],
-                      ['6 months variance %', 'The plain average of the monthly variance % columns, over the months MC priced. Every such month counts equally, whatever its size. Months MC did not price are excluded, not counted as zero. Do not total the monthly per cent columns: percentages do not add.'],
-                      ['Blank month', 'MC has no row for the article that month, or holds no theoretical to divide by. NOT a zero, which would mean the outlets matched the recipe exactly.'],
-                      ['Months scored', `How many of the ${sixMonths.length} months could be judged at all. A month where MC holds no theoretical cannot be high or low.`],
-                      ['Months high', 'Of those, how many were beyond 1% of MC’s theoretical AND beyond half a unit.'],
-                      ...(mode === 'over20'
-                        ? [
-                            ['Filtered', `Only articles whose SIX-MONTH variance is more than 20% of MC’s theoretical, in either direction. ${fmtInt(counts.all - counts.over20)} of ${fmtInt(counts.all)} articles are not shown.`],
-                            ['Not in this list', 'Articles MC holds no theoretical for have no percentage and cannot clear the threshold, so they are absent. That is deliberate: consumption measured against no theoretical is an unmeasured article, not a variance.'],
-                          ]
-                        : []),
-                      ...(mode === 'high6'
-                        ? [['Filtered', `Only articles high in all ${sixMonths.length} months. ${fmtInt(counts.all - counts.high6)} articles are not shown.`]]
-                        : []),
-                      ...(mode === 'quiet'
-                        ? [['Filtered', `Only the quiet articles: never beyond 1% of MC's theoretical, or beyond it in a single month. ${fmtInt(counts.all - counts.quiet)} articles that did so in two or more months are not shown.`]]
-                        : []),
-                      ['Source', 'Material Control, Consumption Qty. Consumption is reconciled from stock (Opening + Transfers + Purchase - Closing + Usage) so it includes waste, over-portioning and counting error.'],
-                      ['Slicers', 'This export carries exactly what the page was showing, including the MC theoretical filter.'],
-                    ]
-                  )
-                }
-              >
-                <IconDownload size={12} />
-                CSV
-              </button>
-            </>
-          }
-        >
-          {monthlyShown.length === 0 ? (
-            <Empty
-              title={
-                mode === 'high6'
-                  ? `No article was high in all ${sixMonths.length} months`
-                  : mode === 'over20'
-                    ? 'No article is more than 20% from MC’s theoretical over the six months'
-                    : 'Every article was high in two months or more'
-              }
-            >
-              Switch back to <strong>All articles</strong> to see the whole selection.
-            </Empty>
-          ) : (
-            <DataTable
-              tableId="consumption-monthly-grouped"
-              columns={monthlyColumns}
-              groups={monthlyGroups}
-              rows={monthlyShown}
-              groupable={[{ key: 'brand', label: 'Brand' }]}
-              initialGroupBy="brand"
-              freezable
-              totals
-              initialSort={{ key: 'total', dir: 'desc' }}
-              searchPlaceholder="Search article or name…"
-              onRowClick={openUsage}
-            />
-          )}
-        </Panel>
-      )}
 
       {/*
         * THE PERSISTENT OFFENDERS, asked for on 9 Nov 2026.
@@ -3469,68 +3391,6 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
         </Panel>
       )}
 
-      {view === 'pm' && engine.length > 0 && (
-        <Panel
-          title="PM vs MC theoretical"
-          count={engine.length}
-          sub={`The same article costed by both recipe engines, worst disagreement first. Both sides are theoretical — neither carries waste, over-portioning or counting error — so a gap here is the recipes themselves, the unit of measure, or which product the sales were attributed to. This is also the only comparison on the page that our local copy can move, which is how the doubled PAT quantities were caught.${
-            engineUnscored
-              ? ` ${fmtInt(engineUnscored)} of the ${fmtInt(
-                  rows.length
-                )} articles on screen are not scored: only one of the two engines has a figure for them, which is an absence rather than a disagreement.`
-              : ''
-          }`}
-          busy={loading}
-          tools={
-            <button
-              type="button"
-              className="btn"
-              disabled={!engine.length}
-              onClick={() =>
-                downloadCsv(
-                  exportFileName('PM vs MC theoretical', {
-                    dateFrom: filters?.dateFrom,
-                    dateTo: filters?.dateTo,
-                  }),
-                  engine,
-                  ENGINE_COLUMNS.map(({ key, label }) => ({ key, label })),
-                  [
-                    ['Months covered', months.map(monthLabel).join(', ')],
-                    ['PM Theoretical', 'Recipe QTY BU x the product quantity that actually sold. Read from the local copy.'],
-                    ['MC Theoretical', 'Potential COS QTY - what MC’s own recipes say should have been used for the same sales.'],
-                    ['Difference', 'PM minus MC. Both sides theoretical, so this is a disagreement about the recipe, not about what the outlets did.'],
-                    ['Agreement', '1 - |PM - MC| / the larger of the two. 100% is exact; 50% means one is double the other.'],
-                    ['Not scored', `${fmtInt(engineUnscored)} articles where only one engine has a figure. An absence is not a disagreement, so they carry no score.`],
-                  ]
-                )
-              }
-            >
-              <IconDownload size={12} />
-              CSV
-            </button>
-          }
-        >
-          <DataTable
-            tableId="consumption-engines"
-            columns={ENGINE_COLUMNS}
-            rows={engine}
-            /*
-             * Grouping by brand replaces the separate per-brand table that
-             * stood above this one until 10 Nov 2026, when it was removed as a
-             * duplicate. The group headings carry the same counts and totals,
-             * so the brand view is a control away rather than a second table
-             * saying the same thing twice.
-             */
-            groupable={[{ key: 'CHAINID', label: 'Brand' }]}
-            freezable
-            totals
-            initialSort={{ key: 'Engine_Diff', dir: 'desc' }}
-            searchPlaceholder="Search article or name…"
-            onRowClick={(row) => setUsage(row)}
-          />
-        </Panel>
-      )}
-
       {view === 'mc' && heat.length > 0 && (
         <Panel
           title={`Top ${heat.length} articles, month by month`}
@@ -3555,6 +3415,86 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
               onPick={openUsage}
             />
           </div>
+        </Panel>
+      )}
+
+      {/*
+        * CONSUMPTION BY MONTH - 15 Nov 2026, on request; moved to the bottom of
+        * the MC view on 18 Nov 2026, on request.
+        *
+        * The months are the six COMPLETE ones the trend holds, not the date
+        * slicer: MC records once per article per outlet per month, the slicer
+        * is usually set to one month, and one month is not a trend. The
+        * figures obey every other slicer - brand, article, category, MC
+        * theoretical - so the selection is the page's, only the span is not.
+        */}
+      {view === 'mc' && mcByMonth.length > 0 && (
+        <Panel
+          title="Consumption by month"
+          count={mcByMonth.length}
+          sub={`Each month's total consumption against what MC's recipes said, over ${monthLabel(
+            sixMonths[0]
+          )} to ${monthLabel(
+            sixMonths[sixMonths.length - 1]
+          )} — the complete months MC holds, not the dates in the slicer, because MC records once per month and one month is not a trend. Every other slicer still applies. Variance % runs high because it includes articles MC holds no theoretical for; the priced-only column beside it is the recipe question.`}
+          busy={loading}
+          tools={
+            <button
+              type="button"
+              className="btn"
+              disabled={!mcByMonth.length}
+              onClick={() =>
+                downloadCsv(
+                  exportFileName('MC consumption by month', {
+                    dateFrom: sixMonths[0],
+                    dateTo: monthEndOf(sixMonths[sixMonths.length - 1]),
+                  }),
+                  mcByMonth.map((d) => ({
+                    ...d,
+                    month: monthLabel(d.month),
+                    pctOut:
+                      d.pct === null || d.pct === undefined
+                        ? ''
+                        : Math.round(Number(d.pct) * 1000) / 10,
+                    pctPricedOut:
+                      d.pctPriced === null || d.pctPriced === undefined
+                        ? ''
+                        : Math.round(Number(d.pctPriced) * 1000) / 10,
+                  })),
+                  [
+                    { key: 'month', label: 'Month' },
+                    { key: 'theoretical', label: 'MC theoretical' },
+                    { key: 'consumption', label: 'Consumption' },
+                    { key: 'variance', label: 'Variance' },
+                    { key: 'pctOut', label: 'Variance %' },
+                    { key: 'pctPricedOut', label: 'Variance % (priced only)' },
+                    { key: 'articles', label: 'Articles' },
+                    { key: 'articlesPriced', label: 'Articles priced' },
+                  ],
+                  [
+                    ['Months', sixMonths.map(monthLabel).join(', ')],
+                    ['Consumption', 'Reconciled from stock: Opening + Transfers + Purchase - Closing + Usage. Measured, so it includes waste.'],
+                    ['Variance', 'Consumption minus MC theoretical. Positive means more was used than the recipes explain.'],
+                    ['Variance %', 'Over EVERY article. Runs high because articles MC holds no theoretical for put their whole consumption in the numerator with nothing under it. Written as a number of per cent: 25 means 25%.'],
+                    ['Variance % (priced only)', 'Over only the articles MC priced. This is the recipe question.'],
+                    ['Span', 'The complete months MC holds, not the date slicer - MC records once per article per outlet per month.'],
+                  ]
+                )
+              }
+            >
+              <IconDownload size={12} />
+              CSV
+            </button>
+          }
+        >
+          <DataTable
+            tableId="mc-by-month"
+            columns={mcMonthColumns}
+            rows={mcByMonth}
+            totals
+            searchable={false}
+            paginate={false}
+          />
         </Panel>
       )}
 
