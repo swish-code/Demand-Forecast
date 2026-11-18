@@ -338,6 +338,8 @@ export const api = {
   context: (filters, options) => query('/context', filters, options),
   productLevel: (filters, options) => query('/product-level', filters, options),
   componentLevel: (filters, options) => query('/component-level', filters, options),
+  // PM vs MC theoretical per branch per month - the Variance page's branch tab.
+  branchVariance: (filters, options) => query('/consumption/branch-monthly', filters, options),
   /*
    * The new-branch forecast - a POST, because it is defined by what the user
    * typed rather than by a resource that exists, and nothing is stored.

@@ -1881,6 +1881,46 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
   )
 
   /*
+   * THE SAME TABLE PER BRANCH - 18 Nov 2026, on request.
+   *
+   * "I want to see branch level variance, so add a tab in the table showing
+   * branch level monthly variance between MC theoretical and PM theoretical."
+   *
+   * Fetched only while the branch tab is open: it is a read of its own (one
+   * query per brand per month, see server/insights/branchVariance.js) and the
+   * page should not pay for it until somebody asks.
+   *
+   * Folded by the SAME function as the article table, so a month, a variance
+   * and a variance % mean exactly the same thing on both tabs. And narrowed to
+   * the article-brand pairs the article table is showing, so the page's other
+   * filters - unit, category, the MC theoretical slicer - apply here too
+   * without the server having to know about any of them.
+   */
+  const [engineTab, setEngineTab] = useState('article')
+  const branchRequest = useMemo(() => {
+    const { oracleRecipes: _dropped, ...rest } = filters ?? {}
+    return { ...rest, months: sixMonths }
+  }, [filters, sixMonths])
+  const branchData = useData(api.branchVariance, branchRequest, {
+    enabled: Boolean(ready) && view === 'pm' && engineTab === 'branch' && sixMonths.length > 0,
+    nonce: refreshNonce,
+  })
+  const branchMonthly = useMemo(() => {
+    const src = branchData.data?.rows
+    if (!src?.length) return []
+    const canon = (a) => {
+      const s = String(a ?? '').trim()
+      const n = Number(s)
+      return s && Number.isFinite(n) ? String(n) : s
+    }
+    const shown = new Set(engineMonthly.map((r) => `${canon(r.article)}|${r.brand}`))
+    return engineVarianceByArticle(
+      src.filter((r) => shown.has(`${canon(r['Item No.'])}|${r.CHAINID}`)),
+      sixMonths
+    )
+  }, [branchData.data, engineMonthly, sixMonths])
+
+  /*
    * The same comparison folded the other way: one row per month.
    *
    * Sits above the per-article table because it is the question people ask
@@ -1992,6 +2032,29 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
       return out
     })
   }, [engineMonthly, sixMonths])
+
+  /* The branch tab's export: the same columns, with the branch after the brand. */
+  const branchExportColumns = useMemo(() => {
+    const [brandCol, ...rest] = engineExportColumns
+    return [
+      brandCol,
+      { key: 'branch', label: 'Branch' },
+      { key: 'branchName', label: 'Branch name' },
+      ...rest,
+    ]
+  }, [engineExportColumns])
+
+  const branchExportRows = useMemo(() => {
+    const pct = (v) =>
+      v === null || v === undefined || Number.isNaN(Number(v))
+        ? ''
+        : Math.round(Number(v) * 1000) / 10
+    return branchMonthly.map((d) => {
+      const out = { ...d, totalPctOut: pct(d.totalPct) }
+      for (const m of sixMonths) out[`${m}__pctOut`] = pct(d[`${m}__pct`])
+      return out
+    })
+  }, [branchMonthly, sixMonths])
 
   /*
    * ONE GROUP OF COLUMNS PER MONTH - 15 Nov 2026, on request.
@@ -2163,6 +2226,24 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
     ],
     [sixMonths]
   )
+
+  /* The branch tab: the article table's columns with the branch after the brand. */
+  const branchColumns = useMemo(() => {
+    const [brandCol, ...rest] = engineColumns
+    return [
+      brandCol,
+      {
+        key: 'branch',
+        label: 'Branch',
+        group: 'id',
+        required: true,
+        autoWidth: true,
+        render: (v) => <Pill tone="plain">{v}</Pill>,
+      },
+      { key: 'branchName', label: 'Branch name', group: 'id', autoWidth: true },
+      ...rest,
+    ]
+  }, [engineColumns])
 
   /*
    * THE COSTING LIST - 12 Nov 2026, on request.
@@ -3409,16 +3490,79 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
 
       {view === 'pm' && engineMonthly.length > 0 && (
         <Panel
-          title="PM vs MC theoretical, month by month"
-          count={engineMonthly.length}
-          sub={`Each article's PM theoretical against MC's, in each of the ${
-            sixMonths.length
-          } months — ${monthLabel(sixMonths[0])} to ${monthLabel(
-            sixMonths[sixMonths.length - 1]
-          )}. Each month carries MC's theoretical, ours, the variance and the variance %. Amber means our explosion asks for more than MC's, blue less. A dash is a month only one engine costed, which is not a month they agreed. Use Freeze to hold the article in place while the months scroll, and Build view to drop any column you do not need.`}
-          busy={loading}
+          title={
+            engineTab === 'branch'
+              ? 'PM vs MC theoretical, month by month, by branch'
+              : 'PM vs MC theoretical, month by month'
+          }
+          count={engineTab === 'branch' ? branchMonthly.length : engineMonthly.length}
+          sub={
+            engineTab === 'branch'
+              ? `Each article's PM theoretical against MC's at each branch, in each of the ${
+                  sixMonths.length
+                } months — ${monthLabel(sixMonths[0])} to ${monthLabel(
+                  sixMonths[sixMonths.length - 1]
+                )}. Same columns and colours as the article view, one row per article per branch. A branch is matched by brand AND code, because codes repeat across brands. Only branch-article pairs that BOTH engines costed in at least one month are listed — a branch only one side has (for example a branch MC books nothing for) is an absence, not a variance. Catering's MC theoretical is excluded, as everywhere on this page.${
+                  branchData.data?.failed?.length
+                    ? ` Could not be read: ${branchData.data.failed.join(', ')}.`
+                    : ''
+                }`
+              : `Each article's PM theoretical against MC's, in each of the ${
+                  sixMonths.length
+                } months — ${monthLabel(sixMonths[0])} to ${monthLabel(
+                  sixMonths[sixMonths.length - 1]
+                )}. Each month carries MC's theoretical, ours, the variance and the variance %. Amber means our explosion asks for more than MC's, blue less. A dash is a month only one engine costed, which is not a month they agreed. Use Freeze to hold the article in place while the months scroll, and Build view to drop any column you do not need.`
+          }
+          busy={engineTab === 'branch' ? branchData.loading : loading}
           tools={
             <>
+              <div className="alvr__views" role="tablist" aria-label="Month-by-month grain">
+                {[
+                  ['article', 'By article'],
+                  ['branch', 'By branch'],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={engineTab === id}
+                    className={`alvr__view${engineTab === id ? ' alvr__view--on' : ''}`}
+                    onClick={() => setEngineTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {engineTab === 'branch' ? (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={!branchMonthly.length}
+                  onClick={() =>
+                    downloadCsv(
+                      exportFileName('PM vs MC theoretical by branch by month', {
+                        dateFrom: sixMonths[0],
+                        dateTo: monthEndOf(sixMonths[sixMonths.length - 1]),
+                      }),
+                      branchExportRows,
+                      branchExportColumns,
+                      [
+                        ['Months', sixMonths.map(monthLabel).join(', ')],
+                        ['What this file is', 'One row per article per brand per BRANCH. For each month it carries MC theoretical, PM theoretical, the difference in units and the difference as a per cent of MC’s theoretical.'],
+                        ['PM theoretical', 'Level 1 recipe lines x the units of each PLU sold at that branch that month - the same figure as the article view, split by branch.'],
+                        ['MC theoretical', 'MC’s Potential COS QTY for the same brand, branch (KST MAP code) and month. Catering’s theoretical is excluded.'],
+                        ['Variance', 'PM minus MC for that month. POSITIVE means our recipe explosion asks for more than MC’s.'],
+                        ['Variance %', 'That month’s difference as a per cent of that month’s MC theoretical. Written as a number of per cent: 25 means 25%.'],
+                        ['Rows listed', 'Branch-article pairs both engines costed in at least one month. A pair only one side has is an absence, not a variance, and is not listed.'],
+                        ['Blank month', 'Only one engine costed the article at that branch that month. NOT a zero.'],
+                      ]
+                    )
+                  }
+                >
+                  <IconDownload size={12} />
+                  CSV
+                </button>
+              ) : (
               <button
                 type="button"
                 className="btn"
@@ -3447,22 +3591,51 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
                 <IconDownload size={12} />
                 CSV
               </button>
+              )}
             </>
           }
         >
-          <DataTable
-            tableId="engine-monthly-grouped-2"
-            columns={engineColumns}
-            groups={engineGroups}
-            rows={engineMonthly}
-            groupable={[{ key: 'brand', label: 'Brand' }]}
-            initialGroupBy="brand"
-            freezable
-            totals
-            initialSort={{ key: 'avg', dir: 'desc' }}
-            searchPlaceholder="Search article or name…"
-            onRowClick={openUsage}
-          />
+          {engineTab === 'branch' ? (
+            branchData.error ? (
+              <ErrorBanner error={branchData.error} onRetry={branchData.reload} />
+            ) : !branchData.data && branchData.loading ? (
+              <Empty title="Loading branch figures…">
+                One read per brand per month - the first open takes a little longer, then it is held.
+              </Empty>
+            ) : branchMonthly.length === 0 ? (
+              <Empty title="No branch has figures from both engines for the articles on screen" />
+            ) : (
+              <DataTable
+                tableId="engine-monthly-branch"
+                columns={branchColumns}
+                groups={engineGroups}
+                rows={branchMonthly}
+                groupable={[
+                  { key: 'brand', label: 'Brand' },
+                  { key: 'branch', label: 'Branch' },
+                ]}
+                initialGroupBy="branch"
+                freezable
+                totals
+                initialSort={{ key: 'avg', dir: 'desc' }}
+                searchPlaceholder="Search article, name or branch…"
+              />
+            )
+          ) : (
+            <DataTable
+              tableId="engine-monthly-grouped-2"
+              columns={engineColumns}
+              groups={engineGroups}
+              rows={engineMonthly}
+              groupable={[{ key: 'brand', label: 'Brand' }]}
+              initialGroupBy="brand"
+              freezable
+              totals
+              initialSort={{ key: 'avg', dir: 'desc' }}
+              searchPlaceholder="Search article or name…"
+              onRowClick={openUsage}
+            />
+          )}
         </Panel>
       )}
 

@@ -416,7 +416,10 @@ export function engineVarianceByArticle(rows, months) {
     if (!points.length) continue
 
     const row = {
-      key: `${r['Item No.']}|${r.CHAINID ?? ''}`,
+      // The branch tab (18 Nov 2026) sends the same rows per branch, so the
+      // branch joins the key there; the article table has none and is unchanged.
+      key: `${r['Item No.']}|${r.CHAINID ?? ''}${r.Branch ? `|${r.Branch}` : ''}`,
+      ...(r.Branch ? { branch: String(r.Branch), branchName: String(r.BranchName ?? r.Branch) } : {}),
       article: String(r['Item No.'] ?? ''),
       brand: String(r.CHAINID ?? '') || '(unmapped)',
       name: String(r.Item ?? r['Item No.'] ?? ''),

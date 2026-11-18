@@ -60,6 +60,7 @@ import { nonRecipeRows } from '../insights/nonRecipe.js'
  * See `insights/recipeLevel.js` for why it cannot come from the local copy.
  */
 import { level1ByArticle, level1ByArticleMonth } from '../insights/recipeLevel.js'
+import { branchMonthlyVariance } from '../insights/branchVariance.js'
 import { newStoreForecast, newStoreProducts } from '../insights/newStore.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
 import { coveredByStock } from '../insights/stockCover.js'
@@ -3285,6 +3286,23 @@ api.all('/sales-runrate', handle(async (req, res) => {
   if (!g) return
   const f = g.parts[0]?.f ?? {}
   res.json(await salesRunRate({ dateTo: f.dateTo }))
+}))
+
+/*
+ * PM vs MC theoretical per BRANCH, month by month - 18 Nov 2026, on request.
+ *
+ * The Variance Analysis page's branch tab. Read on demand, only when that tab
+ * is opened, because it is one query per brand per month on top of the page's
+ * own load. `guardMany` narrows to the brands this account may see and
+ * `scopedFilters` to its branches, so the answer cannot reach past the grant.
+ * See insights/branchVariance.js for how each side is built.
+ */
+api.all('/consumption/branch-monthly', handle(async (req, res) => {
+  if (pageDenied(req, res, 'consumption')) return
+  const g = guardMany(req, res)
+  if (!g) return
+  const months = Array.isArray(req.body?.months) ? req.body.months : []
+  res.json(await branchMonthlyVariance(g.parts, months))
 }))
 
 api.all('/warehouse-diagnostics', handle(async (req, res) => {
