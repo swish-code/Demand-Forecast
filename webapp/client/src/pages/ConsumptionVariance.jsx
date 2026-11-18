@@ -398,85 +398,9 @@ export const CONSUMPTION_COLUMNS = [
         fmtQty(v)
       ),
   },
-  {
-    /*
-     * What the warehouse actually ISSUED - 10 Nov 2026, on request.
-     *
-     * A third measurement, and the only one that is neither a recipe nor a
-     * stock reconciliation: it is what physically left the central warehouse
-     * for this brand's shops. Useful here because MC's consumption and this
-     * figure disagree for different reasons - consumption carries waste and
-     * counting error, outbound carries delivery timing and stock held at the
-     * shop - so a row where all three diverge is a different story from one
-     * where only the recipe is out.
-     *
-     * It is stamped on ONE row per article by the warehouse decorator, chosen
-     * by largest forecast, which is not the row MC's figures land on. It is
-     * gathered per article before the rows are narrowed; see `rowsAllBrands`.
-     */
-    key: 'Outbound_Qty',
-    label: 'Outbound (actual)',
-    group: 'ref',
-    num: true,
-    autoWidth: true,
-    // Off by default here; the PM view is where outbound is the subject.
-    hiddenByDefault: true,
-    total: 'sum',
-    renderTotal: fmtQty,
-    hint:
-      'What the central warehouse actually issued to this brand’s shops in the window. Measured, and a different thing from MC’s Consumption beside it: that is reconciled from stock at the outlet and carries waste, this is what physically shipped. Blank where the warehouse has no record of the article at all.',
-    render: (v, row) =>
-      v === null || v === undefined ? (
-        <span
-          className="muted"
-          title={
-            row?.Outbound_Unknown
-              ? 'The central warehouse has no shipping record for this article, so there is nothing to show — which is not the same as having shipped none of it.'
-              : 'No outbound for this article in the selected range.'
-          }
-        >
-          –
-        </span>
-      ) : (
-        fmtQty(v)
-      ),
-  },
-  {
-    /*
-     * PM Theoretical against what actually shipped - 10 Nov 2026, on request,
-     * "as done in stock article page".
-     *
-     * Same formula as that page, imported from `whAccuracy.js` rather than
-     * copied: 1 - |theoretical - outbound| / MAX(the two), so it is symmetric
-     * and reads as agreement. Stock Article's stock-cover rule is NOT applied
-     * here - see the note where the field is computed - so this figure is
-     * directly comparable in METHOD but will read lower than that page's
-     * headline, by design.
-     */
-    key: 'Flow_Accuracy',
-    label: 'Consumption vs Outbound',
-    group: 'ref',
-    num: true,
-    autoWidth: true,
-    hiddenByDefault: true,
-    hint:
-      'Two MEASUREMENTS against each other, which no other score here does: what the warehouse issued against what the outlet reconciled as consumed. Same formula — 1 − |a − b| ÷ the larger. They are not the same quantity even when both are right, because stock builds up or runs down at the shop between delivery and use, so read it over a long window rather than as a target. A persistent gap is stock moving at the shop, transfers recorded on one side only, or waste booked somewhere else.',
-    render: (v) => (v === null || v === undefined ? dash() : fmtPct(v, 1)),
-  },
-  {
-    key: 'Outbound_Accuracy',
-    label: 'PM vs Outbound',
-    group: 'ref',
-    num: true,
-    autoWidth: true,
-    hiddenByDefault: true,
-    hint:
-      'How close PM Theoretical came to what the warehouse actually issued: 1 − |theoretical − outbound| ÷ the larger of the two, the same formula as Stock Article’s WH ACC%. Symmetric, so twice as much and half as much both score 50%. Stock Article additionally lifts a row to 100% where the shops already hold twice the forecast; that rule is about a shipping forecast and is not applied here, so this reads lower than that page by design. Blank where either side is missing — a forecast judged against a reading that does not exist is not a score of zero.',
-    render: (v) => (v === null || v === undefined ? dash() : fmtPct(v, 1)),
-  },
 ]
 
-const GROUPS = { oracle: 'MC — theoretical vs actual', ref: 'PM and warehouse' }
+const GROUPS = { oracle: 'MC — theoretical vs actual', ref: 'PM' }
 
 /* ------------------------------------------- PM historical reconciliation --
  *
@@ -491,8 +415,6 @@ const GROUPS = { oracle: 'MC — theoretical vs actual', ref: 'PM and warehouse'
 const PM_GROUPS = {
   id: 'Article',
   engine: 'PM vs MC theoretical',
-  flow: 'PM vs warehouse outbound',
-  scenario: 'MC-adjusted scenario (indicative)',
 }
 
 const PM_COLUMNS = [
@@ -566,86 +488,6 @@ const PM_COLUMNS = [
     autoWidth: true,
     hint: '1 − |PM − MC| ÷ the larger of the two. Symmetric, so twice as much and half as much both read 50%.',
     render: (v) => (v === null || v === undefined ? dash() : fmtPct(v, 1)),
-  },
-  {
-    key: 'Outbound_Qty',
-    label: 'Outbound (actual)',
-    group: 'flow',
-    num: true,
-    autoWidth: true,
-    total: 'sum',
-    renderTotal: fmtQty,
-    hint:
-      'What the central warehouse actually issued to this brand’s shops. Supply, NOT store consumption — stock builds up and draws down at the shop in between.',
-    render: qty,
-  },
-  {
-    key: 'Outbound_Variance',
-    label: 'Variance qty',
-    group: 'flow',
-    num: true,
-    autoWidth: true,
-    total: 'sum',
-    renderTotal: fmtQty,
-    hint:
-      'Outbound − PM Actual Theoretical. Positive means the warehouse issued more than the recipe implies was needed.',
-    render: variance,
-  },
-  {
-    key: 'Outbound_Variance_Pct',
-    label: 'Variance %',
-    group: 'flow',
-    num: true,
-    autoWidth: true,
-    hint: 'Against PM Actual Theoretical. Blank where PM has nothing to divide by.',
-    render: (v) => (v === null || v === undefined ? dash() : fmtSignedPct(v, 1)),
-  },
-  {
-    key: 'Outbound_Accuracy',
-    label: 'Match %',
-    group: 'flow',
-    num: true,
-    autoWidth: true,
-    hint:
-      'The original, unadjusted PM-to-outbound agreement: 1 − |PM − outbound| ÷ the larger. This is the official figure and the adjusted column beside it never replaces it.',
-    render: (v) => (v === null || v === undefined ? dash() : fmtPct(v, 1)),
-  },
-  {
-    key: 'MC_Adjust_Factor',
-    label: 'MC factor',
-    group: 'scenario',
-    num: true,
-    autoWidth: true,
-    hint:
-      'This article’s own MC Consumption ÷ MC Potential COS. Per article and brand — never a brand-wide or article-wide rate applied to its neighbours. Blank where MC holds no positive theoretical.',
-    render: (v) => (v === null || v === undefined ? dash() : fmtQty(v, 3)),
-  },
-  {
-    key: 'Adjusted_PM',
-    label: 'Adjusted PM',
-    group: 'scenario',
-    num: true,
-    autoWidth: true,
-    hint:
-      'INDICATIVE. PM Actual Theoretical × the MC factor, asking whether MC’s own variance explains part of the PM-to-outbound gap. Not the official PM theoretical.',
-    render: qty,
-  },
-  {
-    key: 'Adjusted_Accuracy',
-    label: 'Adjusted match %',
-    group: 'scenario',
-    num: true,
-    autoWidth: true,
-    hint:
-      'INDICATIVE ONLY — an MC-adjusted scenario, not the official PM accuracy. Shown as Not Available where any condition fails; hover the cell for which one.',
-    render: (v, row) =>
-      v === null || v === undefined ? (
-        <span className="muted" title={row?.Adjust_Reason ?? undefined}>
-          Not Available
-        </span>
-      ) : (
-        fmtPct(v, 1)
-      ),
   },
 ]
 
@@ -1571,6 +1413,51 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
       outboundMatch: rate(outboundGap, outboundWorst),
       adjustedRows,
       adjustedMatch: rate(adjustedGap, adjustedWorst),
+    }
+  }, [rows])
+
+  /*
+   * PM theoretical accuracy against MC theoretical - 18 Nov 2026, on request.
+   *
+   * Replaces the three PM match cards (PM vs MC, PM vs Outbound, MC-adjusted)
+   * with the one figure the reconciliation work has been measured in:
+   *
+   *     accuracy = 1 - sum|PM - MC| / sum MC
+   *
+   * Every article on screen counts, including the ones only one side has: an
+   * article MC costs and PM does not is a gap of MC's full quantity, and one
+   * PM costs and MC does not is a gap of PM's. Leaving either out would score
+   * the coverage problems this page exists to show as if they were matches.
+   *
+   * Over- and under-costing are penalised alike, so errors cannot cancel, and
+   * the figure is NOT floored at zero: when the gaps exceed MC's total the
+   * honest answer is negative, and clamping it would hide how far off it is.
+   * Divided by MC rather than by the larger side, so it reads as "how much of
+   * MC's theoretical we reproduce", which is the question being asked.
+   */
+  const pmMcAccuracy = useMemo(() => {
+    let mcTotal = 0
+    let gap = 0
+    let articles = 0
+    let both = 0
+    for (const r of rows) {
+      const pm = Number(r.Our_Theoretical)
+      const mc = Number(r.Sys_Potential_COS)
+      const hasPm = r.Our_Theoretical !== null && r.Our_Theoretical !== undefined && Number.isFinite(pm)
+      const hasMc = r.Sys_Potential_COS !== null && r.Sys_Potential_COS !== undefined && Number.isFinite(mc)
+      if (!hasPm && !hasMc) continue
+      const p = hasPm ? pm : 0
+      const m = hasMc ? mc : 0
+      if (Math.abs(p) <= 0 && Math.abs(m) <= 0) continue
+      articles += 1
+      if (hasPm && hasMc && p > 0 && m > 0) both += 1
+      mcTotal += m
+      gap += Math.abs(p - m)
+    }
+    return {
+      value: mcTotal > 0 ? 1 - gap / mcTotal : null,
+      articles,
+      both,
     }
   }, [rows])
 
@@ -2761,57 +2648,13 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
             </>
           )}
           <KpiCard
-            label="PM vs MC Match %"
-            value={pmPaired.engineMatch === null ? '—' : fmtPct(pmPaired.engineMatch, 1)}
-            foot={`over ${fmtInt(pmPaired.engineRows)} articles both engines cost`}
+            label="PM vs MC Theoretical Accuracy"
+            value={pmMcAccuracy.value === null ? '—' : fmtPct(pmMcAccuracy.value, 1)}
+            foot={`100% − Σ|PM − MC| ÷ Σ MC, over ${fmtInt(pmMcAccuracy.articles)} articles (${fmtInt(
+              pmMcAccuracy.both
+            )} on both sides)`}
+            progress={pmMcAccuracy.value ?? 0}
             loading={loading}
-          />
-          <KpiCard
-            label="PM vs Outbound Match %"
-            value={pmPaired.outboundMatch === null ? '—' : fmtPct(pmPaired.outboundMatch, 1)}
-            foot={`over ${fmtInt(pmPaired.outboundRows)} articles — historical, not forecast`}
-            loading={loading}
-          />
-        </div>
-      )}
-
-      {view === 'pm' && (
-        <div className="kpis kpis--sub">
-          {singleUnit && (
-            <>
-              <KpiCard
-                label="Actual Warehouse Outbound"
-                value={fmtQty(pmPaired.outbound)}
-                foot="what the warehouse issued — supply, not consumption"
-                loading={loading}
-              />
-              <KpiCard
-                label="PM vs Outbound variance"
-                value={fmtQty(pmPaired.outbound - pmPaired.pmForOutbound)}
-                foot={
-                  pmPaired.pmForOutbound > 0
-                    ? `${fmtSignedPct(
-                        (pmPaired.outbound - pmPaired.pmForOutbound) / pmPaired.pmForOutbound,
-                        1
-                      )} against PM theoretical`
-                    : 'no PM theoretical to compare'
-                }
-                loading={loading}
-              />
-            </>
-          )}
-          <KpiCard
-            label="MC-adjusted PM accuracy"
-            value={pmPaired.adjustedMatch === null ? 'Not Available' : fmtPct(pmPaired.adjustedMatch, 1)}
-            foot={
-              pmPaired.adjustedRows
-                ? `indicative — ${fmtInt(pmPaired.adjustedRows)} of ${fmtInt(
-                    pmPaired.outboundRows
-                  )} articles qualify`
-                : 'no article meets every condition for an adjustment'
-            }
-            loading={loading}
-            tint="slate"
           />
         </div>
       )}
@@ -2864,10 +2707,7 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
                   ['Charts', 'The panels below the table cover every month Oracle holds, not the window selected here.'],
                   ['Not shown', `Outlets the KST MAP does not resolve are left off this page${unmappedRows ? ` — ${fmtInt(unmappedRows)} rows for this selection` : ''}. That bucket sums every unresolved site into one row per article, so it is not comparable with a brand.`],
                   ['MC vs Consumption', '1 - |theoretical - consumption| / the larger of the two. Symmetric and bounded, unlike Variance % beside it. Same formula as Stock Article scores the warehouse forecast with.'],
-                  ['Consumption vs Outbound', 'The same formula, scoring two MEASUREMENTS against each other: what the warehouse issued against what the outlet reconciled as consumed. They differ legitimately as stock builds or runs down at the shop, so read it over a long window.'],
-                  ['PM vs Outbound', 'The same formula, scoring PM Theoretical against what the warehouse actually issued. Stock Article additionally lifts a row to 100% where the shops hold twice the forecast; that rule is about a shipping forecast and is not applied here.'],
                   ['PM Theoretical', 'Recipe QTY BU x the product quantity that actually sold. A CROSS-CHECK on MC’s theoretical, not part of the variance. Read from the local copy, so a stale copy moves this column alone.'],
-                  ['Outbound (actual)', 'What the central warehouse actually issued to this brand’s shops. Measured, and not the same as MC Consumption: that is reconciled from stock at the outlet and carries waste, this is what physically shipped. Blank where the warehouse has no record of the article.'],
                   ['Not included', 'Articles with no recipe line: 2,999 of 4,870 and 36.3% of Oracle’s quantity over April-October 2026. Our side cannot produce a theoretical figure for them.'],
                 ]
               )
@@ -2913,9 +2753,7 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
         <Panel
           title="PM historical reconciliation"
           count={pmRows.length}
-          sub={`Every article with a PM theoretical — actual PLU sales × article quantity BU — against MC’s own theoretical and against what the warehouse actually issued. ${fmtInt(
-            pmPaired.outboundRows
-          )} articles carry both a PM theoretical and an outbound figure. This is a HISTORICAL reconciliation, not forecast accuracy: outbound is what the warehouse supplied, which is not the same as what the shops consumed.`}
+          sub="Every article with a PM theoretical — actual PLU sales × article quantity BU, Level 1 recipe lines — against MC’s own theoretical for the same sales."
           busy={loading}
           tools={
             <button
@@ -2939,14 +2777,6 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
                     [
                       'MC Theoretical',
                       'Potential COS QTY — MC’s own recipe explosion over the same sales.',
-                    ],
-                    [
-                      'Outbound',
-                      'What the central warehouse issued. Supply, not consumption: stock builds up and draws down at the shop in between.',
-                    ],
-                    [
-                      'MC-adjusted PM',
-                      'INDICATIVE ONLY. PM theoretical × this article’s own MC consumption/theoretical ratio. Not the official PM accuracy, and never applied across articles or branches.',
                     ],
                     ...(unitsShown.length > 1
                       ? [
