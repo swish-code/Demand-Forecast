@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { acquire, drop, forgetCachedData, peek } from './dataCache.js'
+import { beginFirstLoad, endFirstLoad } from './firstLoad.js'
 
 /** Strip UI-only keys and empties so the server sees a clean filter payload. */
 /*
@@ -141,6 +142,25 @@ export function useData(fetcher, filters, { enabled = true, debounce = 250, nonc
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` is the serialised filter state
   }, [key, enabled, nonce, selfNonce])
+
+  /*
+   * Tell the shell while this instance is loading with NOTHING to show yet.
+   *
+   * `data === null` is what makes it a first load: once there are rows on
+   * screen, a refetch is an update and the page says so in place. An error
+   * clears `loading`, so a failed request releases the count rather than
+   * holding the shell on a card for ever.
+   *
+   * Reported from an effect, not from render, so React's own bookkeeping is
+   * never touched during a render pass - and the cleanup covers the component
+   * going away mid-flight, which is exactly what a page change does.
+   */
+  const awaitingFirst = enabled && state.loading && state.data === null
+  useEffect(() => {
+    if (!awaitingFirst) return undefined
+    beginFirstLoad()
+    return endFirstLoad
+  }, [awaitingFirst])
 
   return { ...state, reload: () => setSelfNonce((n) => n + 1) }
 }

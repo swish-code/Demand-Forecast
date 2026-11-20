@@ -70,8 +70,21 @@
     margin-left: 74px;
   }
 
+  /*
+   * `:has(:focus-visible)`, NOT `:focus-within` - 20 Nov 2026.
+   *
+   * Clicking a nav item focuses it, and `:focus-within` then held the panel
+   * open after the pointer had left: the rail simply stayed expanded over the
+   * page until focus happened to move somewhere else.
+   *
+   * `:focus-visible` is the browser's own judgement of whether focus should be
+   * SHOWN - true when tabbing, false after a mouse click - so a keyboard user
+   * still gets the labels and opens the panel by tabbing into it, while a
+   * click leaves nothing behind and the rail collapses the moment the pointer
+   * leaves.
+   */
   .nav--collapsed:hover,
-  .nav--collapsed:focus-within {
+  .nav--collapsed:has(:focus-visible) {
     width: 236px;
     background: var(--card);
     box-shadow: var(--shadow-lg);
@@ -123,7 +136,7 @@
   }
 
   .nav--collapsed:hover .nav__item-text,
-  .nav--collapsed:focus-within .nav__item-text {
+  .nav--collapsed:has(:focus-visible) .nav__item-text {
     opacity: 1;
     pointer-events: auto;
     user-select: auto;
@@ -131,9 +144,9 @@
 
   /* The headings come back, and the items become full-width rows. */
   .nav--collapsed:hover .nav__section,
-  .nav--collapsed:focus-within .nav__section,
+  .nav--collapsed:has(:focus-visible) .nav__section,
   .nav--collapsed:hover .nav__wordmark,
-  .nav--collapsed:focus-within .nav__wordmark {
+  .nav--collapsed:has(:focus-visible) .nav__wordmark {
     display: block;
   }
 }

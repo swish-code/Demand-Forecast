@@ -1,0 +1,238 @@
+/*
+ * THE PAGE LOADING CARD — 20 Nov 2026.
+ *
+ * The boot screen's card, in the content area, naming the page being fetched.
+ * The boot screen itself is styled inline in index.html with literal hexes,
+ * because it has to paint before this stylesheet exists; this one is a normal
+ * part of the app and takes its colours from the tokens, so it follows the
+ * theme the boot screen cannot.
+ */
+
+/*
+ * Read aloud, never drawn. The app had no such class; the card itself carries
+ * the name visually, and this is the sentence a screen reader is given.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pageload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Tall enough that the card sits where the page's content will, so the
+     layout does not jump when the real page replaces it. */
+  min-height: 420px;
+  padding: var(--s5) var(--s4);
+}
+
+/*
+ * The overlay form, shown while the page's DATA is still arriving.
+ *
+ * The page underneath is mounted and fetching - it has to be, or nothing
+ * would be loading - so this covers it rather than replacing it. Opaque,
+ * because a half-built page showing through reads as a rendering fault, and
+ * `pointer-events` left ON so a click cannot land on a control behind a card
+ * that is telling you to wait.
+ */
+/* The overlay is anchored to the scrolling page, and the page is held still
+   underneath it so there is nothing to scroll past the card. */
+.scroll {
+  position: relative;
+}
+
+.scroll--settling {
+  overflow: hidden;
+}
+
+.pageload--overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--bg);
+  /* Nothing below should scroll into view behind it. */
+  overflow: hidden;
+  align-items: flex-start;
+  padding-top: clamp(40px, 12vh, 140px);
+}
+
+.pageload__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(440px, 100%);
+  padding: 34px 28px 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+/*
+ * swish-logo.png is a 1500x525 wordmark. It takes its own proportions here
+ * rather than being forced into a square, the same correction the boot screen
+ * carries - squashing a wordmark is the kind of thing nobody reports and
+ * everybody notices.
+ */
+.pageload__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 18px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.pageload__mark img {
+  display: block;
+  height: 26px;
+  width: auto;
+  object-fit: contain;
+}
+
+.pageload__name {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--ink-900);
+}
+
+.pageload__sub {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/*
+ * A line that slides and resets rather than filling to a percentage: the app
+ * does not know how much of the chunk has arrived, and a progress bar that
+ * invents a number is worse than one that admits it cannot say.
+ */
+.pageload__bar {
+  display: block;
+  width: 148px;
+  height: 3px;
+  margin-top: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--card-2);
+  overflow: hidden;
+}
+
+.pageload__bar > span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  animation: pageload-slide 1.15s var(--ease) infinite;
+}
+
+@keyframes pageload-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+/* Someone who asked for less motion gets a line that sits still; the card
+   still says which page is coming. */
+@media (prefers-reduced-motion: reduce) {
+  .pageload__bar > span {
+    width: 100%;
+    animation: none;
+  }
+}
+
+/* ===========================================================================
+ * PER-VISUAL LOADING BARS — 20 Nov 2026, on request.
+ *
+ * A panel already dimmed its contents and showed "Loading…" while it refetched.
+ * What it did not do was say so at a glance: on a page of six panels, a dimmed
+ * chart and a dimmed chart that has finished look much the same from a metre
+ * away.
+ *
+ * So a busy panel now carries a bar across its top edge. It SLIDES rather than
+ * fills, for the same reason the page card's does - nothing here knows how
+ * much of the response has arrived, and a bar that invents a percentage is
+ * worse than one that says only "still going".
+ *
+ * Built on the `tblwrap--busy` class the panel already sets, so every panel,
+ * table and chart in the app gets it without one of them being edited.
+ * ========================================================================= */
+
+.panel__body.tblwrap--busy::before,
+.panel__body.tblwrap--busy::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 3px;
+  pointer-events: none;
+}
+
+/* The groove. */
+.panel__body.tblwrap--busy::before {
+  left: 0;
+  right: 0;
+  z-index: 9;
+  background: var(--card-2);
+  border-radius: var(--radius-pill);
+}
+
+/* The travelling segment. */
+.panel__body.tblwrap--busy::after {
+  left: 0;
+  z-index: 10;
+  width: 38%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  animation: pageload-slide 1.15s var(--ease) infinite;
+}
+
+/*
+ * The dimming is lighter than it was. At .45 a chart underneath read as
+ * broken rather than as stale; the bar above now carries the message, so the
+ * contents only need to step back rather than disappear.
+ */
+.panel__body.tblwrap--busy > *:not(.tblwrap__note) {
+  opacity: 0.6;
+}
+
+/* The "Loading…" note, in the accent so it belongs to the bar above it. */
+.tblwrap__note {
+  color: var(--accent-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel__body.tblwrap--busy::after {
+    width: 100%;
+    animation: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .pageload {
+    min-height: 320px;
+  }
+
+  .pageload__name {
+    font-size: 22px;
+  }
+}

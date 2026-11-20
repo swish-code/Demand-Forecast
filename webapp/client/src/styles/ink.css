@@ -1,0 +1,123 @@
+/*
+ * INK WEIGHT — 20 Nov 2026, on request: "our webapp look dull".
+ *
+ * The palette was not the problem. `--ink` is already #0D0D0F, and the few
+ * things set in it look right. The problem is HOW MUCH of the interface sits
+ * on the secondary grey: 194 rules in theme.css paint their text with
+ * `--text-muted`, including table headers, every field label, every card
+ * label and most section furniture. At #6E6E73 on white that is a page of
+ * grey with a few black figures in it.
+ *
+ * Two moves, in this order, rather than editing 194 rules:
+ *
+ *   1. the greys themselves step toward the ink. `--muted` is still clearly
+ *      secondary, and `--text-muted` - the alias all that furniture uses -
+ *      goes darker still, because almost none of it is really secondary. A
+ *      column heading is not an aside.
+ *
+ *   2. the handful of elements that carry the page's STRUCTURE are lifted
+ *      onto real ink by name: the page title, panel titles, table headers and
+ *      cells, the rail. These are what a reader's eye lands on first, and no
+ *      amount of adjusting a grey makes a 500-weight grey heading read as a
+ *      heading.
+ *
+ * What stays grey, deliberately: sub-lines under a title, card footnotes,
+ * captions, placeholder text, disabled states. Darkening those too would
+ * flatten the hierarchy into one tone, which is the opposite failure and
+ * just as dull.
+ *
+ * Loaded last, so it sits over both theme.css and reference.css.
+ */
+
+:root {
+  /* Still secondary, one clear step closer to the ink. */
+  --muted: #5a5a61;
+  /* The furniture alias: darker again, because headings and labels are not
+     asides. Short of `--ink-700` so real ink still reads as a level above. */
+  --text-muted: #45454c;
+  /* Captions and placeholders keep a genuine light grey. */
+  --text-faint: #86868d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Mirrored, not inverted: the same two steps, lifted off a dark ground. */
+    --muted: #b0b0b8;
+    --text-muted: #cfcfd6;
+    --text-faint: #8b8b93;
+  }
+}
+
+:root[data-theme="dark"] {
+  --muted: #b0b0b8;
+  --text-muted: #cfcfd6;
+  --text-faint: #8b8b93;
+}
+
+/* ---------------------------------------------------------- structure ---- */
+
+/* The page's name. The export puts this at 28px/800; it was neither. */
+.pagetitle {
+  color: var(--ink-900);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+/* Panel and section titles. */
+.panel__head h2,
+.mcm-section__title,
+.card__head h2 {
+  color: var(--ink-900);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+/*
+ * Table headers and cells.
+ *
+ * The header goes to `--ink-700` at 600 rather than to full black: it labels
+ * the column, and at 12px full black beside a 12.5px black value makes the
+ * two compete. The VALUES are the thing being read, so those get the ink.
+ */
+table.dt thead th {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+table.dt td {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* A figure that is the point of its row, and the totals line. */
+table.dt td.strong {
+  color: var(--ink-900);
+  font-weight: 700;
+}
+
+/* The rail's labels, which were grey on a white panel at 14px. */
+.nav--collapsed .nav__item {
+  color: var(--ink-700);
+}
+
+.nav--collapsed .nav__item-text b {
+  font-weight: 600;
+}
+
+/* Field and slicer labels: they name what a control does. */
+.field__label,
+.slicer__label,
+.pop__label {
+  color: var(--ink-700);
+}
+
+/*
+ * Uppercase micro-labels keep their grey but gain weight.
+ *
+ * At 11px with 0.08em tracking, going black is heavy-handed - the export sets
+ * these muted on purpose. 700 is what stops them reading as faint.
+ */
+.uplabel,
+.kpi__label {
+  font-weight: 700;
+}
