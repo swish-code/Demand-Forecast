@@ -1,0 +1,90 @@
+/*
+ * FILTER OPTIONS: THE HOVER CARD — 21 Nov 2026, on request.
+ *
+ * Every option row in the dashboard lifts onto a white card as the pointer
+ * reaches it, the way the reference's pickers do, instead of just tinting
+ * grey. The row also eases very slightly toward the pointer, which is what
+ * makes a long list feel aimable rather than flat.
+ *
+ * ONE RULE COVERS EVERY LIST because they already share a class:
+ *
+ *   .opt          MultiSelect (Location, Article, Product, Category and the
+ *                 rest), BrandPicker, and DataTable's Build-view list
+ *   .dr__preset   the date range's preset buttons
+ *   .pick-opt     the new Filters flyouts
+ *
+ * CSS ONLY, deliberately. The reference does this with a single card that
+ * GLIDES between rows, which needs a script measuring row positions on every
+ * pointer move. That is worth having, and it is not worth another white
+ * screen today - this gets the same read with no runtime at all.
+ *
+ * A transparent 1px border at rest, so the bordered hover state cannot shift
+ * the row by a pixel as it arrives.
+ */
+
+.opt,
+.dr__preset,
+.pick-opt {
+  border: 1px solid transparent;
+  transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease),
+    box-shadow 0.16s var(--ease), transform 0.16s var(--ease);
+}
+
+.opt:hover,
+.dr__preset:hover,
+.pick-opt:hover {
+  background: var(--card);
+  border-color: var(--line-2);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 16px -8px rgba(15, 23, 42, 0.18);
+}
+
+/* The contents lean into the pointer. Small enough to feel like weight
+   rather than movement - 4px reads as the row sliding away. */
+.opt:hover > *,
+.pick-opt:hover > * {
+  transform: translateX(2px);
+  transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/*
+ * The checkbox stays put while the label leans.
+ *
+ * Moving it too makes the tick drift away from the column the other rows'
+ * ticks line up in, which is the one thing in a list of fifty that a reader
+ * is actually tracking down the left edge.
+ */
+.opt:hover > .opt__box {
+  transform: none;
+}
+
+/* A chosen option keeps its card at rest, so the hover is a change of state
+   rather than the only time a row looks like anything. */
+.pick-opt.on,
+.dr__preset--on {
+  background: var(--card);
+  border-color: var(--line-2);
+  border-radius: 12px;
+}
+
+/* Keyboard parity: tabbing through a list gets the same card the mouse does. */
+.opt:focus-visible,
+.dr__preset:focus-visible,
+.pick-opt:focus-visible {
+  background: var(--card);
+  border-color: var(--accent);
+  border-radius: 12px;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opt,
+  .dr__preset,
+  .pick-opt,
+  .opt:hover > *,
+  .pick-opt:hover > * {
+    transition: none;
+    transform: none;
+  }
+}

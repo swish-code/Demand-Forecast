@@ -11,7 +11,7 @@ import { IconCalendar, IconFilter, IconSummary } from './Icons.jsx'
  * edit anywhere: the switch is inside this component and its props are
  * unchanged, which is why fifteen pages could adopt it without being touched.
  */
-const NEW_FILTERS = true
+const NEW_FILTERS = false
 
 /** What the Date row says on its right-hand side. */
 function dateSummary(filters, options) {

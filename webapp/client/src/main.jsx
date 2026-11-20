@@ -15,6 +15,7 @@ import './styles/cards.css'
 import './styles/pageloader.css'
 import './styles/ink.css'
 import './styles/filters.css'
+import './styles/options.css'
 
 /**
  * Takes the boot screen down once the app is actually on screen.
