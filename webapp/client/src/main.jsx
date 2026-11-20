@@ -14,6 +14,7 @@ import './styles/rail.css'
 import './styles/cards.css'
 import './styles/pageloader.css'
 import './styles/ink.css'
+import './styles/filters.css'
 
 /**
  * Takes the boot screen down once the app is actually on screen.

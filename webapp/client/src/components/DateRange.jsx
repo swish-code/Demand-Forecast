@@ -6,7 +6,7 @@ const DAY = 86_400_000
 const iso = (d) => new Date(d).toISOString().slice(0, 10)
 
 /** Date-range slicer: presets plus an explicit from/to, as in the report. */
-export function DateRange({ label = 'Date', from, to, min, max, today, onChange }) {
+export function DateRange({ label = 'Date', from, to, min, max, today, onChange, inline = false }) {
   const anchor = today || max || iso(Date.now())
 
   /**
@@ -65,22 +65,14 @@ export function DateRange({ label = 'Date', from, to, min, max, today, onChange 
   const summary = preset ? preset.label : from && to ? `${fmtDate(from)} – ${fmtDate(to)}` : 'All dates'
 
 
-  return (
-    <Popover
-      align="center"
-      // Wider than the filter lists this component is shared with, whose 340px
-      // cap was cutting the From and To fields off the right-hand side.
-      panelClassName="pop__panel--wide"
-      trigger={({ open, toggle }) => (
-        <FilterTrigger
-          label={label}
-          value={summary}
-          open={open}
-          toggle={toggle}
-          active={Boolean(from || to)}
-        />
-      )}
-      render={() => (
+  /*
+   * The calendar itself, shared by both presentations - 20 Nov 2026.
+   *
+   * `inline` renders it without a trigger or popover, for the Filters panel,
+   * whose flyout sheet is already the popover. Same JSX either way, so the two
+   * cannot drift into two different calendars.
+   */
+  const body = () => (
         <div className="dr">
           <div className="dr__presets">
             {presets.map((p) => (
@@ -114,7 +106,26 @@ export function DateRange({ label = 'Date', from, to, min, max, today, onChange 
             </p>
           </div>
         </div>
+  )
+
+  if (inline) return body()
+
+  return (
+    <Popover
+      align="center"
+      // Wider than the filter lists this component is shared with, whose 340px
+      // cap was cutting the From and To fields off the right-hand side.
+      panelClassName="pop__panel--wide"
+      trigger={({ open, toggle }) => (
+        <FilterTrigger
+          label={label}
+          value={summary}
+          open={open}
+          toggle={toggle}
+          active={Boolean(from || to)}
+        />
       )}
+      render={body}
     />
   )
 }

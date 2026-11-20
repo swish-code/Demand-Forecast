@@ -1,0 +1,594 @@
+/*
+ * THE FILTERS CONTROL — 20 Nov 2026, to the supplied spec.
+ *
+ * One pill in the top bar, a sheet that springs out of its corner, and a
+ * flyout per filter. Every token it asks for already exists in reference.css,
+ * so nothing had to be mapped.
+ *
+ * The pickers INSIDE the flyouts are this app's own, rendered `inline`, and
+ * keep their existing styles - `.pop__list`, `.opt`, `.dr` and the rest.
+ * Only the chrome around them is new.
+ */
+
+/* Off on small screens unless a rule below turns it on. */
+.filters-ic,
+.filters-sum,
+.filters-count,
+.filters-caret,
+.filters-clear,
+.filters-xgap,
+.filters-hl,
+.mfilters-scrim {
+  display: none;
+}
+
+@media (min-width: 821px) {
+  .filters-wrap {
+    position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    max-width: 440px;
+    height: 42px;
+    padding: 0 12px 0 5px;
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line-2);
+    box-shadow: var(--shadow-sm);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .filters-toggle:hover {
+    background: var(--card-2);
+  }
+
+  .filters-toggle.on {
+    border-color: var(--accent);
+  }
+
+  .filters-ic {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--ink-900);
+    color: var(--on-ink);
+  }
+
+  .filters-lbl {
+    flex: none;
+    font-weight: 800;
+    color: var(--ink-900);
+  }
+
+  /* The summary is the part that may be long, so it is the part that clips. */
+  .filters-sum {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--muted);
+    padding-left: 9px;
+    border-left: 1px solid var(--line-2);
+  }
+
+  .filters-count {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .filters-caret {
+    display: block;
+    flex: none;
+    color: var(--muted);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .filters-toggle.on .filters-caret {
+    transform: rotate(180deg);
+  }
+
+  .filters-xgap {
+    display: block;
+    flex: none;
+    width: 22px;
+    margin: 0 -4px;
+  }
+
+  .filters-clear {
+    position: absolute;
+    top: 50%;
+    right: 31px;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--line);
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .filters-clear:hover {
+    background: var(--ink-900);
+    color: var(--on-ink);
+  }
+
+  /* panel: springs out of the pill's top-right corner */
+  .topbar-filters {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 57;
+    width: 320px;
+    padding: 12px 10px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: 30px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05),
+      0 24px 54px -18px rgba(15, 23, 42, 0.3);
+    transform-origin: top right;
+    transform: scale(0.18);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.2s ease,
+      visibility 0s linear 0.3s;
+  }
+
+  .topbar-filters.open {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 0.55s cubic-bezier(0.3, 1.42, 0.5, 1), opacity 0.18s ease,
+      visibility 0s;
+  }
+
+  .topbar-filters > * {
+    width: 100%;
+  }
+
+  .topbar-filters.open > *:not(.filters-hl) {
+    animation: filters-item 0.5s cubic-bezier(0.3, 1.3, 0.5, 1) backwards;
+  }
+
+  .topbar-filters.open > :nth-child(2) { animation-delay: 0.04s; }
+  .topbar-filters.open > :nth-child(3) { animation-delay: 0.08s; }
+  .topbar-filters.open > :nth-child(4) { animation-delay: 0.12s; }
+  .topbar-filters.open > :nth-child(5) { animation-delay: 0.16s; }
+  .topbar-filters.open > :nth-child(n + 6) { animation-delay: 0.2s; }
+
+  /* the moving white card under the hovered row */
+  .topbar-filters > .filters-hl {
+    display: block;
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    left: -6px;
+    right: -6px;
+    width: auto;
+    height: 46px;
+    background: var(--card);
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+      0 6px 16px -8px rgba(15, 23, 42, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.3, 1.35, 0.5, 1),
+      height 0.3s cubic-bezier(0.3, 1.2, 0.5, 1), opacity 0.18s ease;
+  }
+
+  /* rows */
+  .frow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 46px;
+    padding: 0 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    box-shadow: none;
+    font: inherit;
+    color: var(--ink-900);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
+  }
+
+  .filters-row:hover .frow {
+    transform: translateX(-4px);
+  }
+
+  .frow-ic {
+    flex: 0 0 28px;
+    width: 28px;
+    display: flex;
+    justify-content: center;
+    color: var(--ink-900);
+  }
+
+  .frow-lbl {
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .frow-sub {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Pointing LEFT, toward where the picker opens. */
+  .frow-caret {
+    margin-left: auto;
+    color: var(--muted);
+    transform: rotate(90deg);
+    transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
+  }
+
+  .frow-sub + .frow-caret {
+    margin-left: 0;
+  }
+
+  .frow[aria-expanded='true'] .frow-caret {
+    transform: rotate(90deg) translateY(3px);
+  }
+
+  .filters-reset {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    order: 99;
+    width: 100%;
+    margin-top: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
+  }
+
+  .filters-reset:hover {
+    color: var(--red-ink);
+  }
+
+  .filters-reset:hover:not(:disabled) {
+    transform: translateX(-4px);
+  }
+
+  .mfilters-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 54;
+    background: transparent;
+  }
+}
+
+@keyframes filters-item {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.topbar-filters.open > .filters-row ~ .filters-row {
+  border-top: 1px solid var(--line);
+}
+
+.filters-reset:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Lifts the top bar above the scrim while the panel is open. */
+body.mfilters-open .topbar {
+  position: relative;
+  z-index: 62;
+}
+
+/* flyout picker beside the panel */
+.pick-sheet {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 12px 10px;
+  min-width: 260px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05),
+    0 26px 56px -18px rgba(15, 23, 42, 0.32);
+  isolation: isolate;
+  transform-origin: top right;
+  animation: pick-pop 0.45s linear;
+  max-height: min(70vh, 440px);
+  overflow: auto;
+}
+
+@keyframes pick-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+    animation-timing-function: cubic-bezier(0.33, 0, 0.3, 1);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.07);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/*
+ * The app's own pickers sit inside the sheet, which already has the padding
+ * and the rounding, so their popover chrome is taken off here rather than
+ * each component being given a second set of styles.
+ */
+.pick-sheet .pop__head {
+  padding-top: 0;
+}
+
+.pick-sheet .pop__list {
+  max-height: none;
+}
+
+/* phone / tablet: full-width sheet under the top bar, dimmed scrim */
+@media (max-width: 820px) {
+  .filters-wrap {
+    display: contents;
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 38px;
+    padding: 0 12px 0 5px;
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line-2);
+    box-shadow: var(--shadow-sm);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .filters-toggle.on {
+    border-color: var(--accent);
+  }
+
+  .filters-ic {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--ink-900);
+    color: var(--on-ink);
+  }
+
+  .filters-lbl {
+    flex: none;
+    font-weight: 800;
+    color: var(--ink-900);
+  }
+
+  .filters-sum {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--muted);
+    padding-left: 8px;
+    border-left: 1px solid var(--line-2);
+  }
+
+  .filters-caret {
+    display: block;
+    flex: none;
+    margin-left: auto;
+    color: var(--muted);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .filters-toggle.on .filters-caret {
+    transform: rotate(180deg);
+  }
+
+  .topbar-filters {
+    display: none;
+  }
+
+  .topbar-filters.open {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 10px;
+    right: 10px;
+    z-index: 57;
+    background: var(--card-2);
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06),
+      0 24px 54px -18px rgba(15, 23, 42, 0.35);
+    max-height: 74dvh;
+    overflow-y: auto;
+    transform-origin: top center;
+    animation: filters-sheet 0.45s cubic-bezier(0.3, 1.35, 0.5, 1) backwards;
+  }
+
+  .frow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 14px;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 15px;
+    color: var(--ink-900);
+  }
+
+  .frow:active {
+    background: var(--card);
+  }
+
+  .frow-ic {
+    flex: 0 0 28px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .frow-sub,
+  .frow-caret {
+    margin-left: auto;
+    color: var(--muted);
+  }
+
+  .filters-reset {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    order: 99;
+    width: 100%;
+    margin-top: 6px;
+    min-height: 48px;
+    border-radius: 14px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+  }
+
+  .mfilters-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 54;
+    background: rgba(11, 18, 32, 0.34);
+    backdrop-filter: blur(1px);
+  }
+
+  /* On a phone the picker is a bottom sheet, not a flyout beside anything. */
+  .pick-sheet {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: 12px !important;
+    transform: translateX(-50%);
+    width: min(360px, 92vw);
+    max-height: 66dvh;
+  }
+}
+
+@keyframes filters-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-filters,
+  .topbar-filters.open,
+  .topbar-filters > .filters-hl {
+    transition: opacity 0.15s ease, visibility 0s;
+    transform: none;
+  }
+
+  .topbar-filters.open > * {
+    animation: none;
+  }
+
+  .pick-sheet {
+    animation: pick-fade 0.15s ease-in-out;
+  }
+
+  @keyframes pick-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* The pill's container must not clip the panel. */
+.topbar {
+  overflow: visible;
+}

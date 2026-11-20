@@ -27,6 +27,19 @@ export function MultiSelect({
   single = false,
   loading = false,
   onOpen,
+  /*
+   * Render the list WITHOUT its own trigger or popover - 20 Nov 2026.
+   *
+   * The new Filters panel puts each slicer inside its own flyout sheet, which
+   * is already a popover: nesting this component's would have meant clicking a
+   * pill inside a sheet to open a second sheet.
+   *
+   * Additive, and the body is the same JSX either way, so every caller that
+   * does not pass it behaves exactly as before and the two can never drift
+   * into two different lists. `close` becomes a no-op, which is right: the
+   * sheet that owns this decides when it shuts.
+   */
+  inline = false,
 }) {
   const [search, setSearch] = useState('')
 
@@ -62,20 +75,9 @@ export function MultiSelect({
   const summary =
     value.length === 0 ? placeholder : value.length === 1 ? labelOf(value[0]) : `${value.length} selected`
 
-  return (
-    <Popover
-      onOpen={onOpen}
-      trigger={({ open, toggle: t }) => (
-        <FilterTrigger
-          label={label}
-          value={summary}
-          open={open}
-          toggle={t}
-          active={value.length > 0}
-        />
-      )}
-      render={({ close }) => (
-        <>
+  /** The list itself, shared by both presentations. */
+  const body = ({ close }) => (
+    <>
           <div className="pop__head">
             <b>{label}</b>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
@@ -151,7 +153,24 @@ export function MultiSelect({
             {value.length > 0 && <span style={{ marginLeft: 'auto' }}>{value.length} selected</span>}
           </div>
         </>
+  )
+
+  // Inside a flyout the sheet is the popover, so only the list is wanted.
+  if (inline) return body({ close: () => {} })
+
+  return (
+    <Popover
+      onOpen={onOpen}
+      trigger={({ open, toggle: t }) => (
+        <FilterTrigger
+          label={label}
+          value={summary}
+          open={open}
+          toggle={t}
+          active={value.length > 0}
+        />
       )}
+      render={body}
     />
   )
 }

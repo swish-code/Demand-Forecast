@@ -1,6 +1,51 @@
 import { MultiSelect } from './MultiSelect.jsx'
 import { DateRange } from './DateRange.jsx'
 import { BrandPicker } from './BrandPicker.jsx'
+import { FiltersPill } from './FiltersPill.jsx'
+import { IconCalendar, IconFilter, IconSummary } from './Icons.jsx'
+
+/*
+ * The new Filters control, behind one constant - 20 Nov 2026.
+ *
+ * `false` restores the old row of pills on every page at once, with no other
+ * edit anywhere: the switch is inside this component and its props are
+ * unchanged, which is why fifteen pages could adopt it without being touched.
+ */
+const NEW_FILTERS = true
+
+/** What the Date row says on its right-hand side. */
+function dateSummary(filters, options) {
+  const { dateFrom, dateTo, defaultFrom, defaultTo } = filters ?? {}
+  if (!dateFrom && !dateTo) return 'All dates'
+  if (dateFrom === defaultFrom && dateTo === defaultTo) return 'Default'
+  const short = (d) => String(d ?? '').slice(0, 10)
+  return `${short(dateFrom)} – ${short(dateTo)}`
+}
+
+/**
+ * The line written on the pill itself.
+ *
+ * Names the two things a reader most wants to see without opening anything -
+ * which brands, and which dates - and then says how many other filters are on
+ * rather than listing them, because a pill that lists ten slicers is the row
+ * of pills this replaced.
+ */
+function pillSummary({ filters, options, visible, selectedBrands, brands, show }) {
+  const parts = []
+  if (brands.length > 1) {
+    parts.push(
+      selectedBrands.length === 0
+        ? 'All brands'
+        : selectedBrands.length === 1
+          ? (brands.find((b) => b.code === selectedBrands[0])?.label ?? selectedBrands[0])
+          : `${selectedBrands.length} brands`
+    )
+  }
+  if (show.includes('date')) parts.push(dateSummary(filters, options))
+  const others = visible.filter((s) => (filters[s.key] ?? []).length > 0).length
+  if (others) parts.push(`+${others} filter${others === 1 ? '' : 's'}`)
+  return parts.join(' · ')
+}
 
 /**
  * A single row of filter pills. `show` lists the slicers this page carries,
@@ -163,6 +208,128 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
       dateFrom: f.defaultFrom,
       dateTo: f.defaultTo,
     }))
+
+  /*
+   * THE NEW FILTERS CONTROL — 20 Nov 2026.
+   *
+   * Behind a flag, and the switch lives HERE rather than in App.jsx: this
+   * component's props are unchanged, so no page had to be touched to adopt it
+   * and setting NEW_FILTERS back to false restores the old bar everywhere at
+   * once. It is the same `visible` list, the same state and the same
+   * `setFilters` - only the chrome differs.
+   */
+  if (NEW_FILTERS) {
+    const rows = []
+
+    if (brands.length > 1) {
+      rows.push({
+        id: 'brand',
+        label: 'Brand',
+        Icon: IconSummary,
+        sub: selectedBrands.length ? `${selectedBrands.length}` : 'All',
+        render: () => (
+          <MultiSelect
+            inline
+            label="Brand"
+            options={brands.map((b) => ({ value: b.code, label: b.label ?? b.code }))}
+            value={selectedBrands}
+            onChange={onBrandChange}
+            placeholder="All"
+          />
+        ),
+      })
+    }
+
+    for (const s of visible) {
+      const picked = filters[s.key] ?? []
+      rows.push({
+        id: s.id,
+        label: s.label,
+        Icon: IconFilter,
+        sub: picked.length ? `${picked.length}` : s.placeholder,
+        render: () => (
+          <MultiSelect
+            inline
+            label={s.label}
+            options={options[s.options] ?? []}
+            value={filters[s.key] ?? []}
+            onChange={(v) => set({ [s.key]: v })}
+            placeholder={s.placeholder}
+            loading={loading}
+          />
+        ),
+        // Fetched when the row's sheet opens, exactly as they were when its
+        // pill opened. Passed as a callback rather than called here: this runs
+        // during render, and firing a fetch from a render pass is how a render
+        // loop starts.
+        onOpen: () => onNeedOptions?.(s.options),
+      })
+    }
+
+    if (show.includes('prepStatus')) {
+      const picked = filters.prepStatus ?? []
+      rows.push({
+        id: 'prepStatus',
+        label: 'Prep status',
+        Icon: IconFilter,
+        sub: picked.length ? `${picked.length}` : 'All',
+        render: () => (
+          <MultiSelect
+            inline
+            label="Prep status"
+            options={options.prepStatus ?? []}
+            value={filters.prepStatus ?? []}
+            onChange={(v) => set({ prepStatus: v })}
+            placeholder="All"
+          />
+        ),
+      })
+    }
+
+    if (show.includes('date')) {
+      rows.push({
+        id: 'date',
+        label: 'Date',
+        Icon: IconCalendar,
+        sub: dateSummary(filters, options),
+        render: () => (
+          <DateRange
+            inline
+            from={filters.dateFrom}
+            to={filters.dateTo}
+            min={options.dateRange?.min}
+            max={options.dateRange?.max}
+            today={options.dateRange?.today}
+            onChange={(dateFrom, dateTo) => set({ dateFrom, dateTo })}
+          />
+        ),
+      })
+    }
+
+    const count =
+      visible.reduce((n, s) => n + ((filters[s.key] ?? []).length ? 1 : 0), 0) +
+      (selectedBrands.length ? 1 : 0) +
+      (show.includes('prepStatus') && (filters.prepStatus ?? []).length ? 1 : 0) +
+      (show.includes('date') &&
+      (filters.dateFrom !== filters.defaultFrom || filters.dateTo !== filters.defaultTo)
+        ? 1
+        : 0)
+
+    return (
+      <>
+        <FiltersPill
+          rows={rows}
+          summary={pillSummary({ filters, options, visible, selectedBrands, brands, show })}
+          count={count}
+          onReset={() => {
+            resetAll()
+            onBrandChange?.([])
+          }}
+        />
+        {tools}
+      </>
+    )
+  }
 
   return (
     <div className="filters" role="group" aria-label="Filters">
