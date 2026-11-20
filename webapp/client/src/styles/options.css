@@ -30,6 +30,33 @@
     box-shadow 0.16s var(--ease), transform 0.16s var(--ease);
 }
 
+/*
+ * DOCK MAGNIFICATION, as on the navigation rail - 21 Nov 2026.
+ *
+ * `--mag` is written per row by `useDockMagnify`, bound once in Popover so
+ * every filter dropdown has it. Desktop mouse only; the hook checks that
+ * itself and leaves `--mag` unset otherwise, which is why every rule below
+ * falls back to 1 and the list is perfectly ordinary without it.
+ *
+ * The row scales from its LEFT edge, so the checkboxes stay in their column
+ * while the labels grow - scaling from the centre slides the ticks sideways
+ * and the one line a reader follows down the list stops being straight.
+ *
+ * `margin-block` opens a little space as a row grows, so a magnified row
+ * never sits on top of its neighbour. Same trick as the rail.
+ */
+@media (min-width: 821px) and (hover: hover) and (pointer: fine) {
+  .pop__panel .opt,
+  .pop__panel .dr__preset {
+    transform: scale(var(--mag, 1));
+    transform-origin: left center;
+    margin-block: calc((var(--mag, 1) - 1) * 6px);
+    transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease),
+      box-shadow 0.16s var(--ease), transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+      margin 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
 .opt:hover,
 .dr__preset:hover,
 .pick-opt:hover {

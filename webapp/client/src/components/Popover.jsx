@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDockMagnify } from '../dockMagnify.js'
 
 /**
  * Anchored popover with outside-click and Escape dismissal. `render` receives a
@@ -14,6 +15,24 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
   const [box, setBox] = useState(null)
   const root = useRef(null)
   const panel = useRef(null)
+
+  /*
+   * Dock magnification over the options - 21 Nov 2026, on request: the same
+   * effect the navigation rail has.
+   *
+   * Here rather than in each picker, because every filter dropdown in the
+   * dashboard is a Popover: MultiSelect, BrandPicker and the date presets all
+   * get it from this one line.
+   *
+   * `grow` is far smaller than the rail's 0.62. The rail magnifies ICONS,
+   * where 1.62x is playful; the same number on a row of text throws the list
+   * around and makes it harder to read, which is the opposite of what the
+   * effect is for. 1.14x at the pointer is enough to feel the list respond.
+   * `range` is tighter too, because these rows are ~26px against the rail's
+   * 46px, so 120px would magnify a dozen of them at once.
+   */
+  const [panelEl, setPanelEl] = useState(null)
+  useDockMagnify(panelEl, { selector: '.opt, .dr__preset', range: 90, grow: 0.14 })
 
   /*
    * Positioned against the viewport, not the trigger's parent.
@@ -132,7 +151,20 @@ export function Popover({ trigger, children, render, align = 'left', panelClassN
       })}
       {open && (
         <div
-          ref={panel}
+          /*
+           * Two refs on one node.
+           *
+           * `panel` is the existing measuring ref and stays a ref object;
+           * `setPanelEl` is state, because `useDockMagnify` binds listeners to
+           * the ELEMENT and an effect reading `panel.current` would have
+           * nothing to bind to on the render that creates it. Setting state
+           * from a ref callback runs at commit, so the hook gets the node the
+           * moment it exists and releases it when the panel closes.
+           */
+          ref={(el) => {
+            panel.current = el
+            setPanelEl(el)
+          }}
           className={`pop__panel pop__panel--fixed ${panelClassName}`}
           style={
             box

@@ -20,12 +20,21 @@ import { useEffect } from 'react'
  * mid-session.
  */
 
-/** Distance from an icon's centre at which it stops growing. */
+/** Distance from an item's centre at which it stops growing. */
 const RANGE = 120
 /** Extra scale at the pointer: a 19px icon reaches about 31px. */
 const GROW = 0.62
 
-export function useDockMagnify(nav) {
+/**
+ * @param {Element|null} nav  the container to watch
+ * @param {object} [opts]
+ * @param {string} [opts.selector]  which children magnify
+ * @param {number} [opts.range]     falloff distance in px
+ * @param {number} [opts.grow]      extra scale directly under the pointer
+ */
+export function useDockMagnify(nav, opts = {}) {
+  const { selector = '.rail-item', range = RANGE, grow = GROW } = opts
+
   useEffect(() => {
     if (!nav || typeof window === 'undefined' || !window.matchMedia) return undefined
 
@@ -35,7 +44,7 @@ export function useDockMagnify(nav) {
 
     let frame = 0
     let y = null
-    const items = () => nav.querySelectorAll('.rail-item')
+    const items = () => nav.querySelectorAll(selector)
 
     const paint = () => {
       frame = 0
@@ -46,7 +55,7 @@ export function useDockMagnify(nav) {
           const d = Math.abs(y - (r.top + r.height / 2))
           // Cosine falloff: full growth under the pointer, nothing at RANGE,
           // and a smooth curve between - a linear ramp reads as a corner.
-          if (d < RANGE) mag = 1 + GROW * ((Math.cos((Math.PI * d) / RANGE) + 1) / 2)
+          if (d < range) mag = 1 + grow * ((Math.cos((Math.PI * d) / range) + 1) / 2)
         }
         el.style.setProperty('--mag', mag.toFixed(3))
       }
@@ -72,5 +81,5 @@ export function useDockMagnify(nav) {
       // otherwise come back with one icon stuck large.
       for (const el of items()) el.style.removeProperty('--mag')
     }
-  }, [nav])
+  }, [nav, selector, range, grow])
 }
