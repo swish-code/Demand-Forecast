@@ -98,13 +98,35 @@
   }
 
   /*
-   * The labels are ALWAYS in the DOM and always laid out; at 74px the rail
-   * simply clips them. Toggling `display` instead re-ran layout for fifteen
-   * rows at the moment the width animation started, which is what made the
-   * labels pop in rather than appear.
+   * The labels are ALWAYS laid out, and HIDDEN WITH OPACITY when collapsed.
+   *
+   * Three readings of this, in order, because the first two were both wrong:
+   *
+   *   `display: none` -> `block` re-ran layout for fifteen rows at the instant
+   *   the width animation began, so the labels popped in.
+   *
+   *   leaving them laid out and relying on the rail to clip them showed about
+   *   25px of every label at rest - "Pro", "Var", "Mo" down the collapsed
+   *   rail - because the icon and its padding only take 49px of the 74px.
+   *
+   * Opacity costs no layout at all: the row keeps its full width whether or
+   * not the label can be seen, so nothing reflows when the rail opens, and at
+   * 74px there is simply nothing drawn. It composites, so the fade is free.
    */
   .nav--collapsed .nav__item-text {
     display: block;
+    opacity: 0;
+    transition: opacity 0.14s var(--ease);
+    /* Invisible text must not be a click or selection target. */
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .nav--collapsed:hover .nav__item-text,
+  .nav--collapsed:focus-within .nav__item-text {
+    opacity: 1;
+    pointer-events: auto;
+    user-select: auto;
   }
 
   /* The headings come back, and the items become full-width rows. */
