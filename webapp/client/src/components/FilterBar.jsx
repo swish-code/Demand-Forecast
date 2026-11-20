@@ -178,7 +178,27 @@ export const SLICERS = [
   { id: 'recipeKind', key: 'recipeKinds', label: 'Recipe', options: 'recipeKinds', placeholder: 'All' },
 ]
 
-export function FilterBar({ show, options, filters, setFilters, loading, brands, selectedBrands, onBrandChange, onNeedOptions, tools }) {
+/*
+ * `brands` and `selectedBrands` default to empty - 20 Nov 2026.
+ *
+ * They had no defaults, and the old bar got away with it because it only ever
+ * handed them to `BrandPicker`, which defaults them itself. The new branch
+ * reads `brands.length` directly, so an undefined value threw and took the
+ * whole app to a blank page. `MobileChrome` renders this component with
+ * `{...props}`, so what arrives is not guaranteed.
+ */
+export function FilterBar({
+  show = [],
+  options = {},
+  filters = {},
+  setFilters,
+  loading,
+  brands = [],
+  selectedBrands = [],
+  onBrandChange,
+  onNeedOptions,
+  tools,
+}) {
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }))
   const visible = SLICERS.filter((s) => show.includes(s.id))
 
@@ -233,7 +253,7 @@ export function FilterBar({ show, options, filters, setFilters, loading, brands,
             label="Brand"
             options={brands.map((b) => ({ value: b.code, label: b.label ?? b.code }))}
             value={selectedBrands}
-            onChange={onBrandChange}
+            onChange={(v) => onBrandChange?.(v)}
             placeholder="All"
           />
         ),
