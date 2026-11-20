@@ -46,15 +46,47 @@
  * never sits on top of its neighbour. Same trick as the rail.
  */
 @media (min-width: 821px) and (hover: hover) and (pointer: fine) {
+  /*
+   * THE MARK GROWS, NOT THE ROW — corrected 21 Nov 2026.
+   *
+   * Scaling the whole row widened its text past the panel's edge, and the
+   * panel scrolls, so the panel clipped it: "Chilli Pepper" became "Chilli
+   * Pepp". Every long brand name near the pointer lost its tail.
+   *
+   * Which was a misreading of the rail on my part. The rail does not scale
+   * its ITEMS - it scales the `svg` inside them and lets the row stay put.
+   * Doing the same here cannot clip anything, because the text never changes
+   * size: the checkbox and the brand mark grow, the label holds its place,
+   * and the row still visibly answers the pointer.
+   */
+  .pop__panel .opt > .opt__box,
+  .pop__panel .opt .opt__brand,
+  .pop__panel .opt svg,
+  .pop__panel .dr__preset svg {
+    transform: scale(var(--mag, 1));
+    transform-origin: center;
+    transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* A little air as the mark grows, so it never touches its neighbour. */
   .pop__panel .opt,
   .pop__panel .dr__preset {
-    transform: scale(var(--mag, 1));
-    transform-origin: left center;
-    margin-block: calc((var(--mag, 1) - 1) * 6px);
+    margin-block: calc((var(--mag, 1) - 1) * 5px);
     transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease),
-      box-shadow 0.16s var(--ease), transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
-      margin 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow 0.16s var(--ease), margin 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
+}
+
+/*
+ * The label gets whatever width is left, and ellipsises rather than being
+ * cut mid-letter if it still does not fit. A name that has to be shortened
+ * should at least say so.
+ */
+.opt__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .opt:hover,
