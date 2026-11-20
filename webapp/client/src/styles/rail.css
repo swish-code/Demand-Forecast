@@ -18,15 +18,11 @@
 }
 
 .nav--collapsed {
-  /* The width the LAYOUT keeps, whatever the rail is doing. */
   width: 74px;
   background: var(--panel);
   color: var(--ink);
   padding: 8px 0;
-  /* Cleared on hover so the labels are not clipped as they appear. */
   overflow: hidden;
-  transition: width var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
-    background-color var(--dur) var(--ease);
 }
 
 /*
@@ -37,38 +33,86 @@
  * bottom bar anyway.
  */
 @media (hover: hover) and (min-width: 821px) {
-  .nav--collapsed:hover,
-  .nav--collapsed:focus-within {
+  /*
+   * THE RAIL IS TAKEN OUT OF FLOW PERMANENTLY, NOT ON HOVER - 20 Nov 2026.
+   *
+   * It used to become `position: absolute` only while hovered, and that was
+   * the hang. Leaving the flow mid-hover widened `.main` by the rail's 74px,
+   * so every card re-laid out and every recharts surface re-measured itself,
+   * then did it again in reverse on the way out. On a page of charts that is
+   * hundreds of milliseconds of layout per mouse-over, and the pointer could
+   * land outside the rail's new box and drop the hover, which started the
+   * whole thing over.
+   *
+   * Out of flow in BOTH states, with `.main` holding the gap itself, the
+   * hover changes one box's width and nothing else on the page moves.
+   */
+  .nav--collapsed {
     position: absolute;
     z-index: 60;
     top: 8px;
     bottom: 8px;
     left: 8px;
-    width: 236px;
-    padding: 10px 8px;
+    width: 74px;
     border-radius: var(--radius-sheet);
+    /*
+     * Short, and only over properties that cost nothing outside this element.
+     * `will-change` keeps it on its own layer so the shadow is not repainted
+     * against the page underneath each frame.
+     */
+    transition: width 0.18s var(--ease), background-color 0.18s var(--ease),
+      box-shadow 0.18s var(--ease);
+    will-change: width;
+  }
+
+  /* The space the rail would have occupied, held by its neighbour instead. */
+  .shell:has(> .nav--collapsed) > .main {
+    margin-left: 74px;
+  }
+
+  .nav--collapsed:hover,
+  .nav--collapsed:focus-within {
+    width: 236px;
     background: var(--card);
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
   }
 
-  /* The labels come back, and the items become full-width rows. */
-  .nav--collapsed:hover .nav__item-text,
-  .nav--collapsed:focus-within .nav__item-text,
+  /*
+   * Every horizontal measurement is the SAME in both states, deliberately.
+   *
+   * The rail's own padding, the item's margin and the item's left padding are
+   * all constant, so the icon sits at exactly the same x whether the rail is
+   * 74px or 236px. Anything that changes here makes the icons slide sideways
+   * as the panel opens, which reads as a jump rather than a reveal - and it
+   * was the padding going 0 -> 8px that caused it.
+   *
+   * 8px margin + 17px padding + half a 20px icon puts the icon's centre at
+   * 35px, against the collapsed rail's own centre of 37px.
+   */
+  .nav--collapsed .nav__item,
+  .nav--collapsed .nav__brand {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 17px;
+  }
+
+  /*
+   * The labels are ALWAYS in the DOM and always laid out; at 74px the rail
+   * simply clips them. Toggling `display` instead re-ran layout for fifteen
+   * rows at the moment the width animation started, which is what made the
+   * labels pop in rather than appear.
+   */
+  .nav--collapsed .nav__item-text {
+    display: block;
+  }
+
+  /* The headings come back, and the items become full-width rows. */
   .nav--collapsed:hover .nav__section,
   .nav--collapsed:focus-within .nav__section,
   .nav--collapsed:hover .nav__wordmark,
   .nav--collapsed:focus-within .nav__wordmark {
     display: block;
-  }
-
-  .nav--collapsed:hover .nav__item,
-  .nav--collapsed:focus-within .nav__item,
-  .nav--collapsed:hover .nav__brand,
-  .nav--collapsed:focus-within .nav__brand {
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 0 12px;
   }
 }
 
