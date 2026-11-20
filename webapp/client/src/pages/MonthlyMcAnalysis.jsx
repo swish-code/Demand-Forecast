@@ -342,6 +342,18 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
   const [view, setView] = useState('analysis')
   const [month, setMonth] = useState(months[MONTH_OFFSET])
   const [classFilter, setClassFilter] = useState('All')
+  /*
+   * The page's own brand filter - 20 Nov 2026, on request.
+   *
+   * Narrows the rows ALREADY FETCHED rather than re-requesting them. The
+   * server call is scoped by `filters.brands` from the rail's own slicer,
+   * which decides what this account may see at all; this chooses which of
+   * those to look at, and does it without a round trip.
+   *
+   * 'All' is a value, not an absence, so the picker always has something to
+   * show as current and the summary line always has a brand to name.
+   */
+  const [brandFilter, setBrandFilter] = useState('All')
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -426,7 +438,8 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
   const editBlocked = Boolean(data?.editRole) && !canEdit
   const cur = data?.months?.current ?? month
   const prev = data?.months?.previous ?? null
-  const filtered = classFilter !== 'All' || search.trim() !== '' || onlyFlagged
+  const filtered =
+    brandFilter !== 'All' || classFilter !== 'All' || search.trim() !== '' || onlyFlagged
 
   const alerts = useData(api.costingAlerts, request, {
     enabled: ready && Boolean(data) && !storageError,
@@ -440,6 +453,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
     })
     const needle = search.trim().toLowerCase()
     return base
+      .filter((r) => brandFilter === 'All' || r.brand === brandFilter)
       .filter((r) => classFilter === 'All' || r.classification === classFilter)
       .filter(
         (r) =>
@@ -461,7 +475,35 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
         // Date and the editor's account name; the email is in the hover title.
         lastUpdated: r.lastUpdatedAt ? `${when(r.lastUpdatedAt)} · ${r.lastUpdatedByName || r.lastUpdatedBy}` : '',
       }))
-  }, [data, edits, classFilter, search, onlyFlagged])
+  }, [data, edits, brandFilter, classFilter, search, onlyFlagged])
+
+  /*
+   * The brands actually present this month, from the response itself.
+   *
+   * Taken from the rows rather than from a brand list, so the picker can only
+   * offer a brand that has figures behind it: offering one that would produce
+   * an empty table is worse than not offering it. Read off `data`, NOT the
+   * filtered rows, or choosing a brand would leave it the only option.
+   */
+  const brandOptions = useMemo(() => {
+    const seen = new Set()
+    for (const r of data?.rows ?? []) {
+      const b = String(r.brand ?? '').trim()
+      if (b) seen.add(b)
+    }
+    return ['All', ...[...seen].sort()]
+  }, [data])
+
+  /*
+   * A brand that is no longer on offer cannot stay selected.
+   *
+   * The month changes, or the rail's slicer narrows, and the brand chosen
+   * before may not be in the new response - which would show an empty table
+   * with a filter naming a brand that is not there. Falls back to All.
+   */
+  useEffect(() => {
+    if (brandFilter !== 'All' && !brandOptions.includes(brandFilter)) setBrandFilter('All')
+  }, [brandOptions, brandFilter])
 
   const glance = useMemo(() => {
     const articles = new Set(rows.map((r) => r.articleId))
@@ -659,6 +701,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
 
   function clearAll() {
     setMonth(months[MONTH_OFFSET])
+    setBrandFilter('All')
     setClassFilter('All')
     setSearch('')
     setOnlyFlagged(false)
@@ -710,6 +753,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
    */
   const filterSummary = [
     monthLabel(month),
+    brandFilter === 'All' ? 'All brands' : brandFilter,
     classFilter === 'All' ? 'All classifications' : classFilter,
     onlyFlagged ? 'beyond ±20%' : null,
     search.trim() ? `“${search.trim()}”` : null,
@@ -790,6 +834,44 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
                       <span className="mcm-sub__hint">{whenLabel(m)}</span>
                     </span>
                     {m === month ? <span className="mcm-sub__dot" aria-hidden="true" /> : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={`mcm-pop__row${menu === 'brand' ? ' mcm-pop__row--on' : ''}`}>
+            <button
+              type="button"
+              className="mcm-pop__hit"
+              aria-expanded={menu === 'brand'}
+              onClick={() => setMenu((m) => (m === 'brand' ? null : 'brand'))}
+            >
+              <span className="mcm-pop__icon" aria-hidden="true">
+                <IconSummary size={16} />
+              </span>
+              <span className="mcm-pop__label">Brand</span>
+              <span className="mcm-pop__value">{brandFilter}</span>
+              <span className="mcm-pop__more" aria-hidden="true">
+                <IconChevron size={14} />
+              </span>
+            </button>
+            {menu === 'brand' && (
+              <div className="mcm-sub" role="menu" aria-label="Brand">
+                {brandOptions.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={b === brandFilter}
+                    className={`mcm-sub__opt${b === brandFilter ? ' mcm-sub__opt--on' : ''}`}
+                    onClick={() => {
+                      setBrandFilter(b)
+                      setMenu(null)
+                    }}
+                  >
+                    <span>{b}</span>
+                    {b === brandFilter ? <span className="mcm-sub__dot" aria-hidden="true" /> : null}
                   </button>
                 ))}
               </div>
