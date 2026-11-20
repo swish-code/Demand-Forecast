@@ -79,6 +79,23 @@ function monthChoices(now = new Date()) {
   return out
 }
 
+/*
+ * TEMPORARY - 20 Nov 2026, on request: the page offers LAST MONTH ONLY.
+ *
+ * `monthChoices()` is unchanged and still returns eighteen months; this is
+ * the window of it the page is willing to open. Index 0 is the month in hand,
+ * 1 is the one before - so October while this is November.
+ *
+ * WHY. MC loads a month after it closes, so the current month is empty or
+ * part-loaded for most of its length, and a page that opens on an empty month
+ * reads as broken rather than as early.
+ *
+ * TO PUT IT BACK: set OFFSET to 0 and COUNT to 2. Nothing else is involved -
+ * the default month, the picker and the Reset button all read these two.
+ */
+const MONTH_OFFSET = 1
+const MONTH_COUNT = 1
+
 const qty = (v) => (v === null || v === undefined ? dash() : fmtQty(v))
 
 /** Variance %, amber over and blue under, bold past the alert threshold. */
@@ -323,7 +340,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
     []
   )
   const [view, setView] = useState('analysis')
-  const [month, setMonth] = useState(months[0])
+  const [month, setMonth] = useState(months[MONTH_OFFSET])
   const [classFilter, setClassFilter] = useState('All')
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
@@ -388,7 +405,20 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
    * page is about the month in hand and the one before; older months are on
    * the Variance Analysis page.
    */
-  const monthOptions = useMemo(() => months.slice(0, 2), [months])
+  const monthOptions = useMemo(
+    () => months.slice(MONTH_OFFSET, MONTH_OFFSET + MONTH_COUNT),
+    [months]
+  )
+
+  /*
+   * "this month" / "last month", worked out from the month itself.
+   *
+   * It used to come from the option's INDEX in the list, which was right only
+   * while the list began at the current month. With the list starting at last
+   * month, index 0 would have labelled October "this month".
+   */
+  const whenLabel = (m) =>
+    m === months[0] ? 'this month' : m === months[1] ? 'last month' : ''
 
   const storageError = data?.storageError ?? null
   const canEdit = Boolean(data?.canEdit)
@@ -628,7 +658,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
   }, [alertRows])
 
   function clearAll() {
-    setMonth(months[0])
+    setMonth(months[MONTH_OFFSET])
     setClassFilter('All')
     setSearch('')
     setOnlyFlagged(false)
@@ -743,7 +773,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
             </button>
             {menu === 'month' && (
               <div className="mcm-sub" role="menu" aria-label="Month">
-                {monthOptions.map((m, i) => (
+                {monthOptions.map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -757,7 +787,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
                   >
                     <span>
                       {monthLabel(m)}
-                      <span className="mcm-sub__hint">{i === 0 ? 'this month' : 'last month'}</span>
+                      <span className="mcm-sub__hint">{whenLabel(m)}</span>
                     </span>
                     {m === month ? <span className="mcm-sub__dot" aria-hidden="true" /> : null}
                   </button>
@@ -873,7 +903,7 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
                 clearAll()
                 setMenu(null)
               }}
-              disabled={!filtered && month === months[0]}
+              disabled={!filtered && month === months[MONTH_OFFSET]}
             >
               <IconRefresh size={14} />
               Reset filters
