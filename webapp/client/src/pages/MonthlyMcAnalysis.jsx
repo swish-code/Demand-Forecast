@@ -333,7 +333,9 @@ function HistoryDialog({ row, onClose }) {
 
 /* ---------------------------------------------------- the page itself -- */
 
-export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
+// `filters` is deliberately not read: this page carries its own, and the rail's
+// slicers are switched off for it (`slicers: []`). See `request` below.
+export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   const months = useMemo(() => monthChoices(), [])
   const today = useMemo(
     () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
@@ -346,9 +348,9 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
    * The page's own brand filter - 20 Nov 2026, on request.
    *
    * Narrows the rows ALREADY FETCHED rather than re-requesting them. The
-   * server call is scoped by `filters.brands` from the rail's own slicer,
-   * which decides what this account may see at all; this chooses which of
-   * those to look at, and does it without a round trip.
+   * request asks for every brand the account is allowed - the server decides
+   * that, not this page - and this chooses which of them to look at, without
+   * a round trip.
    *
    * 'All' is a value, not an absence, so the picker always has something to
    * show as current and the summary line always has a brand to name.
@@ -404,7 +406,22 @@ export function MonthlyMcAnalysis({ filters, ready, refreshNonce, onLoaded }) {
    */
   const [edits, setEdits] = useState(() => new Map())
 
-  const request = useMemo(() => ({ month, brands: filters?.brands ?? [] }), [month, filters?.brands])
+  /*
+   * EVERY brand the account may see - 20 Nov 2026.
+   *
+   * This used to send `filters.brands`, the rail's own brand slicer. The page
+   * is configured with `slicers: []`, so that control is not on screen here:
+   * the page was being narrowed by a filter the reader could neither see nor
+   * change, and whichever brand they had last chosen on another page silently
+   * became the only brand MC Analysis would show. With BBT selected, the
+   * brand picker added below could only ever offer BBT.
+   *
+   * Brands are omitted entirely now, and `brandsFor` on the server reads that
+   * as "every brand this account is allowed" - see routes/costing.js. The
+   * scope is still enforced there and nothing widens what anyone may read;
+   * the page's own Brand filter chooses among what comes back.
+   */
+  const request = useMemo(() => ({ month }), [month])
   const { data, error, loading, reload } = useData(api.costingAnalysis, request, {
     enabled: ready,
     nonce: refreshNonce,
