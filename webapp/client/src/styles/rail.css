@@ -1,219 +1,413 @@
 /*
- * THE NAVIGATION RAIL — 19 Nov 2026, to the reference.
+ * THE NAVIGATION RAIL — 20 Nov 2026, to the supplied spec.
  *
- * Collapsed it is a column of icons. On hover it widens to show every label,
- * as a floating rounded panel ABOVE the page rather than by pushing it: the
- * reference opens over the content, and widening in flow would reflow every
- * card and re-lay out the charts on a mouse-over.
+ * A 74px slot in the layout that never changes width, and a frosted panel
+ * that slides out over the page to 236px on hover. The slot is the point:
+ * widening in flow would reflow every card and re-lay out every chart on a
+ * mouse-over, which is the hang this replaced.
  *
- * So the rail keeps its collapsed width in the layout and the expansion is
- * `position: absolute`. Nothing moves except the rail.
+ * Every token here already exists in reference.css - `--panel`, `--card`,
+ * `--ink`, `--ink-900`, `--on-ink`, `--muted`, `--muted-2`, `--line-2`,
+ * `--accent`, `--shadow-sm`, `--shadow-lg`, `--ease` - so nothing had to be
+ * mapped or invented.
  *
- * Imported after reference.css, so it wins over the older rail rules.
+ * Loaded after reference.css. It replaces the previous rail rules entirely.
  */
 
-/* The rail is positioned against the shell, so it can overlay the main column. */
+/* The rail must not be clipped by the shell, or the expanded panel is cut
+   off at 74px. The shell keeps `overflow: hidden` for its own rounding, so
+   the exception is made here, on the one child that needs it. */
 .shell {
-  position: relative;
+  overflow: visible;
 }
 
-.nav--collapsed {
-  width: 74px;
-  background: var(--panel);
-  color: var(--ink);
-  padding: 8px 0;
+/* ...but the scrolling page still has to clip its own content to the shell's
+   rounded corner, which the shell used to do for it. */
+.main {
   overflow: hidden;
+  border-radius: inherit;
 }
 
-/*
- * Hover only where there is a real pointer and room for the panel.
- *
- * On a touch screen `:hover` sticks after a tap, which would leave the rail
- * expanded over the page with no way to dismiss it; below 821px the rail is a
- * bottom bar anyway.
- */
-@media (hover: hover) and (min-width: 821px) {
-  /*
-   * THE RAIL IS TAKEN OUT OF FLOW PERMANENTLY, NOT ON HOVER - 20 Nov 2026.
-   *
-   * It used to become `position: absolute` only while hovered, and that was
-   * the hang. Leaving the flow mid-hover widened `.main` by the rail's 74px,
-   * so every card re-laid out and every recharts surface re-measured itself,
-   * then did it again in reverse on the way out. On a page of charts that is
-   * hundreds of milliseconds of layout per mouse-over, and the pointer could
-   * land outside the rail's new box and drop the hover, which started the
-   * whole thing over.
-   *
-   * Out of flow in BOTH states, with `.main` holding the gap itself, the
-   * hover changes one box's width and nothing else on the page moves.
-   */
-  .nav--collapsed {
-    position: absolute;
-    z-index: 60;
-    top: 8px;
-    bottom: 8px;
-    left: 8px;
-    width: 74px;
-    border-radius: var(--radius-sheet);
-    /*
-     * Short, and only over properties that cost nothing outside this element.
-     * `will-change` keeps it on its own layer so the shadow is not repainted
-     * against the page underneath each frame.
-     */
-    transition: width 0.18s var(--ease), background-color 0.18s var(--ease),
-      box-shadow 0.18s var(--ease);
-    will-change: width;
-  }
-
-  /* The space the rail would have occupied, held by its neighbour instead. */
-  .shell:has(> .nav--collapsed) > .main {
-    margin-left: 74px;
-  }
-
-  /*
-   * `:has(:focus-visible)`, NOT `:focus-within` - 20 Nov 2026.
-   *
-   * Clicking a nav item focuses it, and `:focus-within` then held the panel
-   * open after the pointer had left: the rail simply stayed expanded over the
-   * page until focus happened to move somewhere else.
-   *
-   * `:focus-visible` is the browser's own judgement of whether focus should be
-   * SHOWN - true when tabbing, false after a mouse click - so a keyboard user
-   * still gets the labels and opens the panel by tabbing into it, while a
-   * click leaves nothing behind and the rail collapses the moment the pointer
-   * leaves.
-   */
-  .nav--collapsed:hover,
-  .nav--collapsed:has(:focus-visible) {
-    width: 236px;
-    background: var(--card);
-    box-shadow: var(--shadow-lg);
-    overflow-y: auto;
-  }
-
-  /*
-   * Every horizontal measurement is the SAME in both states, deliberately.
-   *
-   * The rail's own padding, the item's margin and the item's left padding are
-   * all constant, so the icon sits at exactly the same x whether the rail is
-   * 74px or 236px. Anything that changes here makes the icons slide sideways
-   * as the panel opens, which reads as a jump rather than a reveal - and it
-   * was the padding going 0 -> 8px that caused it.
-   *
-   * 8px margin + 17px padding + half a 20px icon puts the icon's centre at
-   * 35px, against the collapsed rail's own centre of 37px.
-   */
-  .nav--collapsed .nav__item,
-  .nav--collapsed .nav__brand {
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 0 17px;
-  }
-
-  /*
-   * The labels are ALWAYS laid out, and HIDDEN WITH OPACITY when collapsed.
-   *
-   * Three readings of this, in order, because the first two were both wrong:
-   *
-   *   `display: none` -> `block` re-ran layout for fifteen rows at the instant
-   *   the width animation began, so the labels popped in.
-   *
-   *   leaving them laid out and relying on the rail to clip them showed about
-   *   25px of every label at rest - "Pro", "Var", "Mo" down the collapsed
-   *   rail - because the icon and its padding only take 49px of the 74px.
-   *
-   * Opacity costs no layout at all: the row keeps its full width whether or
-   * not the label can be seen, so nothing reflows when the rail opens, and at
-   * 74px there is simply nothing drawn. It composites, so the fade is free.
-   */
-  .nav--collapsed .nav__item-text {
-    display: block;
-    opacity: 0;
-    transition: opacity 0.14s var(--ease);
-    /* Invisible text must not be a click or selection target. */
-    pointer-events: none;
-    user-select: none;
-  }
-
-  .nav--collapsed:hover .nav__item-text,
-  .nav--collapsed:has(:focus-visible) .nav__item-text {
-    opacity: 1;
-    pointer-events: auto;
-    user-select: auto;
-  }
-
-  /* The headings come back, and the items become full-width rows. */
-  .nav--collapsed:hover .nav__section,
-  .nav--collapsed:has(:focus-visible) .nav__section,
-  .nav--collapsed:hover .nav__wordmark,
-  .nav--collapsed:has(:focus-visible) .nav__wordmark {
-    display: block;
-  }
-}
-
-/*
- * The items themselves.
- *
- * 46px tall with a 15px radius, per the export. The icon keeps a fixed 46px
- * box whether or not a label is beside it, so the icons do not shift sideways
- * as the rail opens - which is the thing that makes a hover-expand feel like
- * a jump rather than a reveal.
- */
-.nav--collapsed .nav__item {
+/* rail + items */
+.rail {
+  flex: 0 0 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 0 18px;
   position: relative;
+  z-index: 40;
+  overflow: visible;
+}
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.rail-item {
+  position: relative;
+  width: 46px;
   height: 46px;
-  min-height: 46px;
-  margin: 2px 8px;
-  border-radius: 15px;
+  border: none;
+  background: transparent;
   color: var(--muted);
-  white-space: nowrap;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-
-.nav--collapsed .nav__item svg {
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-}
-
-/* A quiet grey pill under the hovered row, not a white wash. */
-.nav--collapsed .nav__item:hover {
-  background: var(--card-2);
-  color: var(--ink);
-}
-
-/*
- * The current page, as the reference marks it: the label and icon in the
- * accent, on a soft tint. Colour is not the only signal - it is also the only
- * row that is tinted at rest.
- */
-.nav--collapsed .nav__item--active,
-.nav--collapsed .nav__item--active:hover {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
   border-radius: 15px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
-.nav--collapsed .nav__item--active .nav__item-text b {
-  color: inherit;
-  font-weight: 700;
+.rail-item:hover {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
 }
 
-/* The old left-edge marker. The tinted pill says it now, and the bar sat
-   outside the pill's radius once the rail became a floating panel. */
-.nav--collapsed .nav__item--active::before {
+.rail-item.on {
+  background: var(--ink-900);
+  color: var(--on-ink);
+  box-shadow: 0 10px 20px -6px rgba(11, 18, 32, 0.45);
+}
+
+/* The accent bar on the rail's left edge. */
+.rail-item.on::after {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+/* hover-expand frosted panel (overlays the page, no layout shift) */
+.rail-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 14px 18px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: color-mix(in srgb, var(--panel) 62%, transparent);
+  -webkit-backdrop-filter: saturate(170%) blur(18px);
+  backdrop-filter: saturate(170%) blur(18px);
+  border-radius: 26px 22px 22px 26px;
+  transition: width 0.22s var(--ease), box-shadow 0.22s var(--ease),
+    background 0.22s var(--ease);
+}
+
+.rail-panel::-webkit-scrollbar {
   display: none;
 }
 
-.nav--collapsed .nav__item-text {
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+.rail:hover .rail-panel,
+.rail:has(.rail-item:focus-visible) .rail-panel {
+  width: 236px;
+  background: color-mix(in srgb, var(--panel) 48%, transparent);
+  box-shadow: var(--shadow-lg),
+    inset -1px 0 0 color-mix(in srgb, var(--line-2) 70%, transparent);
+  /* A passing mouse should not flicker the panel open. */
+  transition-delay: 0.12s;
+}
+
+.rail-panel .rail-nav {
+  align-items: stretch;
+}
+
+.rail-panel .rail-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 13.5px;
+}
+
+.rail-panel .rail-item svg {
+  flex: 0 0 auto;
+}
+
+.rail-label {
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  pointer-events: none;
+}
+
+.rail:hover .rail-label,
+.rail:has(.rail-item:focus-visible) .rail-label {
+  opacity: 1;
+  transform: none;
+  /* After the panel has started opening, so the names arrive into space that
+     already exists rather than racing the width. */
+  transition: opacity 0.2s ease 0.16s, transform 0.2s ease 0.16s;
+}
+
+.rail-panel .rail-foot {
+  width: 46px;
+  display: flex;
+  justify-content: center;
+}
+
+.rail-panel .rail-item.rail-more {
+  display: none;
+}
+
+/* The section heading and footer detail only make sense once the panel is
+   open; at 74px they are a word cut in half. */
+.rail-panel .nav__section,
+.rail-panel .nav__meta,
+.rail-panel .nav__action,
+.rail-panel .nav__userText,
+.rail-panel .nav__toggle {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  pointer-events: none;
+}
+
+.rail:hover .nav__section,
+.rail:hover .nav__meta,
+.rail:hover .nav__action,
+.rail:hover .nav__userText,
+.rail:hover .nav__toggle,
+.rail:has(.rail-item:focus-visible) .nav__section,
+.rail:has(.rail-item:focus-visible) .nav__meta,
+.rail:has(.rail-item:focus-visible) .nav__action,
+.rail:has(.rail-item:focus-visible) .nav__userText,
+.rail:has(.rail-item:focus-visible) .nav__toggle {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease 0.16s;
+}
+
+.rail-panel .nav__foot {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+/* dock magnification (desktop mouse only) */
+@media (min-width: 821px) and (hover: hover) and (pointer: fine) {
+  .rail-panel .rail-item {
+    /* Items move apart as they grow, so the icons never overlap. */
+    margin-block: calc((var(--mag, 1) - 1) * 7px);
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s,
+      margin 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .rail-panel .rail-item svg {
+    transform: scale(var(--mag, 1));
+    transform-origin: center;
+    transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .rail-panel .rail-item .rail-label {
+    margin-left: calc((var(--mag, 1) - 1) * 10px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav--collapsed,
-  .nav--collapsed .nav__item {
+  .rail-panel .rail-item,
+  .rail-panel .rail-item svg {
     transition: none;
+  }
+}
+
+/* phone: frosted bottom tab bar */
+@media (max-width: 820px) {
+  .rail-panel {
+    display: contents;
+  }
+
+  .rail-label {
+    display: none;
+  }
+
+  .rail-panel .rail-item {
+    width: auto;
+    justify-content: center;
+    padding: 0;
+    gap: 0;
+  }
+
+  .rail-panel .rail-item.rail-extra {
+    display: none;
+  }
+
+  .rail-panel .rail-item.rail-more {
+    display: flex;
+  }
+
+  .rail-panel .rail-foot,
+  .rail-foot {
+    display: none;
+  }
+
+  .rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    flex: none;
+    width: 100%;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    background: color-mix(in srgb, var(--card) 68%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    backdrop-filter: saturate(180%) blur(22px);
+    border-top: 1px solid color-mix(in srgb, var(--line-2) 55%, transparent);
+    box-shadow: 0 -8px 24px -14px rgba(0, 0, 0, 0.4);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-nav {
+    flex-direction: row;
+    align-items: stretch;
+    width: 100%;
+    gap: 0;
+  }
+
+  .rail-item {
+    flex: 1 1 0;
+    min-width: 34px;
+    height: 58px;
+    border-radius: 0;
+    color: var(--muted-2);
+    transition: color 0.22s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .rail-item svg {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .rail-item:hover {
+    background: transparent;
+    box-shadow: none;
+    color: var(--ink);
+  }
+
+  .rail-item:active svg {
+    transform: scale(0.86);
+  }
+
+  .rail-item.on {
+    background: transparent;
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  .rail-item.on svg {
+    transform: translateY(-1px) scale(1.06);
+  }
+
+  /* The springy glass chip behind the active tab's icon. */
+  .rail-item.on::after {
+    content: '';
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 46px;
+    height: 34px;
+    border-radius: 13px;
+    z-index: 0;
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+      inset 0 1px 1px color-mix(in srgb, #fff 35%, transparent),
+      0 4px 12px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    animation: railChip 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes railChip {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+
+  /* The page content must clear the bar. */
+  .scroll {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  /* The overflow sheet for pages six and beyond. */
+  .rail-more__sheet {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+    z-index: 61;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border-radius: var(--radius-sheet);
+    background: var(--card);
+    box-shadow: var(--shadow-lg);
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .rail-more__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .rail-more__item.on {
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+
+/* The sheet is phone-only. */
+@media (min-width: 821px) {
+  .rail-more__sheet {
+    display: none;
   }
 }

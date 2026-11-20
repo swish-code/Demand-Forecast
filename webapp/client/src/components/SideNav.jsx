@@ -1,4 +1,6 @@
-import { IconChevron, IconRefresh } from './Icons.jsx'
+import { useState } from 'react'
+import { IconChevron, IconMenu, IconRefresh } from './Icons.jsx'
+import { useDockMagnify } from '../dockMagnify.js'
 
 /**
  * Left navigation rail.
@@ -25,8 +27,22 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
    * status, Refresh and Sign out, which are the only things in it they can act
    * on.
    */
+  /*
+   * A callback ref, not `useRef`.
+   *
+   * `useDockMagnify` binds listeners to the element, and a plain ref object is
+   * still null on the render that creates it - the effect would run once
+   * against nothing and never again. State re-renders when the node arrives,
+   * so the hook gets a real element.
+   */
+  const [railNav, setRailNav] = useState(null)
+  useDockMagnify(railNav)
+  /** The phone-only overflow sheet for pages six and beyond. */
+  const [moreOpen, setMoreOpen] = useState(false)
+
   return (
-    <nav className={`nav${collapsed ? ' nav--collapsed' : ''}`} aria-label="Pages">
+    <aside className={`rail${collapsed ? ' rail--collapsed' : ''}`} aria-label="Pages">
+      <div className="rail-panel">
       {/*
         * The brand moved to the app bar on 1 Oct 2026, where the reference puts
         * it. Keeping it here as well would have shown the wordmark twice, a
@@ -44,28 +60,76 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
         */}
       {pages.length > 1 && <div className="nav__section">Reports</div>}
 
-      <div className="nav__items">
-        {pages.map((p) => (
+      <nav className="rail-nav" ref={setRailNav}>
+        {pages.map((p, i) => (
           <button
             key={p.id}
             type="button"
-            className={`nav__item${p.id === active ? ' nav__item--active' : ''}`}
-            onClick={() => onSelect(p.id)}
+            /*
+             * `rail-extra` is every page past the fifth. It changes nothing on
+             * a desktop; on a phone the rail becomes a five-tab bottom bar and
+             * these go under "More".
+             */
+            className={`rail-item${p.id === active ? ' on' : ''}${i >= 5 ? ' rail-extra' : ''}`}
+            /*
+             * `blur()` after selecting, deliberately.
+             *
+             * The panel also opens on `:focus-visible` so it can be reached by
+             * keyboard. Without this, clicking a page left that button focused
+             * and the rail stayed expanded over the content you had just
+             * navigated to. A keyboard Tab still opens it; a mouse click no
+             * longer holds it open.
+             */
+            onClick={(e) => {
+              onSelect(p.id)
+              e.currentTarget.blur()
+            }}
             aria-current={p.id === active ? 'page' : undefined}
-            title={collapsed ? `${p.label} — ${p.kicker}` : p.blurb}
+            aria-label={p.label}
+            title={`${p.label} — ${p.kicker}`}
           >
-            <p.Icon size={15} />
-            {/*
-              * Name only, from 1 Oct 2026. The kicker underneath was removed on
-              * request; it still reaches the reader through the button's own
-              * `title`, which names the page and describes it on hover.
-              */}
-            <span className="nav__item-text">
-              <b>{p.label}</b>
-            </span>
+            <p.Icon size={19} />
+            <span className="rail-label">{p.label}</span>
           </button>
         ))}
-      </div>
+
+        {/* Only shown on a phone, where the bar holds five. */}
+        {pages.length > 5 && (
+          <button
+            type="button"
+            className="rail-item rail-more"
+            aria-label="More pages"
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <IconMenu size={19} />
+          </button>
+        )}
+      </nav>
+
+      {/*
+        * The overflow sheet, phone only. Plain buttons rather than a second
+        * rail: it is a list of page names, and the bar below it is already
+        * the navigation.
+        */}
+      {moreOpen && pages.length > 5 && (
+        <div className="rail-more__sheet" role="menu" aria-label="More pages">
+          {pages.slice(5).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="menuitem"
+              className={`rail-more__item${p.id === active ? ' on' : ''}`}
+              onClick={() => {
+                onSelect(p.id)
+                setMoreOpen(false)
+              }}
+            >
+              <p.Icon size={17} />
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/*
         * Below the last item, in the normal flow - moved there 1 Oct 2026.
@@ -93,7 +157,9 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
         </button>
       )}
 
-      <div className="nav__foot">
+      <div style={{ flex: 1 }} />
+
+      <div className="nav__foot rail-foot">
         <span className="nav__meta" title={lastUpdated ? `Updated ${lastUpdated}` : undefined}>
           <span className={`nav__dot nav__dot--${status}`} />
           {statusText}
@@ -120,6 +186,7 @@ export function SideNav({ pages, active, onSelect, health, lastUpdated, onRefres
           </button>
         )}
       </div>
-    </nav>
+      </div>
+    </aside>
   )
 }
