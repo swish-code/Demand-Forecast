@@ -10769,8 +10769,14 @@ h3,
   align-items: center;
   gap: var(--s3) var(--s4);
   padding: var(--s3) var(--s5);
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  /*
+   * No panel of its own - 19 Nov 2026, on request. The bar sits on the page
+   * background like the SWiSH Analytics reference, rather than as a white
+   * strip with a rule under it. It is outside the scrolling area, so nothing
+   * passes beneath it and it needs no fill to stay readable.
+   */
+  background: transparent;
+  border-bottom: none;
   flex: none;
 }
 
@@ -12592,5 +12598,993 @@ h3,
   .alvr__view {
     flex: 1 1 auto;
     text-align: center;
+  }
+}
+
+/* ---------------------------------------- Monthly MC Analysis (costing) -- */
+
+/*
+ * The SWiSH Analytics layout, 20 Nov 2026 on request: big title and date,
+ * pill tabs beside a filter card, a row of comparison cards, white table
+ * cards with uppercase headings and inline bars, and a grey note to close.
+ * Scoped to `.mcm` so nothing else in the app moves.
+ */
+.mcm {
+  --mcm-accent: #e11d2e;
+  --mcm-accent-tint: #fdecee;
+  /*
+   * The Classification column's own tint - see `.mcm-col--class` below.
+   *
+   * A light red, 19 Nov 2026 on request. Deliberately paler than
+   * `--mcm-accent-tint` beside it, which marks failures: this column is
+   * editable, not wrong, so it is tinted and not alarmed.
+   */
+  --mcm-class-tint: #fdeced;
+  --mcm-class-ink: #b4232f;
+  --mcm-class-line: #f6d2d6;
+  --mcm-card-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 4px 16px rgba(17, 24, 39, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding-bottom: var(--s6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mcm {
+    --mcm-accent: #f87171;
+    --mcm-accent-tint: rgba(248, 113, 113, 0.14);
+    --mcm-class-tint: rgba(248, 113, 113, 0.13);
+    --mcm-class-ink: #fca5a5;
+    --mcm-class-line: rgba(248, 113, 113, 0.28);
+    --mcm-card-shadow: none;
+  }
+}
+
+:root[data-theme='dark'] .mcm {
+  --mcm-accent: #f87171;
+  --mcm-accent-tint: rgba(248, 113, 113, 0.14);
+  --mcm-class-tint: rgba(248, 113, 113, 0.13);
+  --mcm-class-ink: #fca5a5;
+  --mcm-class-line: rgba(248, 113, 113, 0.28);
+  --mcm-card-shadow: none;
+}
+
+/* The panel floats above the page, so it keeps a shadow where the cards drop
+   theirs - a dark one, or it would glow against the dark ground. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mcm .mcm-pop,
+  :root:not([data-theme='light']) .mcm .mcm-sub {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  }
+
+  :root:not([data-theme='light']) .mcm .mcm-pop__row--on .mcm-pop__hit {
+    background: var(--sunken);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme='dark'] .mcm .mcm-pop,
+:root[data-theme='dark'] .mcm .mcm-sub {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme='dark'] .mcm .mcm-pop__row--on .mcm-pop__hit {
+  background: var(--sunken);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* Title row */
+.mcm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.mcm-head__text {
+  flex: 0 1 auto;
+}
+
+/* The filter pill sits at the end of the title row, as on the dashboard. */
+.mcm-head .mcm-filterbar {
+  margin-left: auto;
+}
+
+.mcm-head__date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.mcm-head__date .mcm-live {
+  padding: 3px 11px;
+  font-size: 13px;
+}
+
+.mcm-head__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.mcm-head__date {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.mcm-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--r-round);
+  background: var(--green-tint);
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mcm-live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+/* Tabs + filter card */
+.mcm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.mcm-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sunken);
+}
+
+.mcm-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 22px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.mcm-tabs__tab:hover {
+  color: var(--text);
+}
+
+.mcm-tabs__tab--on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+}
+
+.mcm-tabs__badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-round);
+  background: var(--mcm-accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+/*
+ * Filters: one pill, with the selection written on it - 19 Nov 2026.
+ *
+ * Replaces the open row of five controls, which took the width the title
+ * needed. The pill states what is filtered, so nothing is hidden by being put
+ * away; the panel under it holds the same five controls.
+ */
+.mcm-filterbar {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.mcm-filterbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 460px;
+  height: 52px;
+  padding: 0 14px 0 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--mcm-card-shadow);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mcm-filterbar__pill:hover {
+  border-color: var(--line);
+}
+
+.mcm-filterbar--open .mcm-filterbar__pill {
+  border-color: var(--brand);
+}
+
+/* The dark disc the icon sits in, as on the SWiSH dashboard. */
+.mcm-filterbar__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  flex: 0 0 auto;
+}
+
+.mcm-filterbar__word {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mcm-filterbar__rule {
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+  flex: 0 0 auto;
+}
+
+/* The summary is the part that may be long, so it is the part that truncates. */
+.mcm-filterbar__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.mcm-filterbar__caret {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.mcm-filterbar--open .mcm-filterbar__caret {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcm-filterbar__caret {
+    transition: none;
+  }
+}
+
+/* The panel */
+.mcm-pop {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(400px, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(17, 24, 39, 0.16);
+}
+
+/*
+ * A row is a drill-in: icon, name, its current value, and a chevron that
+ * opens the flyout. `position: relative` because the flyout hangs off it.
+ */
+.mcm-pop__row {
+  position: relative;
+}
+
+.mcm-pop__row + .mcm-pop__row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.mcm-pop__hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcm-pop__hit:hover {
+  background: var(--sunken);
+}
+
+/*
+ * The open row lifts instead of tinting - the reference raises it as a white
+ * card so it reads as the thing the flyout belongs to, which a background
+ * tint cannot say once the flyout is also tinted.
+ */
+.mcm-pop__row--on .mcm-pop__hit,
+.mcm-pop__row--on .mcm-pop__hit:hover {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06), 0 6px 18px rgba(17, 24, 39, 0.1);
+}
+
+.mcm-pop__icon {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.mcm-pop__label {
+  flex: 1 1 auto;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* The value may be an article name, so this is what truncates. */
+.mcm-pop__value {
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.mcm-pop__more {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  /* The chevron points INTO the flyout, which opens to the left. */
+  transform: rotate(90deg);
+}
+
+/* The ±20% switch */
+.mcm-pop__switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line);
+  flex: 0 0 auto;
+  transition: background 0.15s ease;
+}
+
+.mcm-pop__switch--on {
+  background: var(--brand);
+}
+
+.mcm-pop__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.mcm-pop__switch--on .mcm-pop__knob {
+  transform: translateX(16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcm-pop__switch,
+  .mcm-pop__knob {
+    transition: none;
+  }
+}
+
+/* The flyout, to the LEFT of the panel */
+.mcm-sub {
+  position: absolute;
+  z-index: 2;
+  top: -6px;
+  right: calc(100% + 12px);
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(17, 24, 39, 0.16);
+}
+
+.mcm-sub--field {
+  min-width: 260px;
+  padding: 10px;
+}
+
+.mcm-sub__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcm-sub__opt:hover {
+  background: var(--sunken);
+}
+
+/* The chosen one is named in the brand colour, with a dot - as the reference
+   marks "Yesterday". Colour is not the only signal: the dot carries it too. */
+.mcm-sub__opt--on {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.mcm-sub__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--brand);
+  flex: 0 0 auto;
+}
+
+.mcm-sub__hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.mcm-sub__input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.mcm-sub__input:focus {
+  outline: 2px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.mcm-sub__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mcm-sub__clear:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+
+/*
+ * Not enough room to the left on a narrow screen, so the flyout sits under its
+ * row instead of beside it. Full width, because 220px beside a 400px panel on
+ * a phone is two columns of nothing.
+ */
+@media (max-width: 760px) {
+  .mcm-sub {
+    position: static;
+    min-width: 0;
+    margin: 0 0 6px;
+    box-shadow: none;
+    border-radius: 12px;
+    background: var(--sunken);
+  }
+}
+
+.mcm-pop__foot {
+  display: flex;
+  justify-content: center;
+  padding: 8px 6px 4px;
+  border-top: 1px solid var(--line-soft);
+  margin-top: 4px;
+}
+
+.mcm-pop__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.mcm-pop__reset:hover:not(:disabled) {
+  background: var(--sunken);
+  color: var(--text);
+}
+
+.mcm-pop__reset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 620px) {
+  .mcm-filterbar__pill {
+    max-width: 100%;
+  }
+
+  .mcm-pop__input {
+    width: 140px;
+  }
+}
+
+/* Sections */
+.mcm-section__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mcm-section__sub {
+  margin: 4px 0 var(--s3);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Glance cards */
+.mcm-cards {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--s3);
+}
+
+.mcm-cards--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mcm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 132px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--mcm-card-shadow);
+}
+
+.mcm-card.skel {
+  border: none;
+}
+
+.mcm-card__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.mcm-card__icon {
+  display: inline-flex;
+  color: var(--mcm-accent);
+}
+
+.mcm-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mcm-card__extra {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mcm-accent);
+}
+
+.mcm-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.mcm-card__foot strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mcm-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 2px 9px;
+  border-radius: var(--r-round);
+  background: var(--mcm-accent-tint);
+  color: var(--mcm-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mcm-delta--flat {
+  background: var(--sunken);
+  color: var(--text-muted);
+}
+
+/* Table cards */
+.mcm-box {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--mcm-card-shadow);
+}
+
+.mcm-box--busy {
+  opacity: 0.7;
+  transition: opacity var(--t-med) var(--ease);
+}
+
+.mcm-box__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.mcm-box__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mcm-box__aside {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.mcm-tablewrap {
+  overflow-x: auto;
+}
+
+.mcm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mcm-table th {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mcm-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+}
+
+.mcm-table .num {
+  text-align: right;
+}
+
+.mcm-table__total td {
+  border-bottom: none;
+  font-weight: 700;
+}
+
+.mcm-table__barcol {
+  width: 34%;
+  min-width: 200px;
+}
+
+.mcm-bar {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.mcm-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mcm-accent);
+}
+
+.mcm-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.mcm-flag {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/*
+ * The article table, in the same style as `.mcm-table` - 20 Nov 2026, on
+ * request: plain uppercase headings, thin dividers between rows, no shaded or
+ * ruled column groups, figures right-aligned. Only inside this page's cards;
+ * every other DataTable in the app is untouched.
+ */
+.mcm-box table.dt {
+  font-size: 14px;
+}
+
+.mcm-box table.dt th,
+.mcm-box table.dt td {
+  padding: 12px;
+  border-left: none;
+  border-right: none;
+  background: var(--surface);
+}
+
+.mcm-box table.dt td {
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+}
+
+.mcm-box table.dt thead th {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.mcm-box table.dt th.num,
+.mcm-box table.dt td.num {
+  text-align: right;
+}
+
+/* The month headings above the columns: quiet labels, not shaded bands. */
+.mcm-box table.dt thead tr.dt__grouprow th {
+  height: auto;
+  padding: 6px 12px 0;
+  border-bottom: none;
+  background: var(--surface);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.mcm-box table.dt thead tr.dt__grouprow th:first-child {
+  text-align: left;
+}
+
+.mcm-box table.dt tbody tr:hover td {
+  background: color-mix(in srgb, var(--sunken) 70%, var(--surface));
+}
+
+.mcm-box .tablewrap {
+  border: none;
+}
+
+/* Accuracy with a bar beside it, like the coverage column in the reference. */
+.mcm-acc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.mcm-acc .mcm-bar {
+  width: 72px;
+  flex: none;
+}
+
+/* Status tags */
+.mcm-tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--r-round);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--sunken);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mcm-tag--manual,
+.mcm-tag--pending {
+  background: var(--amber-tint);
+  color: #a1650a;
+}
+
+.mcm-tag--sent {
+  background: var(--green-tint);
+  color: var(--brand-strong);
+}
+
+.mcm-tag--failed {
+  background: var(--mcm-accent-tint);
+  color: var(--mcm-accent);
+}
+
+/* Closing note */
+.mcm-note {
+  margin-top: var(--s4);
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sunken);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.mcm-note strong {
+  color: var(--text);
+}
+
+/*
+ * The Classification column, tinted apart from the Article group.
+ *
+ * Asked for on 19 Nov 2026. It is the only column on this table anyone can
+ * EDIT, and it was shaded exactly like the three identifiers beside it, so the
+ * table gave no sign of that. A hairline on each side as well as a tint, so the
+ * column still reads as one block where the row itself is striped or hovered.
+ *
+ * Scoped under `.mcm` so no other page's table picks it up, and placed on the
+ * header as well as the body cells by `cell:` on the column - see DataTable.
+ */
+.mcm table.dt th.mcm-col--class,
+.mcm table.dt td.mcm-col--class {
+  background: var(--mcm-class-tint);
+  border-left: 1px solid var(--mcm-class-line);
+  border-right: 1px solid var(--mcm-class-line);
+}
+
+.mcm table.dt th.mcm-col--class {
+  color: var(--mcm-class-ink);
+}
+
+.mcm__class {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcm__select {
+  padding: 2px 6px;
+  font-size: 12px;
+  height: auto;
+}
+
+.mcm__audit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .mcm-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .mcm-cards,
+  .mcm-cards--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcm-head__title {
+    font-size: 26px;
+  }
+
+  .mcm-tabs {
+    width: 100%;
+  }
+
+  .mcm-tabs__tab {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 9px 10px;
+    font-size: 14px;
+  }
+
+  .mcm-filters,
+  .mcm-filters__field,
+  .mcm-filters__input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .mcm-cards,
+  .mcm-cards--four {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

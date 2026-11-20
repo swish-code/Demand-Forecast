@@ -11,7 +11,12 @@ import { IconSearch, IconSort, IconArrowUp, IconArrowDown, IconClose, IconCheck,
  * rendering them all at once makes sorting and filtering visibly sluggish.
  * Totals are always computed over the full filtered set, never just the page.
  *
- * columns: [{ key, label, num?, mono?, strong?, render?, renderTotal?, total?: 'sum' | fn, width? }]
+ * columns: [{ key, label, num?, mono?, strong?, render?, renderTotal?, total?: 'sum' | fn, width?, cell? }]
+ *
+ * `cell` is a class name put on this column's header AND every one of its body
+ * cells, for a column that needs to stand out from the group shading around it
+ * - the Classification column on SWiSH Analytics, 19 Nov 2026. Opt-in, so a
+ * column that does not set it renders exactly as before.
  */
 /**
  * Measures text the way the browser will actually draw it.
@@ -1332,7 +1337,7 @@ export function DataTable({
                       key={c.key}
                       scope="col"
                       style={frz?.style}
-                      className={`${c.num ? 'num th--num' : ''} ${groupClass(c)} ${frz?.className ?? ''}`.trim()}
+                      className={`${c.num ? 'num th--num' : ''} ${groupClass(c)} ${c.cell ?? ''} ${frz?.className ?? ''}`.trim()}
                       /*
                        * A column can explain itself on hover.
                        *
@@ -1435,7 +1440,7 @@ export function DataTable({
                                 <td
                                   key={c.key}
                                   style={freezeCell(ci)?.style}
-                                  className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '', c.wrap ? 'dt--wrap' : '', groupClass(c), freezeCell(ci)?.className]
+                                  className={[c.num ? 'num' : '', c.id ? 'id' : '', c.strong ? 'strong' : '', c.wrap ? 'dt--wrap' : '', groupClass(c), c.cell, freezeCell(ci)?.className]
                                     .filter(Boolean)
                                     .join(' ')}
                                   title={exactly(c, row[c.key])}
@@ -1467,6 +1472,8 @@ export function DataTable({
                         // Columns that belong together are shaded together, so
                         // the relationship reads without a legend.
                         groupClass(c),
+                        // One column lifted out of that shading - see `cell`.
+                        c.cell,
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -1490,7 +1497,7 @@ export function DataTable({
                         /* Pinned in the totals row too, or the totals slide out
                            from under the columns they belong to. */
                         style={freezeCell(i)?.style}
-                        className={[c.num ? 'num' : '', groupClass(c), freezeCell(i)?.className]
+                        className={[c.num ? 'num' : '', groupClass(c), c.cell, freezeCell(i)?.className]
                           .filter(Boolean)
                           .join(' ')}
                       >

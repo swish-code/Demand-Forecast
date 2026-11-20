@@ -2,6 +2,15 @@ import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Shell } from './Shell.jsx'
 import './theme.css'
+/*
+ * LAST, deliberately. `reference.css` is the supplied design system: it both
+ * declares the new tokens and re-points the legacy ones, and its base/shell
+ * rules have to beat theme.css's own. Imported here rather than @import'ed at
+ * the top of theme.css, where it would have landed BEFORE 13,000 lines that
+ * would then have overridden it.
+ */
+import './styles/reference.css'
+import './styles/rail.css'
 
 /**
  * Takes the boot screen down once the app is actually on screen.

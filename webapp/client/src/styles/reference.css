@@ -1,0 +1,309 @@
+/*
+ * THE REFERENCE DESIGN SYSTEM — 19 Nov 2026, from the supplied export.
+ *
+ * `tokens.css` holds the previous palette. This file is the new source of
+ * truth and does two jobs, in order:
+ *
+ *   1. declares the reference tokens under their own names, verbatim;
+ *   2. RE-POINTS every legacy token name at them.
+ *
+ * The second job is the one that matters. `theme.css` is 13,000 lines written
+ * against `--surface`, `--text`, `--brand`, `--line` and the `--sN` scale, so
+ * adding new names alone would have restyled nothing. Re-pointing moves every
+ * page at once, and leaves each component's own rules to be reshaped after.
+ *
+ * Its own file, imported AFTER tokens.css so it wins the cascade: the old
+ * values stay readable where they were, and this is one import to comment out
+ * if any of it has to go back.
+ */
+
+:root {
+  /* ---- surfaces ---------------------------------------------------------- */
+  --bg: #efeff0;
+  --panel: #f8f8f9;
+  --card: #ffffff;
+  --card-2: #f4f4f5;
+  --scrim: rgba(0, 0, 0, 0.35);
+
+  /* ---- ink --------------------------------------------------------------- */
+  --ink-900: #000000;
+  --ink: #0d0d0f;
+  --ink-700: #2b2b2e;
+  --muted: #6e6e73;
+  --muted-2: #9c9ca3;
+  --on-ink: #ffffff;
+
+  /* ---- lines and tooltip ------------------------------------------------- */
+  --line: #ebebec;
+  --line-2: #dedee0;
+  --tip-bg: #0b1220;
+  --tip-ink: #ffffff;
+
+  /* ---- meaning colours. Fixed jobs; nothing borrows another's. ------------ */
+  --accent: #12b76a;
+  --accent-ink: #067647;
+  --accent-soft: #e4f6ec;
+  --accent-2: #39d98a;
+  --on-accent: #ffffff;
+
+  --pos: #12b76a;
+  --pos-ink: #067647;
+  --pos-soft: #e4f6ec;
+
+  --red: #f04438;
+  --red-ink: #b42318;
+  --red-soft: #feeceb;
+
+  --warn: #f79009;
+  --warn-ink: #b54708;
+  --warn-soft: #fffaeb;
+  --blue: #2e90fa;
+
+  /* ---- radii ------------------------------------------------------------- */
+  --radius-ctl: 8px;
+  --radius-btn: 10px;
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-card: 20px;
+  --radius-home: 22px;
+  --radius-shell: 26px;
+  --radius-sheet: 30px;
+  --radius-pill: 999px;
+
+  /* ---- shadows ----------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.03), 0 16px 36px -12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.04), 0 28px 60px -14px rgba(0, 0, 0, 0.16);
+
+  /* ---- type -------------------------------------------------------------- */
+  --font: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-figures: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur: 0.35s;
+
+  /* ======================= LEGACY NAMES, RE-POINTED ======================= */
+
+  --surface: var(--card);
+  --sunken: var(--card-2);
+
+  /* One hairline and one stronger rule. `--line-soft` sits just inside the
+     hairline so dividers INSIDE a card stay quieter than the card's border. */
+  --line-soft: color-mix(in srgb, var(--line) 55%, var(--card));
+
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --text-faint: var(--muted-2);
+  --plain: var(--ink-700);
+
+  /* Brand chrome is now the reference accent green. */
+  --brand: var(--accent);
+  --brand-strong: var(--accent-ink);
+
+  /* Meaning colours keep their old names, so every existing rule follows. */
+  --green: var(--pos);
+  --green-tint: var(--pos-soft);
+  --amber: var(--warn);
+  --amber-tint: var(--warn-soft);
+  --red-tint: var(--red-soft);
+  --neutral: var(--muted);
+  --slate-tint: var(--card-2);
+  --success: var(--pos);
+  --success-tint: var(--pos-soft);
+  --danger: var(--red);
+  --danger-tint: var(--red-soft);
+
+  /*
+   * The rail. The reference has no coloured rail: it is the panel tone, with
+   * the ACTIVE item a black pill that inverts to white in dark mode.
+   *
+   * THIS REPLACES THE GREEN RAIL. The note in tokens.css records that the
+   * 30 Sep 2026 restyle made the rail white and was reverted the same day,
+   * because the green rail is the app's own identity. The export is explicit
+   * that black-on-panel is one of the six things that make the design read as
+   * itself, so it is followed here - and it is one line to put back.
+   */
+  --rail: var(--panel);
+  --rail-2: var(--card-2);
+  --rail-fg: var(--ink);
+  --rail-muted: var(--muted);
+  --rail-line: var(--line);
+  --rail-active: var(--ink-900);
+  --rail-on: var(--on-ink);
+
+  /* Charts: the export's series palette. */
+  --series-1: var(--accent);
+  --series-2: #2e90fa;
+  --series-1-tint: color-mix(in srgb, var(--accent) 20%, transparent);
+  --series-2-tint: color-mix(in srgb, #2e90fa 20%, transparent);
+  --bar-1: var(--accent);
+  --bar-2: #2e90fa;
+  --grid: var(--line);
+
+  --r-card: var(--radius-card);
+  --r-pill: var(--radius-btn);
+  --r-round: var(--radius-pill);
+
+  /*
+   * Spacing, retuned to the reference scale (2,4,6,8,10,12,14,16,18,20,28).
+   * `--s5` and `--s6` tighten from 24/32 to 20/28, which is most of what makes
+   * the reference read as dense rather than roomy.
+   */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 28px;
+
+  --font-display: var(--font);
+}
+
+/* ----------------------------------------------------------------- dark --- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0b0b0c;
+    --panel: #151517;
+    --card: #1a1a1d;
+    --card-2: #222226;
+    --scrim: rgba(0, 0, 0, 0.55);
+
+    --ink-900: #ffffff;
+    --ink: #f4f4f5;
+    --ink-700: #d6d6db;
+    --muted: #a1a1a8;
+    --muted-2: #71717a;
+    --on-ink: #0b0b0c;
+
+    --line: #2b2b30;
+    --line-2: #3a3a40;
+    --tip-bg: #2e2e34;
+    --tip-ink: #f4f4f5;
+
+    /*
+     * The tints are MIXED INTO THE CARD, never lightened. A pale tint on a
+     * dark card is the one thing that makes a dark theme look like an
+     * afterthought, and the export is explicit about it.
+     */
+    --accent-soft: color-mix(in srgb, var(--accent) 22%, #1a1a1d);
+    --accent-ink: color-mix(in srgb, var(--accent) 70%, #fff);
+    --pos-soft: color-mix(in srgb, var(--pos) 22%, #1a1a1d);
+    --pos-ink: color-mix(in srgb, var(--pos) 70%, #fff);
+    --red-soft: color-mix(in srgb, var(--red) 22%, #1a1a1d);
+    --red-ink: color-mix(in srgb, var(--red) 72%, #fff);
+    --warn-soft: color-mix(in srgb, var(--warn) 22%, #1a1a1d);
+    --warn-ink: color-mix(in srgb, var(--warn) 72%, #fff);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 36px -12px rgba(0, 0, 0, 0.7);
+    --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.45), 0 28px 60px -14px rgba(0, 0, 0, 0.75);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b0b0c;
+  --panel: #151517;
+  --card: #1a1a1d;
+  --card-2: #222226;
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --ink-900: #ffffff;
+  --ink: #f4f4f5;
+  --ink-700: #d6d6db;
+  --muted: #a1a1a8;
+  --muted-2: #71717a;
+  --on-ink: #0b0b0c;
+
+  --line: #2b2b30;
+  --line-2: #3a3a40;
+  --tip-bg: #2e2e34;
+  --tip-ink: #f4f4f5;
+
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, #1a1a1d);
+  --accent-ink: color-mix(in srgb, var(--accent) 70%, #fff);
+  --pos-soft: color-mix(in srgb, var(--pos) 22%, #1a1a1d);
+  --pos-ink: color-mix(in srgb, var(--pos) 70%, #fff);
+  --red-soft: color-mix(in srgb, var(--red) 22%, #1a1a1d);
+  --red-ink: color-mix(in srgb, var(--red) 72%, #fff);
+  --warn-soft: color-mix(in srgb, var(--warn) 22%, #1a1a1d);
+  --warn-ink: color-mix(in srgb, var(--warn) 72%, #fff);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 36px -12px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.45), 0 28px 60px -14px rgba(0, 0, 0, 0.75);
+}
+
+/* ============================================================================
+ * BASE AND SHELL
+ *
+ * The inset rounded shell is the first of the six things the export says make
+ * the design read as itself: a 16px gap of neutral grey around a 26px-radius
+ * panel, with only the main column scrolling.
+ *
+ * Applied to `#root`, because this app has no `.app` element - the tree is
+ * `#root > .shell > .nav + .main` - and `#root` is already the full-height box
+ * the shell needs to sit inside.
+ * ========================================================================= */
+
+body {
+  font-family: var(--font);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg);
+  color: var(--ink);
+  /* Never `all`: a theme flip should move colour and nothing else. */
+  transition: background-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+
+#root {
+  padding: 16px;
+  background: var(--bg);
+}
+
+.shell {
+  height: calc(100vh - 32px);
+  background: var(--panel);
+  border-radius: var(--radius-shell);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+/* Figures are Inter, lining up in columns, everywhere. */
+.num,
+.dt td.num,
+.dt th.num {
+  font-family: var(--font-figures);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * Phone: the shell goes edge to edge. An inset rounded panel on a 390px screen
+ * spends 32px of width on a border it does not need, and the rail becomes a
+ * bottom bar there anyway.
+ */
+@media (max-width: 820px) {
+  #root {
+    padding: 0;
+  }
+
+  .shell {
+    height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .shell {
+    transition: none;
+  }
+}

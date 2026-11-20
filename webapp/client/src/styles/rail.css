@@ -1,0 +1,140 @@
+/*
+ * THE NAVIGATION RAIL — 19 Nov 2026, to the reference.
+ *
+ * Collapsed it is a column of icons. On hover it widens to show every label,
+ * as a floating rounded panel ABOVE the page rather than by pushing it: the
+ * reference opens over the content, and widening in flow would reflow every
+ * card and re-lay out the charts on a mouse-over.
+ *
+ * So the rail keeps its collapsed width in the layout and the expansion is
+ * `position: absolute`. Nothing moves except the rail.
+ *
+ * Imported after reference.css, so it wins over the older rail rules.
+ */
+
+/* The rail is positioned against the shell, so it can overlay the main column. */
+.shell {
+  position: relative;
+}
+
+.nav--collapsed {
+  /* The width the LAYOUT keeps, whatever the rail is doing. */
+  width: 74px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 8px 0;
+  /* Cleared on hover so the labels are not clipped as they appear. */
+  overflow: hidden;
+  transition: width var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    background-color var(--dur) var(--ease);
+}
+
+/*
+ * Hover only where there is a real pointer and room for the panel.
+ *
+ * On a touch screen `:hover` sticks after a tap, which would leave the rail
+ * expanded over the page with no way to dismiss it; below 821px the rail is a
+ * bottom bar anyway.
+ */
+@media (hover: hover) and (min-width: 821px) {
+  .nav--collapsed:hover,
+  .nav--collapsed:focus-within {
+    position: absolute;
+    z-index: 60;
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: 236px;
+    padding: 10px 8px;
+    border-radius: var(--radius-sheet);
+    background: var(--card);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+  }
+
+  /* The labels come back, and the items become full-width rows. */
+  .nav--collapsed:hover .nav__item-text,
+  .nav--collapsed:focus-within .nav__item-text,
+  .nav--collapsed:hover .nav__section,
+  .nav--collapsed:focus-within .nav__section,
+  .nav--collapsed:hover .nav__wordmark,
+  .nav--collapsed:focus-within .nav__wordmark {
+    display: block;
+  }
+
+  .nav--collapsed:hover .nav__item,
+  .nav--collapsed:focus-within .nav__item,
+  .nav--collapsed:hover .nav__brand,
+  .nav--collapsed:focus-within .nav__brand {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 12px;
+  }
+}
+
+/*
+ * The items themselves.
+ *
+ * 46px tall with a 15px radius, per the export. The icon keeps a fixed 46px
+ * box whether or not a label is beside it, so the icons do not shift sideways
+ * as the rail opens - which is the thing that makes a hover-expand feel like
+ * a jump rather than a reveal.
+ */
+.nav--collapsed .nav__item {
+  position: relative;
+  height: 46px;
+  min-height: 46px;
+  margin: 2px 8px;
+  border-radius: 15px;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.nav--collapsed .nav__item svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+}
+
+/* A quiet grey pill under the hovered row, not a white wash. */
+.nav--collapsed .nav__item:hover {
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+/*
+ * The current page, as the reference marks it: the label and icon in the
+ * accent, on a soft tint. Colour is not the only signal - it is also the only
+ * row that is tinted at rest.
+ */
+.nav--collapsed .nav__item--active,
+.nav--collapsed .nav__item--active:hover {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 15px;
+}
+
+.nav--collapsed .nav__item--active .nav__item-text b {
+  color: inherit;
+  font-weight: 700;
+}
+
+/* The old left-edge marker. The tinted pill says it now, and the bar sat
+   outside the pill's radius once the rail became a floating panel. */
+.nav--collapsed .nav__item--active::before {
+  display: none;
+}
+
+.nav--collapsed .nav__item-text {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav--collapsed,
+  .nav--collapsed .nav__item {
+    transition: none;
+  }
+}

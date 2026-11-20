@@ -264,6 +264,14 @@ const send = (method, path, body) => request(method, path, body)
 
 const post = (path, body) => send('POST', path, body)
 
+/** `month` and `brands` as a query string for the Monthly MC Analysis reads. */
+const costingQs = ({ month, brands }) => {
+  const p = new URLSearchParams()
+  if (month) p.set('month', month)
+  if (Array.isArray(brands) && brands.length) p.set('brands', brands.join(','))
+  return p.toString()
+}
+
 /** The report queries: reads, whatever verb carries their filters. */
 const query = (path, body, options) => read('POST', path, body, options)
 
@@ -340,6 +348,20 @@ export const api = {
   componentLevel: (filters, options) => query('/component-level', filters, options),
   // PM vs MC theoretical per branch per month - the Variance page's branch tab.
   branchVariance: (filters, options) => query('/consumption/branch-monthly', filters, options),
+  /*
+   * Monthly MC Analysis - 19 Nov 2026. Its own router, /api/costing, because it
+   * is the page that writes classifications (to Snowflake, server-side).
+   * Reads go through `read` so they survive a restart; the classification
+   * change goes through `post` and is never repeated.
+   */
+  costingAnalysis: ({ month, brands } = {}, options) =>
+    read('GET', `/costing/analysis?${costingQs({ month, brands })}`, undefined, options),
+  costingAlerts: ({ month, brands } = {}, options) =>
+    read('GET', `/costing/alerts?${costingQs({ month, brands })}`, undefined, options),
+  costingHistory: (article) => read('GET', `/costing/history?article=${encodeURIComponent(article)}`),
+  costingClassify: ({ articleId, classification, expectedVersion }) =>
+    post('/costing/classification', { articleId, classification, expectedVersion }),
+  costingRunAlerts: () => post('/costing/alerts/run', {}),
   /*
    * The new-branch forecast - a POST, because it is defined by what the user
    * typed rather than by a resource that exists, and nothing is stored.

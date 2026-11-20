@@ -14,6 +14,8 @@ import { integration } from './routes/integration.js'
 import { perfMiddleware } from './perf.js'
 import { auth } from './routes/auth.js'
 import { admin } from './routes/admin.js'
+import { costing } from './routes/costing.js'
+import { startCostingAlertSchedule } from './costing/alerts.js'
 import { startDigestSchedule } from './insights/digest.js'
 import { startMailSchedule } from './mail/runner.js'
 import { startPrewarm } from './warm.js'
@@ -247,6 +249,9 @@ app.use('/api/auth', auth)
 app.use('/api/admin', admin)
 // Bearer-token machine access; ahead of `api`, which requires a session.
 app.use('/api/integration', integration)
+// The Costing Department's Monthly MC Analysis page - its own router because
+// it is the one that writes to Snowflake. Ahead of `api` like the others.
+app.use('/api/costing', costing)
 app.use('/api', api)
 
 /*
@@ -421,6 +426,13 @@ const server = app.listen(config.port, async () => {
       if (config.mail.testTo) console.log(`  MAIL_TEST_TO is set — every report goes to ${config.mail.testTo}`)
     } else {
       console.log('  Daily reports are off (set MAIL_ENABLED=1 to schedule them)')
+    }
+
+    const costingAlerts = startCostingAlertSchedule()
+    if (costingAlerts) {
+      console.log(`  MC variance alerts scheduled for ${String(costingAlerts.hour).padStart(2, '0')}:00 local`)
+    } else {
+      console.log('  MC variance alerts are off (Snowflake not configured, or COSTING_ALERTS_ENABLED=false)')
     }
 
     if (startCubeSchedule()) {
