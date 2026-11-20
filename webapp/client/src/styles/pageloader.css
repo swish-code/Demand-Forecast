@@ -35,35 +35,15 @@
 }
 
 /*
- * The overlay form, shown while the page's DATA is still arriving.
+ * THE CARD IS FOR PAGE LOADING ONLY - 20 Nov 2026, on request.
  *
- * The page underneath is mounted and fetching - it has to be, or nothing
- * would be loading - so this covers it rather than replacing it. Opaque,
- * because a half-built page showing through reads as a rendering fault, and
- * `pointer-events` left ON so a click cannot land on a control behind a card
- * that is telling you to wait.
+ * It was briefly held up until a page's DATA had arrived as well as its code.
+ * That is the wrong instrument: one card over a whole page says nothing about
+ * WHICH of six panels is still working, and it hides the ones that have
+ * already finished. Data loading is reported per visual instead - see the
+ * loading bars at the foot of this file - and this card covers only the wait
+ * for the page's own code, when there is genuinely nothing on screen yet.
  */
-/* The overlay is anchored to the scrolling page, and the page is held still
-   underneath it so there is nothing to scroll past the card. */
-.scroll {
-  position: relative;
-}
-
-.scroll--settling {
-  overflow: hidden;
-}
-
-.pageload--overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: var(--bg);
-  /* Nothing below should scroll into view behind it. */
-  overflow: hidden;
-  align-items: flex-start;
-  padding-top: clamp(40px, 12vh, 140px);
-}
-
 .pageload__card {
   display: flex;
   flex-direction: column;
