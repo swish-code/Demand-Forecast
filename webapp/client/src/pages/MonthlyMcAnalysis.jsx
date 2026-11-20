@@ -359,6 +359,40 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  /*
+   * Hover-to-open, but only with a real pointer on a wide screen.
+   *
+   * `matchMedia` rather than a width check alone: a touch screen reports
+   * `hover: none`, and on one of those `:hover` sticks after a tap, which
+   * would leave the panel open with nothing to dismiss it.
+   */
+  const hoverable = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(hover: hover) and (min-width: 821px)').matches
+
+  const closeTimer = useRef(null)
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+  }
+  const hoverOpen = () => {
+    if (!hoverable()) return
+    cancelClose()
+    setFiltersOpen(true)
+  }
+  const hoverClose = () => {
+    if (!hoverable()) return
+    cancelClose()
+    // The pointer crosses a gap between the panel and its flyouts; closing on
+    // `mouseleave` alone shut it mid-journey.
+    closeTimer.current = setTimeout(() => {
+      setFiltersOpen(false)
+      setMenu(null)
+    }, 240)
+  }
+  useEffect(() => cancelClose, [])
   /** Which filter's flyout is open: 'month' | 'class' | 'article' | null. */
   const [menu, setMenu] = useState(null)
   const filterRef = useRef(null)
@@ -781,7 +815,23 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   // An element, not a component: a component defined here would be a new type
   // on every render and the Article box would lose focus with each keystroke.
   const filterCard = (
-    <div className={`mcm-filterbar${filtersOpen ? ' mcm-filterbar--open' : ''}`} ref={filterRef}>
+    /*
+     * Hover opens it, where there is a real pointer - 20 Nov 2026, to the
+     * reference. A click still toggles, which is what a touch screen and a
+     * keyboard get: `:hover` on a touch device sticks after a tap and would
+     * leave the panel open with no way to dismiss it.
+     *
+     * Closing is DELAYED by 240ms. The flyouts sit beside the panel with a
+     * gap between them, and the pointer crosses that gap on its way from a
+     * row to its options - closing on `mouseleave` alone shut the panel
+     * mid-journey every time.
+     */
+    <div
+      className={`mcm-filterbar${filtersOpen ? ' mcm-filterbar--open' : ''}`}
+      ref={filterRef}
+      onMouseEnter={hoverOpen}
+      onMouseLeave={hoverClose}
+    >
       <button
         type="button"
         className="mcm-filterbar__pill"
@@ -816,7 +866,14 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
             * value is chosen, which is what keeps every row the same height and
             * the panel the same width whatever the value is.
             */}
-          <div className={`mcm-pop__row${menu === 'month' ? ' mcm-pop__row--on' : ''}`}>
+          {/* Hovering a row opens its options, as in the reference. The
+              Article row is deliberately excluded below: its panel autofocuses
+              a text box, and stealing the caret on a pointer passing by is
+              not the same kindness as showing a list. */}
+          <div
+            className={`mcm-pop__row${menu === 'month' ? ' mcm-pop__row--on' : ''}`}
+            onMouseEnter={() => hoverable() && setMenu('month')}
+          >
             <button
               type="button"
               className="mcm-pop__hit"
@@ -857,7 +914,10 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
             )}
           </div>
 
-          <div className={`mcm-pop__row${menu === 'brand' ? ' mcm-pop__row--on' : ''}`}>
+          <div
+            className={`mcm-pop__row${menu === 'brand' ? ' mcm-pop__row--on' : ''}`}
+            onMouseEnter={() => hoverable() && setMenu('brand')}
+          >
             <button
               type="button"
               className="mcm-pop__hit"
@@ -895,7 +955,10 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
             )}
           </div>
 
-          <div className={`mcm-pop__row${menu === 'class' ? ' mcm-pop__row--on' : ''}`}>
+          <div
+            className={`mcm-pop__row${menu === 'class' ? ' mcm-pop__row--on' : ''}`}
+            onMouseEnter={() => hoverable() && setMenu('class')}
+          >
             <button
               type="button"
               className="mcm-pop__hit"

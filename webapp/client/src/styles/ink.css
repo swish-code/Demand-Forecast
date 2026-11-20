@@ -54,6 +54,58 @@
   --text-faint: #8b8b93;
 }
 
+/* ------------------------------------------------------ theme toggle ---- */
+
+/*
+ * 36x36 at a 10px radius, per the export. It sits in the top bar beside the
+ * account menu, where the reference puts it.
+ */
+.themetoggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-btn);
+  background: var(--card);
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.themetoggle:hover {
+  background: var(--card-2);
+  color: var(--ink-900);
+}
+
+.themetoggle__icon {
+  display: inline-flex;
+  /* Rotating in from -45deg at .7 scale, which is what makes the swap read as
+     one icon replacing another rather than as a glyph blinking. */
+  animation: themetoggle-pop 0.32s var(--ease);
+}
+
+@keyframes themetoggle-pop {
+  from {
+    opacity: 0;
+    transform: rotate(-45deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .themetoggle__icon {
+    animation: none;
+  }
+}
+
 /* ---------------------------------------------------------- structure ---- */
 
 /* The page's name. The export puts this at 28px/800; it was neither. */
