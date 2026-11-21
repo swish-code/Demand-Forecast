@@ -73,6 +73,14 @@ import {
   isPrepRow,
   prepSurvives,
 } from '../insights/productionSource.js'
+import {
+  DEPARTMENT,
+  DEPARTMENTS,
+  departmentsForRow,
+  pathsForDepartment,
+  purchasesByArticle,
+  rowBelongs,
+} from '../insights/responsibility.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
 import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
@@ -162,7 +170,14 @@ function allowsRaw(filters) {
  * same reason as `channels` - `withOracleConsumption` stamps it on the
  * assembled rows from the FM Sales model, so no brand query can narrow on it.
  */
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'channels', 'transferStatus', 'varianceFlags']
+/*
+ * `responsibility` is the departmental pin the four supply-chain pages carry -
+ * Stock Article, Production, Swish Bakery and Others. Post-hoc like the two
+ * above: `withResponsibility` works it out from the warehouse supply set, the
+ * production-source map and the purchase destinations, none of which a brand
+ * query can narrow on.
+ */
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'responsibility', 'channels', 'transferStatus', 'varianceFlags']
 
 /**
  * Our theoretical consumption against Oracle's, per article per brand.
@@ -2372,8 +2387,25 @@ async function withStatus(rows, filters) {
    * untouched. `SITE_COST_CENTRES` has an entry only for the three real sites,
    * which is what makes that distinction without naming the pages here.
    */
-  const sites = (filters?.prodSources ?? [])
-    .flatMap((s) => SITE_COST_CENTRES.get(s) ?? [])
+  /*
+   * The departmental pin dates the ladder too - fixed 21 Nov 2026.
+   *
+   * This read `prodSources` alone, which Production and Swish Bakery stopped
+   * sending on 18 Nov when they moved to `lockResponsibility`. So both pages
+   * silently fell back to the WAREHOUSE ladder - the exact fault the 5 Nov
+   * change fixed - and every PA article the warehouse never handles read
+   * "Never shipped".
+   *
+   * Both pins are consulted now. `SOURCE_FOR_DEPARTMENT` is the bridge: the
+   * departments that own a production site map to that site, and the ones
+   * that do not - Central Warehouse, Others - map to nothing and keep the
+   * warehouse ladder, which is correct for them.
+   */
+  const pinned = [
+    ...(filters?.prodSources ?? []),
+    ...(filters?.responsibility ?? []).map((d) => SOURCE_FOR_DEPARTMENT.get(d)).filter(Boolean),
+  ]
+  const sites = [...new Set(pinned)].flatMap((s) => SITE_COST_CENTRES.get(s) ?? [])
   const classes = sites.length
     ? await classifySiteArticles({ asAt, sites }).catch(() => null)
     : await classifyArticles({ asAt }).catch(() => new Map())
@@ -2893,9 +2925,20 @@ async function withSiteForecast(rows, brand, filters, grain = {}, allDestination
  * so a grant can be turned into a data restriction without trusting the
  * request to say which page it came from.
  */
+/*
+ * Production and Swish Bakery left this map on 18 Nov 2026.
+ *
+ * They are pinned by DEPARTMENT now, not by production source - see
+ * `RESPONSIBILITY_BY_PAGE` below, which enforces their grants instead. Leaving
+ * them here as well would have been worse than redundant: a `Prod_Source` pin
+ * drops every row the new rule admits on other evidence, so the articles the
+ * kitchen BUYS (Prod_Source `Unclassified`) would have been filtered out again
+ * one step earlier, and the page would have looked unchanged.
+ *
+ * The YELO Factory and Unclassified pages are deliberately untouched and still
+ * work exactly as before.
+ */
 const SOURCE_BY_PAGE = {
-  'src-ck': SOURCE.CK,
-  'src-bakery': SOURCE.BAKERY,
   'src-factory': SOURCE.FACTORY,
   'src-none': UNCLASSIFIED,
 }
@@ -2918,6 +2961,22 @@ function allowedProdSources(user) {
   const allowed = allowedPages(user)
   if (!allowed) return null
   if (allowed.includes('component') || allowed.includes('madeinhouse')) return null
+  /*
+   * A grant that includes a DEPARTMENT page is not narrowed here at all -
+   * fixed 21 Nov 2026.
+   *
+   * `src-ck` and `src-bakery` left `SOURCE_BY_PAGE` on 18 Nov when they moved
+   * to the departmental pin, and this function was not updated with it. An
+   * account granted `src-ck` + `src-factory` therefore resolved to
+   * `['YELO Factory']` - the Factory alone - and `withProductionSource`
+   * emptied the Production tab before `withResponsibility` ever ran.
+   *
+   * Those pages are restricted by `allowedResponsibilities` instead, so this
+   * returns null for them and lets that do its job. Returning null is not a
+   * hole: the responsibility filter is the restriction, and it is applied in
+   * the same pipeline a few steps later.
+   */
+  if (allowed.some((p) => RESPONSIBILITY_BY_PAGE[p])) return null
   const list = allowed.map((p) => SOURCE_BY_PAGE[p]).filter(Boolean)
   return list.length ? list : null
 }
@@ -2984,6 +3043,176 @@ async function withProductionSource(rows, filters, user) {
      */
     const { __unattributed, ...rest } = r
     out.push({ ...rest, Prod_Source: source })
+  }
+  return out
+}
+
+/**
+ * Which department each of the four supply-chain pages stands for.
+ *
+ * The client pins these through `lockResponsibility`; this is the server's own
+ * copy, for the same reason `SOURCE_BY_PAGE` is - so a page grant becomes a
+ * data restriction without the request being trusted to say where it came from.
+ */
+/**
+ * The production site a department's own output is classified under.
+ *
+ * The bridge between the two pins, used wherever code that predates
+ * `lockResponsibility` still asks "which site is this page about" - the status
+ * ladder and the site-page pre-fan pass. Central Warehouse and Others are
+ * deliberately absent: neither is a production site, and both should keep the
+ * warehouse behaviour they had.
+ */
+const SOURCE_FOR_DEPARTMENT = new Map([
+  [DEPARTMENT.CK, SOURCE.CK],
+  [DEPARTMENT.BAKERY, SOURCE.BAKERY],
+])
+
+const RESPONSIBILITY_BY_PAGE = {
+  component: DEPARTMENT.WAREHOUSE,
+  'src-ck': DEPARTMENT.CK,
+  'src-bakery': DEPARTMENT.BAKERY,
+  'src-others': DEPARTMENT.OTHERS,
+}
+
+/*
+ * Pages that legitimately span every department, and so lift the restriction.
+ *
+ * The same carve-out `allowedProdSources` makes for Stock Article and
+ * Production, and for the same reason: Procurement is the whole buying list
+ * laid out for ordering and the Consumption page reconciles against Oracle
+ * across sites, so narrowing either to one department would answer a different
+ * question rather than enforce a boundary. Neither is grantable to a
+ * single-site account today.
+ */
+const SPANS_DEPARTMENTS = ['procurement', 'consumption', 'madeinhouse']
+
+/**
+ * The departments this account may see at all, or null for every one.
+ *
+ * MANDATORY, and the reason is the one `allowedProdSources` already gives: all
+ * of these pages share one endpoint and the department is pinned by the CLIENT,
+ * so an account granted only `src-bakery` could ask for the kitchen's rows by
+ * editing one field. The rail would look restricted and the API would not be.
+ *
+ * Unlike the production-source rule, holding Stock Article does NOT lift the
+ * restriction: under the responsibility model Stock Article is itself one
+ * department's page rather than a view across every source, so an account with
+ * it is narrowed to the warehouse exactly as a bakery account is to the bakery.
+ */
+function allowedResponsibilities(user) {
+  const allowed = allowedPages(user)
+  if (!allowed) return null
+  if (allowed.some((p) => SPANS_DEPARTMENTS.includes(p))) return null
+  const list = allowed.map((p) => RESPONSIBILITY_BY_PAGE[p]).filter(Boolean)
+  return list.length ? [...new Set(list)] : null
+}
+
+/**
+ * Keep only the rows the pinned department is responsible for.
+ *
+ * Runs after `withProductionSource`, which has already stamped `Prod_Source`
+ * and dropped nothing unless an old-style pin asked it to - the YELO Factory
+ * and Unclassified pages still use that mechanism and are untouched here.
+ *
+ * The three inputs are all already in flight by this point in the request:
+ * `warehouseSuppliedArticles` backs the Supply column, `productionSourceByArticle`
+ * backs Prod_Source, and the purchase destinations are one cached read per
+ * month. A failure of any of them leaves the rows alone rather than emptying a
+ * page - a missing classification is not evidence that nobody is responsible.
+ */
+async function withResponsibility(rows, filters, user) {
+  const asked = filters?.responsibility?.length
+    ? filters.responsibility.map((v) => String(v)).filter((v) => DEPARTMENTS.includes(v))
+    : null
+  const permitted = allowedResponsibilities(user)
+  if (!asked && !permitted) return rows
+
+  /*
+   * The grant wins over the request and narrows it, never replaces it - the
+   * same rule `withProductionSource` applies. A request outside the grant is
+   * reduced to the overlap, which for a single-department account is either its
+   * own department or nothing.
+   */
+  const effective = permitted ? (asked ? asked.filter((v) => permitted.includes(v)) : permitted) : asked
+  const wanted = effective?.length ? new Set(effective) : permitted ? new Set() : null
+  if (!wanted) return rows
+
+  const [whSupplied, prodSource, purchases] = await Promise.all([
+    warehouseSuppliedArticles().catch(() => null),
+    productionSourceByArticle().catch(() => null),
+    purchasesByArticle().catch(() => null),
+  ])
+  /*
+   * ANY missing lookup is a degraded classification, not just all three.
+   *
+   * This used to bail only when ALL of them failed. With `whSupplied` alone
+   * unavailable - the Power BI read refused AND the cube fallback down - no
+   * row could be claimed by the Central Warehouse, so every row fell through
+   * to Others and Stock Article rendered EMPTY, with no error on screen. An
+   * empty page reads as "there is no data", which is the most expensive thing
+   * a failure can say.
+   *
+   * What to do about it depends on what the pin is FOR, and the two cases are
+   * genuinely different:
+   *
+   *   a page pin only (no grant restriction) - showing an unfiltered page is
+   *   wrong but visible, and a reader can see there is too much. Showing
+   *   nothing is wrong and invisible. So the rows go through unfiltered.
+   *
+   *   a grant in force - this is the data restriction standing between an
+   *   account and another department's rows, and a transient outage must not
+   *   open it. The filter stays on, which may leave the page short, and the
+   *   warning names the lookup that failed so the cause is findable.
+   */
+  const missing = [
+    !whSupplied && 'warehouse supply',
+    !prodSource && 'production source',
+    !purchases && 'purchase destinations',
+  ].filter(Boolean)
+
+  if (missing.length) {
+    const why = missing.join(', ')
+    if (!permitted) {
+      console.warn(`  [responsibility] ${why} unavailable — rows left unfiltered`)
+      return rows
+    }
+    console.warn(
+      `  [responsibility] ${why} unavailable — the grant restriction stays on, so this page may be short`
+    )
+  }
+
+  /*
+   * The Path column is narrowed to this department's own legs - but only where
+   * the page is pinned to ONE department, because with two there is no single
+   * site whose legs the reader is here to see. See `pathsForDepartment` for why
+   * the column needs this at all: it reports the latest movement in the reader's
+   * date range, while membership is a responsibility that has no date range, so
+   * the two disagree constantly and the disagreement reads as a leaking filter.
+   */
+  const only = wanted.size === 1 ? [...wanted][0] : null
+
+  const out = []
+  for (const r of rows) {
+    const departments = departmentsForRow({
+      article: r['Item No.'],
+      nodeType: r['Node Type'],
+      whSupplied,
+      prodSource,
+      purchases,
+    })
+    if (!rowBelongs(departments, wanted)) continue
+    const Path =
+      only && typeof r.Path === 'string' && r.Path
+        ? formatPaths(pathsForDepartment(r.Path.split(' ; '), only))
+        : r.Path
+    /*
+     * The column is stamped so the reader can see WHY a row is on this page,
+     * and so the CSV carries it. Joined rather than reduced to one value: an
+     * article the warehouse supplies and the bakery makes is both of those
+     * things, and naming one would misreport the other.
+     */
+    out.push({ ...r, Path, Responsibility: [...departments].join(' + ') })
   }
   return out
 }
@@ -4155,7 +4384,20 @@ export async function componentLevel(req, res) {
    * rule, applied in both places. Null when no source is pinned at all, which is
    * Stock Article, and which is how those rows are kept off that page.
    */
-  const asked = g.parts[0]?.f?.prodSources
+  /*
+   * The departmental pin counts as asking for its site - fixed 21 Nov 2026.
+   *
+   * Production and Swish Bakery stopped sending `prodSources` on 18 Nov, so
+   * this resolved to null for them and switched off the pre-fan
+   * `movedAnywhere` / `forecastBy` pass. That pass is the 29-30 Sep fix for
+   * dormant articles: without it they land on the first brand carrying blank
+   * Forecast and Acc%, which is exactly what `Asian Chicken Sauce (PA)` and
+   * `BACON ERMG` did before it existed.
+   */
+  const pinnedSources = (g.parts[0]?.f?.responsibility ?? [])
+    .map((d) => SOURCE_FOR_DEPARTMENT.get(d))
+    .filter(Boolean)
+  const asked = [...(g.parts[0]?.f?.prodSources ?? []), ...pinnedSources]
   const permittedSources = allowedProdSources(req.user)
   const sourcesAsked = asked?.length
     ? permittedSources
@@ -4535,7 +4777,7 @@ export async function componentLevel(req, res) {
       // Outermost, so every row's CHAINID is final before Oracle's figures are
       // joined on it - `withFmArticles` is what stamps FM, and a row still
       // missing its brand would be matched against the wrong one.
-      rows: await withOracleConsumption(await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+      rows: await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
         // The file decides the badge BEFORE the slicer reads it, so the column
         // and the filter can never disagree about what a Recipe row is.
         await withRecipeFile(await withSafetyStock(
@@ -4562,7 +4804,7 @@ export async function componentLevel(req, res) {
           seesStockDetail(req.user)
         )),
         window
-      ), window), seesStockDetail(req.user)), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
+      ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
@@ -4570,7 +4812,7 @@ export async function componentLevel(req, res) {
   res.json({
     sales,
     // Outermost, for the same reason as the single-brand branch above.
-    rows: await withOracleConsumption(await withFmArticles(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+    rows: await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
       // The file decides the badge BEFORE the slicer reads it — see above.
       await withRecipeFile(await withSafetyStock(
         await withOpenPo(
@@ -4602,7 +4844,7 @@ export async function componentLevel(req, res) {
         seesStockDetail(req.user)
       )),
       window
-    ), window), seesStockDetail(req.user)), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
+    ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
   })
 }
 

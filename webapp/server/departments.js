@@ -175,7 +175,8 @@ export const DEPARTMENT_PAGES = {
    * that refuse a branch filter, so narrowing this account by brand or branch
    * would empty the columns it was given the page for.
    */
-  'Cost Controller': ['component'],
+  // + Monthly MC Analysis, their own page, 19 Nov 2026.
+  'Cost Controller': ['component', 'costing'],
   /*
    * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
    *
@@ -552,6 +553,14 @@ export const PAGE_IDS = [
   'src-factory',
   'src-none',
   /*
+   * Others - 18 Nov 2026. The articles no department is responsible for.
+   *
+   * Grantable like the rest, and narrowed server-side the same way: holding it
+   * alone restricts the account to rows `responsibility.js` places in `Others`
+   * - see `RESPONSIBILITY_BY_PAGE` in routes/api.js.
+   */
+  'src-others',
+  /*
    * Procurement's own view of Stock Article - 8 Oct 2026.
    *
    * Its own id, not a mode of `component`, because access is granted per page
@@ -568,6 +577,14 @@ export const PAGE_IDS = [
    * it is administrator-only while the two recipe engines are being compared.
    */
   'consumption',
+  /*
+   * Monthly MC Analysis - 19 Nov 2026. The Costing Department's page: MC
+   * theoretical against actual per article per brand, with the Recipe /
+   * Non-Recipe classification they maintain. Anyone it is granted to may read
+   * it; only Cost Controller and administrators may change a classification
+   * (routes/costing.js `canEditCosting`).
+   */
+  'costing',
   'warehouse',
   'production',
   'guide',

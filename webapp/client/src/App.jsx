@@ -27,7 +27,10 @@ import {
   IconUnknown,
   IconGuide,
   IconShield,
+  IconCalendar,
 } from './components/Icons.jsx'
+import { PageLoader } from './components/PageLoader.jsx'
+import { ThemeToggle } from './components/ThemeToggle.jsx'
 /*
  * The pages are fetched when they are opened, not when the app starts.
  *
@@ -49,6 +52,7 @@ const ConsumptionVariance = lazyPage(
   () => import('./pages/ConsumptionVariance.jsx'),
   'ConsumptionVariance'
 )
+const MonthlyMcAnalysis = lazyPage(() => import('./pages/MonthlyMcAnalysis.jsx'), 'MonthlyMcAnalysis')
 const WarehouseInsights = lazyPage(
   () => import('./pages/WarehouseInsights.jsx'),
   'WarehouseInsights'
@@ -226,7 +230,22 @@ const PAGES = [
      * The nodeType slicer goes with them: a slicer that can only pick the one
      * value already forced is a control that does nothing.
      */
-    lockNodeTypes: ['RAW'],
+    /*
+     * THE NODE-TYPE LOCK CAME OFF ON 18 NOV 2026, and a department pin replaced
+     * it.
+     *
+     * `lockNodeTypes: ['RAW']` was standing in for a question it could not
+     * actually ask. The page is the CENTRAL WAREHOUSE's work list, and "RAW"
+     * was a rough proxy for "the warehouse buys and supplies this" - rough
+     * because the warehouse also supplies PA articles it does not make
+     * (`BBT WET BATTER`, `CHICKEN BREADING`), and those were hidden from the
+     * department responsible for buying them.
+     *
+     * `lockResponsibility` asks the real question - see `responsibility.js` for
+     * the three tests and the audit behind them - so the node type is free to
+     * be a slicer again, which is what `nodeType` is doing back in the list.
+     */
+    lockResponsibility: 'Central Warehouse',
     /*
      * `product` was removed on 1 Oct 2026, on request.
      *
@@ -244,7 +263,7 @@ const PAGES = [
      * the exception: Direct Transfer means "the warehouse issued this article
      * to this brand inside the window".
      */
-    slicers: ['location', 'date', 'item', 'category', 'supply', 'channel', 'transferStatus', 'recipeKind', 'status'],
+    slicers: ['location', 'date', 'item', 'nodeType', 'category', 'supply', 'channel', 'transferStatus', 'recipeKind', 'status'],
   },
   {
     /*
@@ -362,6 +381,32 @@ const PAGES = [
      * with no control left to clear it.
      */
     slicers: ['date', 'item', 'category', 'oracleRecipe'],
+  },
+  {
+    /*
+     * Monthly MC Analysis - 19 Nov 2026, for the Costing Department.
+     *
+     * The MC side of the Variance page, one calendar month against the one
+     * before, with the Recipe / Non-Recipe classification they maintain.
+     * Not `adminOnly`: Cost Controller holds it by department default
+     * (departments.js), and only that department and administrators may
+     * change a classification - the server decides, see routes/costing.js.
+     *
+     * No slicers: the month, classification and article controls are the
+     * page's own, because they ask a calendar month rather than a date range.
+     */
+    id: 'costing',
+    label: 'Monthly MC Analysis',
+    kicker: 'This month against last, by article and brand',
+    blurb: 'MC theoretical against actual, with each article’s Recipe classification',
+    // Its own icon: in a collapsed rail it sat beside Variance Analysis with
+    // the same one and could not be told apart.
+    Icon: IconCalendar,
+    Component: MonthlyMcAnalysis,
+    slicers: [],
+    // Its title row carries the date and the live badge, in the SWiSH
+    // Analytics layout, so the shell's plain title is not drawn above it.
+    ownTitle: true,
   },
   ...(PRODUCTION_PAGE_ON
     ? [
@@ -496,7 +541,21 @@ const PAGES = [
        * say where a thing is made. See `productionSource.js` for the audit
        * behind the rules and what is still unconfirmed.
        */
-      lockProdSource: 'Central Kitchen / CPU',
+      /*
+       * PINNED BY DEPARTMENT FROM 18 NOV 2026, replacing `lockProdSource`.
+       *
+       * `Prod_Source` names the last production site to ISSUE an article, which
+       * for a PA row is where it was made and for a RAW row is only where it
+       * passed through. That difference was invisible while this page also
+       * carried `lockNodeTypes: ['PA','PREP']`; with the lock gone it put
+       * `HP 106A CARTRIDGE` and `ATLAS DAY TAG MACHINE` on the kitchen's page.
+       *
+       * The department test asks for a PA row AND the site, or a delivery the
+       * kitchen buys for itself - so the cartridges go back to the warehouse
+       * that supplies them, and the kitchen keeps the fresh produce it orders
+       * direct. See `responsibility.js`.
+       */
+      lockResponsibility: 'Central Kitchen / CPU',
       /*
        * Prep steps are shown here AND on Swish Bakery, deliberately.
        *
@@ -516,7 +575,13 @@ const PAGES = [
        * restriction and not a display one - and `shownOptions` drops RAW from
        * the nodeType slicer, so it cannot be asked for either.
        */
-      lockNodeTypes: ['PREP', 'PA'],
+      /*
+       * REMOVED 18 NOV 2026. The department pin above decides the population
+       * now, and it admits RAW articles the kitchen buys for itself - fresh
+       * produce like `TOMATO FRESH`, `DILL LEAVES FRESH` and `SPRING ONION`,
+       * which this page could not show while the lock was on. PA and PREP are
+       * unaffected; the node type is a slicer again rather than a lock.
+       */
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -573,11 +638,11 @@ const PAGES = [
        * say where a thing is made. See `productionSource.js` for the audit
        * behind the rules and what is still unconfirmed.
        */
-      lockProdSource: 'Bakery',
+      // Pinned by department from 18 Nov 2026 - see the note on Production.
+      lockResponsibility: 'Swish Bakery',
       // Shared with the Production page - see the note there.
       prepShared: true,
-      // PA and PREP only - see the note on Production above.
-      lockNodeTypes: ['PREP', 'PA'],
+      // `lockNodeTypes` removed 18 Nov 2026 - see the note on Production.
       noWarehouse: true,
       /*
        * Opened to its own department on 29 Sep 2026.
@@ -594,6 +659,39 @@ const PAGES = [
        * for whoever maintains the classification, not a site's work list.
        */
       // Transaction Type and Transfer Status - see the note on Production.
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
+    },
+    {
+      /*
+       * Others - 18 Nov 2026, on request.
+       *
+       * The articles no department's responsibility covers: nothing the
+       * warehouse supplies or procurement buys in, nothing either kitchen makes
+       * or orders for itself. Measured over 2026-05-01..2026-10-31 there are
+       * 871 of them, and only 32 are in the recipe explosion - the rest are
+       * warehouse-master articles that reach a page only when they carry future
+       * demand.
+       *
+       * What lands here and why it is worth a tab rather than a bin: dormant
+       * recipes nobody has made in six months (`RAMADAN - DAQOOS (PA)`,
+       * `MEXICAN SAUCE (PA)`), YELO Factory output, and articles whose only
+       * movement was brand to brand - which by the rule creates no departmental
+       * responsibility at all. Every one of those is a question for somebody,
+       * which is exactly why they should be visible rather than dropped.
+       *
+       * PREP steps are NEVER here. They are placed on Production and Swish
+       * Bakery by exemption because no movement can be joined to them - see
+       * `PREP_DEPARTMENTS` in responsibility.js - so they are already somebody's
+       * work and listing them again would read as nobody's.
+       */
+      id: 'src-others',
+      label: 'Others',
+      kicker: 'No departmental owner',
+      blurb: 'Articles no department currently has supply or production responsibility for',
+      Icon: IconUnknown,
+      Component: ComponentLevel,
+      lockResponsibility: 'Others',
+      noWarehouse: true,
       slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
     },
     ...(YELO_FACTORY_PAGE_ON
@@ -876,7 +974,18 @@ const DAY = 86_400_000
 const iso = (d) => new Date(d).toISOString().slice(0, 10)
 
 export default function App({ session, onSignedOut }) {
-  const [tab, setTab] = useState('summary')
+  /*
+   * `?page=<id>` opens a page directly - the variance alert email links to
+   * `?page=costing`. A page the account may not open falls back to the first
+   * one it may, through the same correction every other tab change gets.
+   */
+  const [tab, setTab] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('page') || 'summary'
+    } catch {
+      return 'summary'
+    }
+  })
 
   /*
    * Whether the rail is collapsed, remembered per person.
@@ -1186,6 +1295,17 @@ export default function App({ session, onSignedOut }) {
      */
     if (page?.lockProdSource) base.prodSources = [page.lockProdSource]
     else delete base.prodSources
+    /*
+     * The departmental pin, set and CLEARED the same way - 18 Nov 2026.
+     *
+     * Clearing it matters for exactly the reason the line above documents: a
+     * pin that is set and never removed survives onto every page without one,
+     * so walking from Swish Bakery to Procurement would have carried
+     * `responsibility: ["Swish Bakery"]` into a page that spans every
+     * department, and the server honours what it is sent.
+     */
+    if (page?.lockResponsibility) base.responsibility = [page.lockResponsibility]
+    else delete base.responsibility
     const lock = page?.lockNodeTypes
     if (!lock?.length) return base
     const picked = base.nodeTypes ?? []
@@ -1559,6 +1679,12 @@ export default function App({ session, onSignedOut }) {
           )}
           <div className="topbar__actions">
             {/*
+              * Light / dark, first in the actions so it is in the same place
+              * on every page - the pages that show no slicers have a shorter
+              * bar, and a control that moves is a control people hunt for.
+              */}
+            <ThemeToggle />
+            {/*
               * The page's walkthrough, beside the other controls that act on
               * the page rather than filter it. It rendered inside the grey
               * slicer tray until 1 Oct 2026 and wrapped onto a second line of
@@ -1670,13 +1796,24 @@ export default function App({ session, onSignedOut }) {
             * container means it cannot cover the app bar above it, and the page
             * title scrolls under it rather than being pushed down the screen.
             */}
-          <h1 className="pagetitle">{page.label}</h1>
+          {/* `ownTitle`: the page draws its own title row (Monthly MC Analysis). */}
+          {!page.ownTitle && <h1 className="pagetitle">{page.label}</h1>}
           {mailboxResult && (
             <InfoBanner tone={mailboxResult.tone === 'ok' ? 'info' : 'warn'}>
               {mailboxResult.text}
             </InfoBanner>
           )}
-          <Suspense fallback={<div className="skel" style={{ height: 320, margin: 'var(--s4) 0' }} aria-hidden="true" />}>
+          {/*
+            * Named, not a grey rectangle - 20 Nov 2026, on request.
+            *
+            * `key` is the point as much as the fallback is: without it React
+            * keeps one Suspense boundary across a page change, and moving from
+            * a loaded page to an unloaded one can show the OLD page's content
+            * while the new chunk downloads. Keyed on the page id, the boundary
+            * is a new one per page, so the card appears for the page actually
+            * being fetched and names it.
+            */}
+          <Suspense key={page.id} fallback={<PageLoader name={page.label} />}>
           {/*
             * The Admin page, by name — not "whichever page is admin-only".
             *

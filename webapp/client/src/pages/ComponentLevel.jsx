@@ -184,6 +184,31 @@ const COLUMNS = [
         <span className="muted">–</span>
       ),
   },
+  {
+    /*
+     * Which department this row is on the page for.
+     *
+     * Stamped by `withResponsibility` since 18 Nov and rendered nowhere until
+     * now: the server was writing a value onto every row and the table had no
+     * column for it, so it reached neither the screen nor the CSV. Either the
+     * stamp or the column had to go, and the column is the one worth having -
+     * it is the only way to see WHY a row is on the page, and the only way to
+     * spot an article that is two departments' business at once.
+     *
+     * Off by default, like the other explanatory columns: it answers a
+     * question a reader asks occasionally, not one they read every row for.
+     */
+    key: 'Responsibility',
+    label: 'Responsible',
+    autoWidth: true,
+    hiddenByDefault: true,
+    hint:
+      'The department this article is on this page for: the Central Warehouse supplies or buys it, the kitchen or the bakery makes or buys it, or no department does and it is in Others. ' +
+      'An article can be more than one department’s business - made at the bakery AND supplied by the warehouse, say - and then both are named, separated by "+". ' +
+      'Those articles appear on both pages, deliberately, and their quantities must not be added across them.',
+    render: (v) =>
+      v ? <span>{v}</span> : <span className="muted">–</span>,
+  },
   // Off by default — asked for on 1 Sep 2026. The table opens on the five
   // columns somebody reads: what it is, what kind, in what unit, what moved and
   // what is needed. Recipe group and the article number are a click away in
@@ -315,7 +340,12 @@ const COLUMNS = [
       '"Supplier" appears where the goods came from outside — a GRN carries no originating cost centre. ' +
       'Two movements on the same day show both paths, separated by ";". ' +
       'Narrowed to this row’s own brand: a leg belonging to another brand is never shown here, and ' +
-      '"Not transferred to X" means the article moved in this window but none of it reached X.',
+      '"Not transferred to X" means the article moved in this window but none of it reached X. ' +
+      'On a page pinned to one department — Stock Article, Production, Swish Bakery — it is narrowed again ' +
+      'to the legs that department was at one end of, in either direction, so a warehouse page does not print ' +
+      'the kitchen’s movements. "No <department> movement in this window" means the article did move, but ' +
+      'never through this page’s own site: the row is still here because the department is responsible for ' +
+      'the article, which is a question about purchasing and production and not about this date range.',
   },
   /*
    * Did the article reach ANY brand straight from a Swish site?
