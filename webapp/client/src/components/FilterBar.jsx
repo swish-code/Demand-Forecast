@@ -130,6 +130,19 @@ export const SLICERS = [
    */
   { id: 'varianceFlag', key: 'varianceFlags', label: 'Variance', options: 'varianceFlag', placeholder: 'All' },
   /*
+   * Which way an article moved, seen from the page's own facility - 21 Nov
+   * 2026. Fixed values like the two above: the server stamps the direction
+   * from the transfer data, so there is nothing to fetch and no list to go
+   * stale. Only the three department pages carry it; elsewhere "Inbound"
+   * would have no facility to be inbound TO.
+   */
+  { id: 'transferType', key: 'transferTypes', label: 'Transfer type', options: 'transferType', placeholder: 'All' },
+  /*
+   * Articles first seen in the last 30 days - 21 Nov 2026. One value, not two:
+   * see `onlyNew` on the server for why there is no "Existing".
+   */
+  { id: 'newArticle', key: 'newArticle', label: 'New article', options: 'newArticle', placeholder: 'All' },
+  /*
    * Whether ORACLE has a recipe for the article - 9 Nov 2026, on request.
    *
    * Not the same question as Prod. type, which asks whether OUR recipe tree

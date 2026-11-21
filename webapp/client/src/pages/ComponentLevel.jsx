@@ -198,6 +198,78 @@ const COLUMNS = [
      * Off by default, like the other explanatory columns: it answers a
      * question a reader asks occasionally, not one they read every row for.
      */
+    /*
+     * Which way this article moved, from THIS page's facility's point of view.
+     *
+     * Added 21 Nov 2026 on request. "Inbound" is stock sent TO the facility,
+     * "Outbound" is stock it sent out; an article that did both in the window
+     * says so on one row rather than being split into two, because the row
+     * carries forecast, stock and accuracy figures that would be duplicated
+     * by a split - which is the double counting the brief rules out.
+     *
+     * Measured over October 2026, both-directions articles are a minority -
+     * 149 at the warehouse, 56 at the kitchen, 5 at the bakery - so one row
+     * per article stays readable.
+     */
+    key: 'Transfer Type',
+    label: 'Transfer type',
+    autoWidth: true,
+    hiddenByDefault: true,
+    hint:
+      'Which way this article moved, seen from this page’s own facility. Inbound = transferred TO it, Outbound = transferred FROM it. ' +
+      'An article that did both in the last six whole months reads "Inbound + Outbound" on one row - it is one article, not two, and its quantities are not doubled. ' +
+      'Blank means the facility neither sent nor received it in that window, which is normal for an article it only buys or only makes.',
+    render: (v) => (v ? <span>{v}</span> : <span className="muted">–</span>),
+  },
+  {
+    /*
+     * The other end of each movement this page's facility took part in.
+     *
+     * "Inbound + Outbound" tells a reader an article did both and nothing
+     * about with whom, which is the first thing they ask. The Path column
+     * cannot answer it either: Path is the LATEST movement in the selected
+     * dates, so it shows the inbound source only when the inbound leg
+     * happened to be last.
+     *
+     * Capped at three with a count of the rest - a staple can touch a dozen
+     * cost centres in six months.
+     */
+    /*
+     * First seen within the last 30 days, and it has actually moved.
+     *
+     * Shown rather than hidden by default, unlike the other explanatory
+     * columns: a new article is a thing to notice while reading, not a
+     * question asked occasionally. Blank is NOT "existing" - an article can be
+     * unflagged because its first appearance could not be established, so the
+     * column never asserts the opposite.
+     */
+    key: 'New Article',
+    label: 'New',
+    width: 64,
+    render: (v) =>
+      v ? <Pill tone="green">{v}</Pill> : <span className="muted">–</span>,
+  },
+  {
+    key: 'Inbound From',
+    label: 'Inbound from',
+    autoWidth: true,
+    hiddenByDefault: true,
+    hint:
+      'Who sent this article TO this page’s facility, over the last six whole months. Blank means nothing was transferred in. ' +
+      'More than three senders are shortened to the first three and a count, and the full picture is on the Path column for the latest movement.',
+    render: (v) => (v ? <span>{v}</span> : <span className="muted">–</span>),
+  },
+  {
+    key: 'Outbound To',
+    label: 'Outbound to',
+    autoWidth: true,
+    hiddenByDefault: true,
+    hint:
+      'Who this page’s facility sent the article TO, over the last six whole months. Blank means it sent none out. ' +
+      'More than three destinations are shortened to the first three and a count.',
+    render: (v) => (v ? <span>{v}</span> : <span className="muted">–</span>),
+  },
+  {
     key: 'Responsibility',
     label: 'Responsible',
     autoWidth: true,

@@ -76,11 +76,16 @@ import {
 import {
   DEPARTMENT,
   DEPARTMENTS,
+  DIRECTIONS,
+  counterpartiesFor,
   departmentsForRow,
   pathsForDepartment,
   purchasesByArticle,
   rowBelongs,
+  transferTypeFor,
+  transfersByArticle,
 } from '../insights/responsibility.js'
+import { NEW_ARTICLE_LABEL, newArticles } from '../insights/newArticles.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
 import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
@@ -177,7 +182,7 @@ function allowsRaw(filters) {
  * production-source map and the purchase destinations, none of which a brand
  * query can narrow on.
  */
-const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'responsibility', 'channels', 'transferStatus', 'varianceFlags']
+const LIST_KEYS = ['brands', 'locations', 'products', 'articles', 'items', 'recipeGroups', 'nodeTypes', 'categories', 'supply', 'recipeKinds', 'statuses', 'prodSources', 'responsibility', 'transferTypes', 'newArticle', 'channels', 'transferStatus', 'varianceFlags']
 
 /**
  * Our theoretical consumption against Oracle's, per article per brand.
@@ -3138,10 +3143,20 @@ async function withResponsibility(rows, filters, user) {
   const wanted = effective?.length ? new Set(effective) : permitted ? new Set() : null
   if (!wanted) return rows
 
-  const [whSupplied, prodSource, purchases] = await Promise.all([
+  const [whSupplied, prodSource, purchases, transfers, fresh] = await Promise.all([
     warehouseSuppliedArticles().catch(() => null),
     productionSourceByArticle().catch(() => null),
     purchasesByArticle().catch(() => null),
+    transfersByArticle().catch(() => null),
+    /*
+     * Newness is NOT part of the degraded-lookup guard below. It decorates a
+     * row; it never decides whether one belongs on the page. If it is
+     * unavailable the column is blank and everything else carries on.
+     */
+    newArticles().catch((err) => {
+      console.warn(`  [new-articles] unavailable (${String(err.message).slice(0, 90)})`)
+      return null
+    }),
   ])
   /*
    * ANY missing lookup is a degraded classification, not just all three.
@@ -3169,6 +3184,7 @@ async function withResponsibility(rows, filters, user) {
     !whSupplied && 'warehouse supply',
     !prodSource && 'production source',
     !purchases && 'purchase destinations',
+    !transfers && 'transfer directions',
   ].filter(Boolean)
 
   if (missing.length) {
@@ -3192,6 +3208,26 @@ async function withResponsibility(rows, filters, user) {
    */
   const only = wanted.size === 1 ? [...wanted][0] : null
 
+  /*
+   * Which directions the reader asked for, if any.
+   *
+   * A row with no direction at all - the facility neither sent nor received
+   * it, which is normal for something it only buys or only makes - is NOT
+   * dropped by an Inbound or Outbound filter. The filter narrows to a
+   * direction; it does not assert that everything has one.
+   */
+  const askedDirections = filters?.transferTypes?.length
+    ? new Set(filters.transferTypes.map((v) => String(v)))
+    : null
+
+  /*
+   * The New slicer. Only ever narrows TO new articles - there is no "Existing"
+   * value, because "not flagged new" also covers every article whose newness
+   * could not be established, and offering it would promise a certainty the
+   * data does not have.
+   */
+  const onlyNew = (filters?.newArticle ?? []).some((v) => String(v) === NEW_ARTICLE_LABEL)
+
   const out = []
   for (const r of rows) {
     const departments = departmentsForRow({
@@ -3200,8 +3236,23 @@ async function withResponsibility(rows, filters, user) {
       whSupplied,
       prodSource,
       purchases,
+      transfers,
     })
     if (!rowBelongs(departments, wanted)) continue
+
+    /*
+     * The direction is relative to the PAGE'S facility, so it is only
+     * meaningful where exactly one department is pinned. On an unpinned view
+     * - Procurement, the merged report - "Inbound" would have no subject.
+     */
+    const direction = only ? transferTypeFor(r['Item No.'], only, transfers) : null
+    if (askedDirections && direction) {
+      // "Inbound + Outbound" satisfies either filter: it is one article that
+      // did both, not a third kind of movement.
+      const parts = direction.split(' + ')
+      if (!parts.some((p) => askedDirections.has(p))) continue
+    }
+
     const Path =
       only && typeof r.Path === 'string' && r.Path
         ? formatPaths(pathsForDepartment(r.Path.split(' ; '), only))
@@ -3212,7 +3263,32 @@ async function withResponsibility(rows, filters, user) {
      * article the warehouse supplies and the bakery makes is both of those
      * things, and naming one would misreport the other.
      */
-    out.push({ ...r, Path, Responsibility: [...departments].join(' + ') })
+    /*
+     * Where the stock came from, and where it went - 21 Nov 2026, on request.
+     *
+     * "Inbound + Outbound" says an article did both and could not say with
+     * whom. These name the OTHER end of each movement this facility was part
+     * of. Capped at three with a count of the rest: a staple can touch a dozen
+     * cost centres in six months, and a cell that long stops being readable.
+     * The CSV gets exactly what the screen shows, so the two never disagree.
+     */
+    const list = (vals) =>
+      !vals.length ? null : vals.length <= 3 ? vals.join(', ') : `${vals.slice(0, 3).join(', ')} +${vals.length - 3} more`
+
+    const isNew = fresh ? fresh.has(String(r['Item No.'] ?? '').trim()) : false
+    if (onlyNew && !isNew) continue
+
+    out.push({
+      ...r,
+      Path,
+      Responsibility: [...departments].join(' + '),
+      'Transfer Type': direction,
+      'Inbound From': only ? list(counterpartiesFor(r['Item No.'], only, transfers, 'in')) : null,
+      'Outbound To': only ? list(counterpartiesFor(r['Item No.'], only, transfers, 'out')) : null,
+      // Blank rather than "No": an unflagged article is not proven old, and
+      // where the ledger is unreachable nothing is known at all.
+      'New Article': isNew ? NEW_ARTICLE_LABEL : null,
+    })
   }
   return out
 }

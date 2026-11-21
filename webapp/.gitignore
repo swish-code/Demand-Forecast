@@ -15,3 +15,7 @@ cookies.txt
 # Backups of the manually entered tables. They hold the mailbox refresh
 # token, so this must never be committed. See server/db/backup.js.
 /backups/
+
+# The Snowflake driver writes this into the project root on a connection
+# error. A log, not source, and it rewrites itself every run.
+snowflake.log

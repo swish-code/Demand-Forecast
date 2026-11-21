@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fmtPct, fmtSignedPct } from '../api.js'
 import { IconAlert, IconInfo, IconArrowUp, IconArrowDown, IconTable, IconRefresh } from './Icons.jsx'
 
@@ -65,6 +65,33 @@ export function KpiCard({ label, value, foot, accent = 'slate', tint, progress, 
  * cannot work: CSS can move an element, and it cannot break a string in half.
  */
 export function Panel({ title, count, sub, note, tools, children, flush, fill, calc, busy }) {
+  /*
+   * The second after loading ends - 21 Nov 2026.
+   *
+   * The progress bar fills to about 94% while a panel is busy and the last
+   * stretch belongs to the data actually landing. Without this the busy class
+   * would simply vanish and the bar with it, so the one thing a reader is
+   * waiting to see - it reaching the end - would never be drawn.
+   *
+   * Only ever true after a REAL load: it is armed while `busy` and fires when
+   * `busy` goes false, so a panel that was never loading does not flash a
+   * completed bar when it first appears.
+   */
+  const [done, setDone] = useState(false)
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true
+      setDone(false)
+      return undefined
+    }
+    if (!wasBusy.current) return undefined
+    wasBusy.current = false
+    setDone(true)
+    const t = setTimeout(() => setDone(false), 1000)
+    return () => clearTimeout(t)
+  }, [busy])
+
   return (
     <section className={`panel${fill ? ' panel--fill' : ''}`} data-calc={calc || undefined}>
       <header className="panel__head">
@@ -84,7 +111,9 @@ export function Panel({ title, count, sub, note, tools, children, flush, fill, c
         {note ? <p className="panel__note">{note}</p> : null}
       </header>
       <div
-        className={`panel__body${flush ? ' panel__body--flush' : ''}${busy ? ' tblwrap tblwrap--busy' : ''}`}
+        className={`panel__body${flush ? ' panel__body--flush' : ''}${busy ? ' tblwrap tblwrap--busy' : ''}${
+          !busy && done ? ' tblwrap tblwrap--done' : ''
+        }`}
       >
         {busy ? (
           <p className="tblwrap__note" role="status">

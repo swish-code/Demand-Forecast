@@ -2,7 +2,7 @@ import { config } from '../config.js'
 import { cached } from '../cache.js'
 import { executeQuery } from '../powerbi/client.js'
 import { warehouseToCostCentre } from '../powerbi/orderingChannel.js'
-import { CHANNEL, classifyInbound, costCentreKind, pathLabel } from './orderingChannel.js'
+import { CHANNEL, classifyInbound, costCentreKind, isWarehouse, pathLabel } from './orderingChannel.js'
 import { SOURCE } from './productionSource.js'
 
 /**
@@ -188,6 +188,142 @@ SUMMARIZECOLUMNS(
   })
 }
 
+/** The two directions, and the value shown when an article did both. */
+export const DIRECTION = { IN: 'Inbound', OUT: 'Outbound' }
+export const DIRECTIONS = [DIRECTION.IN, DIRECTION.OUT]
+
+/**
+ * article -> { from: Set(costCentre), to: Set(costCentre) } over the window.
+ *
+ * Added 21 Nov 2026, for the inbound half of the three department pages.
+ *
+ * WHY THIS IS ITS OWN READ rather than `channelsForWindow`'s data, which
+ * already holds both ends of every transfer: that function reads the READER'S
+ * window and keeps only the LATEST movement. Page membership cannot depend on
+ * either - a one-week date selection would empty the pages, and an article's
+ * owner is not decided by whichever movement happened to be last. So this asks
+ * the same fixed six whole months the rest of the rule uses, and keeps every
+ * movement in it rather than the last.
+ *
+ * One aggregated read, article x source x destination: 3,989 rows for October
+ * alone, measured 21 Nov 2026, so roughly 20,000 over six months. Cached on
+ * the window like its neighbours, so it is fetched once per process per month.
+ *
+ * Throws rather than resolving empty, for the reason `purchasesByArticle`
+ * does: an empty map cached for a month would quietly unclaim every article a
+ * facility only receives.
+ */
+export async function transfersByArticle({ now = new Date() } = {}) {
+  const w = config.warehouse
+  if (!w?.datasetId || !w?.workspaceId) return new Map()
+  const { from, to } = window6(now)
+
+  return cached(`responsibility:transfers:${from}:${to}`, async () => {
+    const rows = await executeQuery(
+      `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Article No.],
+  fact_outbound_line[Mapped Cost Center/Store],
+  fact_outbound_line[Mapped Transfer To],
+  DATESBETWEEN(dim_date[Date], ${daxDate(from)}, ${daxDate(to)}),
+  FILTER(
+    ALL(fact_outbound_line[Status Group]),
+    fact_outbound_line[Status Group] IN {${(w.statuses ?? []).map((s) => `"${s}"`).join(', ')}}
+  ),
+  "Qty", SUM(fact_outbound_line[Action Base Qty])
+)`,
+      w.datasetId,
+      { bulk: true, workspace: w.workspaceId }
+    )
+
+    const out = new Map()
+    for (const r of rows ?? []) {
+      const article = norm(val(r, 'Article No.'))
+      if (!article) continue
+      // A zero or negative line is a correction, not a movement.
+      if (!((Number(val(r, 'Qty')) || 0) > 0)) continue
+      const src = norm(val(r, 'Mapped Cost Center/Store'))
+      const dst = norm(val(r, 'Mapped Transfer To'))
+      /*
+       * PAIRS, not two sets - 21 Nov 2026.
+       *
+       * This held `{ from: Set, to: Set }`, which answers "did it ever leave
+       * here" and "did it ever arrive here" and nothing else. The moment the
+       * two ends are filed separately, the fact that `CKU/CPU -> Central
+       * Warehouse` was ONE movement is gone, so a row reading "Inbound +
+       * Outbound" could not say where the inbound came from. Keeping the pair
+       * costs one object per movement and answers both questions.
+       */
+      if (!src && !dst) continue
+      if (!out.has(article)) out.set(article, [])
+      out.get(article).push({ from: src, to: dst })
+    }
+
+    console.log(`  [responsibility] transfers ${from}..${to}: ${out.size} articles`)
+    return out
+  })
+}
+
+/** Is this cost centre the department's own facility? */
+function isFacility(cc, dept) {
+  if (!cc) return false
+  // The warehouse arrives under several spellings; `isWarehouse` knows them.
+  if (dept === DEPARTMENT.WAREHOUSE) return isWarehouse(cc)
+  return eq(cc, MOVES_AS.get(dept))
+}
+
+/** Did anything arrive at / leave this department's facility? */
+const movedInto = (moves, dept) => (moves ?? []).some((m) => isFacility(m.to, dept))
+const movedOutOf = (moves, dept) => (moves ?? []).some((m) => isFacility(m.from, dept))
+
+/**
+ * Who this facility received from, or sent to.
+ *
+ * `direction` is 'in' or 'out'. Returns the OTHER end of each movement the
+ * facility was part of - which is the question "Inbound + Outbound" raises and
+ * could not answer while the two ends were filed in separate sets.
+ *
+ * Spelled with `pathLabel`, so the warehouse reads "Central Warehouse" here
+ * exactly as it does in the Path column rather than "MAIN WAREHOUSE".
+ */
+export function counterpartiesFor(article, dept, transfers, direction) {
+  if (!dept || dept === DEPARTMENT.OTHERS) return []
+  const moves = transfers?.get(norm(article))
+  if (!moves?.length) return []
+  const out = new Map()
+  for (const m of moves) {
+    const mine = direction === 'in' ? m.to : m.from
+    const theirs = direction === 'in' ? m.from : m.to
+    if (!isFacility(mine, dept) || !theirs) continue
+    // A facility moving stock to itself is a re-bin, not a counterparty.
+    if (isFacility(theirs, dept)) continue
+    const label = pathLabel(theirs)
+    if (label) out.set(label.toUpperCase(), label)
+  }
+  return [...out.values()].sort()
+}
+
+/**
+ * Which way an article moved, from one department's point of view.
+ *
+ * Returns 'Inbound', 'Outbound', 'Inbound + Outbound', or null where that
+ * facility neither sent nor received it - which is normal for an article it
+ * only buys or only makes, and is shown as a dash rather than as a direction.
+ *
+ * `Others` has no facility, so it has no direction either.
+ */
+export function transferTypeFor(article, dept, transfers) {
+  if (!dept || dept === DEPARTMENT.OTHERS) return null
+  const moves = transfers?.get(norm(article))
+  if (!moves?.length) return null
+  const out = movedOutOf(moves, dept)
+  const into = movedInto(moves, dept)
+  if (out && into) return `${DIRECTION.IN} + ${DIRECTION.OUT}`
+  if (into) return DIRECTION.IN
+  if (out) return DIRECTION.OUT
+  return null
+}
+
 /**
  * Which departments are responsible for ONE row.
  *
@@ -198,7 +334,14 @@ SUMMARIZECOLUMNS(
  *
  * Returns a Set, possibly holding several departments - see the header.
  */
-export function departmentsForRow({ article, nodeType, whSupplied, prodSource, purchases }) {
+export function departmentsForRow({
+  article,
+  nodeType,
+  whSupplied,
+  prodSource,
+  purchases,
+  transfers,
+}) {
   const type = norm(nodeType).toUpperCase()
   // Placed by what it is, because nothing can look it up - see PREP_DEPARTMENTS.
   if (type === 'PREP') return new Set(PREP_DEPARTMENTS)
@@ -207,6 +350,7 @@ export function departmentsForRow({ article, nodeType, whSupplied, prodSource, p
   if (!id) return new Set([DEPARTMENT.OTHERS])
 
   const boughtAt = purchases?.get(id) ?? null
+  const moved = transfers?.get(id) ?? null
   const held = new Set()
 
   // The warehouse: it supplies the article, or procurement buys it straight in.
@@ -219,6 +363,29 @@ export function departmentsForRow({ article, nodeType, whSupplied, prodSource, p
     const makes = type === 'PA' && prodSource?.get(id) === MAKES_AT.get(dept)
     const buys = boughtAt && [...boughtAt].some((cc) => eq(cc, BUYS_AT.get(dept)))
     if (makes || buys) held.add(dept)
+  }
+
+  /*
+   * RECEIVING IT IS RESPONSIBILITY TOO - 21 Nov 2026, on request.
+   *
+   * Every test above asks what a facility SENDS OUT, MAKES or BUYS. An article
+   * transferred INTO it - the warehouse restocking the kitchen, the kitchen
+   * sending a prep to the bakery - belonged to nobody by those tests, so the
+   * receiving facility never saw it.
+   *
+   * Measured over October 2026: 339 articles reached the kitchen and left it
+   * again by no route it owned, and 148 reached the bakery. Both pages were
+   * simply missing them. (The warehouse was missing one, because almost
+   * everything it receives it also issues.)
+   *
+   * Deliberately NOT applied to brand-to-brand movements: `isFacility` only
+   * matches the three Swish facilities, so one brand sending stock to another
+   * still creates no responsibility anywhere. That rule is unchanged.
+   */
+  if (moved) {
+    for (const dept of [DEPARTMENT.WAREHOUSE, ...MAKES_AT.keys()]) {
+      if (movedInto(moved, dept)) held.add(dept)
+    }
   }
 
   if (!held.size) held.add(DEPARTMENT.OTHERS)

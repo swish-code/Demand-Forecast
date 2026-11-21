@@ -263,7 +263,7 @@ const PAGES = [
      * the exception: Direct Transfer means "the warehouse issued this article
      * to this brand inside the window".
      */
-    slicers: ['location', 'date', 'item', 'nodeType', 'category', 'supply', 'channel', 'transferStatus', 'recipeKind', 'status'],
+    slicers: ['location', 'date', 'item', 'nodeType', 'category', 'supply', 'channel', 'transferStatus', 'recipeKind', 'transferType', 'newArticle', 'status'],
   },
   {
     /*
@@ -618,7 +618,7 @@ const PAGES = [
       //
       // A prep step still has no article number and so no status at all, which
       // means ANY Status selection hides every PREP row on this page.
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'status', 'recipeKind'],
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'status', 'recipeKind', 'transferType', 'newArticle'],
     },
     {
       id: 'src-bakery',
@@ -659,7 +659,7 @@ const PAGES = [
        * for whoever maintains the classification, not a site's work list.
        */
       // Transaction Type and Transfer Status - see the note on Production.
-      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind'],
+      slicers: ['location', 'date', 'item', 'nodeType', 'supply', 'channel', 'transferStatus', 'recipeKind', 'transferType', 'newArticle'],
     },
     {
       /*
@@ -929,6 +929,26 @@ const EMPTY_OPTIONS = {
    */
   varianceFlag: ['Variance', 'Match'],
   /*
+   * Fixed as well: an article either reached this page's facility, left it,
+   * or did both. Stamped by `transferTypeFor` on the server from the same
+   * six-month transfer read the classification uses, so the slicer and the
+   * column can never disagree about which way something moved.
+   *
+   * "Inbound + Outbound" is deliberately NOT an option. It is one article
+   * that did both, not a third kind of movement, and it answers to either
+   * filter - offering it would invite someone to tick all three and wonder
+   * why the count did not change.
+   */
+  transferType: ['Inbound', 'Outbound'],
+  /*
+   * One value only. Ticking it narrows to articles first seen in the last 30
+   * days; there is deliberately no "Existing", because an article without the
+   * flag is not proven old - it may simply be one whose first appearance
+   * could not be established. Offering the opposite would promise a certainty
+   * the data does not have.
+   */
+  newArticle: ['New'],
+  /*
    * Fixed as well: Oracle either has a theoretical for the article or it has
    * none. Read off `Sys_Potential_COS`, so there is nothing to fetch.
    */
@@ -1083,6 +1103,8 @@ export default function App({ session, onSignedOut }) {
     supply: [],
     channels: [],
     transferStatus: [],
+    transferTypes: [],
+    newArticle: [],
     varianceFlag: [],
     oracleRecipe: [],
     recipeKinds: [],

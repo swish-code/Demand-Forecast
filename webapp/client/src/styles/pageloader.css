@@ -176,14 +176,79 @@
   border-radius: var(--radius-pill);
 }
 
-/* The travelling segment. */
+/*
+ * The travelling segment — now a PROGRESS bar, 21 Nov 2026 on request.
+ *
+ * It used to slide back and forth for ever, which says "still going" and
+ * nothing else: the bar looked the same at the first second and the thirtieth,
+ * and it never finished.
+ *
+ * It fills instead, and the honesty problem is handled by the SHAPE of the
+ * fill rather than by inventing a number. Nothing here knows how much of a
+ * Power BI response has arrived, so the bar eases quickly to about 90% and
+ * then crawls - each stage slower than the last, approaching but never
+ * reaching the end. It can therefore never claim to be finished while it is
+ * not.
+ *
+ * The last 10% belongs to the moment the data actually lands: the busy class
+ * comes off, `--done` runs, and the bar completes to the right edge and fades.
+ * So "full" means loaded, every time.
+ */
 .panel__body.tblwrap--busy::after {
   left: 0;
   z-index: 10;
-  width: 38%;
+  width: 0;
   border-radius: var(--radius-pill);
   background: var(--accent);
-  animation: pageload-slide 1.15s var(--ease) infinite;
+  animation: panel-progress 18s cubic-bezier(0.12, 0.76, 0.2, 1) forwards;
+}
+
+@keyframes panel-progress {
+  0% { width: 0; }
+  /* Quick off the mark: most reads answer in the first few seconds, and a bar
+     that has barely moved by then reads as stuck. */
+  8% { width: 55%; }
+  25% { width: 78%; }
+  55% { width: 88%; }
+  100% { width: 94%; }
+}
+
+/*
+ * Done: run to the end, then fade.
+ *
+ * `.tblwrap--done` is left on the panel for one second after loading ends, so
+ * the completion is seen rather than inferred from the bar disappearing.
+ */
+.panel__body.tblwrap--done::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9;
+  background: var(--card-2);
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+}
+
+.panel__body.tblwrap--done::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  z-index: 10;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  pointer-events: none;
+  animation: panel-progress-done 0.9s var(--ease) forwards;
+}
+
+@keyframes panel-progress-done {
+  0% { width: var(--done-from, 94%); opacity: 1; }
+  35% { width: 100%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
 }
 
 /*
@@ -201,7 +266,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel__body.tblwrap--busy::after {
+  .panel__body.tblwrap--busy::after,
+  .panel__body.tblwrap--done::after {
     width: 100%;
     animation: none;
   }
