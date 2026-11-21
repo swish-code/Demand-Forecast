@@ -204,10 +204,67 @@ function release() {
   }
 }
 
-/** For diagnostics: what the gate has settled on. */
-export const concurrency = () => ({ limit, inFlight, waiting: waiting.length })
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * A ceiling on requests per minute, as well as on requests at once.
+ *
+ * Added 18 Nov 2026 after the hosted Variance Analysis page failed with "Power
+ * BI throttled the request (429)". Power BI limits executeQueries per identity
+ * per MINUTE (documented as 120 query requests per minute per user; the service
+ * principal is that user). The gate above only limits how many are in flight,
+ * and queries that answer in two seconds at a gate of eight are ~240 a minute -
+ * double the allowance. The local ledger for one Variance load on 18 Nov:
+ * 139 Power BI calls, 25 refusals, gate collapsed to 2, 152 seconds.
+ *
+ * Every refusal costs a sixty-second Retry-After, and the queries that fail
+ * the page are the innocent ones queued behind the burst, which run out of
+ * their 75-second throttle budget. Pacing the requests turns that burst into a
+ * queue that drains at the rate Power BI accepts, which is both faster overall
+ * and never fails.
+ *
+ * Counted per attempt, because a retry is a request too. Per process, so two
+ * servers using the same service principal (a dev machine and the hosted app)
+ * still share 120 between them: keep the sum of their settings under that.
+ */
+const MAX_PER_MINUTE = Number(process.env.PBI_MAX_PER_MINUTE) || 100
+
+/**
+ * A sliding one-minute window of send times.
+ *
+ * Exported as a factory so the pacing can be tested without a clock or a
+ * network; the module uses one shared instance.
+ */
+export function createRateLimiter(maxPerMinute, { now = Date.now, wait = sleep, windowMs = 60_000 } = {}) {
+  const sent = []
+  return {
+    async take() {
+      for (;;) {
+        const t = now()
+        while (sent.length && t - sent[0] >= windowMs) sent.shift()
+        if (sent.length < maxPerMinute) {
+          sent.push(t)
+          return
+        }
+        // Sleep until the oldest send leaves the window, then look again:
+        // several callers may wake together and only some will get in.
+        await wait(windowMs - (t - sent[0]) + 5)
+      }
+    },
+    size: () => sent.length,
+  }
+}
+
+const perMinute = createRateLimiter(MAX_PER_MINUTE)
+
+/** For diagnostics: what the gate has settled on. */
+export const concurrency = () => ({
+  limit,
+  inFlight,
+  waiting: waiting.length,
+  sentLastMinute: perMinute.size(),
+  maxPerMinute: MAX_PER_MINUTE,
+})
 
 export async function executeQuery(dax, datasetId, { bulk = false, workspace = null } = {}) {
   /*
@@ -236,6 +293,7 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
   try {
     let lastError
     const started = Date.now()
+    let paced = 0
 
     // Retries are bounded by time, not by a fixed count. A throttle that lasts
     // twenty-five seconds needs more than four attempts two seconds apart, and
@@ -243,6 +301,14 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
     // ends up showing "Power BI throttled the request".
     for (let attempt = 0; ; attempt++) {
       try {
+        // Recorded apart from `pbi-wait`: a request held here is queued by the
+        // per-minute allowance, not by the in-flight gate, and the fixes differ.
+        // Time spent here is not spent on Power BI, so it is kept out of the
+        // retry budget below - a query that waited its turn must not then give
+        // up early on the first refusal.
+        const pacedFrom = Date.now()
+        await timed('pbi-rate', perMinute.take)
+        paced += Date.now() - pacedFrom
         const rows = await runQuery(dax, datasetId, bulk, workspace)
         succeeded()
         return rows
@@ -265,7 +331,7 @@ export async function executeQuery(dax, datasetId, { bulk = false, workspace = n
             ? BULK_TIMEOUT_MS * 3
             : REQUEST_DEADLINE_MS
         const wait = err.retryAfterMs ?? RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)]
-        const spent = Date.now() - started
+        const spent = Date.now() - started - paced
 
         if (!isRetryable(err) || spent + wait >= budget) {
           // Rewrite transport failures on the way out: "fetch failed" tells

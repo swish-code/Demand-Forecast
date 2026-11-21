@@ -120,7 +120,66 @@ function fold(rows) {
 }
 
 /**
+ * The whole months a window covers, or null if it does not start on the 1st
+ * and end on a month's last day.
+ *
+ * Capped at 36 months: past that a single window query is the cheaper ask.
+ */
+export function wholeMonthsOf(from, to) {
+  const f = String(from ?? '').slice(0, 10)
+  const t = String(to ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-01$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(t)) return null
+  if (t !== lastOfMonth(t) || t < f) return null
+  const out = []
+  for (let m = f; m <= t; ) {
+    out.push(m)
+    if (out.length > 36) return null
+    const [y, mo] = m.split('-').map(Number)
+    m = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10)
+  }
+  return out
+}
+
+/**
+ * ONE read: a brand's Level 1 figure over one window, cached.
+ *
+ * Throws on failure rather than answering null, so a refused read is never
+ * stored. It used to catch inside the cache and return null, and `cached`
+ * kept that null for the full hour - one throttle at the wrong moment and the
+ * brand silently showed unrestricted figures until the TTL ran out.
+ */
+function readWindow(brand, from, to) {
+  return cached(
+    `level1:${brand.code}:${from}:${to}`,
+    async () => {
+      const rows = await executeQuery(queryFor(brand, from, to), brand.datasetId, {
+        bulk: true,
+        workspace: brand.workspaceId || undefined,
+      })
+      const held = fold(rows)
+      console.log(`  [level1] ${brand.code} ${from}..${to}: ${held.size} articles`)
+      return held
+    },
+    { seconds: TTL }
+  )
+}
+
+/** One calendar month, under the same key a one-month window would use. */
+const readMonth = (brand, month) => {
+  const from = `${String(month).slice(0, 7)}-01`
+  return readWindow(brand, from, lastOfMonth(from))
+}
+
+/**
  * Level 1 PM theoretical per article, for one brand over one window.
+ *
+ * A WINDOW OF WHOLE MONTHS IS THE SUM OF ITS MONTHS, and those months are the
+ * ones the monthly trend has just read - so it is assembled from that cache
+ * instead of asked for again. 18 Nov 2026: on the default 01 Mar - 31 Oct
+ * view the separate window query was nine extra bulk queries (the slowest on
+ * the page, 435 seconds of Power BI time in one load) for figures already in
+ * hand. The measure is a sum over sales dates, so the months add up exactly.
+ * A window that starts or ends mid-month still gets its own query.
  *
  * Returns null - never an empty map - when the read fails, so a caller can
  * tell "no Level 1 usage" from "we could not ask". Falling back to the
@@ -130,23 +189,19 @@ function fold(rows) {
 export async function level1ByArticle(brandCode, { from, to }) {
   const brand = brandOf(brandCode)
   if (!brand?.datasetId || !from || !to) return null
-  return cached(
-    `level1:${brand.code}:${from}:${to}`,
-    async () => {
-      const rows = await executeQuery(queryFor(brand, from, to), brand.datasetId, {
-        bulk: true,
-        workspace: brand.workspaceId || undefined,
-      }).catch((err) => {
-        console.warn(`  [level1] ${brand.code} ${from}..${to}: ${String(err.message).slice(0, 80)}`)
-        return null
-      })
-      if (!rows) return null
-      const held = fold(rows)
-      console.log(`  [level1] ${brand.code} ${from}..${to}: ${held.size} articles`)
-      return held
-    },
-    { seconds: TTL }
-  )
+  try {
+    const months = wholeMonthsOf(from, to)
+    if (!months) return await readWindow(brand, from, to)
+    const parts = await Promise.all(months.map((m) => readMonth(brand, m)))
+    const out = new Map()
+    for (const part of parts) {
+      for (const [article, qty] of part) out.set(article, (out.get(article) ?? 0) + qty)
+    }
+    return out
+  } catch (err) {
+    console.warn(`  [level1] ${brand.code} ${from}..${to}: ${String(err.message).slice(0, 80)}`)
+    return null
+  }
 }
 
 /**
@@ -157,49 +212,35 @@ export async function level1ByArticle(brandCode, { from, to }) {
  * column to group on, and a daily grouping would return hundreds of thousands
  * of rows to be folded back up. Six narrow queries beat one enormous one.
  *
- * Cached on the brand and the month list, so moving the page's date slicer
- * does not re-fetch: the trend covers whole months regardless of the dates on
- * screen, exactly as the consumption trend does.
+ * Each month is cached on its own (see `readMonth`), so moving the page's
+ * date slicer does not re-fetch, and the window figure above reuses them.
  */
 export async function level1ByArticleMonth(brandCode, months) {
   const brand = brandOf(brandCode)
   if (!brand?.datasetId || !months?.length) return null
-  const key = `level1m:${brand.code}:${months.join(',')}`
-  return cached(
-    key,
-    async () => {
-      const out = new Map()
-      let failed = 0
-      await Promise.all(
-        months.map(async (month) => {
-          const from = `${String(month).slice(0, 7)}-01`
-          const rows = await executeQuery(queryFor(brand, from, lastOfMonth(from)), brand.datasetId, {
-            bulk: true,
-            workspace: brand.workspaceId || undefined,
-          }).catch((err) => {
-            failed += 1
-            console.warn(
-              `  [level1m] ${brand.code} ${month}: ${String(err.message).slice(0, 70)}`
-            )
-            return null
-          })
-          if (!rows) return
-          for (const [article, qty] of fold(rows)) {
-            let inner = out.get(article)
-            if (!inner) {
-              inner = new Map()
-              out.set(article, inner)
-            }
-            inner.set(month, (inner.get(month) ?? 0) + qty)
-          }
-        })
-      )
-      // A partial answer is worse than none: months that failed would read as
-      // months with no Level 1 usage, which is a different statement.
-      if (failed) return null
-      console.log(`  [level1m] ${brand.code}: ${out.size} articles over ${months.length} months`)
-      return out
-    },
-    { seconds: TTL }
+  const out = new Map()
+  let failed = 0
+  await Promise.all(
+    months.map(async (month) => {
+      const held = await readMonth(brand, month).catch((err) => {
+        failed += 1
+        console.warn(`  [level1m] ${brand.code} ${month}: ${String(err.message).slice(0, 70)}`)
+        return null
+      })
+      if (!held) return
+      for (const [article, qty] of held) {
+        let inner = out.get(article)
+        if (!inner) {
+          inner = new Map()
+          out.set(article, inner)
+        }
+        inner.set(month, (inner.get(month) ?? 0) + qty)
+      }
+    })
   )
+  // A partial answer is worse than none: months that failed would read as
+  // months with no Level 1 usage, which is a different statement.
+  if (failed) return null
+  console.log(`  [level1m] ${brand.code}: ${out.size} articles over ${months.length} months`)
+  return out
 }
