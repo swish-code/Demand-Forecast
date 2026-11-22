@@ -50,6 +50,7 @@ import { executeQuery } from '../powerbi/client.js'
 import { config } from '../config.js'
 import { cached } from '../cache.js'
 import { CATERING_BRANCHES, canonArticle, UNMAPPED_BRAND } from '../powerbi/consumption.js'
+import { placerFor, countsTowardPm } from './paScope.js'
 
 /** One hour, like the Level 1 reads it sits beside. */
 const TTL = 3600
@@ -134,12 +135,15 @@ SUMMARIZECOLUMNS(
 }
 
 /**
- * The Level 1 article lines of the PLUs that sold.
+ * The article lines of the PLUs that sold that count towards PM theoretical:
+ * Level 1 lines and lines inside PREP sub-recipes, stopping at PAs
+ * (`paScope.js`) - 22 Nov 2026, the same rule as the article view, so the
+ * branches still add up to it. Until then this read Level 1 lines only.
  *
  * Narrowed to the PLUs in the sales, because the recipe table is company-wide
- * (~300,000 rows) and a brand sells a few hundred of its PLUs. PREP lines have
- * no article number and are left out, exactly as the page's Level 1 figure
- * leaves them out.
+ * (~300,000 rows) and a brand sells a few hundred of its PLUs. Every level is
+ * read (about 28,000 lines for MM's sold PLUs) and placed here. PREP nodes
+ * themselves have no article number and are left out, as before.
  */
 /** A short, stable fingerprint of a list, for a cache key. */
 function fingerprint(list) {
@@ -152,30 +156,36 @@ function fingerprint(list) {
 function level1LinesFor(brand, plus) {
   const list = [...plus].sort()
   return cached(
-    `branchl1:${brand.code}:${fingerprint(list)}`,
+    // "branchpa", not "branchl1": lines cached under the old rule must not be served for the new one.
+    `branchpa:${brand.code}:${fingerprint(list)}`,
     async () => {
       if (!list.length) return []
-      const rows = await executeQuery(
-        `EVALUATE
+      const [rows, place] = await Promise.all([
+        executeQuery(
+          `EVALUATE
 SELECTCOLUMNS(
   FILTER('RECIPE TABLE',
-    'RECIPE TABLE'[Level] = 1
+    NOT ISBLANK('RECIPE TABLE'[Item No.])
       && 'RECIPE TABLE'[Product PLU] IN {${list.map(lit).join(', ')}}),
   "plu", 'RECIPE TABLE'[Product PLU],
   "art", 'RECIPE TABLE'[Item No.],
   "item", 'RECIPE TABLE'[Item],
   "bu", 'RECIPE TABLE'[BU],
+  "path", 'RECIPE TABLE'[Recipe Path],
   "qty", 'RECIPE TABLE'[QTY BU]
 )`,
-        brand.datasetId,
-        { bulk: true, workspace: brand.workspaceId || undefined }
-      )
-      assertComplete(rows, `Level 1 lines ${brand.code}`)
+          brand.datasetId,
+          { bulk: true, workspace: brand.workspaceId || undefined }
+        ),
+        placerFor(brand),
+      ])
+      assertComplete(rows, `recipe lines ${brand.code}`)
       const out = []
       for (const r of rows) {
         const article = canonArticle(val(r, 'art'))
         const qty = Number(val(r, 'qty')) || 0
         if (!article || !qty) continue
+        if (!countsTowardPm(place(val(r, 'path')))) continue
         out.push({
           plu: String(val(r, 'plu') ?? '').trim(),
           article,

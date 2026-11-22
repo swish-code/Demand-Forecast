@@ -1,8 +1,17 @@
 /**
- * PM theoretical restricted to LEVEL 1 recipe lines.
+ * PM theoretical for the Variance Analysis page: STOP AT PA.
  *
- * Added 15 Nov 2026, on request, for the Article-Level Variance Reconciliation
- * page and that page ALONE:
+ * CHANGED 22 Nov 2026, on request: the page now counts Level 1 lines AND the
+ * lines inside PREP sub-recipes, stopping at PA articles - see `paScope.js`
+ * for the rule, why it was chosen and how each line is placed. The query
+ * below groups by recipe path as well as article so every line can be placed;
+ * nothing in the recipe file or the models changed.
+ *
+ * The exported names still say "level1" so the route does not change; what
+ * they return is the stop-at-PA figure.
+ *
+ * THE ORIGINAL RULE, kept for the record. Added 15 Nov 2026, on request, for
+ * the Article-Level Variance Reconciliation page and that page ALONE:
  *
  *   "Only Level 1 articles should be considered as articles supplied directly
  *    to brands... Please update the logic on this page only."
@@ -36,6 +45,7 @@
 import { executeQuery } from '../powerbi/client.js'
 import { config } from '../config.js'
 import { cached } from '../cache.js'
+import { placerFor, countsTowardPm } from './paScope.js'
 
 /** One hour. The recipe tree moves when the model is republished, not hourly. */
 const TTL = 3600
@@ -94,28 +104,43 @@ const val = (r, name) => {
 const chainFilter = (brand) =>
   brand?.chain ? `\n  TREATAS({"${brand.chain}"}, Forecast_Product_Table[CHAINID]),` : ''
 
-const LEVEL_1 = `\n  FILTER(ALL('RECIPE TABLE'[Level]), 'RECIPE TABLE'[Level] = 1),`
-
+/*
+ * Grouped by PATH as well as article, at every level, so each line can be
+ * placed (`paScope.js`) and the ones inside a PA's recipe left out. MM, the
+ * largest brand, returns about 20,000 rows a month and answers in seconds.
+ */
 const queryFor = (brand, from, to) => `EVALUATE
 SUMMARIZECOLUMNS(
-  'RECIPE TABLE'[Item No.],${chainFilter(brand)}${LEVEL_1}
+  'RECIPE TABLE'[Item No.],
+  'RECIPE TABLE'[Recipe Path],${chainFilter(brand)}
   TREATAS(CALENDAR(${daxDate(from)}, ${daxDate(to)}), DateTable[Date]),
   "qty", [Component_Actual_Qty]
 )`
 
+/** Power BI drops rows past 100,000 without an error; an answer near it is not trusted. */
+const NEAR_CAP = 95_000
+
 const brandOf = (code) =>
   config.brands.find((b) => b.code.toUpperCase() === String(code).trim().toUpperCase()) ?? null
 
-/** Sum a result into `article -> qty`, dropping the blanks and the zeroes. */
-function fold(rows) {
+/**
+ * Sum a result into `article -> qty`, keeping only the lines that count
+ * (`place(path)`), and dropping the blanks and the zeroes.
+ */
+export function fold(rows, place) {
   const out = new Map()
+  let ambiguous = 0
   for (const r of rows ?? []) {
     const article = canonArticle(val(r, 'Item No.'))
     if (!article) continue
     const qty = Number(val(r, 'qty')) || 0
     if (!qty) continue
+    const where = place(val(r, 'Recipe Path'))
+    if (where === 'AMBIGUOUS') ambiguous += 1
+    if (!countsTowardPm(where)) continue
     out.set(article, (out.get(article) ?? 0) + qty)
   }
+  if (ambiguous) console.warn(`  [level1] ${ambiguous} lines could not be placed and were left out`)
   return out
 }
 
@@ -150,13 +175,20 @@ export function wholeMonthsOf(from, to) {
  */
 function readWindow(brand, from, to) {
   return cached(
-    `level1:${brand.code}:${from}:${to}`,
+    // "stoppa", not "level1": a figure cached under the old rule must not be served for the new one.
+    `stoppa:${brand.code}:${from}:${to}`,
     async () => {
-      const rows = await executeQuery(queryFor(brand, from, to), brand.datasetId, {
-        bulk: true,
-        workspace: brand.workspaceId || undefined,
-      })
-      const held = fold(rows)
+      const [rows, place] = await Promise.all([
+        executeQuery(queryFor(brand, from, to), brand.datasetId, {
+          bulk: true,
+          workspace: brand.workspaceId || undefined,
+        }),
+        placerFor(brand),
+      ])
+      if (rows.length >= NEAR_CAP) {
+        throw new Error(`${rows.length} rows - at Power BI's row limit, so it may be cut short`)
+      }
+      const held = fold(rows, place)
       console.log(`  [level1] ${brand.code} ${from}..${to}: ${held.size} articles`)
       return held
     },

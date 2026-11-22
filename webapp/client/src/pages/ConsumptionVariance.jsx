@@ -2929,7 +2929,7 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
         <Panel
           title="PM historical reconciliation"
           count={pmRows.length}
-          sub="Every article with a PM theoretical — actual PLU sales × article quantity BU, Level 1 recipe lines — against MC’s own theoretical for the same sales."
+          sub="Every article with a PM theoretical — actual PLU sales × article quantity BU, Level 1 lines and PREP sub-recipes, stopping at PA articles — against MC’s own theoretical for the same sales."
           busy={loading}
           tools={
             <button
@@ -3301,7 +3301,7 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
                       [
                         ['Months', sixMonths.map(monthLabel).join(', ')],
                         ['What this file is', 'One row per article per brand per BRANCH. For each month it carries MC theoretical, PM theoretical, the difference in units and the difference as a per cent of MC’s theoretical.'],
-                        ['PM theoretical', 'Level 1 recipe lines x the units of each PLU sold at that branch that month - the same figure as the article view, split by branch.'],
+                        ['PM theoretical', 'Level 1 lines and PREP sub-recipe lines (stopping at PA articles) x the units of each PLU sold at that branch that month - the same figure as the article view, split by branch.'],
                         ['MC theoretical', 'MC’s Potential COS QTY for the same brand, branch (KST MAP code) and month. Catering’s theoretical is excluded.'],
                         ['Variance', 'PM minus MC for that month. POSITIVE means our recipe explosion asks for more than MC’s.'],
                         ['Variance %', 'That month’s difference as a per cent of that month’s MC theoretical. Written as a number of per cent: 25 means 25%.'],
@@ -3501,10 +3501,11 @@ export function ConsumptionVariance({ filters, ready, refreshNonce, onLoaded }) 
 
 
       {/*
-        * `level1` - 15 Nov 2026, on request. This page counts only the recipe
-        * lines where the article is supplied directly to the brand, so the
-        * drill-down has to agree with the row that opened it. Stock Article
-        * passes nothing and still sees every level.
+        * `level1` - 15 Nov 2026, on request; the name is historical. Since
+        * 22 Nov 2026 the server reads it as "the lines this page counts":
+        * Level 1 lines plus lines inside PREP sub-recipes, stopping at PA
+        * articles. The drill-down has to agree with the row that opened it.
+        * Stock Article passes nothing and still sees every level.
         */}
       {usage && (
         <ArticleUsage

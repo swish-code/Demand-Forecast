@@ -60,6 +60,7 @@ import { nonRecipeRows } from '../insights/nonRecipe.js'
  * See `insights/recipeLevel.js` for why it cannot come from the local copy.
  */
 import { level1ByArticle, level1ByArticleMonth } from '../insights/recipeLevel.js'
+import { placerFor, countsTowardPm } from '../insights/paScope.js'
 import { branchMonthlyVariance } from '../insights/branchVariance.js'
 import { newStoreForecast, newStoreProducts } from '../insights/newStore.js'
 import { siteOnlyRows } from '../insights/siteArticles.js'
@@ -538,7 +539,17 @@ async function withOracleConsumption(
   }
 
   /*
-   * LEVEL 1 LINES ONLY, on this page - 15 Nov 2026, on request.
+   * STOP AT PA, on this page - 22 Nov 2026, on request. `level1ByArticle` now
+   * returns Level 1 lines plus the lines inside PREP sub-recipes, stopping at
+   * PA articles (see `insights/paScope.js` for the rule and the evidence).
+   * Measured against MC for the seven brands other than BBT and YP, October
+   * 2026: 73.6% under Level 1 lines, 88.4% under stop-at-PA. Everything else
+   * below - replacing rather than filtering, `fullTable`, failed reads - is
+   * unchanged. The note on PREP lines no longer holds for the quantity inside
+   * them: their ingredients are now counted; only the PREP node itself, which
+   * has no article number, is not.
+   *
+   * WAS: LEVEL 1 LINES ONLY, on this page - 15 Nov 2026, on request.
    *
    * The rows above carry `Component_Actual_Qty` summed over EVERY recipe line
    * that names the article, at any depth. The request is for the quantity
@@ -3845,7 +3856,7 @@ api.all('/article-usage', handle(async (req, res) => {
   for (const p of g.parts) {
     const chain = String(p.brand.chain ?? p.brand.code)
     const key = `${p.ds}|${chain}`
-    if (!byDataset.has(key)) byDataset.set(key, { ds: p.ds, codes: [], chains: new Set() })
+    if (!byDataset.has(key)) byDataset.set(key, { ds: p.ds, brand: p.brand, codes: [], chains: new Set() })
     const held = byDataset.get(key)
     held.codes.push(p.brand.code)
     held.chains.add(chain)
@@ -3918,7 +3929,7 @@ api.all('/article-usage', handle(async (req, res) => {
   )
 
   const parts = await Promise.all(
-    [...byDataset.values()].map(({ ds, codes, chains }) => {
+    [...byDataset.values()].map(({ ds, brand, codes, chains }) => {
       const scope = [...chains].sort()
       const plu = scope.length
         ? `TREATAS({${scope.map((c) => `"${c}"`).join(', ')}}, Forecast_Product_Table[CHAINID])`
@@ -3984,12 +3995,14 @@ api.all('/article-usage', handle(async (req, res) => {
        *
        * Found while adding the Level 1 restriction, not reported.
        *
-       * `level1` restricts to the recipe lines the article is supplied
-       * directly to the brand on - 15 Nov 2026, on request, and only for the
-       * Variance Analysis page. Every other caller leaves it off and sees
-       * every level, exactly as before.
+       * `level1` scopes the recipe lines to the ones the Variance Analysis
+       * page counts - only for that page; every other caller leaves it off
+       * and sees every level, exactly as before. It was "Level 1 lines only"
+       * (15 Nov 2026); since 22 Nov 2026 it is STOP AT PA (`paScope.js`), and
+       * the scoping is done on the rows below, by recipe path, rather than in
+       * the query - the flag keeps its name so the client does not change.
        */
-      const usageDax = (restrictToForecast = true, level1 = false) => `EVALUATE
+      const usageDax = (restrictToForecast = true) => `EVALUATE
 VAR PLUs =
   SELECTCOLUMNS(
     FILTER(
@@ -4010,8 +4023,6 @@ SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Node Type],
   'RECIPE TABLE'[BU],
   TREATAS({"${value}"}, ${column}),${
-    level1 ? `\n  FILTER(ALL('RECIPE TABLE'[Level]), 'RECIPE TABLE'[Level] = 1),` : ''
-  }${
     restrictToForecast
       ? `
   FILTER(
@@ -4040,11 +4051,15 @@ SUMMARIZECOLUMNS(
        */
       // `level1` is part of the key: the two answers are different sets of
       // rows, and serving one for the other is how a cache lies.
-      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}:${level1 ? 'L1' : 'all'}`, async () => {
+      // "PA", not the old "L1": rows cached under the Level 1 rule must not be served for stop-at-PA.
+      return cached(`${ds}:usage:${column}:${value}:${scope.join(',')}:${level1 ? 'PA' : 'all'}`, async () => {
+        const place = level1 ? await placerFor(brand) : null
+        const scoped = (rows) =>
+          place ? rows.filter((r) => countsTowardPm(place(r['Recipe Path'] ?? r['RECIPE TABLE[Recipe Path]']))) : rows
         // Raw rows in the cache, so nothing stored carries one caller's label.
-        const rows = await executeQuery(usageDax(true, level1), ds, { bulk: true })
+        const rows = scoped(await executeQuery(usageDax(true), ds, { bulk: true }))
         if (rows.length) return rows
-        const wider = await executeQuery(usageDax(false, level1), ds, { bulk: true }).catch(() => [])
+        const wider = scoped(await executeQuery(usageDax(false), ds, { bulk: true }).catch(() => []))
         // Marked, so the panel can say which of the two facts it is looking at.
         return wider.map((r) => ({ ...r, __unforecast: 1 }))
       })
