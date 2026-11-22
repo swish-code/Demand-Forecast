@@ -17,6 +17,7 @@ import {
   KpiCard,
   FmNotice,
   MetricCard,
+  Pill,
 } from '../components/ui.jsx'
 import { DataTable } from '../components/DataTable.jsx'
 import {
@@ -440,6 +441,21 @@ export function Procurement({
         held.Item = held.Item || name
         held['Node Type'] = held['Node Type'] ?? r['Node Type']
         held.Category = held.Category ?? r.Category
+        /*
+         * The first month in this view that called the article New or
+         * Returning keeps the verdict - 22 Nov 2026.
+         *
+         * This page asks the server once per MONTH, so each month is judged
+         * against its own twelve-month lookback. That is not a problem to work
+         * around, it is the answer: an article that moved in January is part
+         * of March's lookback, so March reports it as Existing and only
+         * January's request calls it New. At most one month in the view can
+         * flag it, and this keeps that one.
+         *
+         * `??=` rather than overwrite, so a later month's blank - which means
+         * "not new in March", not "not new" - cannot erase it.
+         */
+        held['New Article'] = held['New Article'] ?? r['New Article'] ?? null
 
         let m = held.__m.get(month.key)
         if (!m) {
@@ -712,6 +728,33 @@ export function Procurement({
           autoWidth: { min: 200, max: 420, percentile: 0.95 },
         },
         { ...BASE.get('Item No.'), width: W.article },
+        /*
+         * New / Returning, for the period on the slicer - 22 Nov 2026.
+         *
+         * It sits with the identity columns rather than inside a month block
+         * because it is a property of the ARTICLE over the whole selected
+         * period, not a monthly figure: repeating it under each month would
+         * print the same verdict several times and invite someone to read a
+         * change into it that is not there.
+         *
+         * Blank is not "existing" - see the server, which withholds a verdict
+         * rather than guessing one when the lookback is not covered.
+         */
+        {
+          key: 'New Article',
+          label: 'New',
+          width: 88,
+          hint:
+            'Articles that started moving in the selected period after twelve silent months. ' +
+            '"New" has no history before those twelve months; "Returning" existed before them and has come back. ' +
+            'Blank means neither could be established - it is not a statement that the article is old.',
+          render: (v) =>
+            v ? (
+              <Pill tone={v === 'Returning' ? 'amber' : 'green'}>{v}</Pill>
+            ) : (
+              <span className="muted">–</span>
+            ),
+        },
       ].filter((c) => c.key),
     []
   )

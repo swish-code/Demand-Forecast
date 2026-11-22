@@ -33,7 +33,42 @@ import { query, table, snowflakeConfigured } from '../costing/snowflake.js'
  * time this app sees an article is the first time, permanently.
  */
 
-/** How long an article stays new. Agreed 21 Nov 2026. */
+/*
+ * 22 Nov 2026 - THE RULE IS NOW THE READER'S PERIOD, NOT TODAY.
+ *
+ * The original rule above asked "did this article first appear in the last 30
+ * days?", measured from the clock. It answered a question nobody on a reporting
+ * page was asking: a buyer looking at October wants to know what was new IN
+ * OCTOBER, and got an answer about this morning.
+ *
+ * So the window now comes from the date slicer, and the lookback moves with it:
+ *
+ *   reporting period   1-30 Oct 2026
+ *   lookback           1 Oct 2025 .. 30 Sep 2026   (12 months, ending the day
+ *                                                   before the period starts)
+ *
+ * Movement in the lookback means the article was already in circulation, and
+ * that is the whole test. What separates the two flagged kinds is whether the
+ * article existed BEFORE the lookback:
+ *
+ *   New        moved in the period, silent through the lookback, and the
+ *              ledger holds no trace of it before the lookback either
+ *   Returning  moved in the period, silent through the lookback, but the
+ *              ledger first saw it before the lookback began - it is not new,
+ *              it came back
+ *   Existing   moved during the lookback (returned as no label at all)
+ *
+ * NOTHING ABOUT THIS IS STORED. The ledger keeps a FACT - the first date this
+ * app ever saw an article - and the verdict is derived from it per period.
+ * That is what lets the same article read New in October and Existing in
+ * December without a single ledger row being rewritten, and it is why changing
+ * the slicer cannot corrupt the history.
+ */
+
+/** How long an article must have been silent. Agreed 22 Nov 2026. */
+const LOOKBACK_MONTHS = 12
+
+/** How long an article stays new. The pre-22-Nov rule; kept for the ledger. */
 const NEW_FOR_DAYS = 30
 
 /** A first appearance this close to a source's own start is not a launch. */
@@ -176,59 +211,206 @@ async function recordUnseen(traces, starts) {
 }
 
 /**
- * The articles that are NEW right now.
+ * The 12 months before a reporting period begins.
  *
- * Returns a Set of article numbers, or null when it cannot be worked out -
- * null meaning "unknown", so a caller leaves the column blank rather than
- * asserting that nothing is new.
- *
- * Cached for an hour: the answer changes at most once a day, and the Power BI
- * reads behind it are three full-history scans.
+ * Ends the day BEFORE the period starts, so the two never overlap: the period
+ * decides which articles are evaluated, the lookback decides what they are.
+ * A period spanning several months uses its own start, as agreed - a six-month
+ * report asks one question about the whole report, not six.
  */
-export async function newArticles({ now = new Date() } = {}) {
-  if (!snowflakeConfigured()) return null
-  const today = now.toISOString().slice(0, 10)
+export function lookbackFor(from) {
+  if (!from) return null
+  const start = new Date(`${from}T00:00:00Z`)
+  if (Number.isNaN(start.getTime())) return null
 
-  return cached(`new-articles:${today}`, async () => {
+  const back = new Date(start)
+  back.setUTCMonth(back.getUTCMonth() - LOOKBACK_MONTHS)
+  const end = new Date(start.getTime() - 86_400_000)
+  return { start: iso(back.toISOString()), end: iso(end.toISOString()) }
+}
+
+/**
+ * One article's verdict, given its movement and what the ledger holds.
+ *
+ * Pure, and exported, so the rule can be tested without Power BI or Snowflake
+ * behind it. Returns 'New', 'Returning', or null - and null covers three
+ * genuinely different cases on purpose: it did not move in the period, it
+ * moved during the lookback (Existing), or it moved too little to be believed.
+ * The column shows a blank for all three, because none of them is a claim.
+ */
+export function verdictFor({ periodRows = 0, periodDays = 0, lookbackRows = 0, firstSeen = null, lookbackStart }) {
+  if (!(periodRows > 0)) return null
+  if (lookbackRows > 0) return null
+
+  /*
+   * QUALIFY is measured on the REPORTING PERIOD, not on the article's whole
+   * life. On whole-life rows a Returning article passes by definition - it has
+   * years of history - so the gate that exists to catch one-row corrections
+   * would never fire for the half of the population most likely to hold them.
+   */
+  if (periodRows < QUALIFY.rows && periodDays < QUALIFY.days) return null
+
+  return firstSeen && lookbackStart && firstSeen < lookbackStart
+    ? RETURNING_ARTICLE_LABEL
+    : NEW_ARTICLE_LABEL
+}
+
+/** Keep the ledger current. One cached run a day, whatever the slicer says. */
+async function refreshLedger(today) {
+  return cached(`first-seen-ledger:${today}`, async () => {
     await ensureFirstSeenTable()
 
-    const got = await firstTraces()
-    if (got) await recordUnseen(got.traces, got.starts)
-
     /*
-     * Read the flag back FROM THE LEDGER, not from what we just computed.
-     * The ledger is the authority - an article recorded months ago keeps the
-     * date it was recorded with, even if the sources no longer agree.
+     * TOPPING THE LEDGER UP MUST NOT DECIDE WHETHER THE PAGE WORKS.
+     *
+     * `firstTraces` is three FULL-HISTORY Power BI scans. They run inside a
+     * page request that is already waiting on Power BI, behind the per-minute
+     * pacing, and they can time out - which is the most likely explanation for
+     * the blank page reported on 22 Nov: the lookup threw, every row became
+     * "not new", and the New filter deleted the lot.
+     *
+     * The ledger is the authority in any case. If the top-up fails, the dates
+     * already recorded are still true and still answer New vs Returning; only
+     * articles first seen since the last successful run are missing, and they
+     * will be added on the next one. So this degrades to "slightly stale"
+     * rather than to "no answer".
      */
-    const rows = await query(
-      `SELECT ARTICLE_ID, TO_VARCHAR(FIRST_SEEN_DATE) AS D, FIRST_SEEN_SOURCE AS S,
-              MOVEMENT_ROWS AS R, DISTINCT_DAYS AS DD
-         FROM ${T()}
-        WHERE FIRST_SEEN_DATE >= DATEADD(day, -${NEW_FOR_DAYS}, CURRENT_DATE())`
-    )
-
-    const starts = got?.starts ?? {}
-    const out = new Set()
-    for (const r of rows) {
-      const first = iso(r.D)
-      if (!first) continue
-
-      // Trap 1: too close to the source's own earliest record to be a launch.
-      const start = starts[String(r.S)]
-      if (start && daysBetween(start, first) < BOUNDARY_DAYS) continue
-
-      // Trap 2: it has to have actually moved.
-      const movedEnough =
-        (Number(r.R) || 0) >= QUALIFY.rows || (Number(r.DD) || 0) >= QUALIFY.days
-      if (!movedEnough) continue
-
-      out.add(String(r.ARTICLE_ID))
+    let got = null
+    try {
+      got = await firstTraces()
+      if (got) await recordUnseen(got.traces, got.starts)
+    } catch (err) {
+      console.warn(
+        `  [first-seen-ledger] top-up failed, using the ledger as it stands: ${String(err.message).slice(0, 110)}`
+      )
     }
 
-    console.log(`  [new-articles] ${out.size} articles are new (first seen in ${NEW_FOR_DAYS} days)`)
-    return out
+    const seen = new Map()
+    for (const r of await query(`SELECT ARTICLE_ID, TO_VARCHAR(FIRST_SEEN_DATE) AS D FROM ${T()}`)) {
+      const d = iso(r.D)
+      if (d) seen.set(String(r.ARTICLE_ID), d)
+    }
+    return { seen, starts: got?.starts ?? {} }
+  }, { seconds: 3600 })
+}
+
+/** Movement per article in the two windows, in one read. */
+async function movementFor({ from, to, lookback }) {
+  const w = config.warehouse
+  if (!w?.datasetId || !w?.workspaceId) return null
+  const d = (v) => {
+    const [y, m, day] = v.split('-')
+    return `DATE(${Number(y)},${Number(m)},${Number(day)})`
+  }
+  const rows = await executeQuery(
+    `EVALUATE
+SUMMARIZECOLUMNS(
+  fact_outbound_line[Article No.],
+  "PeriodRows", CALCULATE(COUNTROWS(fact_outbound_line),
+    DATESBETWEEN(fact_outbound_line[Request Created Date], ${d(from)}, ${d(to)})),
+  "PeriodDays", CALCULATE(DISTINCTCOUNT(fact_outbound_line[Request Created Date]),
+    DATESBETWEEN(fact_outbound_line[Request Created Date], ${d(from)}, ${d(to)})),
+  "LookbackRows", CALCULATE(COUNTROWS(fact_outbound_line),
+    DATESBETWEEN(fact_outbound_line[Request Created Date], ${d(lookback.start)}, ${d(lookback.end)}))
+)`,
+    w.datasetId,
+    { bulk: true, workspace: w.workspaceId }
+  )
+  return rows ?? []
+}
+
+/**
+ * Classify every article that moved in the reporting period.
+ *
+ * Returns `{ labels, lookback, stats }`, or null when the question cannot be
+ * answered - null meaning UNKNOWN, so a caller leaves the column blank rather
+ * than telling a reader that nothing is new.
+ *
+ * `labels` holds only New and Returning. Existing is deliberately absent: it
+ * is the same blank as "could not be established", and a column that printed
+ * "Existing" would be asserting a certainty this data does not have.
+ */
+export async function articleStatusForWindow({ from, to } = {}) {
+  if (!snowflakeConfigured()) return null
+  if (!from || !to || from > to) return null
+
+  const lookback = lookbackFor(from)
+  if (!lookback) return null
+  const today = new Date().toISOString().slice(0, 10)
+
+  return cached(`article-status:${from}:${to}:${today}`, async () => {
+    const { seen, starts } = await refreshLedger(today)
+
+    /*
+     * BOUNDARY_DAYS, re-pointed at the WINDOW rather than at the article.
+     *
+     * The old test asked whether an article's first appearance sat too close
+     * to its source's earliest record. Under a moving lookback the exposure is
+     * larger and simpler: if the outbound history does not comfortably cover
+     * the whole lookback, then EVERY article looks dormant through it, and the
+     * rule would flag the lot. So the window itself must clear the start of
+     * recorded history by the same margin, or nothing is classified.
+     *
+     * Returning null rather than calling everything Existing is the point: a
+     * period we cannot judge must read as unknown, not as a clean bill.
+     */
+    const outboundStart = starts.outbound ?? null
+    if (outboundStart && daysBetween(outboundStart, lookback.start) < BOUNDARY_DAYS) {
+      console.log(
+        `  [article-status] ${from}..${to}: lookback starts ${lookback.start}, ` +
+          `outbound history starts ${outboundStart} - inside the ${BOUNDARY_DAYS}-day margin, not classified`
+      )
+      return {
+        labels: new Map(),
+        lookback,
+        stats: { evaluated: 0, new: 0, returning: 0, existing: 0, failedQualify: 0, suppressed: true },
+      }
+    }
+
+    const rows = await movementFor({ from, to, lookback })
+    if (!rows) return null
+
+    const labels = new Map()
+    const stats = { evaluated: 0, new: 0, returning: 0, existing: 0, failedQualify: 0, suppressed: false }
+
+    for (const r of rows) {
+      const article = String(val(r, 'Article No.') ?? '').trim()
+      const periodRows = Number(val(r, 'PeriodRows')) || 0
+      if (!article || periodRows <= 0) continue
+      stats.evaluated += 1
+
+      const lookbackRows = Number(val(r, 'LookbackRows')) || 0
+      if (lookbackRows > 0) {
+        stats.existing += 1
+        continue
+      }
+
+      const periodDays = Number(val(r, 'PeriodDays')) || 0
+      const verdict = verdictFor({
+        periodRows,
+        periodDays,
+        lookbackRows,
+        firstSeen: seen.get(article) ?? null,
+        lookbackStart: lookback.start,
+      })
+      if (!verdict) {
+        stats.failedQualify += 1
+        continue
+      }
+      labels.set(article, verdict)
+      if (verdict === RETURNING_ARTICLE_LABEL) stats.returning += 1
+      else stats.new += 1
+    }
+
+    console.log(
+      `  [article-status] ${from}..${to} (lookback ${lookback.start}..${lookback.end}): ` +
+        `${stats.evaluated} evaluated, ${stats.new} new, ${stats.returning} returning, ` +
+        `${stats.existing} existing, ${stats.failedQualify} below the movement threshold`
+    )
+    return { labels, lookback, stats }
   }, { seconds: 3600 })
 }
 
 export const NEW_ARTICLE_LABEL = 'New'
-export { NEW_FOR_DAYS, QUALIFY, BOUNDARY_DAYS }
+export const RETURNING_ARTICLE_LABEL = 'Returning'
+export { NEW_FOR_DAYS, LOOKBACK_MONTHS, QUALIFY, BOUNDARY_DAYS }

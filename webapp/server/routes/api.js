@@ -86,7 +86,11 @@ import {
   transferTypeFor,
   transfersByArticle,
 } from '../insights/responsibility.js'
-import { NEW_ARTICLE_LABEL, newArticles } from '../insights/newArticles.js'
+import {
+  NEW_ARTICLE_LABEL,
+  RETURNING_ARTICLE_LABEL,
+  articleStatusForWindow,
+} from '../insights/newArticles.js'
 import { siteOutboundByArticle, siteOutboundTotalByArticle } from '../powerbi/siteOutbound.js'
 import { siteForecastFor, siteForecastAllDestinations } from '../insights/siteForecast.js'
 import { warehouseDiagnostics } from '../insights/whDiagnostics.js'
@@ -3154,20 +3158,11 @@ async function withResponsibility(rows, filters, user) {
   const wanted = effective?.length ? new Set(effective) : permitted ? new Set() : null
   if (!wanted) return rows
 
-  const [whSupplied, prodSource, purchases, transfers, fresh] = await Promise.all([
+  const [whSupplied, prodSource, purchases, transfers] = await Promise.all([
     warehouseSuppliedArticles().catch(() => null),
     productionSourceByArticle().catch(() => null),
     purchasesByArticle().catch(() => null),
     transfersByArticle().catch(() => null),
-    /*
-     * Newness is NOT part of the degraded-lookup guard below. It decorates a
-     * row; it never decides whether one belongs on the page. If it is
-     * unavailable the column is blank and everything else carries on.
-     */
-    newArticles().catch((err) => {
-      console.warn(`  [new-articles] unavailable (${String(err.message).slice(0, 90)})`)
-      return null
-    }),
   ])
   /*
    * ANY missing lookup is a degraded classification, not just all three.
@@ -3231,14 +3226,6 @@ async function withResponsibility(rows, filters, user) {
     ? new Set(filters.transferTypes.map((v) => String(v)))
     : null
 
-  /*
-   * The New slicer. Only ever narrows TO new articles - there is no "Existing"
-   * value, because "not flagged new" also covers every article whose newness
-   * could not be established, and offering it would promise a certainty the
-   * data does not have.
-   */
-  const onlyNew = (filters?.newArticle ?? []).some((v) => String(v) === NEW_ARTICLE_LABEL)
-
   const out = []
   for (const r of rows) {
     const departments = departmentsForRow({
@@ -3269,10 +3256,12 @@ async function withResponsibility(rows, filters, user) {
         ? formatPaths(pathsForDepartment(r.Path.split(' ; '), only))
         : r.Path
     /*
-     * The column is stamped so the reader can see WHY a row is on this page,
-     * and so the CSV carries it. Joined rather than reduced to one value: an
-     * article the warehouse supplies and the bakery makes is both of those
-     * things, and naming one would misreport the other.
+     * `departments` is NOT stamped onto the row - 22 Nov 2026, on request.
+     *
+     * It decided whether this row belongs here, which is its whole job, and
+     * the `Responsible` column that printed it has been removed. Writing a
+     * value nothing renders is the defect found in review on 20 Nov, so the
+     * classification stays where it is used and goes no further.
      */
     /*
      * Where the stock came from, and where it went - 21 Nov 2026, on request.
@@ -3286,20 +3275,63 @@ async function withResponsibility(rows, filters, user) {
     const list = (vals) =>
       !vals.length ? null : vals.length <= 3 ? vals.join(', ') : `${vals.slice(0, 3).join(', ')} +${vals.length - 3} more`
 
-    const isNew = fresh ? fresh.has(String(r['Item No.'] ?? '').trim()) : false
-    if (onlyNew && !isNew) continue
-
     out.push({
       ...r,
       Path,
-      Responsibility: [...departments].join(' + '),
       'Transfer Type': direction,
       'Inbound From': only ? list(counterpartiesFor(r['Item No.'], only, transfers, 'in')) : null,
       'Outbound To': only ? list(counterpartiesFor(r['Item No.'], only, transfers, 'out')) : null,
-      // Blank rather than "No": an unflagged article is not proven old, and
-      // where the ledger is unreachable nothing is known at all.
-      'New Article': isNew ? NEW_ARTICLE_LABEL : null,
     })
+  }
+  return out
+}
+
+/**
+ * Stamp New / Returning onto each row, for the period on screen.
+ *
+ * ITS OWN STEP, not part of `withResponsibility` - 22 Nov 2026.
+ *
+ * It lived inside that function until today, which quietly meant it ran only
+ * where a department was pinned: Stock Article, Production and Swish Bakery.
+ * Procurement has no `lockResponsibility`, so `withResponsibility` returned at
+ * its first line and no Procurement row ever carried the flag. Lifting the
+ * stamp out is what puts the column on the page that asked for it, and it
+ * costs the other three pages nothing - they call this too.
+ *
+ * A failure leaves every row blank and the page otherwise intact. This
+ * decorates a row; it never decides whether one belongs on the page.
+ */
+async function withArticleStatus(rows, filters) {
+  const asked = (filters?.newArticle ?? []).map((v) => String(v))
+  const wanted = asked.length
+    ? new Set(asked.filter((v) => v === NEW_ARTICLE_LABEL || v === RETURNING_ARTICLE_LABEL))
+    : null
+
+  const got = await articleStatusForWindow({
+    from: filters?.dateFrom ?? null,
+    to: filters?.dateTo ?? null,
+  }).catch((err) => {
+    console.warn(`  [article-status] unavailable (${String(err.message).slice(0, 90)})`)
+    return null
+  })
+
+  /*
+   * No window, no answer - and no filtering either.
+   *
+   * Dropping rows here when the classification is unknown would turn "we could
+   * not tell" into "none of these are new", on a slicer the reader chose
+   * deliberately. The filter narrows what is known; it never asserts about
+   * what is not.
+   */
+  if (!got) return rows
+
+  const out = []
+  for (const r of rows) {
+    const label = got.labels.get(String(r['Item No.'] ?? '').trim()) ?? null
+    if (wanted && !(label && wanted.has(label))) continue
+    // Blank rather than "Existing": an unflagged article is not proven old,
+    // and where the lookback cannot be covered nothing is known at all.
+    out.push({ ...r, 'New Article': label })
   }
   return out
 }
@@ -4868,7 +4900,7 @@ export async function componentLevel(req, res) {
       // Outermost, so every row's CHAINID is final before Oracle's figures are
       // joined on it - `withFmArticles` is what stamps FM, and a row still
       // missing its brand would be matched against the wrong one.
-      rows: await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+      rows: await withArticleStatus(await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
         // The file decides the badge BEFORE the slicer reads it, so the column
         // and the filter can never disagree about what a Recipe row is.
         await withRecipeFile(await withSafetyStock(
@@ -4895,7 +4927,7 @@ export async function componentLevel(req, res) {
           seesStockDetail(req.user)
         )),
         window
-      ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
+      ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
@@ -4903,7 +4935,7 @@ export async function componentLevel(req, res) {
   res.json({
     sales,
     // Outermost, for the same reason as the single-brand branch above.
-    rows: await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+    rows: await withArticleStatus(await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
       // The file decides the badge BEFORE the slicer reads it — see above.
       await withRecipeFile(await withSafetyStock(
         await withOpenPo(
@@ -4935,7 +4967,7 @@ export async function componentLevel(req, res) {
         seesStockDetail(req.user)
       )),
       window
-    ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }),
+    ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
   })
 }
 

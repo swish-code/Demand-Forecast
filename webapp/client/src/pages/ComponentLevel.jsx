@@ -235,19 +235,30 @@ const COLUMNS = [
      * cost centres in six months.
      */
     /*
-     * First seen within the last 30 days, and it has actually moved.
+     * Started moving in the SELECTED period, after twelve silent months.
+     *
+     * Two values, and the difference between them is the point of the column:
+     * New has no history before those twelve months, Returning does - it is an
+     * article the business already had, coming back into circulation. A buyer
+     * acts on those differently, which is why they are one column and not one
+     * flag.
      *
      * Shown rather than hidden by default, unlike the other explanatory
-     * columns: a new article is a thing to notice while reading, not a
-     * question asked occasionally. Blank is NOT "existing" - an article can be
-     * unflagged because its first appearance could not be established, so the
-     * column never asserts the opposite.
+     * columns: this is a thing to notice while reading, not a question asked
+     * occasionally. Blank is NOT "existing" - an article can be unflagged
+     * because its history could not be established, or because the period's
+     * lookback reaches past the start of recorded history, so the column never
+     * asserts the opposite.
      */
     key: 'New Article',
     label: 'New',
-    width: 64,
+    width: 88,
     render: (v) =>
-      v ? <Pill tone="green">{v}</Pill> : <span className="muted">–</span>,
+      v ? (
+        <Pill tone={v === 'Returning' ? 'amber' : 'green'}>{v}</Pill>
+      ) : (
+        <span className="muted">–</span>
+      ),
   },
   {
     key: 'Inbound From',
@@ -269,18 +280,23 @@ const COLUMNS = [
       'More than three destinations are shortened to the first three and a count.',
     render: (v) => (v ? <span>{v}</span> : <span className="muted">–</span>),
   },
-  {
-    key: 'Responsibility',
-    label: 'Responsible',
-    autoWidth: true,
-    hiddenByDefault: true,
-    hint:
-      'The department this article is on this page for: the Central Warehouse supplies or buys it, the kitchen or the bakery makes or buys it, or no department does and it is in Others. ' +
-      'An article can be more than one department’s business - made at the bakery AND supplied by the warehouse, say - and then both are named, separated by "+". ' +
-      'Those articles appear on both pages, deliberately, and their quantities must not be added across them.',
-    render: (v) =>
-      v ? <span>{v}</span> : <span className="muted">–</span>,
-  },
+  /*
+   * The Responsible column was REMOVED on 22 Nov 2026, on request.
+   *
+   * It named the department a row was on the page for, and on a page already
+   * pinned to one department every row repeated that department's own name -
+   * which is why it read as noise rather than information. The `+` cases it
+   * existed to surface, an article that is two departments' business, were a
+   * minority paying for a column on every row.
+   *
+   * The server-side stamp went with it. A value written onto every row and
+   * rendered nowhere is exactly the defect found in review on 20 Nov, and
+   * leaving the stamp behind would recreate it.
+   *
+   * To bring it back: restore this column and the `Responsibility` line in
+   * `withResponsibility`. The classification itself is untouched - it still
+   * decides which rows appear, it is simply no longer printed.
+   */
   // Off by default — asked for on 1 Sep 2026. The table opens on the five
   // columns somebody reads: what it is, what kind, in what unit, what moved and
   // what is needed. Recipe group and the article number are a click away in

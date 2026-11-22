@@ -294,7 +294,9 @@ const PAGES = [
      * columns on a page whose whole purpose is those columns. The same reason
      * `BRAND_LEVEL_DEPARTMENTS` exists on the server.
      */
-    slicers: ['date', 'item', 'category', 'supply', 'channel', 'status'],
+    // `newArticle` added 22 Nov 2026: the classification is judged against the
+    // period this page's date slicer selects, so the slicer belongs with it.
+    slicers: ['date', 'item', 'category', 'supply', 'channel', 'status', 'newArticle'],
   },
   {
     /*
@@ -941,13 +943,17 @@ const EMPTY_OPTIONS = {
    */
   transferType: ['Inbound', 'Outbound'],
   /*
-   * One value only. Ticking it narrows to articles first seen in the last 30
-   * days; there is deliberately no "Existing", because an article without the
-   * flag is not proven old - it may simply be one whose first appearance
-   * could not be established. Offering the opposite would promise a certainty
-   * the data does not have.
+   * Two values, both judged against the period on the date slicer: New is an
+   * article with no history at all before the 12 months preceding it, and
+   * Returning is one that existed, went silent for those 12 months and has
+   * started moving again.
+   *
+   * There is deliberately no "Existing". An article without a flag is not
+   * proven old - it may be one whose history could not be established, or one
+   * in a period whose lookback the data does not cover. Offering the opposite
+   * would promise a certainty the data does not have.
    */
-  newArticle: ['New'],
+  newArticle: ['New', 'Returning'],
   /*
    * Fixed as well: Oracle either has a theoretical for the article or it has
    * none. Read off `Sys_Potential_COS`, so there is nothing to fetch.

@@ -298,14 +298,34 @@ test('the site-page pre-fan pass still runs for the department pages', () => {
   )
 })
 
-test('the Responsibility stamp has a column to appear in', () => {
-  // It was written onto every row and rendered nowhere, so it reached neither
-  // the table nor the CSV.
+test('nothing is stamped onto a row that no column renders', () => {
+  /*
+   * The invariant, not the column.
+   *
+   * On 20 Nov the review found `Responsibility` written onto every row with
+   * no column to show it - it reached neither the table nor the CSV. The
+   * column was added; on 22 Nov the column was removed again on request,
+   * because on a page pinned to one department every row simply repeated that
+   * department's name.
+   *
+   * So what is worth pinning is the RULE both of those were judged against:
+   * the stamp and the column live or die together. This test fails if either
+   * comes back without the other.
+   */
   const page = readFileSync(
     new URL('../../client/src/pages/ComponentLevel.jsx', import.meta.url),
     'utf8'
   )
-  assert.ok(/key: 'Responsibility'/.test(page), 'the column must exist')
+  const code = strip(api)
+  const stamped = /^\s*Responsibility: /m.test(code)
+  const rendered = /key: 'Responsibility'/.test(page)
+  assert.equal(
+    stamped,
+    rendered,
+    stamped
+      ? 'withResponsibility stamps Responsibility but ComponentLevel has no column for it'
+      : 'ComponentLevel renders a Responsibility column but withResponsibility no longer stamps it'
+  )
 })
 
 /* ---------- structural: the pins, and the one that had to be removed ---------- */
