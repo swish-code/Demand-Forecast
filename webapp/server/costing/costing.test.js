@@ -709,3 +709,13 @@ test('the page is grantable and Cost Controller holds it by default', () => {
   assert.ok(allowedPages({ role: 'user', department: 'Cost Controller' }).includes('costing'))
   assert.ok(!allowedPages({ role: 'user', department: 'Procurement' }).includes('costing'))
 })
+
+test('Costing Team holds Monthly MC Analysis and nothing else, read-only', () => {
+  assert.deepEqual(allowedPages({ role: 'user', department: 'Costing Team' }), ['costing'])
+  assert.equal(canEditCosting({ role: 'user', department: 'Costing Team' }), false)
+})
+
+test('Cost Controller also holds Production and Swish Bakery', () => {
+  const pages = allowedPages({ role: 'user', department: 'Cost Controller' })
+  for (const p of ['component', 'costing', 'src-ck', 'src-bakery']) assert.ok(pages.includes(p), p)
+})

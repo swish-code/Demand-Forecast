@@ -30,6 +30,8 @@ export const DEPARTMENTS = [
   // against what actually left the warehouse, which is the page that answers
   // what the stock movement cost against what was planned.
   'Cost Controller',
+  // Added 23 Nov 2026. Holds Monthly MC Analysis and nothing else.
+  'Costing Team',
   'Finance',
   'Marketing',
   'IT',
@@ -176,7 +178,23 @@ export const DEPARTMENT_PAGES = {
    * would empty the columns it was given the page for.
    */
   // + Monthly MC Analysis, their own page, 19 Nov 2026.
-  'Cost Controller': ['component', 'costing'],
+  /*
+   * + Production (`src-ck`) and Swish Bakery (`src-bakery`) - 23 Nov 2026, on
+   * request. Costing reads what the kitchen and the bakery make as well as what
+   * the warehouse buys. The server's own restriction follows the grant:
+   * `allowedResponsibilities` (routes/api.js) narrows these accounts to the
+   * Warehouse, Production and Bakery departments' rows - the three pages they
+   * hold - and no other.
+   */
+  'Cost Controller': ['component', 'costing', 'src-ck', 'src-bakery'],
+  /*
+   * Monthly MC Analysis, and nothing else - 23 Nov 2026, on request.
+   *
+   * Reads the page only: changing a classification stays with Cost Controller
+   * and administrators (`canEditCosting` in routes/costing.js), and the daily
+   * variance alert still goes to Cost Controller accounts.
+   */
+  'Costing Team': ['costing'],
   /*
    * Finance sees the Sales Plan and nothing else, asked for on 24 Sep 2026.
    *
@@ -280,12 +298,19 @@ export const PAGE_ONLY_DEPARTMENTS = [
   // `restrictedByPageOnly` would reach it from the grant regardless, because
   // `component` is in PAGE_ONLY_PAGES below.
   'Cost Controller',
+  /*
+   * One page, Monthly MC Analysis - 23 Nov 2026. Listed so the page is the
+   * restriction, as it is for Cost Controller: MC Analysis compares brands,
+   * and a per-account brand grant on top would show a partial company total
+   * that looks like the whole one.
+   */
+  'Costing Team',
   'Production',
   'Bakery',
   'YELO Factory',
 ]
 
-const PAGE_ONLY = new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
+const PAGE_ONLY =new Set(PAGE_ONLY_DEPARTMENTS.map(norm))
 
 /**
  * The pages that carry their own restriction, so nothing else has to.

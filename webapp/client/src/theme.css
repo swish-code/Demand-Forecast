@@ -13108,6 +13108,49 @@ h3,
   color: var(--text);
 }
 
+/* The Article flyout's name list - 23 Nov 2026. Scrolls inside the flyout so a
+   month of a few thousand articles never pushes the panel off the screen. */
+.mcm-sub--field {
+  width: 320px;
+}
+
+.mcm-sub__list {
+  max-height: 300px;
+  margin-top: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.mcm-sub__list .mcm-sub__opt {
+  padding: 7px 10px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.mcm-sub__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mcm-sub__name .mcm-sub__hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.mcm-sub__none {
+  margin: 8px 4px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .mcm-sub--field {
+    width: auto;
+  }
+}
+
 /*
  * Not enough room to the left on a narrow screen, so the flyout sits under its
  * row instead of beside it. Full width, because 220px beside a 400px panel on

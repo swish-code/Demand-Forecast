@@ -58,6 +58,8 @@ const PAGE_LABELS = {
   'src-bakery': 'Swish Bakery',
   'src-factory': 'YELO Factory',
   'src-none': 'Unclassified',
+  // The Costing Department's page, 19 Nov 2026 - its id is `costing`.
+  costing: 'Monthly MC Analysis',
   warehouse: 'Warehouse Insights',
   'wh-analysis': 'Forecast Insights',
   production: "Tomorrow's Prep",

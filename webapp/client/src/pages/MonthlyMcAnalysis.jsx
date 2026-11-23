@@ -357,6 +357,15 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
    */
   const [brandFilter, setBrandFilter] = useState('All')
   const [search, setSearch] = useState('')
+  /*
+   * One article picked from the name list - 23 Nov 2026, on request.
+   *
+   * Typing in the Article box still narrows the table as you type; picking a
+   * name from the list under it pins the table to exactly that article (on
+   * every brand that holds it), so "Sunflower Oil" no longer also brings in
+   * every other name containing "sunflower". `{ id, name }` or null.
+   */
+  const [picked, setPicked] = useState(null)
   const [onlyFlagged, setOnlyFlagged] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   /*
@@ -490,7 +499,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   const cur = data?.months?.current ?? month
   const prev = data?.months?.previous ?? null
   const filtered =
-    brandFilter !== 'All' || classFilter !== 'All' || search.trim() !== '' || onlyFlagged
+    brandFilter !== 'All' || classFilter !== 'All' || search.trim() !== '' || Boolean(picked) || onlyFlagged
 
   const alerts = useData(api.costingAlerts, request, {
     enabled: ready && Boolean(data) && !storageError,
@@ -506,6 +515,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
     return base
       .filter((r) => brandFilter === 'All' || r.brand === brandFilter)
       .filter((r) => classFilter === 'All' || r.classification === classFilter)
+      .filter((r) => !picked || String(r.articleId) === picked.id)
       .filter(
         (r) =>
           !needle ||
@@ -526,7 +536,39 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
         // Date and the editor's account name; the email is in the hover title.
         lastUpdated: r.lastUpdatedAt ? `${when(r.lastUpdatedAt)} · ${r.lastUpdatedByName || r.lastUpdatedBy}` : '',
       }))
-  }, [data, edits, brandFilter, classFilter, search, onlyFlagged])
+  }, [data, edits, brandFilter, classFilter, search, picked, onlyFlagged])
+
+  /*
+   * Every article name in the month, for the Article list.
+   *
+   * Read off `data`, not the filtered rows, so picking one does not leave it
+   * the only name on offer - the same rule as the brand list below. One entry
+   * per article number, since an article sits on several brand rows.
+   */
+  const articleOptions = useMemo(() => {
+    const seen = new Map()
+    for (const r of data?.rows ?? []) {
+      const id = String(r.articleId ?? '').trim()
+      if (id && !seen.has(id)) seen.set(id, String(r.articleName ?? '').trim() || id)
+    }
+    return [...seen.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [data])
+
+  // What the list under the box shows: every name, narrowed by what is typed.
+  const articleMatches = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    const list = needle
+      ? articleOptions.filter((o) => o.name.toLowerCase().includes(needle) || o.id.toLowerCase().includes(needle))
+      : articleOptions
+    return list.slice(0, 200)
+  }, [articleOptions, search])
+
+  // A picked article that is not in the new month's data cannot stay picked.
+  useEffect(() => {
+    if (picked && data && !articleOptions.some((o) => o.id === picked.id)) setPicked(null)
+  }, [articleOptions, picked, data])
 
   /*
    * The brands actually present this month, from the response itself.
@@ -624,22 +666,26 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
     }
   }
 
+  /*
+   * No column is locked - 23 Nov 2026, on request. Brand, Article and
+   * Classification used to be `required`, so Build view greyed them out as
+   * "always". Every column can now be ticked off; Reset in Build view brings
+   * them all back.
+   */
   const columns = useMemo(
     () => [
       {
         key: 'brand',
         label: 'Brand',
         group: 'id',
-        required: true,
         render: (v) => (v ? <Pill>{v}</Pill> : dash()),
       },
-      { key: 'articleId', label: 'Article', group: 'id', required: true, mono: true, autoWidth: true },
+      { key: 'articleId', label: 'Article', group: 'id', mono: true, autoWidth: true },
       { key: 'articleName', label: 'Name', group: 'id', autoWidth: true },
       {
         key: 'classification',
         label: 'Classification',
         group: 'id',
-        required: true,
         width: 170,
         /*
          * Tinted apart from the Article group it sits in - 19 Nov 2026, on
@@ -755,6 +801,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
     setBrandFilter('All')
     setClassFilter('All')
     setSearch('')
+    setPicked(null)
     setOnlyFlagged(false)
   }
 
@@ -807,6 +854,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
     brandFilter === 'All' ? 'All brands' : brandFilter,
     classFilter === 'All' ? 'All classifications' : classFilter,
     onlyFlagged ? 'beyond ±20%' : null,
+    picked ? picked.name : null,
     search.trim() ? `“${search.trim()}”` : null,
   ]
     .filter(Boolean)
@@ -1007,7 +1055,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
                 <IconBox size={16} />
               </span>
               <span className="mcm-pop__label">Article</span>
-              <span className="mcm-pop__value">{search.trim() || 'Any'}</span>
+              <span className="mcm-pop__value">{picked?.name || search.trim() || 'Any'}</span>
               <span className="mcm-pop__more" aria-hidden="true">
                 <IconChevron size={14} />
               </span>
@@ -1021,15 +1069,69 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
                   type="search"
                   value={search}
                   autoFocus
-                  placeholder="Number or name…"
+                  placeholder="Type a name or number…"
                   aria-label="Article number or name"
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    // Typing again means looking for something else.
+                    if (picked) setPicked(null)
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setMenu(null)
+                    if (e.key !== 'Enter') return
+                    // Enter on a single match picks it; otherwise it keeps the typed filter.
+                    if (search.trim() && articleMatches.length === 1) {
+                      setPicked(articleMatches[0])
+                      setSearch('')
+                    }
+                    setMenu(null)
                   }}
                 />
-                {search ? (
-                  <button type="button" className="mcm-sub__clear" onClick={() => setSearch('')}>
+                {/*
+                  * Every name in the month, narrowed as you type - 23 Nov 2026,
+                  * on request. Picking one shows only that article.
+                  */}
+                <div className="mcm-sub__list" role="listbox" aria-label="Articles">
+                  {articleMatches.length === 0 ? (
+                    <p className="mcm-sub__none">No article matches “{search.trim()}”.</p>
+                  ) : (
+                    articleMatches.map((o) => {
+                      const on = picked?.id === o.id
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          role="option"
+                          aria-selected={on}
+                          className={`mcm-sub__opt${on ? ' mcm-sub__opt--on' : ''}`}
+                          title={`${o.name} · ${o.id}`}
+                          onClick={() => {
+                            setPicked(o)
+                            setSearch('')
+                            setMenu(null)
+                          }}
+                        >
+                          <span className="mcm-sub__name">
+                            {o.name}
+                            <span className="mcm-sub__hint">{o.id}</span>
+                          </span>
+                          {on ? <span className="mcm-sub__dot" aria-hidden="true" /> : null}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+                {articleOptions.length > articleMatches.length && articleMatches.length === 200 ? (
+                  <p className="mcm-sub__none">Showing the first 200 - type more to narrow it.</p>
+                ) : null}
+                {search || picked ? (
+                  <button
+                    type="button"
+                    className="mcm-sub__clear"
+                    onClick={() => {
+                      setSearch('')
+                      setPicked(null)
+                    }}
+                  >
                     <IconClose size={12} />
                     Clear
                   </button>
@@ -1251,7 +1353,13 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
                 rows={rows}
                 groups={groups}
                 freezable
-                searchable={false}
+                /*
+                 * The table's own search, with names suggested as you type -
+                 * 23 Nov 2026, on request, the same control as Stock Article's
+                 * table. Works within whatever the Filters panel leaves in.
+                 */
+                searchPlaceholder="Search article or name…"
+                suggest={{ label: 'articleName', code: 'articleId' }}
               />
             )}
           </Card>
