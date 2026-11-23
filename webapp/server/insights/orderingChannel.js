@@ -373,6 +373,31 @@ export function latestMovement(events) {
       held.push(e)
     }
   }
+
+  /*
+   * THE TIME BREAKS THE TIE - 22 Nov 2026, on request.
+   *
+   * Until today this function stopped at the DAY, and the comment above said
+   * that picking between two movements on one date would be inventing a fact.
+   * That was true of the column it was reading. It is not true of the table:
+   * `fact_outbound_line` carries `Request Created DateTime` beside the date,
+   * and the caller now passes it as `stamp`.
+   *
+   * Measured over October before making the change: 80 articles had more than
+   * one distinct leg on their latest day, and the timestamp separated ALL 80.
+   * None remained tied. So the cell shows one path because the data supports
+   * one path, not because a rule was invented to force it.
+   *
+   * Where no stamp arrives - the GRN side has only a delivery date - every
+   * movement on the latest day is kept, exactly as before. A missing timestamp
+   * must not silently drop a real leg.
+   */
+  const stamps = held.map((e) => e?.stamp).filter(Boolean)
+  if (stamps.length === held.length && stamps.length > 1) {
+    const newest = stamps.reduce((m, s) => (s > m ? s : m))
+    held = held.filter((e) => e.stamp === newest)
+  }
+
   const channels = new Set(held.map((e) => e.channel))
   /*
    * Paths are kept only for the channels that survive `effectiveChannels`, so a
@@ -382,7 +407,14 @@ export function latestMovement(events) {
    */
   const kept = effectiveChannels(channels)
   const paths = [...new Set(held.filter((e) => e.path && kept.has(e.channel)).map((e) => e.path))]
-  return { channels, paths }
+  /*
+   * `date` and `stamp` ride along so a caller can compare this answer with a
+   * movement that produced NO path - a same-site move, or a return to Swish.
+   * Without them the caller cannot tell whether such a movement is newer than
+   * the path it is holding, and would show a stale path as "the latest".
+   */
+  const stamp = held.map((e) => e?.stamp).filter(Boolean).sort().pop() ?? null
+  return { channels, paths, date: latest, stamp }
 }
 
 /** The channel half alone - the shape this had before the Path column. */

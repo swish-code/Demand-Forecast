@@ -385,6 +385,79 @@ test('the same path twice on one day is said once', () => {
   assert.equal(formatPaths(paths), 'Central Warehouse → BBT')
 })
 
+/* --------------- one path, chosen by the clock (22 Nov 2026) ------------- */
+
+test('two legs on one day are separated by the timestamp, not left side by side', () => {
+  /*
+   * Reported 22 Nov 2026 from Stock Article: one cell read
+   * "Central Warehouse → SWISH BAKERY ; Central Warehouse → CKU/CPU".
+   *
+   * The old rule kept both because the DAY could not order them, and the
+   * comment on `latestMovement` said choosing would be inventing a fact. That
+   * was true of the column being read, not of the table: `fact_outbound_line`
+   * carries `Request Created DateTime` beside the date.
+   *
+   * Measured over October before the change: 80 articles had more than one
+   * distinct leg on their latest day, and the timestamp separated ALL 80.
+   */
+  const { paths } = latestMovement([
+    {
+      date: '2026-10-31',
+      stamp: '2026-10-31T23:13:54',
+      channel: CHANNEL.ISSUE,
+      path: 'SWISH BAKERY → YP',
+    },
+    {
+      date: '2026-10-31',
+      stamp: '2026-10-31T23:24:36',
+      channel: CHANNEL.BRAND_TRF,
+      path: 'YP → YP',
+    },
+  ])
+  assert.equal(formatPaths(paths), 'YP → YP', 'the later timestamp wins')
+})
+
+test('without a timestamp every leg on the latest day is still kept', () => {
+  /*
+   * The GRN side carries a delivery date and no clock. A missing timestamp
+   * must not silently drop a real leg - that would turn "we cannot order
+   * these" into "this one did not happen".
+   */
+  const { paths } = latestMovement([
+    { date: '2026-10-24', channel: CHANNEL.ISSUE, path: 'Central Warehouse → BBT' },
+    { date: '2026-10-24', channel: CHANNEL.DIRECT, path: 'Supplier → BBT' },
+  ])
+  assert.equal(formatPaths(paths), 'Central Warehouse → BBT ; Supplier → BBT')
+})
+
+test('a stamped leg and an unstamped one on the same day are both kept', () => {
+  // Half-known ordering is not ordering. Comparing a stamp against nothing
+  // would make the stamped leg win every time, on no evidence.
+  const { paths } = latestMovement([
+    { date: '2026-10-24', stamp: '2026-10-24T09:00:00', channel: CHANNEL.ISSUE, path: 'A → B' },
+    { date: '2026-10-24', channel: CHANNEL.DIRECT, path: 'Supplier → B' },
+  ])
+  assert.equal(formatPaths(paths), 'A → B ; Supplier → B')
+})
+
+test('the latest date still beats a later timestamp on an earlier day', () => {
+  const { paths } = latestMovement([
+    { date: '2026-10-31', stamp: '2026-10-31T01:00:00', channel: CHANNEL.ISSUE, path: 'A → B' },
+    { date: '2026-10-30', stamp: '2026-10-30T23:59:59', channel: CHANNEL.ISSUE, path: 'C → D' },
+  ])
+  assert.equal(formatPaths(paths), 'A → B')
+})
+
+test('latestMovement reports which movement it chose', () => {
+  // The caller needs this to compare against a movement that produced no path
+  // - otherwise it cannot tell whether the path it holds is stale.
+  const got = latestMovement([
+    { date: '2026-10-31', stamp: '2026-10-31T23:13:54', channel: CHANNEL.ISSUE, path: 'A → B' },
+  ])
+  assert.equal(got.date, '2026-10-31')
+  assert.equal(got.stamp, '2026-10-31T23:13:54')
+})
+
 /* --------------------------------- paths, narrowed to the row's brand --- */
 
 test("a row shows only its own brand's leg of a fan-out, and names the rest", () => {

@@ -16,7 +16,7 @@
  */
 import { config } from '../config.js'
 import { executeQuery } from './client.js'
-import { cached } from '../cache.js'
+import { cached, ttlForWindow } from '../cache.js'
 import {
   CHANNEL,
   brandOfCostCentre,
@@ -160,7 +160,18 @@ SUMMARIZECOLUMNS(
     VAR d = CALCULATE(MAX(fact_grn_line[GRN Delivery Date]),
       FILTER(fact_grn_line, fact_grn_line[GRN Base Qty] <> 0))
     RETURN CALCULATE(SUM(fact_grn_line[GRN Base Qty]),
-      fact_grn_line[GRN Delivery Date] = d)
+      fact_grn_line[GRN Delivery Date] = d),
+  /*
+   * The receipt's own clock, so a delivery can be ordered against a transfer
+   * on the same day - 22 Nov 2026. Without it, 22 articles kept two legs for
+   * no better reason than that one of them was a GRN.
+   */
+  "LastStamp",
+    VAR d = CALCULATE(MAX(fact_grn_line[GRN Delivery Date]),
+      FILTER(fact_grn_line, fact_grn_line[GRN Base Qty] <> 0))
+    RETURN CALCULATE(MAX(fact_grn_line[Booking DateTime]),
+      fact_grn_line[GRN Delivery Date] = d,
+      FILTER(fact_grn_line, fact_grn_line[GRN Base Qty] <> 0))
 )`
 
       /*
@@ -183,7 +194,20 @@ SUMMARIZECOLUMNS(
   "LastQty",
     VAR d = CALCULATE(MAX(dim_date[Date]),
       FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0))
-    RETURN CALCULATE(SUM(fact_outbound_line[Action Base Qty]), dim_date[Date] = d)
+    RETURN CALCULATE(SUM(fact_outbound_line[Action Base Qty]), dim_date[Date] = d),
+  /*
+   * The CLOCK, so two legs on one day can be told apart - 22 Nov 2026.
+   *
+   * Computed inside the group for the same reason LastDate is: putting the
+   * timestamp in the grouping would multiply the result by every movement.
+   * Restricted to the last day and to real quantities, so a cancelled line
+   * cannot become the article's latest stamp.
+   */
+  "LastStamp",
+    VAR d = CALCULATE(MAX(dim_date[Date]),
+      FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0))
+    RETURN CALCULATE(MAX(fact_outbound_line[Request Created DateTime]),
+      dim_date[Date] = d, FILTER(fact_outbound_line, fact_outbound_line[Action Base Qty] > 0))
 )`
 
       const [inbound, transfers] = await Promise.all([
@@ -207,10 +231,40 @@ SUMMARIZECOLUMNS(
        * knows and `latestMovement` decides per article at the end.
        */
       const events = new Map()
-      const add = (article, date, channel, path = null) => {
+      const add = (article, date, channel, path = null, extra = null) => {
         if (!article || !channel || !date) return
         if (!events.has(article)) events.set(article, [])
-        events.get(article).push({ date, channel, path })
+        events.get(article).push({ date, channel, path, ...(extra ?? {}) })
+      }
+
+      /*
+       * Why a movement produced no path, in words a reader can act on.
+       *
+       * Three different facts all rendered as an empty cell until today, and a
+       * blank cannot tell them apart: nothing moved, it moved inside one site,
+       * or a brand sent it back to Swish. Measured over October: of 1,831
+       * articles with movement, about 159 ended with no path - 240 same-site
+       * legs and 75 returns-or-excluded, counted per leg.
+       *
+       * These are NOT paths and must not be treated as one. They replace an
+       * empty cell with the reason it is empty; no rule about which movements
+       * count has changed.
+       */
+      /** Dated notes about movements that produced no path, per article. */
+      const notes = new Map()
+
+      const noteFor = (from, to) => {
+        const a = String(from ?? '').trim()
+        const b = String(to ?? '').trim()
+        if (!a || !b) return null
+        if (a.toLowerCase() === b.toLowerCase()) return `Moved within ${pathLabel(a)}`
+        const fromKind = costCentreKind(a)
+        const toKind = costCentreKind(b)
+        if (fromKind === 'excluded' || toKind === 'excluded') return null
+        // The brand -> Swish case, left blank by choice on 31 Oct 2026. The
+        // choice stands; the cell now says which way the stock went.
+        if (fromKind === 'brand' && toKind === 'swish') return `Returned to ${pathLabel(b)}`
+        return null
       }
 
       /*
@@ -274,7 +328,9 @@ SUMMARIZECOLUMNS(
         const where2 = pathLabel(cc)
         const path =
           channel === CHANNEL.RETURN_IN ? `${where2} → Supplier` : `Supplier → ${where2}`
-        add(article, date, channel, channel === CHANNEL.REVIEW ? null : path)
+        add(article, date, channel, channel === CHANNEL.REVIEW ? null : path, {
+          stamp: String(val(r, 'LastStamp') ?? '') || null,
+        })
       }
 
       for (const r of transfers ?? []) {
@@ -283,21 +339,36 @@ SUMMARIZECOLUMNS(
         const date = day(val(r, 'LastDate'))
         if (!date) continue
         if (!((Number(val(r, 'LastQty')) || 0) > 0)) continue
-        const moved = classifyTransfer({
-          source: val(r, 'Mapped Cost Center/Store'),
-          destination: val(r, 'Mapped Transfer To'),
-        })
-        if (!moved) continue
+        const source = val(r, 'Mapped Cost Center/Store')
+        const destination = val(r, 'Mapped Transfer To')
+        const lastStamp = String(val(r, 'LastStamp') ?? '') || null
+        const moved = classifyTransfer({ source, destination })
+        if (!moved) {
+          /*
+           * No channel, but the movement still happened and is still this
+           * article's latest. It is recorded with the REVIEW channel's
+           * absence - no channel at all - so it cannot reach the Transaction
+           * Type column, and carries only the note and the stamp. Without
+           * this, a same-site move on the latest day was invisible and the
+           * column silently showed an OLDER movement's path instead.
+           */
+          const note = noteFor(source, destination)
+          if (note) {
+            if (!notes.has(article)) notes.set(article, [])
+            notes.get(article).push({ date, stamp: lastStamp, note })
+          }
+          continue
+        }
         /*
          * One stamp for most pairings, two for Swish -> Swish, which names both
          * of its ends. Both land on this one article row, so such a row reads
          * "Internal TRF IN + Internal TRF OUT" - see classifyTransfer.
          */
-        for (const stamp of moved) {
-          add(article, date, stamp.channel, stamp.path)
+        for (const leg of moved) {
+          add(article, date, leg.channel, leg.path, { stamp: lastStamp })
           // A Swish cost centre sending stock to a brand IS the direct
           // transfer Transfer Status asks about - same test, named once.
-          if (stamp.channel === CHANNEL.ISSUE) noteIssue(article, stamp.costCentre)
+          if (leg.channel === CHANNEL.ISSUE) noteIssue(article, leg.costCentre)
         }
       }
 
@@ -310,14 +381,43 @@ SUMMARIZECOLUMNS(
        * answer even where "how is it moving now" does not.
        */
       const out = new Map()
-      const seen = new Set([...events.keys(), ...issuedTo.keys()])
+      const seen = new Set([...events.keys(), ...issuedTo.keys(), ...notes.keys()])
       for (const article of seen) {
-        const { channels, paths } = latestMovement(events.get(article) ?? [])
+        const got = latestMovement(events.get(article) ?? [])
+        let { paths } = got
+        const { channels } = got
+
+        /*
+         * A movement with no path still counts as the latest movement.
+         *
+         * Compared on date first and the clock second, exactly as the paths
+         * themselves are. An article whose last act was a return to the
+         * warehouse used to show the SHIPMENT BEFORE IT as "the latest path",
+         * which is a true sentence about the wrong movement - the column said
+         * the stock went out when it had just come back.
+         */
+        const note = (notes.get(article) ?? []).reduce(
+          (best, n) =>
+            !best || n.date > best.date || (n.date === best.date && (n.stamp ?? '') > (best.stamp ?? ''))
+              ? n
+              : best,
+          null
+        )
+        if (note && (!got.date || note.date > got.date ||
+          (note.date === got.date && (note.stamp ?? '') > (got.stamp ?? '')))) {
+          paths = [note.note]
+        }
+
         out.set(article, { channels, paths, issuedTo: issuedTo.get(article) ?? new Set() })
       }
       return out
     },
-    { seconds: 600 }
+    /*
+     * Ten minutes for a window that includes today; an hour once it has ended
+     * - 2,149 seconds of misses over three weeks. The movements inside a
+     * closed month do not change, and the ones inside today do.
+     */
+    { seconds: ttlForWindow(to) ?? 600 }
   )
 }
 
