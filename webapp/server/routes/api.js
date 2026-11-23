@@ -11,7 +11,7 @@ import {
   mergeRows,
   mergeTrend,
 } from '../data/merge.js'
-import { cached, clearCache } from '../cache.js'
+import { cached, clearCache, ttlForWindow } from '../cache.js'
 import { tag } from '../perf.js'
 import { refreshRecentAll, cubeState } from '../cube/schedule.js'
 import { config, missingSettings, missingWarehouse } from '../config.js'
@@ -4465,7 +4465,10 @@ export async function nonRecipeFor({ ds, f, brand, rows, grain = {} }) {
          * forecast is the only figure there is.
          */
         covered: new Set(rows.map((r) => String(r['Item No.'] ?? '').trim()).filter(Boolean)),
-      })
+      }),
+    // A finished window is held for an hour rather than two minutes: 1,535
+    // misses and 4,484 seconds over three weeks. See `ttlForWindow`.
+    { seconds: ttlForWindow(f?.dateTo) }
   ).catch((err) => {
     console.warn(`  [non-recipe] ${brand.code}: ${err.message}`)
     return []

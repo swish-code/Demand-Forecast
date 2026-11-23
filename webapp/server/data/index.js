@@ -1,5 +1,5 @@
 import { config } from '../config.js'
-import { cached } from '../cache.js'
+import { cached, ttlForWindow } from '../cache.js'
 import * as cube from '../cube/query.js'
 import { deriveKpis } from './merge.js'
 import { raise } from '../insights/alerts.js'
@@ -127,7 +127,24 @@ async function fromCopyOrLive(what, fromCopy, fromLive) {
 }
 
 /** Every result is cached per dataset, so brands never share a cache entry. */
-const call = (name, f, ds, run, extra) => cached(`${ds || 'demo'}:${keyOf(name, f, extra)}`, run)
+/*
+ * Every data lookup in the app goes through here, and until 22 Nov 2026 every
+ * one of them ran on the 120-second default.
+ *
+ * That is the whole of the cache-miss problem in one line. Measured over
+ * 1-22 Nov across 4,351 requests, 78.3% of cache lookups missed and the misses
+ * accounted for essentially all of the 100,478 seconds spent inside requests.
+ * A reader moving between pages re-asked the SAME question about the SAME
+ * finished month every two minutes, and each re-ask queued behind the
+ * per-minute Power BI pacing - `pbi-wait` alone was 45,713 seconds, 45% of all
+ * time, spent waiting rather than querying.
+ *
+ * `ttlForWindow` holds an answer about a window that has already ENDED for an
+ * hour and leaves everything touching today on the short default. See its own
+ * note for why that is honest rather than merely faster.
+ */
+const call = (name, f, ds, run, extra) =>
+  cached(`${ds || 'demo'}:${keyOf(name, f, extra)}`, run, { seconds: ttlForWindow(f?.dateTo) })
 
 export const data = {
   mode: config.demoMode ? 'demo' : 'powerbi',

@@ -16,10 +16,14 @@
  * and so does any page mounting two components that read the same endpoint.
  *
  * The CACHE is bounded by `TTL`, and the figure it serves is chosen to be one
- * the server would have given anyway: the server holds its own answers for
- * CACHE_TTL, currently thirty minutes, so a browser-side entry that expires in
- * two cannot show anything a fresh request would not have returned. It is a
- * strict subset of the staleness the application already accepts.
+ * the server would have given anyway: a browser-side entry that expires before
+ * the server's own does cannot show anything a fresh request would not have
+ * returned. It is a strict subset of the staleness the application already
+ * accepts.
+ *
+ * (That paragraph used to say the server held answers for thirty minutes. It
+ * held them for two. The subset argument was sound; the number was wrong, and
+ * is not quoted here any more - see SETTLED_TTL for the live one.)
  *
  * Refresh is the escape hatch and deliberately ignores all of this — the
  * Refresh button and `reload()` both drop the entry and go to the network.
@@ -29,8 +33,36 @@
  * the React wiring, and everything that could get the ANSWER wrong is here.
  */
 
-/** How long a settled answer may be served without asking again. */
+/** How long an answer about a window that includes TODAY may be served. */
 export const TTL = 120_000
+
+/**
+ * How long an answer about a FINISHED window may be served - 22 Nov 2026.
+ *
+ * Navigation was the complaint, and this is the half of it the server cannot
+ * fix: leave Stock Article for Procurement, come back three minutes later, and
+ * the browser had already forgotten the answer, so the whole pipeline ran
+ * again for a month that had not changed.
+ *
+ * Fifteen minutes, against the server's hour for the same window. The subset
+ * argument above is what sets the ceiling: this must expire WELL BEFORE the
+ * server's own entry, or the browser becomes the stalest thing in the system
+ * and the Refresh button stops being the way to be certain.
+ */
+export const SETTLED_TTL = 900_000
+
+/**
+ * Which of the two this key gets.
+ *
+ * The key is the serialized filters, so it carries the window the question was
+ * asked about. A key with no date in it is treated as live, for the same
+ * reason the server does: an open-ended question includes today.
+ */
+export function ttlFor(key, now = Date.now()) {
+  const found = /"dateTo":"(\d{4}-\d{2}-\d{2})/.exec(String(key ?? ''))
+  if (!found) return TTL
+  return found[1] < new Date(now).toISOString().slice(0, 10) ? SETTLED_TTL : TTL
+}
 
 /** Bounded, so a long session cannot grow this without limit. */
 export const MAX_ENTRIES = 48
@@ -80,7 +112,7 @@ export function peek(fetcher, key, now = Date.now()) {
   const map = cacheFor(fetcher)
   const entry = map.get(key)
   if (!entry || entry.promise) return null
-  if (now - entry.at > TTL) {
+  if (now - entry.at > ttlFor(key, now)) {
     map.delete(key)
     return null
   }

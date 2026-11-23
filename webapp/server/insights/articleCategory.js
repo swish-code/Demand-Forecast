@@ -70,6 +70,16 @@ export async function categoryByArticle() {
    * An article's category changes when somebody edits the article master, which
    * is nothing like per-request.
    */
+  /*
+   * SIX HOURS, not the 120-second default - 22 Nov 2026.
+   *
+   * The comment above already said this changes "nothing like per-request",
+   * but no TTL was ever passed, so it ran on the default and was re-read all
+   * day. Measured over 1-22 Nov: 241 misses, 4,512 seconds, and two single
+   * reads of 2,039s and 1,693s that each blocked an `/api/slicers` call whose
+   * median is 0.0s - a reader staring at an empty filter bar for half an hour
+   * while the article master was re-read for the hundredth time.
+   */
   return cached('article-category', async () => {
     const rows = await executeQuery(
       `EVALUATE
@@ -89,7 +99,7 @@ SUMMARIZECOLUMNS(
       out.set(article, category)
     }
     return out.size ? out : null
-  })
+  }, { seconds: 6 * 3600 })
 }
 
 /**

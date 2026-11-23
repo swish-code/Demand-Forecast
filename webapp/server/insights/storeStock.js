@@ -67,7 +67,7 @@
 import { config } from '../config.js'
 import { executeQuery } from '../powerbi/client.js'
 import { destinationBuckets, SUPPLY_SOURCE } from '../powerbi/warehouse.js'
-import { cached } from '../cache.js'
+import { cached, ttlForWindow } from '../cache.js'
 
 const DAY = 86_400_000
 const DAYS_PER_MONTH = 30.44
@@ -162,7 +162,10 @@ export const SOH_BANDS = {
 const bucketKey = (buckets) => [...buckets].sort().join(',')
 
 async function stockOn(date, buckets) {
-  return cached(`store-stock:on:${date}:${bucketKey(buckets)}`, () => stockOnLive(date, buckets))
+  // A balance AS AT a past date is settled; as at today it moves all day.
+  return cached(`store-stock:on:${date}:${bucketKey(buckets)}`, () => stockOnLive(date, buckets), {
+    seconds: ttlForWindow(date),
+  })
 }
 
 async function stockOnLive(date, buckets) {
@@ -233,8 +236,10 @@ SUMMARIZECOLUMNS(
  * table if that question is ever wanted instead.
  */
 async function purchasesOver(from, to, buckets) {
-  return cached(`store-stock:intake:${from}:${to}:${bucketKey(buckets)}`, () =>
-    purchasesOverLive(from, to, buckets)
+  return cached(
+    `store-stock:intake:${from}:${to}:${bucketKey(buckets)}`,
+    () => purchasesOverLive(from, to, buckets),
+    { seconds: ttlForWindow(to) }
   )
 }
 
@@ -280,7 +285,9 @@ SUMMARIZECOLUMNS(
  * explained by a shortage that a monthly reading could not see.
  */
 async function warehouseStock(from, to, anchor) {
-  return cached(`store-stock:wh:${from}:${to}:${anchor}`, () => warehouseStockLive(from, to, anchor))
+  return cached(`store-stock:wh:${from}:${to}:${anchor}`, () => warehouseStockLive(from, to, anchor), {
+    seconds: ttlForWindow(to),
+  })
 }
 
 async function warehouseStockLive(from, to, anchor) {

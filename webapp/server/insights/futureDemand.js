@@ -148,5 +148,13 @@ SUMMARIZECOLUMNS(
       console.warn(`  [future-demand] ${brandCode}: ${err.message}`)
       return null
     }
-  })
+    /*
+     * An hour, not two minutes - 22 Nov 2026. 1,283 misses and 4,943 seconds
+     * over three weeks, for a question whose answer changes once a day.
+     *
+     * Safe to hold because the KEY already rotates daily: `from` is tomorrow's
+     * date, so a new forecast day cannot be served yesterday's answer however
+     * long this is. The TTL only decides how often the same day is re-asked.
+     */
+  }, { seconds: 3600 })
 }

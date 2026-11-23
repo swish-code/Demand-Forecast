@@ -1,6 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_ENTRIES, TTL, acquire, drop, forgetCachedData, peek, sizeOf } from './dataCache.js'
+import {
+  MAX_ENTRIES,
+  SETTLED_TTL,
+  TTL,
+  acquire,
+  drop,
+  forgetCachedData,
+  peek,
+  sizeOf,
+  ttlFor,
+} from './dataCache.js'
 
 /*
  * The browser-side cache, tested without a browser.
@@ -249,4 +259,64 @@ test('eviction never drops a request somebody is waiting on', async () => {
   d.resolve('answer')
   assert.equal(await waiting.promise, 'answer')
   waiting.release()
+})
+
+/* ------------- how long an answer is held, by window (22 Nov 2026) -------- */
+
+test('a finished window is held far longer than a live one', () => {
+  /*
+   * Navigation was the complaint. Leaving Stock Article for Procurement and
+   * coming back three minutes later re-ran the whole pipeline for a month that
+   * had not changed, because every entry expired after two minutes whatever it
+   * was about.
+   */
+  const now = Date.parse('2026-11-22T12:00:00Z')
+  assert.equal(ttlFor('{"dateFrom":"2026-10-01","dateTo":"2026-10-31"}', now), SETTLED_TTL)
+  assert.equal(ttlFor('{"dateFrom":"2026-11-01","dateTo":"2026-11-22"}', now), TTL, 'today is live')
+  assert.equal(ttlFor('{"dateTo":"2027-03-31"}', now), TTL, 'a planned year is live')
+})
+
+test('a key with no window is treated as live', () => {
+  // An open-ended question includes today, so it gets the short life. Being
+  // wrong this way costs a request; the other way costs the reader the truth.
+  const now = Date.parse('2026-11-22T12:00:00Z')
+  assert.equal(ttlFor('{"brand":"BBT"}', now), TTL)
+  assert.equal(ttlFor('', now), TTL)
+  assert.equal(ttlFor(null, now), TTL)
+  assert.equal(ttlFor('{"dateTo":"not a date"}', now), TTL)
+})
+
+test('the browser never outlives the server it is quoting', () => {
+  /*
+   * The subset argument this file is built on. The server holds a finished
+   * window for an hour; if the browser held one for longer it would become the
+   * stalest thing in the system and Refresh would stop being the way to be
+   * certain.
+   */
+  assert.ok(SETTLED_TTL < 3600_000, 'must expire well before the server entry does')
+  assert.ok(SETTLED_TTL > TTL, 'and be worth having over the live one')
+})
+
+test('peek honours the window, not a single fixed lifetime', () => {
+  /*
+   * Built from the REAL clock, because `peek` below is called with it.
+   *
+   * This test hardcoded 2026-11-22 as "today" and started failing the moment
+   * the date rolled over - the live key had quietly become a finished window.
+   * A test about what "today" means must not pin today to a literal.
+   */
+  const day = (offset) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)
+  const key = `{"dateTo":"${day(-30)}"}`
+  const live = `{"dateTo":"${day(0)}"}`
+  const fetcher = () => {}
+  forgetCachedData()
+  // Five minutes old: too old for a live window, fine for a finished one.
+  const five = 5 * 60_000
+  acquire(fetcher, key, () => Promise.resolve({ ok: 1 }))
+  acquire(fetcher, live, () => Promise.resolve({ ok: 2 }))
+  return Promise.resolve().then(() => {
+    assert.ok(peek(fetcher, key, Date.now() + five), 'a finished window survives five minutes')
+    assert.equal(peek(fetcher, live, Date.now() + five), null, 'a live one does not')
+  })
 })

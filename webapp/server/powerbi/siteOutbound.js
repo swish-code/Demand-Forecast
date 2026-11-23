@@ -1,5 +1,5 @@
 import { config } from '../config.js'
-import { cached } from '../cache.js'
+import { cached, ttlForWindow } from '../cache.js'
 import { timed } from '../perf.js'
 import { pg } from '../db/accounts.js'
 import { executeQuery } from './client.js'
@@ -193,7 +193,13 @@ SUMMARIZECOLUMNS(
       out.set(article, (out.get(article) ?? 0) + qty)
     }
     return out
-  })
+    /*
+     * A finished window is asked about for an hour, not for two minutes.
+     * This was the single heaviest miss in the ledger - 1,893 misses, 17,859
+     * seconds - because every page a reader opened re-asked it. See
+     * `ttlForWindow`: a window that includes today keeps the short default.
+     */
+  }, { seconds: ttlForWindow(dateTo) })
 }
 
 /**
@@ -254,7 +260,13 @@ SUMMARIZECOLUMNS(
       out.set(article, (out.get(article) ?? 0) + qty)
     }
     return out
-  })
+    /*
+     * A finished window is asked about for an hour, not for two minutes.
+     * This was the single heaviest miss in the ledger - 1,893 misses, 17,859
+     * seconds - because every page a reader opened re-asked it. See
+     * `ttlForWindow`: a window that includes today keeps the short default.
+     */
+  }, { seconds: ttlForWindow(dateTo) })
 }
 
 const lastDayOf = (month) => {

@@ -115,3 +115,49 @@ export async function cached(key, fn, { seconds = null } = {}) {
 export function clearCache() {
   store.clear()
 }
+
+/**
+ * How long an answer about a FINISHED window stays good - 22 Nov 2026.
+ *
+ * Measured over 1-22 Nov across 4,351 requests: 78.3% of cache lookups missed,
+ * and those misses accounted for essentially all of the 100,478 seconds spent
+ * inside requests. Power BI alone was 71,622s of it, and two thirds of THAT
+ * was `pbi-wait` - not querying, just queueing behind the per-minute pacing.
+ *
+ * The queue is the thing to shorten, and the only way to shorten it is to ask
+ * fewer questions. The heaviest lookups - site outbound, store stock, the
+ * component explosion, future demand, non-recipe - all ran on the 120-second
+ * default, so a reader moving between pages re-asked the same question about
+ * the same finished month every two minutes.
+ *
+ * WHY THIS IS SAFE, AND WHERE IT IS NOT
+ *
+ * A window whose last day is in the past is settled: the sales happened, the
+ * stock moved. It can still CHANGE - a delivery note posted today against last
+ * week's date backdates into a finished month - so this is not "it cannot
+ * change", it is "it changes rarely and the page self-heals". `cached` already
+ * serves a stale value while refreshing behind the request, so a reader is at
+ * most one TTL behind and the next reader is current.
+ *
+ * An hour, not a day, for exactly that reason. A late posting should not take
+ * a shift to appear.
+ *
+ * A window that includes today keeps the short default: those figures move
+ * while people watch them, and that is the case where staleness is noticed.
+ */
+export const SETTLED_TTL = 3600
+
+/**
+ * The TTL for a lookup keyed on a date window.
+ *
+ * `dateTo` absent means "no window", which is the live case - an open-ended
+ * question includes today by definition, so it gets the short default rather
+ * than the long one. Being wrong in that direction costs a query; being wrong
+ * in the other costs a reader the truth.
+ */
+export function ttlForWindow(dateTo, { settled = SETTLED_TTL } = {}) {
+  const end = String(dateTo ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return null
+  const today = new Date().toISOString().slice(0, 10)
+  return end < today ? settled : null
+}

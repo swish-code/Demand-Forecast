@@ -1,5 +1,5 @@
 import { config } from '../config.js'
-import { cached } from '../cache.js'
+import { cached, ttlForWindow } from '../cache.js'
 import { executeQuery } from '../powerbi/client.js'
 
 /**
@@ -273,5 +273,7 @@ SUMMARIZECOLUMNS(
         [...counts].map(([k, v]) => `${k} ${v}`).join(', ')
     )
     return out
-  })
+    // Which site last issued an article inside a CLOSED window is settled;
+    // inside today it is not. 1,770 seconds of misses over three weeks.
+  }, { seconds: ttlForWindow(to) })
 }
