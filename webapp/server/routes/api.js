@@ -2631,8 +2631,26 @@ async function withSafetyStock(rows, filters, grain, admin) {
      * forecast are enough - and a blank there would read as "no stock".
      */
     const nowSoh = now?.soh?.has(article) ? now.soh.get(article) : null
+    /*
+     * The day THIS article's balance was read. The feed's own last day for most
+     * articles, and an earlier one for an article that has run out - the feed
+     * stops writing rows at nil, so its last reading is the day it emptied. Only
+     * stamped when the two differ, so the column shows a date exactly where the
+     * panel heading would otherwise be wrong about it.
+     *
+     * `WH_SOH_As_Of` stays the FEED's day. The planning panel builds its heading
+     * from the first row that carries one, so making it per-article would caption
+     * the whole table with one arbitrary article's reading date.
+     */
+    const readOn = now?.readOn?.get(article) ?? null
     const stock =
-      nowSoh === null ? null : { WH_SOH_Now: nowSoh, WH_SOH_As_Of: now.asOf ?? null }
+      nowSoh === null
+        ? null
+        : {
+            WH_SOH_Now: nowSoh,
+            WH_SOH_As_Of: now.asOf ?? null,
+            WH_SOH_Read_On: readOn && now?.asOf && readOn !== now.asOf ? readOn : null,
+          }
 
     const policy = held.get(article)
     if (!policy) return stock ? { ...r, ...stock } : r

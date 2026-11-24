@@ -356,6 +356,51 @@ SUMMARIZECOLUMNS(
  * The date is not passed in: it is whatever the feed's last day is, taken from
  * the model in the same round trip as the balances. Hard-coding today's date
  * would return an empty map every time the overnight load was late.
+ *
+ * EACH ARTICLE'S OWN LAST READING, NOT THE LAST DAY'S READINGS
+ *
+ * Until 24 Nov 2026 this asked for the balances stamped on the feed's newest day
+ * and nothing else. The feed stops writing a row for an article at a location
+ * once its balance there reaches nil, so an article that has run out simply
+ * stops appearing - and came back absent, which the planning table reads as "no
+ * information" and prints as a dash.
+ *
+ * Found on article 100900053, Kinza Orange. It ran 90 -> 60 -> 30 -> 0 at MAIN
+ * WAREHOUSE over 18-21 Nov and has had no row since; the feed's as-of day was
+ * the 24th, so the planning row showed its policy, safety stock and lead time
+ * beside a dash for SOH - and, because all of them divide SOH, a dash for DTL,
+ * Forecasted OOS, Target Cover, Req Qty, Req Date and the delivery schedule.
+ *
+ * Not a one-off. Measured against the live model on 24 Nov 2026: 2,069 articles
+ * have ever been stocked at a warehouse, 1,424 had a reading on the as-of day,
+ * and 645 - 571 of them carrying a planning policy - had an earlier reading and
+ * no current one. Of those 645, 635 last read exactly zero, 10 read negative and
+ * NONE read above zero, so an article never disappears while it still holds
+ * stock. The bias ran exactly the wrong way: a row went blank BECAUSE it had
+ * emptied, so the articles most urgently needing an order were the silent ones.
+ *
+ * A balance persists until something changes it, and any arrival writes a
+ * movement row, so "no row today" means unchanged rather than unknown. The last
+ * reading at or before the as-of day is therefore taken per ARTICLE, and the day
+ * it was read travels with it.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO
+ *
+ * It does not invent a figure. An article the warehouse has never carried is
+ * still absent and still prints a dash - see the stamp in `routes/api.js`, where
+ * a blank reading as "no stock" is the fault being guarded against.
+ *
+ * It does not adjust what the feed recorded. Zero, positive and negative
+ * balances are all passed through exactly as read, whether they come from the
+ * as-of day or an earlier one. A negative balance is a data fault worth seeing,
+ * not something to quietly round up, and this function's job is to report the
+ * latest recorded balance rather than to improve it.
+ *
+ * It imposes no age limit. Age does not bear on correctness here: an article
+ * that received stock would have a movement row and so would not be in this set
+ * at all, which makes a zero from ninety days ago exactly as true as one from
+ * Friday. Per-band figures bore that out - of the 27 articles last read 31-45
+ * days ago, all 27 read zero.
  */
 export async function warehouseStockNow() {
   if (!isConfigured()) return null
@@ -371,30 +416,138 @@ export async function warehouseStockNow() {
    * caller wants the same answer, and it changes once a day at most.
    */
   return cached('warehouse-stock-now', async () => {
+    /*
+     * One row per ARTICLE, carrying the day that article was last read and the
+     * balance recorded on it.
+     *
+     * `Arts` is the set of articles the warehouse has ever held, taken with the
+     * date filter lifted. For each of them `LastDay` is that article's own
+     * newest movement date at or before the feed's as-of day, and `SOH` is the
+     * closing stock summed over the warehouse locations ON THAT DAY ALONE -
+     * earlier days are the same stock counted again, not more of it. The `VAR D`
+     * inside the column expression is what keeps the reading per article; a
+     * single outer date filter is exactly the bug being fixed.
+     *
+     * One row per article, so the result is bounded by the article count and
+     * not by how much history the model holds - 2,070 rows against Power BI's
+     * silent 100,000-row cap, and it cannot drift upward as days accumulate. An
+     * article-by-day scan would be the obvious alternative and is not viable:
+     * tried over a year it returned exactly 100,000 rows, i.e. truncated.
+     */
+    const where = `FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {${literal(locations)}})`
+    const lastDay = `CALCULATE(
+        MAX(cc_daily_inventory[Movement Date]),
+        FILTER(ALL(cc_daily_inventory[Movement Date]), cc_daily_inventory[Movement Date] <= AsOf),
+        ${where}
+      )`
     const rows = await executeQuery(
       `EVALUATE
 VAR AsOf = MAXX(ALL(cc_daily_inventory), cc_daily_inventory[Movement Date])
+VAR Arts =
+  CALCULATETABLE(
+    VALUES(cc_daily_inventory[Article No.]),
+    ALL(cc_daily_inventory[Movement Date]),
+    ${where}
+  )
 RETURN
-SUMMARIZECOLUMNS(
-  cc_daily_inventory[Article No.],
-  FILTER(ALL(cc_daily_inventory[Movement Date]), cc_daily_inventory[Movement Date] = AsOf),
-  FILTER(ALL(cc_daily_inventory[Location]), cc_daily_inventory[Location] IN {${literal(locations)}}),
-  "SOH", SUM(cc_daily_inventory[Closing Stock Qty]),
-  "AsOf", AsOf)`,
+ADDCOLUMNS(
+  Arts,
+  "LastDay", ${lastDay},
+  "SOH",
+    VAR D = ${lastDay}
+    RETURN
+      CALCULATE(
+        SUM(cc_daily_inventory[Closing Stock Qty]),
+        FILTER(ALL(cc_daily_inventory[Movement Date]), cc_daily_inventory[Movement Date] = D),
+        ${where}
+      ),
+  "AsOf", AsOf
+)`,
       config.inventory.datasetId,
       { bulk: true, workspace: config.inventory.workspaceId }
     )
 
-    const soh = new Map()
-    let asOf = null
-    for (const r of rows) {
-      const article = String(r['Article No.'] ?? '').trim()
-      if (!asOf && r.AsOf) asOf = String(r.AsOf).slice(0, 10)
-      if (!article) continue
-      soh.set(article, (soh.get(article) ?? 0) + (Number(r.SOH) || 0))
-    }
-    return { soh, asOf }
+    return carryForward(rows, { asOf: asOfFrom(rows) })
   })
+}
+
+/** The feed's own last day, as the query reported it alongside the balances. */
+function asOfFrom(rows) {
+  for (const r of rows ?? []) {
+    const v = r.AsOf ?? r['[AsOf]']
+    if (v) return String(v).slice(0, 10)
+  }
+  return null
+}
+
+/**
+ * The latest reading per article, at or before the feed's as-of day.
+ *
+ * Pure, and separated from the query so it can be tested without Power BI. It
+ * takes rows of article / movement date / closing stock and is indifferent to
+ * how many rows an article arrives with: given one row per article - what the
+ * query above returns - it validates and groups them; given a day-by-day
+ * extract it performs the selection itself. Both reduce to the same answer,
+ * which is what makes the rule testable apart from the DAX that normally
+ * applies it.
+ *
+ * Three rules, and nothing else:
+ *
+ *   - The NEWEST eligible day wins. Rows sharing that day are summed, because
+ *     they are the article's separate warehouse locations on one date. Rows on
+ *     an older day are discarded, not added.
+ *   - A day after `asOf` is not eligible. The as-of day is the feed's own last
+ *     day so nothing should exceed it, but a reading the caller has not vouched
+ *     for must not become the answer.
+ *   - The recorded quantity is returned EXACTLY - zero as zero, negative as
+ *     negative - and identically whether it was read on the as-of day or
+ *     carried forward from an earlier one. Nothing here floors, rounds or
+ *     otherwise adjusts a figure; the feed's number is the answer.
+ *
+ * An article with no usable row is absent from both maps rather than present
+ * with a zero: never stocked and stocked-then-emptied are different facts, and
+ * only the second one has a balance.
+ *
+ * `readOn` carries each article's own reading day. It is set for every article,
+ * including those read on the as-of day, so a caller can compare the two
+ * without having to guess which case it is looking at.
+ */
+export function carryForward(rows, { asOf = null } = {}) {
+  const latest = new Map()
+
+  for (const r of rows ?? []) {
+    const article = String(r['Article No.'] ?? r['cc_daily_inventory[Article No.]'] ?? '').trim()
+    const day = String(r.LastDay ?? r['[LastDay]'] ?? r['Movement Date'] ?? '').slice(0, 10)
+    if (!article || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue
+    // Never read past the day the caller vouched for.
+    if (asOf && day > asOf) continue
+
+    /*
+     * A row with no numeric balance is not a reading. `Number(x) || 0` would
+     * turn one into a zero, which is the one thing this function must not do -
+     * it would report "empty" for an article the feed said nothing about.
+     *
+     * The empty string is tested for separately because `Number('')` is 0, not
+     * NaN, so a finiteness check alone lets a blank cell through as a balance of
+     * zero. Same reasoning for null: an absent figure is absent, not nought.
+     */
+    const raw = r.SOH ?? r['[SOH]']
+    if (raw === null || raw === undefined || raw === '') continue
+    const qty = Number(raw)
+    if (!Number.isFinite(qty)) continue
+
+    const held = latest.get(article)
+    if (!held || day > held.day) latest.set(article, { day, qty })
+    else if (day === held.day) held.qty += qty
+  }
+
+  const soh = new Map()
+  const readOn = new Map()
+  for (const [article, held] of latest) {
+    soh.set(article, held.qty)
+    readOn.set(article, held.day)
+  }
+  return { soh, asOf, readOn }
 }
 
 /**

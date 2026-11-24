@@ -334,22 +334,36 @@ const COLUMNS = (today, asOf, deliveries = 2) => [
     key: 'Plan_WH_SOH',
     label: 'SOH',
     hint:
-      'How much the WAREHOUSE is holding right now, as at the date in this panel\'s heading. Not the shops\' stock — shop stock cannot be issued by the warehouse.',
+      'The latest warehouse balance recorded for this article, which is the date in this panel\'s heading for most of them. An article that has run out stops being reported, so its latest reading is the day it emptied — where that is earlier, the cell says which day it is showing. Not the shops\' stock — shop stock cannot be issued by the warehouse.',
     autoWidth: true,
     num: true,
     group: 'planstock',
     total: 'sum',
     renderTotal: fmtQty,
-    render: (v) =>
-      v === null ? (
-        dash('The inventory feed has never seen this article at the warehouse.')
-      ) : (
+    render: (v, row) => {
+      if (v === null)
+        return dash('The inventory feed has never seen this article at the warehouse.')
+      /*
+       * This article's own reading day, present only when it is earlier than the
+       * feed's last day. Named in the cell rather than left to the tooltip: the
+       * panel heading says "as at <feed day>", and for these rows that heading
+       * is wrong, so the correction has to be where the figure is.
+       */
+      const read = row?.WH_SOH_Read_On
+      const day = read ? fmtPlanDate(Date.parse(`${read}T00:00:00Z`)) : null
+      return (
         <span
-          title={`Warehouse stock on hand${asOf ? ` as at ${fmtPlanDate(Date.parse(`${asOf}T00:00:00Z`))}` : ''}. The warehouse's own balance, not the shops' — Store SOH is not used anywhere in this table.`}
+          title={
+            day
+              ? `Warehouse stock on hand as at ${day}, the latest day the inventory feed recorded this article at the warehouse. It has reported no movement since, so this is the balance that still stands. The warehouse's own balance, not the shops' — Store SOH is not used anywhere in this table.`
+              : `Warehouse stock on hand${asOf ? ` as at ${fmtPlanDate(Date.parse(`${asOf}T00:00:00Z`))}` : ''}. The warehouse's own balance, not the shops' — Store SOH is not used anywhere in this table.`
+          }
         >
           {fmtQty(v)}
+          {day ? <span className="muted"> — as at {day}</span> : null}
         </span>
-      ),
+      )
+    },
   },
   {
     key: 'Open_PO_Qty',
@@ -613,7 +627,7 @@ const FORMULAS = {
   Per_Day_Qty: 'WH Forecast / days in the selected range, counted inclusively',
   SS_Qty: 'SS days x Per day qty. NoNeed gives 0; OnDemand is blank',
   Plan_WH_SOH:
-    "Warehouse closing stock on the inventory feed's last day, warehouse locations only. A CURRENT balance, not the range's closing balance. Never the shops' Store SOH",
+    "Warehouse closing stock on the latest day the feed recorded THIS article, warehouse locations only - the feed's own last day for most, and the day it emptied for an article that has run out, since the feed stops reporting an article at nil. The cell names the day where it is earlier. A CURRENT balance, not the range's closing balance. Never the shops' Store SOH",
   Open_PO_Qty:
     "Source: [CC Open PO Qty] in the Inventory Control model, grouped on 'CC Item Location'[Article No.], warehouse locations only, POs raised on or before the end of the selected range",
   DTL: 'MAX(0, SOH + Pending Qty) / Per day qty. Warehouse stock only',
@@ -863,6 +877,9 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
           // once, never added. See the note at the top of this file.
           WH_SOH_Now: r.WH_SOH_Now ?? null,
           WH_SOH_As_Of: r.WH_SOH_As_Of ?? null,
+          // This article's own reading day, set only when it is earlier than the
+          // feed's last day - which happens when the article has run out.
+          WH_SOH_Read_On: r.WH_SOH_Read_On ?? null,
           Open_PO_Qty: r.Open_PO_Qty ?? null,
           // Summed across the article's rows, brands included.
           WH_Constant_Forecast_Qty: r.WH_Constant_Forecast_Qty ?? null,
@@ -888,6 +905,7 @@ export default function ReplenishmentPlanning({ rows, filters, busy }) {
         'Delivery_Freq',
         'WH_SOH_Now',
         'WH_SOH_As_Of',
+        'WH_SOH_Read_On',
         'Open_PO_Qty',
       ]) {
         if ((seen[k] === null || seen[k] === undefined) && r[k] !== null && r[k] !== undefined)
