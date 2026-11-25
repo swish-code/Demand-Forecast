@@ -56,6 +56,15 @@ import {
 import { executeQuery } from '../powerbi/client.js'
 import { nonRecipeRows } from '../insights/nonRecipe.js'
 /*
+ * Applied in BOTH component pipelines, immediately outside `withFmArticles`.
+ *
+ * The order is the correctness argument: that function writes `CHAINID: FM`
+ * onto FM's own articles after the merge, so narrowing before it ran would let
+ * every one of them through as a blank. See brandScope.js for the three row
+ * sources and which of them the brand fan-out does not reach.
+ */
+import { narrowToBrands } from '../insights/brandScope.js'
+/*
  * Level 1 PM theoretical, for the Variance Analysis page alone - 15 Nov 2026.
  * See `insights/recipeLevel.js` for why it cannot come from the local copy.
  */
@@ -4921,7 +4930,7 @@ export async function componentLevel(req, res) {
       // Outermost, so every row's CHAINID is final before Oracle's figures are
       // joined on it - `withFmArticles` is what stamps FM, and a row still
       // missing its brand would be matched against the wrong one.
-      rows: await withArticleStatus(await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+      rows: await withArticleStatus(await withOracleConsumption(narrowToBrands(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
         // The file decides the badge BEFORE the slicer reads it, so the column
         // and the filter can never disagree about what a Recipe row is.
         await withRecipeFile(await withSafetyStock(
@@ -4948,7 +4957,7 @@ export async function componentLevel(req, res) {
           seesStockDetail(req.user)
         )),
         window
-      ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
+      ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), { brandCodes, brandSplit: grain.brand, totalBrands: config.brands.length }), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
     })
 
   // Components are shared recipes, so the same item in two brands is genuinely
@@ -4956,7 +4965,7 @@ export async function componentLevel(req, res) {
   res.json({
     sales,
     // Outermost, for the same reason as the single-brand branch above.
-    rows: await withArticleStatus(await withOracleConsumption(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
+    rows: await withArticleStatus(await withOracleConsumption(narrowToBrands(await withFmArticles(await withResponsibility(await withProductionSource(await withRoundedForecast(await withCategory(withRecipeKind(
       // The file decides the badge BEFORE the slicer reads it — see above.
       await withRecipeFile(await withSafetyStock(
         await withOpenPo(
@@ -4988,7 +4997,7 @@ export async function componentLevel(req, res) {
         seesStockDetail(req.user)
       )),
       window
-    ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
+    ), window), seesStockDetail(req.user)), window, req.user), window, req.user)), { brandCodes, brandSplit: grain.brand, totalBrands: config.brands.length }), window, brandCodes, { brandSplit: grain.brand, fullTable: consumptionView, includeUnmapped }), window),
   })
 }
 
