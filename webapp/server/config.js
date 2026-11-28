@@ -143,6 +143,44 @@ export const config = {
     workspaceId: process.env.INV_WORKSPACE_ID || null,
     datasetId: process.env.INV_DATASET_ID || null,
   },
+
+  /*
+   * MC (Material Control) itself, read live from its Oracle database - 24 Nov
+   * 2026, on request, for the "Why they differ" tab of Variance Analysis.
+   *
+   * Every other MC figure in the app comes from the monthly extract in the FM
+   * Sales model. That extract holds MC's theoretical but not what it is MADE
+   * of - the till sales, the product links and MC's own recipe explosion - and
+   * those are what separate a recipe that changed mid-month from a Recipe File
+   * fault. Only the database holds them.
+   *
+   * READ ONLY: the module issues SELECTs and nothing else, and the account
+   * should be granted no more than that.
+   *
+   *   MC_ORACLE_USER        e.g. dashboard
+   *   MC_ORACLE_PASSWORD
+   *   MC_ORACLE_CONNECT     host:port/service, e.g. 37.34.150.252:9876/mc
+   *   MC_ORACLE_SCHEMA      the schema holding the tables, MCDATA by default
+   *
+   * Absent means the tab says what is missing; nothing else is affected.
+   */
+  mcOracle: {
+    user: process.env.MC_ORACLE_USER || null,
+    password: process.env.MC_ORACLE_PASSWORD || null,
+    connectString: process.env.MC_ORACLE_CONNECT || null,
+    schema: process.env.MC_ORACLE_SCHEMA || 'MCDATA',
+  },
+}
+
+/** The MC Oracle settings still unset, by env var name. */
+export function missingMcOracle() {
+  return [
+    ['MC_ORACLE_USER', config.mcOracle.user],
+    ['MC_ORACLE_PASSWORD', config.mcOracle.password],
+    ['MC_ORACLE_CONNECT', config.mcOracle.connectString],
+  ]
+    .filter(([, v]) => !v)
+    .map(([name]) => name)
 }
 
 /**

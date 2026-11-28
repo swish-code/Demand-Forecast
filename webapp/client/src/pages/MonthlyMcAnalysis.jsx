@@ -80,20 +80,23 @@ function monthChoices(now = new Date()) {
 }
 
 /*
- * TEMPORARY - 20 Nov 2026, on request: the page offers LAST MONTH ONLY.
+ * THE CURRENT MONTH AND THE PREVIOUS ONE - 28 Nov 2026, on request ("show only
+ * current month and previous month's, instead of showing october and
+ * september").
  *
- * `monthChoices()` is unchanged and still returns eighteen months; this is
- * the window of it the page is willing to open. Index 0 is the month in hand,
- * 1 is the one before - so October while this is November.
+ * `monthChoices()` returns eighteen months; this is the window of it the page
+ * opens. Index 0 is the month in hand. The page shows that month as Current and
+ * the one before as Previous (the server pairs them), and offers no other.
  *
- * WHY. MC loads a month after it closes, so the current month is empty or
- * part-loaded for most of its length, and a page that opens on an empty month
- * reads as broken rather than as early.
+ * This replaces the 20 Nov setting (OFFSET 1), which opened on last month - so
+ * Current read October and Previous September while this is November. That
+ * was there because the current month used to be empty; since 28 Nov the page
+ * reads MC directly and the month in progress carries MC's theoretical to date,
+ * with consumption shown as Missing Data until MC closes the month's count.
  *
- * TO PUT IT BACK: set OFFSET to 0 and COUNT to 2. Nothing else is involved -
- * the default month, the picker and the Reset button all read these two.
+ * The default month, the picker and the Reset button all read these two.
  */
-const MONTH_OFFSET = 1
+const MONTH_OFFSET = 0
 const MONTH_COUNT = 1
 
 const qty = (v) => (v === null || v === undefined ? dash() : fmtQty(v))
@@ -627,7 +630,22 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
     }
   }, [rows])
 
-  const curLoaded = glance.cur.held > 0
+  /*
+   * THE PREVIOUS MONTH LEADS - 28 Nov 2026, on request ("show previous month's
+   * as main, then current month"). The last full month is the headline; the
+   * month in progress follows as "so far". No up/down arrow compares them: a
+   * part-month against a full one would read as a fall that is only the date.
+   */
+  const prevLoaded = glance.prev.held > 0
+  /*
+   * What MC holds for the month in progress - 28 Nov 2026, on request ("show
+   * whatever is available for november, leave - for those not existing"):
+   * its theoretical posted so far, on the article-brands MC has posted it for;
+   * consumption only once MC closes the month's stock count.
+   */
+  const curTheoRows = rows.filter((r) => r.current.theoretical !== null && r.current.theoretical !== undefined).length
+  const curConsRows = rows.filter((r) => r.current.actual !== null && r.current.actual !== undefined).length
+  const soFar = (v) => (v === null || v === undefined ? 'not counted yet' : v)
 
   async function classify(row, next) {
     if (next === row.classification) return
@@ -737,14 +755,14 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
           )
         },
       },
-      { key: 'cur_theo', label: 'MC Theoretical', group: 'cur', num: true, autoWidth: true, render: qty, hint: 'Potential COS QTY - what MC’s own recipes say should have been used.' },
-      { key: 'cur_actual', label: 'Consumption', group: 'cur', num: true, autoWidth: true, render: qty, hint: 'MC consumption - what stock says was actually used.' },
-      { key: 'cur_acc', label: 'Accuracy %', group: 'cur', num: true, width: 170, render: accBarCell, hint: '1 − |consumption − theoretical| ÷ the larger of the two. Blank where MC holds no theoretical.' },
-      { key: 'cur_var', label: 'Variance %', group: 'cur', num: true, autoWidth: true, render: pctCell, hint: '(consumption − theoretical) ÷ theoretical. Blank where the theoretical is zero or missing.' },
-      { key: 'prev_theo', label: 'MC Theoretical', group: 'prev', num: true, autoWidth: true, render: qty },
-      { key: 'prev_actual', label: 'Consumption', group: 'prev', num: true, autoWidth: true, render: qty },
-      { key: 'prev_acc', label: 'Accuracy %', group: 'prev', num: true, width: 170, render: accBarCell },
-      { key: 'prev_var', label: 'Variance %', group: 'prev', num: true, autoWidth: true, render: pctCell },
+      { key: 'prev_theo', label: 'MC Theoretical', group: 'prev', num: true, autoWidth: true, render: qty, hint: 'Potential COS QTY - what MC’s own recipes say should have been used.' },
+      { key: 'prev_actual', label: 'Consumption', group: 'prev', num: true, autoWidth: true, render: qty, hint: 'MC consumption - what stock says was actually used.' },
+      { key: 'prev_acc', label: 'Accuracy %', group: 'prev', num: true, width: 170, render: accBarCell, hint: '1 − |consumption − theoretical| ÷ the larger of the two. Blank where MC holds no theoretical.' },
+      { key: 'prev_var', label: 'Variance %', group: 'prev', num: true, autoWidth: true, render: pctCell, hint: '(consumption − theoretical) ÷ theoretical. Blank where the theoretical is zero or missing.' },
+      { key: 'cur_theo', label: 'MC Theoretical', group: 'cur', num: true, autoWidth: true, render: qty, hint: 'MC’s theoretical posted so far this month.' },
+      { key: 'cur_actual', label: 'Consumption', group: 'cur', num: true, autoWidth: true, render: qty, hint: 'Counted only when MC closes the month’s stock count; a dash until then.' },
+      { key: 'cur_acc', label: 'Accuracy %', group: 'cur', num: true, width: 170, render: accBarCell },
+      { key: 'cur_var', label: 'Variance %', group: 'cur', num: true, autoWidth: true, render: pctCell },
       {
         key: 'lastUpdated',
         label: 'Last updated',
@@ -782,8 +800,8 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   const groups = useMemo(
     () => ({
       id: 'Article',
-      cur: `Current — ${monthLabel(cur)}`,
       prev: `Previous — ${monthLabel(prev)}`,
+      cur: `Current — ${monthLabel(cur)} (so far)`,
       audit: 'Audit',
     }),
     [cur, prev]
@@ -815,14 +833,14 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
         { key: 'articleName', label: 'Name' },
         { key: 'classification', label: 'Classification' },
         { key: 'initialClassification', label: 'Initial classification' },
-        { key: 'cur_theo', label: `MC Theoretical ${monthLabel(cur)}` },
-        { key: 'cur_actual', label: `Consumption ${monthLabel(cur)}` },
-        { key: 'cur_acc', label: `Accuracy ${monthLabel(cur)}` },
-        { key: 'cur_var', label: `Variance % ${monthLabel(cur)}` },
         { key: 'prev_theo', label: `MC Theoretical ${monthLabel(prev)}` },
         { key: 'prev_actual', label: `Consumption ${monthLabel(prev)}` },
         { key: 'prev_acc', label: `Accuracy ${monthLabel(prev)}` },
         { key: 'prev_var', label: `Variance % ${monthLabel(prev)}` },
+        { key: 'cur_theo', label: `MC Theoretical ${monthLabel(cur)} so far` },
+        { key: 'cur_actual', label: `Consumption ${monthLabel(cur)} so far` },
+        { key: 'cur_acc', label: `Accuracy ${monthLabel(cur)} so far` },
+        { key: 'cur_var', label: `Variance % ${monthLabel(cur)} so far` },
         { key: 'lastUpdated', label: 'Last updated' },
       ],
       [
@@ -837,7 +855,8 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
   if (error) return <ErrorBanner error={error} onRetry={reload} />
 
   const first = loading && !data
-  const notLoaded = `MC has not loaded ${monthLabel(cur)} yet`
+  const notLoaded = `MC has not loaded ${monthLabel(prev)} yet`
+  const soFarLabel = `${monthShort(cur)} so far`
 
   /*
    * The filters, behind one pill - 19 Nov 2026, on request, to the pattern of
@@ -1229,44 +1248,42 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
       )}
       {view !== 'alerts' && (
         <Section
-          title="This month at a glance"
-          sub={`Every card compares ${monthLabel(cur)} with ${monthLabel(prev)}${filtered ? ', over the articles the filters leave in' : ''}.`}
+          title={`${monthLabel(prev)} at a glance`}
+          sub={`Each card shows ${monthLabel(prev)}, the last full month; beneath it, ${monthLabel(cur)} so far${filtered ? ' - over the articles the filters leave in' : ''}.`}
         >
           <div className="mcm-cards">
             <GlanceCard
               loading={first}
               icon={<IconInsight size={15} />}
               label="MC accuracy"
-              value={glance.cur.accuracy === null ? '–' : fmtPct(glance.cur.accuracy, 1)}
-              last={glance.prev.accuracy === null ? '–' : fmtPct(glance.prev.accuracy, 1)}
-              delta={<Delta now={glance.cur.accuracy} before={glance.prev.accuracy} kind="pts" />}
-              foot={curLoaded ? undefined : notLoaded}
+              value={glance.prev.accuracy === null ? '–' : fmtPct(glance.prev.accuracy, 1)}
+              lastLabel={soFarLabel}
+              last={soFar(glance.cur.accuracy === null ? null : fmtPct(glance.cur.accuracy, 1))}
+              foot={prevLoaded ? undefined : notLoaded}
             />
             <GlanceCard
               loading={first}
               icon={<IconTable size={15} />}
               label="Article-brands measured"
-              value={fmtInt(glance.cur.held)}
-              extra={curLoaded ? <SignedCount n={glance.cur.held - glance.prev.held} /> : null}
-              last={fmtInt(glance.prev.held)}
-              delta={curLoaded ? <Delta now={glance.cur.held} before={glance.prev.held} /> : null}
+              value={fmtInt(glance.prev.held)}
+              lastLabel={soFarLabel}
+              last={fmtInt(glance.cur.held)}
             />
             <GlanceCard
               loading={first}
               icon={<IconAlert size={15} />}
               label="Beyond ±20%"
-              value={fmtInt(glance.cur.flagged)}
-              extra={curLoaded ? <SignedCount n={glance.cur.flagged - glance.prev.flagged} /> : null}
-              last={fmtInt(glance.prev.flagged)}
-              delta={curLoaded ? <Delta now={glance.cur.flagged} before={glance.prev.flagged} /> : null}
+              value={fmtInt(glance.prev.flagged)}
+              lastLabel={soFarLabel}
+              last={glance.cur.scored ? fmtInt(glance.cur.flagged) : soFar(null)}
             />
             <GlanceCard
               loading={first}
               icon={<IconCheck size={15} />}
               label="Within ±20%"
-              value={fmtInt(glance.cur.within)}
-              last={fmtInt(glance.prev.within)}
-              delta={curLoaded ? <Delta now={glance.cur.within} before={glance.prev.within} /> : null}
+              value={fmtInt(glance.prev.within)}
+              lastLabel={soFarLabel}
+              last={glance.cur.scored ? fmtInt(glance.cur.within) : soFar(null)}
             />
             <GlanceCard
               loading={first}
@@ -1284,10 +1301,10 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
               loading={first}
               icon={<IconSummary size={15} />}
               label="Overall variance %"
-              value={glance.cur.variance === null ? '–' : fmtSignedPct(glance.cur.variance, 1)}
-              last={glance.prev.variance === null ? '–' : fmtSignedPct(glance.prev.variance, 1)}
-              delta={<Delta now={glance.cur.variance} before={glance.prev.variance} kind="pts" />}
-              foot={curLoaded ? undefined : notLoaded}
+              value={glance.prev.variance === null ? '–' : fmtSignedPct(glance.prev.variance, 1)}
+              lastLabel={soFarLabel}
+              last={soFar(glance.cur.variance === null ? null : fmtSignedPct(glance.cur.variance, 1))}
+              foot={prevLoaded ? undefined : notLoaded}
             />
           </div>
         </Section>
@@ -1311,6 +1328,13 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
       )}
       {!storageError && data && !canEdit && view === 'analysis' && (
         <InfoBanner>Only the Cost Controller department and administrators can change a classification.</InfoBanner>
+      )}
+      {data && view === 'analysis' && curTheoRows > 0 && curConsRows === 0 && (
+        <InfoBanner>
+          <strong>{monthLabel(cur)} so far:</strong> MC’s theoretical is shown for {fmtInt(curTheoRows)} article-brands
+          (posted to date); the rest show a dash because MC has posted none for them this month. Consumption,
+          accuracy and variance for {monthLabel(cur)} appear when MC closes the month’s stock count.
+        </InfoBanner>
       )}
       {notice && (
         <InfoBanner tone={notice.tone === 'ok' ? 'info' : 'warn'}>
@@ -1379,9 +1403,9 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
       {view === 'brands' && (
         <Section
           title="Where accuracy stands"
-          sub="Each brand’s MC accuracy for the month selected, against the month before, with how many article-brands sit beyond ±20%."
+          sub={`Each brand’s MC accuracy for ${monthLabel(prev)}, the last full month, with how many article-brands sit beyond ±20% - and ${monthLabel(cur)} so far beside it.`}
         >
-          <Card title="MC accuracy by brand" aside={monthShort(cur)} busy={loading && Boolean(data)}>
+          <Card title="MC accuracy by brand" aside={monthShort(prev)} busy={loading && Boolean(data)}>
             {first ? (
               <div className="skel" style={{ height: 220 }} aria-hidden="true" />
             ) : (
@@ -1394,7 +1418,7 @@ export function MonthlyMcAnalysis({ ready, refreshNonce, onLoaded }) {
                       <th className="num">Scored</th>
                       <th className="num">Beyond ±20%</th>
                       <th className="num">Accuracy {monthShort(prev)}</th>
-                      <th className="num">Accuracy {monthShort(cur)}</th>
+                      <th className="num">Accuracy {monthShort(cur)} so far</th>
                       <th className="mcm-table__barcol" aria-label="Accuracy bar" />
                     </tr>
                   </thead>
@@ -1503,16 +1527,17 @@ function Note({ children }) {
 }
 
 function BrandLine({ line, total = false }) {
-  const acc = line.cur.accuracy
-  const loaded = line.cur.held > 0
+  // The previous (last full) month leads; the month in progress follows - 28 Nov 2026.
+  const acc = line.prev.accuracy
+  const loaded = line.prev.held > 0
   return (
     <tr className={total ? 'mcm-table__total' : undefined}>
       <td>{total ? line.brand : <Pill>{line.brand}</Pill>}</td>
       <td className="num">{fmtInt(line.rows)}</td>
-      <td className="num">{loaded ? fmtInt(line.cur.scored) : '–'}</td>
-      <td className="num">{loaded ? fmtInt(line.cur.flagged) : '–'}</td>
-      <td className="num">{line.prev.accuracy === null ? '–' : fmtPct(line.prev.accuracy, 1)}</td>
+      <td className="num">{loaded ? fmtInt(line.prev.scored) : '–'}</td>
+      <td className="num">{loaded ? fmtInt(line.prev.flagged) : '–'}</td>
       <td className="num">{acc === null ? '–' : fmtPct(acc, 1)}</td>
+      <td className="num">{line.cur.accuracy === null ? '–' : fmtPct(line.cur.accuracy, 1)}</td>
       <td className="mcm-table__barcol">
         {total ? null : loaded && acc !== null ? (
           <span className="mcm-bar" aria-hidden="true">

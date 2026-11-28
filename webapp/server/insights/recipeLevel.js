@@ -46,6 +46,10 @@ import { executeQuery } from '../powerbi/client.js'
 import { config } from '../config.js'
 import { cached } from '../cache.js'
 import { placerFor, countsTowardPm } from './paScope.js'
+import { level1LinesFor } from './recipeLines.js'
+import { salesFromSnowflake, snowflakeSales, canonPlu } from '../snowflake/foodicsSales.js'
+import { CATERING_BRANCHES } from '../powerbi/consumption.js'
+import { datedPm, daysOf } from './datedPm.js'
 
 /** One hour. The recipe tree moves when the model is republished, not hourly. */
 const TTL = 3600
@@ -105,6 +109,21 @@ const chainFilter = (brand) =>
   brand?.chain ? `\n  TREATAS({"${brand.chain}"}, Forecast_Product_Table[CHAINID]),` : ''
 
 /*
+ * CATERING IS LEFT OUT OF PM AS WELL - 26 Nov 2026.
+ *
+ * MC's theoretical on this page has excluded the catering branch since 15 Nov
+ * ("Dont consider branch CAT, for MC theoretical for any brands"), but PM kept
+ * counting catering's sales, so the two sides covered different outlets. Measured
+ * 26 Nov 2026 against MC: BUR November 89.4% -> 99.9%, PAT October 87.8% ->
+ * 89.7%, PAT November 88.9% -> 91.0%; no brand lower. Only the theoretical is
+ * affected; consumption is untouched, as on the MC side.
+ */
+const cateringFilter = () =>
+  `\n  FILTER(ALL(Forecast_Product_Table[LocationID]), NOT (Forecast_Product_Table[LocationID] IN {${CATERING_BRANCHES.map(
+    (b) => `"${String(b).replace(/"/g, '""')}"`
+  ).join(', ')}})),`
+
+/*
  * Grouped by PATH as well as article, at every level, so each line can be
  * placed (`paScope.js`) and the ones inside a PA's recipe left out. MM, the
  * largest brand, returns about 20,000 rows a month and answers in seconds.
@@ -112,7 +131,7 @@ const chainFilter = (brand) =>
 const queryFor = (brand, from, to) => `EVALUATE
 SUMMARIZECOLUMNS(
   'RECIPE TABLE'[Item No.],
-  'RECIPE TABLE'[Recipe Path],${chainFilter(brand)}
+  'RECIPE TABLE'[Recipe Path],${chainFilter(brand)}${cateringFilter()}
   TREATAS(CALENDAR(${daxDate(from)}, ${daxDate(to)}), DateTable[Date]),
   "qty", [Component_Actual_Qty]
 )`
@@ -174,9 +193,10 @@ export function wholeMonthsOf(from, to) {
  * brand silently showed unrestricted figures until the TTL ran out.
  */
 function readWindow(brand, from, to) {
+  if (salesFromSnowflake(brand.code)) return readWindowSnowflake(brand, from, to)
   return cached(
-    // "stoppa", not "level1": a figure cached under the old rule must not be served for the new one.
-    `stoppa:${brand.code}:${from}:${to}`,
+    // "stoppa-nocat": a figure cached before catering was left out must not be served.
+    `stoppa-nocat:${brand.code}:${from}:${to}`,
     async () => {
       const [rows, place] = await Promise.all([
         executeQuery(queryFor(brand, from, to), brand.datasetId, {
@@ -196,10 +216,140 @@ function readWindow(brand, from, to) {
   )
 }
 
+/**
+ * BBT AND YELO: SALES FROM SNOWFLAKE - 25 Nov 2026, on request.
+ *
+ * Same figure, same rule, different source for one ingredient. The Power BI
+ * measure above is SUMX over the recipe lines of QTY BU x the units whose
+ * Clean_ItemID equals the line's Product PLU. Here the units come from
+ * Snowflake (`snowflake/foodicsSales.js`, MAPPED_SKU = Clean_ItemID) and the
+ * lines from the same recipe file, placed by the same stop-at-PA rule
+ * (`recipeLines.js`). The branch tab has assembled PM this way since 17 Nov
+ * 2026 and reproduced the measure to the gram for CHP, PAT and SS.
+ *
+ * What changes is the sales: Snowflake carries every completed line, PRODUCT
+ * and OPTION, which is what MC itself receives; Power BI's BBT sales held the
+ * OPTION lines only. See foodicsSales.js for the measurements.
+ *
+ * No fallback to Power BI: a Snowflake failure throws, and the caller reports
+ * the brand as unavailable.
+ */
+function readWindowSnowflake(brand, from, to) {
+  return cached(
+    `stoppa-sf-nocat:${brand.code}:${from}:${to}`,
+    async () => {
+      const held = await pmFromSnowflake(brand, from, to)
+      console.log(
+        `  [level1-sf] ${brand.code} ${from}..${to}: ${held.size} articles; ` +
+          `${Math.round(held.stats.unitsCosted)} of ${Math.round(held.stats.units)} units on a recipe PLU`
+      )
+      return held
+    },
+    { seconds: TTL }
+  )
+}
+
+/**
+ * PM per article from Snowflake sales x recipe-file lines. The Map carries a
+ * `stats` property for the log and the validation: units sold, units on a
+ * PLU with counting recipe lines, and how many PLUs had none.
+ */
+export async function pmFromSnowflake(brand, from, to) {
+  const sales = await snowflakeSales(brand.code, from, to)
+  const catering = new Set(CATERING_BRANCHES.map((b) => String(b).toUpperCase()))
+  const byPlu = new Map()
+  for (const s of sales.lines) {
+    if (catering.has(String(s.branch).toUpperCase())) continue
+    byPlu.set(s.plu, (byPlu.get(s.plu) ?? 0) + s.q)
+  }
+  const lines = await level1LinesFor(brand, new Set(byPlu.keys()))
+  const out = assemblePm(byPlu, lines)
+  let units = sales.unmapped.q
+  for (const q of byPlu.values()) units += q
+  out.stats = { ...out.stats, units, unmapped: sales.unmapped.q }
+  return out
+}
+
+/**
+ * The assembly, pure: `plu -> units` and recipe lines -> `article -> qty`.
+ * Both sides are matched on the canonical PLU.
+ */
+export function assemblePm(byPlu, lines) {
+  const linesByPlu = new Map()
+  for (const l of lines ?? []) {
+    const k = canonPlu(l.plu)
+    const list = linesByPlu.get(k)
+    if (list) list.push(l)
+    else linesByPlu.set(k, [l])
+  }
+  const out = new Map()
+  /** article -> { item, bu } from its recipe lines, for rows the page has to add. */
+  const info = new Map()
+  let unitsCosted = 0
+  let plusWithout = 0
+  for (const [plu, q] of byPlu) {
+    const list = linesByPlu.get(canonPlu(plu))
+    if (!list?.length) {
+      plusWithout += 1
+      continue
+    }
+    unitsCosted += q
+    for (const l of list) {
+      out.set(l.article, (out.get(l.article) ?? 0) + l.qty * q)
+      if (!info.has(l.article)) info.set(l.article, { item: l.item, bu: l.bu })
+    }
+  }
+  for (const [a, v] of out) if (!v) out.delete(a)
+  out.stats = { unitsCosted, plusWithout }
+  out.info = info
+  return out
+}
+
+/**
+ * A window with its PROVEN days costed from MC's captured recipe versions -
+ * 26 Nov 2026 (`datedPm.js`) - and every other day by the method above, over
+ * the same sales. The other days are read as contiguous runs through
+ * `readWindow`, so each day is counted exactly once. Before the capture has
+ * proven any day this is `readWindow` itself; a failure of the dated read
+ * falls back to it too, and says so in the log.
+ *
+ * The result carries `.dated` = { days, units, costed, noProduct } when any
+ * day came from captured versions.
+ */
+async function readDated(brand, from, to) {
+  const dated = await datedPm(brand, from, to).catch((err) => {
+    console.warn(`  [dated-pm] ${brand.code} ${from}..${to}: ${String(err.message).slice(0, 100)} - current method kept`)
+    return null
+  })
+  if (!dated?.map) return readWindow(brand, from, to)
+  const proven = new Set(dated.days.map((d) => d.day))
+  const runs = []
+  let start = null
+  let prev = null
+  for (const d of daysOf(from, to)) {
+    if (proven.has(d)) {
+      if (start) runs.push([start, prev])
+      start = null
+    } else if (!start) start = d
+    prev = d
+  }
+  if (start) runs.push([start, prev])
+  const parts = await Promise.all(runs.map(([f, t]) => readWindow(brand, f, t)))
+  const out = new Map(dated.map)
+  const info = new Map()
+  for (const part of parts) {
+    for (const [a, q] of part) out.set(a, (out.get(a) ?? 0) + q)
+    for (const [a, v] of part.info ?? []) if (!info.has(a)) info.set(a, v)
+  }
+  if (info.size) out.info = info
+  out.dated = { days: proven.size, ...dated.map.stats }
+  return out
+}
+
 /** One calendar month, under the same key a one-month window would use. */
 const readMonth = (brand, month) => {
   const from = `${String(month).slice(0, 7)}-01`
-  return readWindow(brand, from, lastOfMonth(from))
+  return readDated(brand, from, lastOfMonth(from))
 }
 
 /**
@@ -223,12 +373,16 @@ export async function level1ByArticle(brandCode, { from, to }) {
   if (!brand?.datasetId || !from || !to) return null
   try {
     const months = wholeMonthsOf(from, to)
-    if (!months) return await readWindow(brand, from, to)
+    if (!months) return await readDated(brand, from, to)
     const parts = await Promise.all(months.map((m) => readMonth(brand, m)))
     const out = new Map()
+    const info = new Map()
     for (const part of parts) {
       for (const [article, qty] of part) out.set(article, (out.get(article) ?? 0) + qty)
+      // Snowflake brands carry names and units; Power BI ones do not need them.
+      for (const [a, v] of part.info ?? []) if (!info.has(a)) info.set(a, v)
     }
+    if (info.size) out.info = info
     return out
   } catch (err) {
     console.warn(`  [level1] ${brand.code} ${from}..${to}: ${String(err.message).slice(0, 80)}`)

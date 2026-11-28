@@ -5,10 +5,22 @@
  * NOTHING HERE IS A NEW CALCULATION. Every number comes from the same place,
  * through the same functions, as the Variance Analysis page's MC view:
  *
- *   MC theoretical, actual    `oracleConsumptionTrend` - MC's Consumption Qty
- *                             per article per brand per month, catering's
- *                             theoretical excluded (CATERING_BRANCHES), exactly
- *                             the call that page makes for its monthly table.
+ *   MC theoretical, actual    READ FROM MC DIRECTLY since 28 Nov 2026, on
+ *                             request ("take mc theoretical and consumption
+ *                             directly from the MC rather than Powerbi"):
+ *                             `mcConsumptionTrend` (mc/consumptionLive.js),
+ *                             the reference Power Query's definition -
+ *                               theoretical = -SUM(INVPOSWES.INP_SALES)
+ *                               consumption = Opening (INP_ACT1) + Transfer In
+ *                                 + Transfer Out + Usage + Purchase
+ *                                 - Closing (INVPOSART.INP_IST)
+ *                             over closed monthly counts (INV_TYP 1, status 8),
+ *                             joined ARTIKEL > WARENGRUPPE > SPARTE > SPARTEGR.
+ *                             Catering's theoretical excluded, as before. The
+ *                             month in progress carries MC's theoretical to
+ *                             date and NO consumption (shown as Missing Data)
+ *                             until MC closes its count. Was Power BI's
+ *                             'Consumption Qty' via `oracleConsumptionTrend`.
  *   Variance %                `variancePct(actual, theoretical)` =
  *                             (actual - theoretical) / theoretical; null when
  *                             the theoretical is 0 or missing.
@@ -33,9 +45,9 @@ import {
   CATERING_BRANCHES,
   mcScore,
   mcStatus,
-  oracleConsumptionTrend,
   variancePct,
 } from '../powerbi/consumption.js'
+import { mcConsumptionTrend } from '../mc/consumptionLive.js'
 
 const TTL = 3600
 
@@ -186,11 +198,12 @@ export function buildRows({ series, names, recipe, overrides, months, brands = n
       previous: monthFigures(prev),
     })
   }
+  // Sorted by the previous month's variance first: it is the page's lead month since 28 Nov 2026.
   return out.sort(
     (a, b) =>
       a.brand.localeCompare(b.brand) ||
-      Math.abs(b.current.variancePct ?? b.previous.variancePct ?? 0) -
-        Math.abs(a.current.variancePct ?? a.previous.variancePct ?? 0)
+      Math.abs(b.previous.variancePct ?? b.current.variancePct ?? 0) -
+        Math.abs(a.previous.variancePct ?? a.current.variancePct ?? 0)
   )
 }
 
@@ -198,19 +211,20 @@ export function buildRows({ series, names, recipe, overrides, months, brands = n
 export async function loadAnalysis({ month, brands = null, overrides }) {
   const months = monthPair(month)
   const [trend, names, recipe] = await Promise.all([
-    oracleConsumptionTrend({ brands: brands ? [...brands] : null, noTheoreticalFrom: CATERING_BRANCHES }),
-    mcArticleNames(),
+    mcConsumptionTrend({ brands: brands ? [...brands] : null, noTheoreticalFrom: CATERING_BRANCHES, includeOpen: true }),
+    // Names still come from the FM model's article list when it answers; MC's own are the fallback below.
+    mcArticleNames().catch(() => new Map()),
     recipeArticles(),
   ])
   if (!trend) {
-    const err = new Error('MC consumption could not be read from the FM Sales model. Try again in a moment.')
+    const err = new Error('MC could not be read directly (MC Oracle is not configured or not reachable). Try again in a moment.')
     err.status = 503
     throw err
   }
   return {
     months,
     available: trend.months,
-    rows: buildRows({ series: trend.series, names, recipe, overrides, months, brands }),
+    rows: buildRows({ series: trend.series, names: new Map([...(trend.names ?? []), ...names]), recipe, overrides, months, brands }),
   }
 }
 
